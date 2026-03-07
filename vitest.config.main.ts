@@ -9,7 +9,7 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['test/setup-main.ts'],
     deps: {
-      inline: ['electron', 'better-sqlite3', 'node-pty'],
+      inline: ['electron', 'node-pty'],
     },
   },
   resolve: {

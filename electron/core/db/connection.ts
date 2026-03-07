@@ -1,11 +1,11 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
 
-let db: Database.Database | null = null;
+let db: DatabaseSync | null = null;
 
-export function getDb(): Database.Database {
+export function getDb(): DatabaseSync {
   if (db) return db;
 
   const homeDir = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '';
@@ -16,8 +16,8 @@ export function getDb(): Database.Database {
   }
 
   const dbPath = path.join(fluxDir, 'flux.db');
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA journal_mode = WAL');
 
   return db;
 }

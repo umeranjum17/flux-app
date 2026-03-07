@@ -11,8 +11,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       external: [
-        'better-sqlite3',
         'electron',
+        'sqlite',
+        'node:sqlite',
         ...builtinModules,
         ...builtinModules.map((m) => `node:${m}`),
       ],

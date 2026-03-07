@@ -43,7 +43,7 @@ export class SessionStore {
   update(id: string, updates: Partial<Session>): void {
     const db = getDb();
     const fields: string[] = [];
-    const values: unknown[] = [];
+    const values: any[] = [];
 
     if (updates.title !== undefined) {
       fields.push('title = ?');
