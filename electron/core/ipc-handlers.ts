@@ -35,6 +35,24 @@ function escapeShellArg(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
+function toRemoteShellPath(value: string): string {
+  const trimmed = value.trim() || '~';
+  if (trimmed === '~') return '"$HOME"';
+  if (trimmed.startsWith('~/')) {
+    const rest = trimmed.slice(2);
+    return rest ? `"${'$'}HOME"/${escapeShellArg(rest)}` : '"$HOME"';
+  }
+  return escapeShellArg(trimmed);
+}
+
+function expandLocalHomePath(value: string): string {
+  const trimmed = value.trim() || '~';
+  const homeDir = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
+  if (trimmed === '~') return homeDir;
+  if (trimmed.startsWith('~/')) return path.join(homeDir, trimmed.slice(2));
+  return trimmed;
+}
+
 function buildSessionTitle(prompt: string): string {
   const nonEmptyLines = prompt
     .split('\n')
@@ -146,7 +164,7 @@ async function readAttachmentPreview(
   maxChars: number,
 ): Promise<{ text: string; truncated: boolean; binary: boolean }> {
   if (sshHost) {
-    const cmd = `head -c ${maxChars + 1} ${escapeShellArg(filePath)}`;
+    const cmd = `head -c ${maxChars + 1} ${toRemoteShellPath(filePath)}`;
     const { stdout } = await execFileAsync('ssh', [sshHost, cmd], { timeout: 10000 });
     const text = stdout;
     return {
@@ -529,8 +547,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('fs:read', async (_event, { filePath }: { filePath: string }) => {
     try {
       if (sshHost) {
-        const escapedPath = filePath.replace(/'/g, "'\\''");
-        const { stdout } = await execFileAsync('ssh', [sshHost, `cat '${escapedPath}'`], { timeout: 10000 });
+        const { stdout } = await execFileAsync('ssh', [sshHost, `cat ${toRemoteShellPath(filePath)}`], { timeout: 10000 });
         return { content: stdout, error: null };
       }
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -554,9 +571,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const targetDir = dirPath || '~';
     try {
       if (sshHost) {
-        const escapedDir = targetDir.replace(/'/g, "'\\''");
         // Resolve ~ and list directories + get the resolved path
-        const cmd = `cd '${escapedDir}' 2>/dev/null && pwd && ls -1pA 2>/dev/null | head -200`;
+        const cmd = `cd ${toRemoteShellPath(targetDir)} 2>/dev/null && pwd && ls -1pA 2>/dev/null | head -200`;
         const { stdout } = await execFileAsync('ssh', [sshHost, cmd], { timeout: 10000 });
         const lines = stdout.trim().split('\n');
         const resolvedPath = lines[0] || targetDir;
@@ -567,7 +583,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         return { path: resolvedPath, entries, error: null };
       }
       // Local fallback
-      const resolved = path.resolve(targetDir);
+      const resolved = path.resolve(expandLocalHomePath(targetDir));
       const dirEntries = fs.readdirSync(resolved, { withFileTypes: true });
       const entries = dirEntries
         .filter((e) => !e.name.startsWith('.'))
@@ -604,7 +620,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       if (termCwd && proc.stdin?.writable) {
-        proc.stdin.write(`cd ${escapeShellArg(termCwd)}\n`);
+        proc.stdin.write(`cd ${toRemoteShellPath(termCwd)}\n`);
       }
     } else {
       proc = spawn(shell, ['-i'], {
