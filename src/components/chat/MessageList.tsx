@@ -152,7 +152,6 @@ function renderMessage(
           inputTokens={msg.inputTokens}
           outputTokens={msg.outputTokens}
           durationMs={msg.durationMs}
-          content={msg.content}
         />
       );
 

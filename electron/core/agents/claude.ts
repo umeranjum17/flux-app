@@ -20,7 +20,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   }
 
   if (options.thinking) {
-    args.push('--thinking', options.thinking);
+    args.push('--effort', mapClaudeEffort(options.thinking));
   }
 
   if (options.sessionId) {
@@ -141,6 +141,11 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   };
 
   return emitter;
+}
+
+function mapClaudeEffort(thinking: NonNullable<SpawnOptions['thinking']>): 'low' | 'medium' | 'high' {
+  if (thinking === 'xhigh') return 'high';
+  return thinking;
 }
 
 /**

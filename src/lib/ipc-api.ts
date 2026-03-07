@@ -92,6 +92,30 @@ export interface FluxConfig {
 }
 
 export interface UsageInfo {
-  daily: { costUsd: number; inputTokens: number; outputTokens: number; requests: number };
-  rateLimits: { remaining: number; total: number; resetsAt: number } | null;
+  summary: {
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+    requests: number;
+  };
+  providers: Array<{
+    agentId: string;
+    label: string;
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+    requests: number;
+    lastUsedAt: number | null;
+    shareOfRequests: number;
+    reportedCostAvailable: boolean;
+  }>;
+  daily: Array<{
+    date: string;
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+    requests: number;
+  }>;
+  windowDays: number;
+  updatedAt: number;
 }

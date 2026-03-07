@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { MessageSquare, Files, Search, GitBranch, Plus, FolderOpen, Wifi, X } from 'lucide-react';
+import { MessageSquare, Files, Search, GitBranch, Plus, FolderOpen, Wifi, X, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
 import type { TaskStatus } from '../../lib/types';
+import { UsagePanel } from './UsagePanel';
 
-type SidebarTab = 'chat' | 'files' | 'search' | 'git';
+type SidebarTab = 'chat' | 'files' | 'search' | 'usage' | 'git';
 
 const statusColors: Record<TaskStatus, string> = {
   running: 'bg-success',
@@ -33,6 +34,7 @@ export function Sidebar() {
         <TabButton icon={<MessageSquare size={15} />} label="Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
         <TabButton icon={<Files size={15} />} label="Files" active={activeTab === 'files'} onClick={() => setActiveTab('files')} />
         <TabButton icon={<Search size={15} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
+        <TabButton icon={<BarChart3 size={15} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
         <TabButton icon={<GitBranch size={15} />} label="Git" active={activeTab === 'git'} onClick={() => setActiveTab('git')} />
 
         <div className="flex-1" />
@@ -49,6 +51,7 @@ export function Sidebar() {
         {activeTab === 'chat' && <ChatTab />}
         {activeTab === 'files' && <FilesTab />}
         {activeTab === 'search' && <SearchTab />}
+        {activeTab === 'usage' && <UsagePanel />}
         {activeTab === 'git' && <GitTab />}
       </div>
     </motion.aside>

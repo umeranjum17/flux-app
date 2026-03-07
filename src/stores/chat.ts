@@ -20,6 +20,7 @@ interface ChatState {
   removeTask(taskId: string): void;
   setActiveTask(taskId: string | null): void;
   addMessage(taskId: string, message: AgentMessage): void;
+  ingestStreamMessage(taskId: string, message: AgentMessage): void;
   setTaskStatus(taskId: string, status: TaskStatus): void;
   setTaskSessionId(taskId: string, sessionId: string): void;
   setPendingApproval(
@@ -82,15 +83,24 @@ export const useChatStore = create<ChatState>()(
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task) return;
-        if (message.type !== 'permission_request' && task.pendingApproval) {
-          task.pendingApproval = undefined;
+        appendMessage(task, message);
+      });
+    },
+
+    ingestStreamMessage(taskId, message) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task) return;
+        const last = task.messages[task.messages.length - 1];
+
+        if (shouldMergeStreamChunk(last, message)) {
+          last.content += message.content;
+          last.timestamp = message.timestamp;
+        } else {
+          appendMessage(task, message);
+          return;
         }
-        task.messages.push(message);
-        if (message.type === 'result') {
-          task.costUsd += message.costUsd ?? 0;
-          task.inputTokens += message.inputTokens ?? 0;
-          task.outputTokens += message.outputTokens ?? 0;
-        }
+
         if (task.status === 'idle' || task.status === 'waiting_approval') {
           task.status = 'running';
         }
@@ -147,3 +157,25 @@ export const useChatStore = create<ChatState>()(
     },
   })),
 );
+
+function appendMessage(task: Task, message: AgentMessage): void {
+  if (message.type !== 'permission_request' && task.pendingApproval) {
+    task.pendingApproval = undefined;
+  }
+  task.messages.push(message);
+  if (message.type === 'result') {
+    task.costUsd += message.costUsd ?? 0;
+    task.inputTokens += message.inputTokens ?? 0;
+    task.outputTokens += message.outputTokens ?? 0;
+  }
+  if (task.status === 'idle' || task.status === 'waiting_approval') {
+    task.status = 'running';
+  }
+}
+
+function shouldMergeStreamChunk(previous: AgentMessage | undefined, incoming: AgentMessage): boolean {
+  if (!previous) return false;
+  if (incoming.role !== 'assistant') return false;
+  if (incoming.type !== 'text' && incoming.type !== 'thinking') return false;
+  return previous.role === incoming.role && previous.type === incoming.type;
+}

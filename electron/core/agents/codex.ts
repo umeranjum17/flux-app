@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
@@ -7,6 +10,8 @@ import { AgentHandle, SpawnOptions, AgentMessage } from './types';
  */
 export function spawnCodex(options: SpawnOptions): AgentHandle {
   const args: string[] = ['exec', '--json'];
+  let imageDir: string | null = null;
+  let imageWarning: string | null = null;
 
   if (options.mode === 'act') {
     args.push('--full-auto');
@@ -14,8 +19,22 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     args.push('--sandbox', 'read-only');
   }
 
+  args.push('--skip-git-repo-check');
+
   if (options.model) {
     args.push('--model', options.model);
+  }
+
+  if (options.images?.length) {
+    try {
+      const persisted = persistImages(options.images);
+      imageDir = persisted.directory;
+      for (const imagePath of persisted.paths) {
+        args.push('--image', imagePath);
+      }
+    } catch (err: any) {
+      imageWarning = `Codex image attachments could not be prepared: ${err.message ?? String(err)}`;
+    }
   }
 
   // Prompt as last positional argument
@@ -32,12 +51,12 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   emitter.agentId = 'codex';
   let stopped = false;
 
-  if (options.images?.length) {
+  if (imageWarning) {
     setTimeout(() => {
       emitter.emit('message', {
         type: 'text',
         role: 'system',
-        content: 'Note: Images were attached but Codex does not support image input. They will be ignored.',
+        content: imageWarning!,
         timestamp: Date.now(),
       } satisfies AgentMessage);
     }, 0);
@@ -89,6 +108,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   });
 
   proc.on('close', (code: number | null) => {
+    cleanupTempDir(imageDir);
     if (buffer.trim()) {
       try {
         const event = JSON.parse(buffer.trim());
@@ -107,6 +127,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   });
 
   proc.on('error', (err: Error) => {
+    cleanupTempDir(imageDir);
     try { proc.kill(); } catch {}
     const msg: AgentMessage = {
       type: 'error',
@@ -120,6 +141,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
   emitter.stop = () => {
     stopped = true;
+    cleanupTempDir(imageDir);
     proc.kill('SIGTERM');
   };
 
@@ -139,6 +161,46 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   };
 
   return emitter;
+}
+
+function persistImages(images: string[]): { directory: string; paths: string[] } {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-codex-'));
+  const paths = images.map((image, index) => {
+    const match = image.match(/^data:(.+?);base64,(.+)$/);
+    if (!match) {
+      throw new Error('unsupported image payload');
+    }
+
+    const [, mimeType, base64] = match;
+    const extension = mimeToExtension(mimeType);
+    const filePath = path.join(directory, `image-${index + 1}.${extension}`);
+    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    return filePath;
+  });
+
+  return { directory, paths };
+}
+
+function mimeToExtension(mimeType: string): string {
+  switch (mimeType.toLowerCase()) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/webp':
+      return 'webp';
+    case 'image/gif':
+      return 'gif';
+    default:
+      return 'png';
+  }
+}
+
+function cleanupTempDir(directory: string | null): void {
+  if (!directory) return;
+  try {
+    fs.rmSync(directory, { recursive: true, force: true });
+  } catch {
+    // best effort cleanup
+  }
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, ChevronDown, RefreshCw, Loader2 } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
@@ -29,13 +29,34 @@ export function AgentSelector() {
 
   const open = activeOverlay === 'agent-selector';
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
+  const lastFetchedAgentRef = useRef<string | null>(null);
+  const modelOptions = selectedAgent
+    ? (() => {
+        const fallbackModels = selectedAgent.models.map((model) => ({ id: model, name: model }));
+        const combined = dynamicModels.length > 0 ? dynamicModels : fallbackModels;
+        if (!selectedModel || combined.some((model) => model.id === selectedModel)) {
+          return combined;
+        }
+        return [{ id: selectedModel, name: selectedModel }, ...combined];
+      })()
+    : [];
 
   // Fetch models when the dialog opens
   useEffect(() => {
-    if (open && selectedAgentId && dynamicModels.length === 0 && !modelsLoading) {
+    if (!open) {
+      lastFetchedAgentRef.current = null;
+      return;
+    }
+
+    if (
+      selectedAgentId &&
+      !modelsLoading &&
+      lastFetchedAgentRef.current !== selectedAgentId
+    ) {
+      lastFetchedAgentRef.current = selectedAgentId;
       fetchModels(selectedAgentId);
     }
-  }, [open, selectedAgentId]);
+  }, [open, selectedAgentId, modelsLoading, fetchModels]);
 
   if (!open) return null;
 
@@ -73,17 +94,25 @@ export function AgentSelector() {
                 <button
                   key={agent.id}
                   type="button"
-                  onClick={() => setSelectedAgent(agent.id)}
+                  onClick={() => agent.available && setSelectedAgent(agent.id)}
+                  disabled={!agent.available}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                     agent.id === selectedAgentId
                       ? 'bg-accent-muted text-text-primary'
-                      : 'text-text-secondary hover:bg-bg-hover'
+                      : agent.available
+                        ? 'text-text-secondary hover:bg-bg-hover'
+                        : 'text-text-tertiary opacity-60 cursor-not-allowed'
                   }`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{agent.name}</span>
                       <span className="text-xs text-text-tertiary">v{agent.version}</span>
+                      {!agent.available && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-primary border border-border">
+                          unavailable
+                        </span>
+                      )}
                     </div>
                   </div>
                   <span
@@ -136,9 +165,10 @@ export function AgentSelector() {
                       <select
                         value={selectedModel}
                         onChange={(e) => setSelectedModel(e.target.value)}
+                        disabled={modelOptions.length === 0}
                         className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary appearance-none outline-none focus:border-border-focus transition-colors"
                       >
-                        {dynamicModels.map((model) => (
+                        {modelOptions.map((model) => (
                           <option key={model.id} value={model.id}>
                             {model.name}
                           </option>

@@ -72,6 +72,34 @@ describe('useAgentStream', () => {
     expect(task!.messages[0].role).toBe('assistant');
   });
 
+  it('agent:message merges assistant stream chunks from the same run', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('agent:message', {
+      taskId: 'task-1',
+      message: {
+        type: 'text' as const,
+        role: 'assistant' as const,
+        content: 'Hel',
+        timestamp: 1,
+      },
+    });
+    mockApi._emit('agent:message', {
+      taskId: 'task-1',
+      message: {
+        type: 'text' as const,
+        role: 'assistant' as const,
+        content: 'lo',
+        timestamp: 2,
+      },
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task!.messages).toHaveLength(1);
+    expect(task!.messages[0].content).toBe('Hello');
+  });
+
   it('agent:done sets task status to done', () => {
     createTestTask('task-1');
     renderHook(() => useAgentStream());

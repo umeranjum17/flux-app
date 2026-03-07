@@ -156,6 +156,47 @@ describe('addMessage', () => {
     // should not throw
     expect(useChatStore.getState().tasks.size).toBe(0);
   });
+
+  it('merges streamed assistant text chunks into one message', () => {
+    makeTask('t1');
+    useChatStore.getState().ingestStreamMessage('t1', {
+      type: 'text',
+      role: 'assistant',
+      content: 'Hel',
+      timestamp: 1,
+    });
+    useChatStore.getState().ingestStreamMessage('t1', {
+      type: 'text',
+      role: 'assistant',
+      content: 'lo',
+      timestamp: 2,
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.messages).toHaveLength(1);
+    expect(task.messages[0].content).toBe('Hello');
+  });
+
+  it('does not merge streamed chunks across message types', () => {
+    makeTask('t1');
+    useChatStore.getState().ingestStreamMessage('t1', {
+      type: 'text',
+      role: 'assistant',
+      content: 'Thinking...',
+      timestamp: 1,
+    });
+    useChatStore.getState().ingestStreamMessage('t1', {
+      type: 'thinking',
+      role: 'assistant',
+      content: 'Reasoning',
+      timestamp: 2,
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.messages).toHaveLength(2);
+    expect(task.messages[0].type).toBe('text');
+    expect(task.messages[1].type).toBe('thinking');
+  });
 });
 
 describe('setTaskStatus', () => {

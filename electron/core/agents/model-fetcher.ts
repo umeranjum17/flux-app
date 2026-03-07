@@ -20,15 +20,17 @@ export function clearModelCache(id?: AgentId): void {
 // --- Fallback defaults ---
 
 const CLAUDE_DEFAULTS: ModelInfo[] = [
-  { id: 'sonnet', name: 'Sonnet (latest)' },
-  { id: 'opus', name: 'Opus (latest)' },
-  { id: 'haiku', name: 'Haiku (latest)' },
+  { id: 'sonnet', name: 'Sonnet' },
+  { id: 'opus', name: 'Opus' },
+  { id: 'haiku', name: 'Haiku' },
 ];
 
 const CODEX_DEFAULTS: ModelInfo[] = [
-  { id: 'o4-mini', name: 'o4-mini' },
-  { id: 'o3', name: 'o3' },
-  { id: 'gpt-4.1', name: 'GPT-4.1' },
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex' },
+  { id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex' },
+  { id: 'gpt-5.1-codex-max', name: 'GPT-5.1 Codex Max' },
+  { id: 'gpt-5.1-codex', name: 'GPT-5.1 Codex' },
+  { id: 'gpt-5-codex', name: 'GPT-5 Codex' },
 ];
 
 const GEMINI_DEFAULTS: ModelInfo[] = [
@@ -38,53 +40,27 @@ const GEMINI_DEFAULTS: ModelInfo[] = [
 ];
 
 const OPENAI_DEFAULTS: ModelInfo[] = [
-  { id: 'gpt-4o', name: 'GPT-4o' },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-  { id: 'o3-mini', name: 'o3-mini' },
+  { id: 'gpt-5.1', name: 'GPT-5.1' },
+  { id: 'gpt-5', name: 'GPT-5' },
+  { id: 'gpt-5-mini', name: 'GPT-5 Mini' },
+  { id: 'gpt-4.1', name: 'GPT-4.1' },
   { id: 'o4-mini', name: 'o4-mini' },
+  { id: 'gpt-4o', name: 'GPT-4o' },
 ];
 
 // --- Per-agent fetchers ---
 
 async function fetchClaudeModels(): Promise<ModelInfo[]> {
-  try {
-    const { stdout } = await execFileAsync('claude', ['model', 'list'], {
-      timeout: 3000,
-      encoding: 'utf-8',
-    });
-    const lines = stdout.trim().split('\n').filter(Boolean);
-    if (lines.length === 0) return CLAUDE_DEFAULTS;
-
-    const models: ModelInfo[] = [];
-    for (const line of lines) {
-      const id = line.trim().split(/\s+/)[0];
-      if (!id) continue;
-      models.push({ id, name: prettifyModelId(id) });
-    }
-    return models.length > 0 ? models : CLAUDE_DEFAULTS;
-  } catch {
-    return CLAUDE_DEFAULTS;
-  }
+  // Claude Code currently exposes model selection but not a stable model-listing
+  // command, so use curated aliases instead of shelling out to a nonexistent path.
+  return CLAUDE_DEFAULTS;
 }
 
 async function fetchCodexModels(): Promise<ModelInfo[]> {
-  try {
-    const { stdout } = await execFileAsync('codex', ['--help'], {
-      timeout: 3000,
-      encoding: 'utf-8',
-    });
-    // Look for model references in help output
-    const modelMatch = stdout.match(/models?[:\s]+([^\n]+)/i);
-    if (modelMatch) {
-      const ids = modelMatch[1].split(/[,\s]+/).filter(Boolean);
-      if (ids.length > 0) {
-        return ids.map((id) => ({ id, name: prettifyModelId(id) }));
-      }
-    }
-    return CODEX_DEFAULTS;
-  } catch {
-    return CODEX_DEFAULTS;
-  }
+  // Codex CLI supports --model but does not expose a machine-readable list of
+  // available remote models. Use the current curated Codex lineup instead of
+  // trying to scrape help output.
+  return CODEX_DEFAULTS;
 }
 
 async function fetchGeminiModels(): Promise<ModelInfo[]> {
@@ -154,15 +130,12 @@ async function fetchOpenAIModels(): Promise<ModelInfo[]> {
     if (!res.ok) return OPENAI_DEFAULTS;
 
     const data = (await res.json()) as { data: { id: string }[] };
-    const chatPatterns = /^(gpt-4|gpt-3\.5|o1|o3|o4|chatgpt)/;
-    const excludePatterns = /realtime|audio|search/;
-
     const models = data.data
-      .filter((m) => chatPatterns.test(m.id) && !excludePatterns.test(m.id))
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((m) => ({ id: m.id, name: prettifyModelId(m.id) }));
+      .map((m) => m.id)
+      .filter(isOpenAIChatModel)
+      .map((id) => ({ id, name: prettifyModelId(id) }));
 
-    return models.length > 0 ? models : OPENAI_DEFAULTS;
+    return orderModels(models, OPENAI_DEFAULTS);
   } catch {
     return OPENAI_DEFAULTS;
   }
@@ -232,6 +205,37 @@ export async function fetchModelsForAgent(id: AgentId): Promise<ModelInfo[]> {
 }
 
 // --- Helpers ---
+
+function isOpenAIChatModel(id: string): boolean {
+  if (/(audio|realtime|transcribe|speech|embedding|moderation|image|tts|search)/i.test(id)) {
+    return false;
+  }
+  if (/codex/i.test(id)) {
+    return false;
+  }
+  return /^(gpt-5(\.|-|$)|gpt-4\.1(\.|-|$)|gpt-4o(\.|-|$)|o4-mini(\.|-|$)|o3(\.|-|$)|o1(\.|-|$))/i.test(id);
+}
+
+function orderModels(models: ModelInfo[], preferred: ModelInfo[]): ModelInfo[] {
+  const preferredOrder = new Map(preferred.map((model, index) => [model.id, index]));
+  const deduped = new Map<string, ModelInfo>();
+
+  for (const model of [...preferred, ...models]) {
+    if (!deduped.has(model.id)) {
+      deduped.set(model.id, model);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => {
+    const aIndex = preferredOrder.get(a.id);
+    const bIndex = preferredOrder.get(b.id);
+
+    if (aIndex != null && bIndex != null) return aIndex - bIndex;
+    if (aIndex != null) return -1;
+    if (bIndex != null) return 1;
+    return b.id.localeCompare(a.id, undefined, { numeric: true });
+  });
+}
 
 function prettifyModelId(id: string): string {
   return id

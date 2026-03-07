@@ -6,7 +6,7 @@ export function useAgentStream() {
   useEffect(() => {
     const unsubMessage = window.api.on('agent:message', (data: unknown) => {
       const { taskId, message } = data as { taskId: string; message: AgentMessage };
-      useChatStore.getState().addMessage(taskId, message);
+      useChatStore.getState().ingestStreamMessage(taskId, message);
     });
 
     const unsubDone = window.api.on('agent:done', (data: unknown) => {

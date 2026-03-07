@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { AgentMessage, TaskMode } from './types';
+import { AgentMessage, TaskMode, ThinkingLevel } from './types';
 
 interface LoopMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | null;
   tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
   tool_call_id?: string;
   name?: string;
@@ -17,6 +17,7 @@ interface ConversationLoopOptions {
   model: string;
   mode: TaskMode;
   cwd: string;
+  thinking?: ThinkingLevel;
   tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
   toolHandler?: ToolHandler;
   client?: OpenAI;
@@ -36,6 +37,7 @@ export class ConversationLoop {
   private client: OpenAI;
   private model: string;
   private mode: TaskMode;
+  private thinking: ThinkingLevel | undefined;
   private tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined;
   private toolHandler: ToolHandler | null;
   private maxTurns: number;
@@ -47,6 +49,7 @@ export class ConversationLoop {
     this.client = options.client ?? new OpenAI();
     this.model = options.model;
     this.mode = options.mode;
+    this.thinking = options.thinking;
     this.tools = options.mode === 'act' ? options.tools : undefined;
     this.toolHandler = options.toolHandler ?? null;
     this.maxTurns = options.maxTurns ?? 10;
@@ -60,16 +63,23 @@ export class ConversationLoop {
    * Add a user message to the conversation, optionally with images.
    */
   addUserMessage(content: string, images?: string[]): void {
-    // For simplicity, images are described as base64 references in the content.
-    // The actual multi-modal handling would use content arrays in the API call.
-    if (images?.length) {
-      this.messages.push({
-        role: 'user',
-        content: `${content}\n\n[${images.length} image(s) attached]`,
-      });
-    } else {
+    if (!images?.length) {
       this.messages.push({ role: 'user', content });
+      return;
     }
+
+    const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+    if (content.trim()) {
+      parts.push({ type: 'text', text: content });
+    }
+    for (const image of images) {
+      parts.push({
+        type: 'image_url',
+        image_url: { url: image },
+      });
+    }
+
+    this.messages.push({ role: 'user', content: parts });
   }
 
   /**
@@ -101,6 +111,7 @@ export class ConversationLoop {
             messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
             stream: true,
             stream_options: { include_usage: true },
+            ...(this.thinking ? { reasoning_effort: toReasoningEffort(this.thinking, this.model) } : {}),
             ...(this.tools?.length ? { tools: this.tools } : {}),
           },
           { signal: this.abortController.signal },
@@ -307,4 +318,15 @@ function buildDefaultSystemPrompt(mode: TaskMode, cwd: string): string {
     return `${base}\n\nYou are in PLAN mode. Analyze the codebase, explain your reasoning, and suggest changes. Do NOT make any modifications.`;
   }
   return `${base}\n\nYou are in ACT mode. You can use tools to read, write, and modify files. Execute the user's request.`;
+}
+
+function toReasoningEffort(thinking: ThinkingLevel, model: string): 'low' | 'medium' | 'high' | 'xhigh' {
+  if (thinking === 'xhigh' && !supportsExtraHighReasoning(model)) {
+    return 'high';
+  }
+  return thinking;
+}
+
+function supportsExtraHighReasoning(model: string): boolean {
+  return /^gpt-5\.[234]/.test(model) || /^gpt-5-pro/.test(model) || /codex-max/.test(model);
 }

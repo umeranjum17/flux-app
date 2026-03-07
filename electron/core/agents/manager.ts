@@ -29,7 +29,7 @@ const AGENT_DEFS: Record<
     name: 'Codex',
     cmd: 'codex',
     envKeys: [],
-    defaultModels: ['o4-mini', 'o3', 'gpt-4.1'],
+    defaultModels: ['gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex'],
     supportsThinking: false,
   },
   gemini: {
@@ -43,8 +43,8 @@ const AGENT_DEFS: Record<
     name: 'OpenAI',
     cmd: null, // API-based, no CLI binary required
     envKeys: ['OPENAI_API_KEY'],
-    defaultModels: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
-    supportsThinking: false,
+    defaultModels: ['gpt-5.1', 'gpt-5', 'gpt-5-mini', 'gpt-4.1', 'o4-mini'],
+    supportsThinking: true,
   },
   ollama: {
     name: 'Ollama',

@@ -19,9 +19,10 @@ export function spawnOpenAI(options: SpawnOptions): AgentHandle {
 
   const loop = new ConversationLoop({
     client: new OpenAI(),
-    model: options.model ?? 'gpt-4o',
+    model: options.model ?? 'gpt-5.1',
     mode: options.mode,
     cwd: options.cwd,
+    thinking: options.thinking,
     tools: getDefaultTools(),
     toolHandler: (name, input) => handleTool(name, input, options.cwd),
     systemPrompt: buildSystemPrompt(options.mode, options.cwd),
