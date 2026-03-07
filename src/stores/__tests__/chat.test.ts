@@ -100,18 +100,18 @@ describe('addMessage', () => {
     expect(useChatStore.getState().tasks.get('t1')!.status).toBe('running');
   });
 
-  it('does NOT promote status from done', () => {
+  it('promotes status from done when a new live message arrives', () => {
     makeTask('t1');
     useChatStore.getState().setTaskStatus('t1', 'done');
     useChatStore.getState().addMessage('t1', textMsg);
-    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('done');
+    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('running');
   });
 
-  it('does NOT promote status from error', () => {
+  it('promotes status from error when a new live message arrives', () => {
     makeTask('t1');
     useChatStore.getState().setTaskStatus('t1', 'error');
     useChatStore.getState().addMessage('t1', textMsg);
-    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('error');
+    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('running');
   });
 
   it('does NOT promote status from running (stays running)', () => {
@@ -209,18 +209,18 @@ describe('setTaskStatus', () => {
     expect(useChatStore.getState().tasks.get('t1')!.status).toBe('waiting_approval');
   });
 
-  it('does NOT regress from done', () => {
+  it('allows restarting from done', () => {
     makeTask('t1');
     useChatStore.getState().setTaskStatus('t1', 'done');
     useChatStore.getState().setTaskStatus('t1', 'running');
-    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('done');
+    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('running');
   });
 
-  it('does NOT regress from error', () => {
+  it('allows restarting from error', () => {
     makeTask('t1');
     useChatStore.getState().setTaskStatus('t1', 'error');
     useChatStore.getState().setTaskStatus('t1', 'running');
-    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('error');
+    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('running');
   });
 
   it('no-ops for a nonexistent task', () => {
@@ -282,6 +282,16 @@ describe('addUserMessage', () => {
 
     const msg = useChatStore.getState().tasks.get('t1')!.messages[0];
     expect(msg.images).toEqual(['/tmp/a.png', '/tmp/b.png']);
+  });
+
+  it('includes attachments when provided', () => {
+    makeTask('t1');
+    useChatStore.getState().addUserMessage('t1', 'See file', undefined, [
+      { path: '/tmp/a.ts', name: 'a.ts' },
+    ]);
+
+    const msg = useChatStore.getState().tasks.get('t1')!.messages[0];
+    expect(msg.attachments).toEqual([{ path: '/tmp/a.ts', name: 'a.ts' }]);
   });
 
   it('does not include images key when no images provided', () => {

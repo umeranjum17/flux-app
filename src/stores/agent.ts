@@ -20,6 +20,8 @@ interface AgentState {
   fetchModels(agentId: AgentId): Promise<void>;
 }
 
+let modelsRequestSequence = 0;
+
 export const useAgentStore = create<AgentState>()(
   immer((set, get) => ({
     agents: [],
@@ -48,29 +50,44 @@ export const useAgentStore = create<AgentState>()(
     },
 
     async fetchModels(agentId) {
+      const requestId = ++modelsRequestSequence;
       set((state) => {
         state.modelsLoading = true;
       });
       try {
         const models = await window.api.invoke('agents:list-models', { agentId }) as ModelInfo[];
         const fallbackModel = get().agents.find((agent) => agent.id === agentId)?.models[0] ?? '';
+        if (requestId !== modelsRequestSequence) return;
         set((state) => {
+          if (state.selectedAgentId !== agentId) {
+            state.modelsLoading = false;
+            return;
+          }
           state.dynamicModels = models;
           state.modelsLoading = false;
           if (models.length > 0) {
-            state.selectedModel = models[0].id;
+            state.selectedModel = models.some((model) => model.id === state.selectedModel)
+              ? state.selectedModel
+              : models[0].id;
           } else {
             state.selectedModel = fallbackModel;
           }
         });
       } catch {
+        if (requestId !== modelsRequestSequence) return;
         set((state) => {
+          if (state.selectedAgentId !== agentId) {
+            state.modelsLoading = false;
+            return;
+          }
           state.modelsLoading = false;
           // Fall back to static models
           const agent = state.agents.find((a) => a.id === agentId);
           if (agent && agent.models.length > 0) {
             state.dynamicModels = agent.models.map((m) => ({ id: m, name: m }));
-            state.selectedModel = agent.models[0];
+            state.selectedModel = agent.models.includes(state.selectedModel)
+              ? state.selectedModel
+              : agent.models[0];
           }
         });
       }

@@ -8,6 +8,11 @@ export type ThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';
 
 export type TaskMode = 'plan' | 'act';
 
+export interface FileAttachment {
+  path: string;
+  name: string;
+}
+
 export interface AgentMessage {
   type: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request';
   role: MessageRole;
@@ -34,6 +39,7 @@ export interface AgentMessage {
   newContent?: string;
   // For image attachments
   images?: string[];
+  attachments?: FileAttachment[];
 }
 
 export interface SpawnOptions {
@@ -45,6 +51,7 @@ export interface SpawnOptions {
   cwd: string;
   sessionId?: string;
   images?: string[]; // base64 encoded
+  attachments?: FileAttachment[];
 }
 
 export interface AgentHandle extends EventEmitter {

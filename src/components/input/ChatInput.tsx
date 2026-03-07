@@ -8,11 +8,7 @@ import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import type { Session } from '../../lib/ipc-api';
-
-interface AttachedFile {
-  path: string;
-  name: string;
-}
+import type { FileAttachment } from '../../lib/types';
 
 interface ChatInputProps {
   focused?: boolean;
@@ -27,7 +23,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [slashQuery, setSlashQuery] = useState('');
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
@@ -72,6 +68,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     if (!text) return;
 
     let task = getActiveTask();
+    const attachments = attachedFiles.length > 0 ? attachedFiles : undefined;
 
     if (!task) {
       const taskId = crypto.randomUUID();
@@ -87,31 +84,15 @@ export function ChatInput({ focused }: ChatInputProps) {
       task = useChatStore.getState().tasks.get(taskId)!;
     }
 
-    // Build prompt with file context
-    let prompt = text;
-    if (attachedFiles.length > 0) {
-      const fileContents: string[] = [];
-      for (const file of attachedFiles) {
-        try {
-          const result = await window.api.invoke('fs:read', { filePath: file.path }) as { content: string | null };
-          if (result.content) {
-            fileContents.push(`--- ${file.name} ---\n${result.content}`);
-          }
-        } catch {}
-      }
-      if (fileContents.length > 0) {
-        prompt = `${fileContents.join('\n\n')}\n\n${text}`;
-      }
-    }
-
-    addUserMessage(task.id, text, images.length > 0 ? images : undefined);
+    addUserMessage(task.id, text, images.length > 0 ? images : undefined, attachments);
 
     try {
       const hasActiveRun = task.status === 'running' || task.status === 'waiting_approval';
       if (!hasActiveRun) {
+        setTaskStatus(task.id, 'running');
         const result = await window.api.invoke('task:spawn', {
           taskId: task.id,
-          prompt,
+          prompt: text,
           agentId: task.agentId,
           model: task.model,
           mode: task.mode,
@@ -119,19 +100,20 @@ export function ChatInput({ focused }: ChatInputProps) {
           cwd: task.cwd,
           sessionId: task.sessionId,
           images: images.length > 0 ? images : undefined,
+          attachments,
         }) as { session?: Session };
         if (result?.session) {
           setTaskSessionId(task.id, result.session.id);
           upsertSession(result.session);
         }
-        setTaskStatus(task.id, 'running');
       } else {
+        setTaskStatus(task.id, 'running');
         await window.api.invoke('task:steer', {
           taskId: task.id,
-          prompt,
+          prompt: text,
           images: images.length > 0 ? images : undefined,
+          attachments,
         });
-        setTaskStatus(task.id, 'running');
       }
     } catch {
       setTaskStatus(task.id, 'error');

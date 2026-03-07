@@ -3,6 +3,11 @@ export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 export type ThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';
 export type TaskMode = 'plan' | 'act';
 
+export interface FileAttachment {
+  path: string;
+  name: string;
+}
+
 export interface AgentMessage {
   type: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request';
   role: MessageRole;
@@ -23,6 +28,7 @@ export interface AgentMessage {
   oldContent?: string;
   newContent?: string;
   images?: string[];
+  attachments?: FileAttachment[];
 }
 
 export interface ModelInfo {
@@ -56,6 +62,7 @@ export interface SpawnOptions {
   cwd: string;
   sessionId?: string;
   images?: string[];
+  attachments?: FileAttachment[];
 }
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'done' | 'error';

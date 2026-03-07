@@ -1,17 +1,19 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ClipboardCopy, Check } from 'lucide-react';
+import { ClipboardCopy, Check, Paperclip } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { getHighlighter } from '../../lib/shiki';
+import type { FileAttachment } from '../../lib/types';
 
 interface MessageBubbleProps {
   content: string;
   role: 'user' | 'assistant' | 'system';
   images?: string[];
+  attachments?: FileAttachment[];
 }
 
-export function MessageBubble({ content, role, images }: MessageBubbleProps) {
+export function MessageBubble({ content, role, images, attachments }: MessageBubbleProps) {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   if (role === 'system') {
@@ -45,6 +47,19 @@ export function MessageBubble({ content, role, images }: MessageBubbleProps) {
                   className="max-h-24 max-w-40 object-cover"
                 />
               </button>
+            ))}
+          </div>
+        )}
+        {attachments && attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {attachments.map((attachment) => (
+              <div
+                key={`${attachment.path}:${attachment.name}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-primary px-2 py-1 text-xs text-text-secondary"
+              >
+                <Paperclip size={12} />
+                <span className="truncate max-w-[220px]">{attachment.name}</span>
+              </div>
             ))}
           </div>
         )}

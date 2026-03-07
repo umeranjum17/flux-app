@@ -43,14 +43,7 @@ export function SessionPicker() {
     });
 
     for (const msg of messages) {
-      addMessage(taskId, {
-        type: msg.type as AgentMessage['type'],
-        role: msg.role as AgentMessage['role'],
-        content: msg.content,
-        timestamp: msg.timestamp,
-        toolName: msg.toolName ?? undefined,
-        toolCallId: msg.toolCallId ?? undefined,
-      });
+      addMessage(taskId, restoreSessionMessage(msg));
     }
 
     setTaskStatus(taskId, 'idle');
@@ -189,4 +182,49 @@ export function SessionPicker() {
       )}
     </AnimatePresence>
   );
+}
+
+function restoreSessionMessage(message: SessionMessage): AgentMessage {
+  if (message.payloadJson) {
+    try {
+      const parsed = JSON.parse(message.payloadJson) as AgentMessage;
+      return {
+        ...parsed,
+        type: parsed.type ?? (message.type as AgentMessage['type']),
+        role: parsed.role ?? (message.role as AgentMessage['role']),
+        content: parsed.content ?? message.content,
+        timestamp: message.timestamp,
+      };
+    } catch {
+      // Fall back to the legacy columns below.
+    }
+  }
+
+  return {
+    type: message.type as AgentMessage['type'],
+    role: message.role as AgentMessage['role'],
+    content: message.content,
+    timestamp: message.timestamp,
+    toolName: message.toolName ?? undefined,
+    toolInput: parseToolInput(message.toolInput),
+    toolCallId: message.toolCallId ?? undefined,
+    costUsd: message.costUsd ?? undefined,
+    inputTokens: message.inputTokens ?? undefined,
+    outputTokens: message.outputTokens ?? undefined,
+  };
+}
+
+function parseToolInput(toolInput: string | null): Record<string, unknown> | undefined {
+  if (!toolInput) return undefined;
+
+  try {
+    const parsed = JSON.parse(toolInput);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Older rows may contain a plain string. Ignore it.
+  }
+
+  return undefined;
 }

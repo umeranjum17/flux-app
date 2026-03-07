@@ -113,7 +113,14 @@ function renderMessage(
 ) {
   switch (msg.type) {
     case 'text':
-      return <MessageBubble content={msg.content} role={msg.role as 'user' | 'assistant' | 'system'} images={msg.images} />;
+      return (
+        <MessageBubble
+          content={msg.content}
+          role={msg.role as 'user' | 'assistant' | 'system'}
+          images={msg.images}
+          attachments={msg.attachments}
+        />
+      );
 
     case 'tool_call':
       return (

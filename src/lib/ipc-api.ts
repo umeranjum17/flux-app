@@ -1,4 +1,4 @@
-import type { DetectedAgent, AuthResult, AgentMessage, SpawnOptions, TaskMode, ThinkingLevel } from './types';
+import type { DetectedAgent, AuthResult, AgentMessage, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment } from './types';
 
 // Channels the renderer can invoke on main
 export interface IpcChannels {
@@ -8,7 +8,7 @@ export interface IpcChannels {
   'task:stop': { args: [{ taskId: string }]; result: void };
   'task:approve': { args: [{ taskId: string; requestId: string }]; result: void };
   'task:deny': { args: [{ taskId: string; requestId: string }]; result: void };
-  'task:steer': { args: [{ taskId: string; prompt: string; images?: string[] }]; result: void };
+  'task:steer': { args: [{ taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }]; result: void };
   'sessions:list': { args: []; result: Session[] };
   'sessions:get': { args: [{ id: string }]; result: Session | null };
   'sessions:delete': { args: [{ id: string }]; result: void };
@@ -65,6 +65,7 @@ export interface SessionMessage {
   costUsd: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  payloadJson: string | null;
   timestamp: number;
 }
 

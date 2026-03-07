@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './core/ipc-handlers';
+import { runMigrations } from './core/db/migrations';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -41,7 +42,10 @@ function createWindow(): void {
   });
 }
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  runMigrations();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

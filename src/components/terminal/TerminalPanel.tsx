@@ -104,13 +104,29 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
       const cleanupExit = window.api.on('terminal:exit', (...args: unknown[]) => {
         const { id } = args[0] as { id: string };
-        setTabs((prev) => prev.filter((t) => t.id !== id));
+        const termRef = terminalRefs.current.get(id);
+        if (termRef) termRef.term.dispose();
         terminalRefs.current.delete(id);
+        setTabs((prev) => {
+          const next = prev.filter((t) => t.id !== id);
+          setActiveId((current) => current === id ? (next[0]?.id ?? null) : current);
+          return next;
+        });
       });
 
       return () => {
         cleanup();
         cleanupExit();
+      };
+    }, []);
+
+    useEffect(() => {
+      return () => {
+        for (const [id, termRef] of terminalRefs.current) {
+          termRef.term.dispose();
+          void window.api.invoke('terminal:kill', { id });
+        }
+        terminalRefs.current.clear();
       };
     }, []);
 

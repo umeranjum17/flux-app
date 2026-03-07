@@ -7,11 +7,15 @@ import { agentManager } from './agents/manager';
 import { SessionStore } from './session/store';
 import { ConfigManager } from './config/config';
 import { UsageTracker } from './usage/tracker';
-import type { AgentHandle, SpawnOptions, AgentId, AgentMessage } from './agents/types';
+import type { AgentHandle, SpawnOptions, AgentId, AgentMessage, FileAttachment } from './agents/types';
 import { setSshHost as setToolsSshHost } from './tools/ssh';
 import { grepFiles } from './tools/grep';
 
 const execFileAsync = promisify(execFile);
+const MAX_ATTACHED_FILES = 6;
+const MAX_ATTACHMENT_CHARS_PER_FILE = 12_000;
+const MAX_TOTAL_ATTACHMENT_CHARS = 40_000;
+
 function requireFields(obj: Record<string, unknown>, ...fields: string[]): void {
   for (const f of fields) {
     if (obj[f] === undefined || obj[f] === null) {
@@ -39,6 +43,14 @@ function buildSessionTitle(prompt: string): string {
   return (nonEmptyLines[nonEmptyLines.length - 1] ?? 'Untitled').slice(0, 80);
 }
 
+function serializePayload(payload: unknown): string | null {
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return null;
+  }
+}
+
 function toStoredMessage(message: AgentMessage) {
   return {
     role: message.role,
@@ -50,6 +62,35 @@ function toStoredMessage(message: AgentMessage) {
     costUsd: message.costUsd ?? null,
     inputTokens: message.inputTokens ?? null,
     outputTokens: message.outputTokens ?? null,
+    payloadJson: serializePayload(message),
+  };
+}
+
+function buildStoredUserMessage(
+  prompt: string,
+  images?: string[],
+  attachments?: FileAttachment[],
+) {
+  const payload: AgentMessage = {
+    type: 'text',
+    role: 'user',
+    content: prompt,
+    timestamp: Date.now(),
+    ...(images?.length ? { images } : {}),
+    ...(attachments?.length ? { attachments } : {}),
+  };
+
+  return {
+    role: 'user',
+    type: 'text',
+    content: prompt,
+    toolName: null,
+    toolInput: null,
+    toolCallId: null,
+    costUsd: null,
+    inputTokens: null,
+    outputTokens: null,
+    payloadJson: serializePayload(payload),
   };
 }
 
@@ -57,6 +98,78 @@ function toAbsoluteFilePath(root: string, file: string): string {
   if (path.isAbsolute(file)) return file;
   if (root === '/') return `/${file}`;
   return `${root.replace(/\/+$/, '')}/${file.replace(/^\/+/, '')}`;
+}
+
+async function buildPromptWithAttachments(
+  prompt: string,
+  attachments?: FileAttachment[],
+): Promise<string> {
+  if (!attachments?.length) return prompt;
+
+  const blocks: string[] = [];
+  let remainingChars = MAX_TOTAL_ATTACHMENT_CHARS;
+
+  for (const attachment of attachments.slice(0, MAX_ATTACHED_FILES)) {
+    if (remainingChars <= 0) break;
+
+    try {
+      const preview = await readAttachmentPreview(
+        attachment.path,
+        Math.min(MAX_ATTACHMENT_CHARS_PER_FILE, remainingChars),
+      );
+      remainingChars -= preview.text.length;
+
+      if (preview.binary) {
+        blocks.push(`--- ${attachment.name} (${attachment.path}) ---\n[Binary file omitted]`);
+        continue;
+      }
+
+      const suffix = preview.truncated ? '\n[Truncated attachment preview]' : '';
+      blocks.push(`--- ${attachment.name} (${attachment.path}) ---\n${preview.text}${suffix}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      blocks.push(`--- ${attachment.name} (${attachment.path}) ---\n[Unable to read attachment: ${message}]`);
+    }
+  }
+
+  if (attachments.length > MAX_ATTACHED_FILES) {
+    blocks.push(`[${attachments.length - MAX_ATTACHED_FILES} additional attachments omitted]`);
+  }
+
+  if (blocks.length === 0) return prompt;
+
+  return `Attached file context:\n\n${blocks.join('\n\n')}\n\nUser request:\n${prompt}`;
+}
+
+async function readAttachmentPreview(
+  filePath: string,
+  maxChars: number,
+): Promise<{ text: string; truncated: boolean; binary: boolean }> {
+  if (sshHost) {
+    const cmd = `head -c ${maxChars + 1} ${escapeShellArg(filePath)}`;
+    const { stdout } = await execFileAsync('ssh', [sshHost, cmd], { timeout: 10000 });
+    const text = stdout;
+    return {
+      text: text.slice(0, maxChars),
+      truncated: text.length > maxChars,
+      binary: text.includes('\u0000'),
+    };
+  }
+
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(maxChars + 1);
+    const bytesRead = fs.readSync(fd, buffer, 0, maxChars + 1, 0);
+    const slice = buffer.subarray(0, bytesRead);
+    const truncated = bytesRead > maxChars;
+    return {
+      text: slice.subarray(0, Math.min(bytesRead, maxChars)).toString('utf-8'),
+      truncated,
+      binary: slice.includes(0),
+    };
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
@@ -119,6 +232,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('task:spawn', async (_event, options: SpawnOptions & { agentId?: string }) => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
+    if (activeTasks.has(options.taskId)) {
+      throw new Error(`Task ${options.taskId} already has an active run`);
+    }
+
+    const effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments);
     const existingSession = options.sessionId ? sessionStore.get(options.sessionId) : null;
     const session = existingSession ?? sessionStore.create({
       title: buildSessionTitle(options.prompt),
@@ -128,6 +246,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       cwd: options.cwd,
       metadata: {},
     });
+
+    let handle: AgentHandle;
+    try {
+      handle = agentManager.spawn(agentId, { ...options, prompt: effectivePrompt });
+    } catch (err) {
+      if (!existingSession) {
+        sessionStore.delete(session.id);
+      }
+      throw err;
+    }
 
     if (existingSession) {
       sessionStore.update(session.id, {
@@ -139,20 +267,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
 
     if (options.prompt !== '[Resuming previous session]') {
-      sessionStore.addMessage(session.id, {
-        role: 'user',
-        type: 'text',
-        content: options.prompt,
-        toolName: null,
-        toolInput: null,
-        toolCallId: null,
-        costUsd: null,
-        inputTokens: null,
-        outputTokens: null,
-      });
+      sessionStore.addMessage(
+        session.id,
+        buildStoredUserMessage(options.prompt, options.images, options.attachments),
+      );
     }
-
-    const handle = agentManager.spawn(agentId, options);
 
     activeTasks.set(options.taskId, handle);
     taskSessions.set(options.taskId, session.id);
@@ -201,23 +320,22 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     if (handle) handle.deny(requestId);
   });
 
-  ipcMain.handle('task:steer', async (_event, { taskId, prompt, images }: { taskId: string; prompt: string; images?: string[] }) => {
+  ipcMain.handle('task:steer', async (_event, { taskId, prompt, images, attachments }: { taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }) => {
+    const handle = activeTasks.get(taskId);
+    if (!handle) {
+      throw new Error(`Task ${taskId} does not have an active run`);
+    }
+
+    const effectivePrompt = await buildPromptWithAttachments(prompt, attachments);
+    handle.steer(effectivePrompt, images);
+
     const sessionId = taskSessions.get(taskId);
     if (sessionId) {
-      sessionStore.addMessage(sessionId, {
-        role: 'user',
-        type: 'text',
-        content: prompt,
-        toolName: null,
-        toolInput: null,
-        toolCallId: null,
-        costUsd: null,
-        inputTokens: null,
-        outputTokens: null,
-      });
+      sessionStore.addMessage(
+        sessionId,
+        buildStoredUserMessage(prompt, images, attachments),
+      );
     }
-    const handle = activeTasks.get(taskId);
-    if (handle) handle.steer(prompt, images);
   });
 
   // --- Session handlers ---

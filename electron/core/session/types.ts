@@ -22,5 +22,6 @@ export interface SessionMessage {
   costUsd: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  payloadJson: string | null;
   timestamp: number;
 }

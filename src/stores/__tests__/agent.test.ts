@@ -54,6 +54,7 @@ describe('fetchModels', () => {
   it('on success, sets dynamicModels and selectedModel to first model', async () => {
     const models = [{ id: 'gpt-4o', name: 'GPT-4o' }, { id: 'gpt-4', name: 'GPT-4' }];
     mockApi.invoke.mockResolvedValue(models);
+    useAgentStore.setState({ selectedAgentId: 'openai' as any });
 
     await useAgentStore.getState().fetchModels('openai' as any);
 
@@ -67,7 +68,7 @@ describe('fetchModels', () => {
     const agents = [
       { id: 'openai', name: 'OpenAI', available: true, models: ['gpt-4o', 'gpt-4'] },
     ] as any[];
-    useAgentStore.setState({ agents });
+    useAgentStore.setState({ agents, selectedAgentId: 'openai' as any });
     mockApi.invoke.mockRejectedValue(new Error('network error'));
 
     await useAgentStore.getState().fetchModels('openai' as any);
@@ -79,5 +80,42 @@ describe('fetchModels', () => {
       { id: 'gpt-4', name: 'gpt-4' },
     ]);
     expect(state.selectedModel).toBe('gpt-4o');
+  });
+
+  it('ignores stale responses from a previously selected agent', async () => {
+    const agents = [
+      { id: 'openai', name: 'OpenAI', available: true, models: ['gpt-4o'] },
+      { id: 'codex', name: 'Codex', available: true, models: ['gpt-5.1-codex'] },
+    ] as any[];
+    useAgentStore.setState({
+      agents,
+      selectedAgentId: 'openai',
+      selectedModel: 'gpt-4o',
+    });
+
+    let resolveOpenAI: ((value: any) => void) | undefined;
+    let resolveCodex: ((value: any) => void) | undefined;
+
+    mockApi.invoke.mockImplementation((_channel: string, { agentId }: { agentId: string }) => (
+      new Promise((resolve) => {
+        if (agentId === 'openai') resolveOpenAI = resolve;
+        if (agentId === 'codex') resolveCodex = resolve;
+      })
+    ));
+
+    const openAiFetch = useAgentStore.getState().fetchModels('openai' as any);
+    useAgentStore.setState({ selectedAgentId: 'codex', selectedModel: 'gpt-5.1-codex' });
+    const codexFetch = useAgentStore.getState().fetchModels('codex' as any);
+
+    resolveCodex?.([{ id: 'gpt-5.1-codex', name: 'GPT-5.1 Codex' }]);
+    await codexFetch;
+
+    resolveOpenAI?.([{ id: 'gpt-5', name: 'GPT-5' }]);
+    await openAiFetch;
+
+    const state = useAgentStore.getState();
+    expect(state.selectedAgentId).toBe('codex');
+    expect(state.dynamicModels).toEqual([{ id: 'gpt-5.1-codex', name: 'GPT-5.1 Codex' }]);
+    expect(state.selectedModel).toBe('gpt-5.1-codex');
   });
 });

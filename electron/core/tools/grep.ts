@@ -3,6 +3,10 @@ import readline from 'readline';
 import fg from 'fast-glob';
 import { getSshHost, sshExec } from './ssh';
 
+function escapeShellArg(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 export async function grepFiles(
   pattern: string,
   cwd: string,
@@ -10,13 +14,14 @@ export async function grepFiles(
 ): Promise<Array<{ file: string; line: number; content: string }>> {
   const host = getSshHost();
   if (host) {
-    const escaped = cwd.replace(/'/g, "'\\''");
+    const escapedPattern = escapeShellArg(pattern);
+    const escaped = escapeShellArg(cwd);
     const includeArg = glob !== '**/*'
-      ? `--include='${glob.replace(/\*\*\//g, '')}'`
+      ? `--include=${escapeShellArg(glob.replace(/\*\*\//g, ''))}`
       : '';
     const result = await sshExec(
       host,
-      `grep -rn ${includeArg} '${pattern}' '${escaped}' 2>/dev/null || true`,
+      `grep -rFn -F ${includeArg} -- ${escapedPattern} ${escaped} 2>/dev/null || true`,
     );
     if (!result.stdout.trim()) return [];
 
@@ -31,7 +36,6 @@ export async function grepFiles(
     });
   }
 
-  const regex = new RegExp(pattern);
   const files = await fg(glob, { cwd, dot: false, onlyFiles: true });
   const results: Array<{ file: string; line: number; content: string }> = [];
 
@@ -45,7 +49,7 @@ export async function grepFiles(
       let lineNumber = 0;
       for await (const line of rl) {
         lineNumber++;
-        if (regex.test(line)) {
+        if (line.includes(pattern)) {
           results.push({ file, line: lineNumber, content: line });
         }
       }

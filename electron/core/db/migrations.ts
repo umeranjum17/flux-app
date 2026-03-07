@@ -12,6 +12,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: '002_create_messages', sql: CREATE_MESSAGES_TABLE },
   { name: '003_create_config', sql: CREATE_CONFIG_TABLE },
   { name: '004_create_usage_metrics', sql: CREATE_USAGE_METRICS_TABLE },
+  { name: '005_add_message_payload_json', sql: 'ALTER TABLE messages ADD COLUMN payload_json TEXT' },
 ];
 
 export function runMigrations(): void {
@@ -30,10 +31,25 @@ export function runMigrations(): void {
   for (const migration of MIGRATIONS) {
     if (applied.has(migration.name)) continue;
 
+    if (migration.name === '005_add_message_payload_json' && hasColumn(db, 'messages', 'payload_json')) {
+      db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
+        migration.name,
+        Date.now()
+      );
+      continue;
+    }
+
     db.exec(migration.sql);
     db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
       migration.name,
       Date.now()
     );
   }
+}
+
+function hasColumn(db: ReturnType<typeof getDb>, table: string, column: string): boolean {
+  return db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all()
+    .some((row: any) => row.name === column);
 }

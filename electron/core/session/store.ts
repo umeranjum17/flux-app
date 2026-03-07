@@ -91,8 +91,8 @@ export class SessionStore {
   ): void {
     const db = getDb();
     db.prepare(
-      `INSERT INTO messages (session_id, role, type, content, tool_name, tool_input, tool_call_id, cost_usd, input_tokens, output_tokens, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO messages (session_id, role, type, content, tool_name, tool_input, tool_call_id, cost_usd, input_tokens, output_tokens, payload_json, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       sessionId,
       message.role,
@@ -108,6 +108,7 @@ export class SessionStore {
       message.costUsd,
       message.inputTokens,
       message.outputTokens,
+      message.payloadJson ?? null,
       Date.now()
     );
 
@@ -151,6 +152,7 @@ function rowToMessage(row: any): SessionMessage {
     costUsd: row.cost_usd,
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
+    payloadJson: row.payload_json,
     timestamp: row.timestamp,
   };
 }

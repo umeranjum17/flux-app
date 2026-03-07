@@ -1,7 +1,7 @@
 import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { AgentMessage, Task, TaskStatus, AgentId, TaskMode, ThinkingLevel } from '../lib/types';
+import type { AgentMessage, Task, TaskStatus, AgentId, TaskMode, ThinkingLevel, FileAttachment } from '../lib/types';
 
 interface ChatState {
   tasks: Map<string, Task>;
@@ -33,7 +33,7 @@ interface ChatState {
       path?: string;
     } | null,
   ): void;
-  addUserMessage(taskId: string, content: string, images?: string[]): void;
+  addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   getActiveTask(): Task | undefined;
 }
 
@@ -101,7 +101,7 @@ export const useChatStore = create<ChatState>()(
           return;
         }
 
-        if (task.status === 'idle' || task.status === 'waiting_approval') {
+        if (task.status !== 'running' && task.status !== 'waiting_approval') {
           task.status = 'running';
         }
       });
@@ -111,8 +111,6 @@ export const useChatStore = create<ChatState>()(
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task) return;
-        const terminal = task.status === 'done' || task.status === 'error';
-        if (terminal) return;
         task.status = status;
         if (status === 'done' || status === 'error') {
           task.pendingApproval = undefined;
@@ -137,7 +135,7 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
-    addUserMessage(taskId, content, images?) {
+    addUserMessage(taskId, content, images?, attachments?) {
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task) return;
@@ -147,6 +145,7 @@ export const useChatStore = create<ChatState>()(
           content,
           timestamp: Date.now(),
           ...(images?.length ? { images } : {}),
+          ...(attachments?.length ? { attachments } : {}),
         });
       });
     },
@@ -168,7 +167,7 @@ function appendMessage(task: Task, message: AgentMessage): void {
     task.inputTokens += message.inputTokens ?? 0;
     task.outputTokens += message.outputTokens ?? 0;
   }
-  if (task.status === 'idle' || task.status === 'waiting_approval') {
+  if (task.status !== 'running' && task.status !== 'waiting_approval') {
     task.status = 'running';
   }
 }

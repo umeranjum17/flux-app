@@ -117,4 +117,25 @@ describe('ChatInput', () => {
       expect.objectContaining({ taskId: 'task-1' }),
     );
   });
+
+  it('sends attachments as structured metadata instead of mutating the prompt text', async () => {
+    const user = userEvent.setup();
+    useUiStore.getState().setPendingMention({ path: '/workspace/src/app.ts', name: 'app.ts' });
+
+    render(<ChatInput />);
+
+    await user.type(screen.getByPlaceholderText('Ask Flux anything... (@ to mention files)'), 'Review this');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:spawn',
+        expect.objectContaining({
+          prompt: 'Review this',
+          attachments: [{ path: '/workspace/src/app.ts', name: 'app.ts' }],
+        }),
+      );
+    });
+    expect(mockApi.invoke).not.toHaveBeenCalledWith('fs:read', expect.anything());
+  });
 });
