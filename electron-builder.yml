@@ -1,0 +1,34 @@
+appId: com.flux.app
+productName: Flux
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - "!**/.vscode/*"
+  - "!src/*"
+  - "!electron/*"
+  - "!{.eslintignore,.eslintrc.json,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}"
+  - "!{tsconfig.json,tsconfig.*.json}"
+linux:
+  target:
+    - AppImage
+    - deb
+  maintainer: electronjs.org
+  category: Development
+mac:
+  target:
+    - dmg
+    - zip
+  entitlementsInherit: build/entitlements.mac.plist
+win:
+  target:
+    - nsis
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: Flux
+  uninstallDisplayName: Flux
+  createDesktopShortcut: always
+publish:
+  provider: github
+  owner: flux-app
+  repo: flux-app

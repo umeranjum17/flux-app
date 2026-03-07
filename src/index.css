@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  /* Dark mode colors (default) */
+  --color-bg-primary: hsl(220 15% 10%);
+  --color-bg-secondary: hsl(220 15% 13%);
+  --color-bg-elevated: hsl(220 15% 16%);
+  --color-bg-hover: hsl(220 15% 19%);
+
+  --color-text-primary: hsl(220 10% 90%);
+  --color-text-secondary: hsl(220 10% 60%);
+  --color-text-tertiary: hsl(220 10% 40%);
+
+  --color-accent: hsl(20 70% 55%);
+  --color-accent-hover: hsl(20 70% 60%);
+  --color-accent-muted: hsl(20 40% 20%);
+
+  --color-success: hsl(145 60% 45%);
+  --color-error: hsl(0 70% 55%);
+  --color-warning: hsl(40 80% 55%);
+  --color-info: hsl(210 70% 55%);
+
+  --color-border: hsl(220 15% 18%);
+  --color-border-focus: hsl(20 70% 55%);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Light theme override */
+.theme-light {
+  --color-bg-primary: hsl(40 20% 97%);
+  --color-bg-secondary: hsl(40 15% 94%);
+  --color-bg-elevated: hsl(0 0% 100%);
+  --color-bg-hover: hsl(40 10% 91%);
+  --color-text-primary: hsl(220 15% 15%);
+  --color-text-secondary: hsl(220 10% 45%);
+  --color-text-tertiary: hsl(220 10% 65%);
+  --color-border: hsl(220 10% 88%);
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* Drag region for frameless window */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}

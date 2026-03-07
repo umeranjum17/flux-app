@@ -1,0 +1,286 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Plus,
+  ToggleLeft,
+  PanelLeftClose,
+  Sun,
+  Settings,
+  Bot,
+  FolderOpen,
+  Search,
+  Wifi,
+  WifiOff,
+  PanelRight,
+  Terminal,
+} from 'lucide-react';
+import { useChatStore } from '../../stores/chat';
+import { useUiStore } from '../../stores/ui';
+
+interface PaletteAction {
+  id: string;
+  name: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  shortcut?: string;
+  handler: () => void;
+}
+
+export function CommandPalette() {
+  const { activeOverlay, setOverlay, toggleMode, toggleSidebar, toggleTheme } = useUiStore();
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const open = activeOverlay === 'command-palette';
+
+  const actions: PaletteAction[] = useMemo(
+    () => [
+      {
+        id: 'new-task',
+        name: 'New Task',
+        icon: Plus,
+        shortcut: 'Ctrl+N',
+        handler: () => {
+          useChatStore.getState().setActiveTask(null);
+          setOverlay(null);
+        },
+      },
+      {
+        id: 'toggle-mode',
+        name: 'Toggle Plan/Act',
+        icon: ToggleLeft,
+        shortcut: 'Ctrl+M',
+        handler: () => {
+          toggleMode();
+          setOverlay(null);
+        },
+      },
+      {
+        id: 'toggle-sidebar',
+        name: 'Toggle Sidebar',
+        icon: PanelLeftClose,
+        shortcut: 'Ctrl+B',
+        handler: () => {
+          toggleSidebar();
+          setOverlay(null);
+        },
+      },
+      {
+        id: 'toggle-theme',
+        name: 'Toggle Theme',
+        icon: Sun,
+        handler: () => {
+          toggleTheme();
+          setOverlay(null);
+        },
+      },
+      {
+        id: 'settings',
+        name: 'Settings',
+        icon: Settings,
+        shortcut: 'Ctrl+,',
+        handler: () => {
+          setOverlay('settings');
+        },
+      },
+      {
+        id: 'switch-agent',
+        name: 'Switch Agent',
+        icon: Bot,
+        handler: () => {
+          setOverlay('agent-selector');
+        },
+      },
+      {
+        id: 'session-list',
+        name: 'Session List',
+        icon: FolderOpen,
+        handler: () => {
+          setOverlay('session-picker');
+        },
+      },
+      {
+        id: 'open-folder',
+        name: 'Open Folder',
+        icon: FolderOpen,
+        handler: async () => {
+          setOverlay(null);
+          const picked = await window.api.invoke('cwd:pick') as string | null;
+          if (picked) {
+            const { useUiStore: ui } = await import('../../stores/ui');
+            ui.getState().setCwd(picked);
+            ui.getState().setExplorerOpen(true);
+          }
+        },
+      },
+      {
+        id: 'toggle-explorer',
+        name: 'Toggle Explorer',
+        icon: PanelRight,
+        shortcut: 'Ctrl+E',
+        handler: () => {
+          setOverlay(null);
+          useUiStore.getState().toggleExplorer();
+        },
+      },
+      {
+        id: 'toggle-terminal',
+        name: 'Toggle Terminal',
+        icon: Terminal,
+        shortcut: 'Ctrl+`',
+        handler: () => {
+          setOverlay(null);
+          useUiStore.getState().toggleTerminal();
+        },
+      },
+      {
+        id: 'ssh-connect',
+        name: 'SSH Connect',
+        icon: Wifi,
+        handler: () => {
+          setOverlay('ssh-connect');
+        },
+      },
+      {
+        id: 'ssh-disconnect',
+        name: 'SSH Disconnect',
+        icon: WifiOff,
+        handler: async () => {
+          setOverlay(null);
+          const result = await window.api.invoke('ssh:disconnect') as { cwd?: string };
+          useUiStore.getState().setSshHost(null);
+          useUiStore.getState().setSshConnected(false);
+          if (result?.cwd) {
+            useUiStore.getState().setCwd(result.cwd);
+          }
+        },
+      },
+    ],
+    [setOverlay, toggleMode, toggleSidebar, toggleTheme],
+  );
+
+  const filtered = useMemo(() => {
+    if (!query) return actions;
+    const lower = query.toLowerCase();
+    return actions.filter(
+      (a) =>
+        a.name.toLowerCase().includes(lower) ||
+        a.id.toLowerCase().includes(lower),
+    );
+  }, [query, actions]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('');
+      setActiveIndex(0);
+    }
+  }, [open]);
+
+  const handleKeyDown = useCallback(
+    (e: globalThis.KeyboardEvent) => {
+      if (!open) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOverlay(null);
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev + 1) % filtered.length);
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev - 1 + filtered.length) % filtered.length);
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filtered[activeIndex]) {
+          filtered[activeIndex].handler();
+        }
+      }
+    },
+    [open, filtered, activeIndex, setOverlay],
+  );
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] bg-black/50 backdrop-blur-sm"
+          onClick={() => setOverlay(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.12 }}
+            className="bg-bg-elevated rounded-2xl max-w-lg w-full mx-4 border border-border shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              <Search size={16} className="text-text-tertiary flex-shrink-0" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Type a command..."
+                autoFocus
+                className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
+              />
+            </div>
+
+            <div className="py-1 max-h-72 overflow-y-auto">
+              {filtered.map((action, index) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={action.handler}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                      index === activeIndex
+                        ? 'bg-bg-hover text-text-primary'
+                        : 'text-text-secondary'
+                    }`}
+                  >
+                    <Icon size={16} className="flex-shrink-0 text-text-tertiary" />
+                    <span className="flex-1 text-left">{action.name}</span>
+                    {action.shortcut && (
+                      <kbd className="text-xs text-text-tertiary bg-bg-primary border border-border rounded px-1.5 py-0.5 font-mono">
+                        {action.shortcut}
+                      </kbd>
+                    )}
+                  </button>
+                );
+              })}
+
+              {filtered.length === 0 && (
+                <p className="text-sm text-text-tertiary text-center py-6">No matching commands.</p>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
