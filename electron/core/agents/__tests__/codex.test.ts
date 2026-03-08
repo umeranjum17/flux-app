@@ -3,9 +3,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { spawnCodex } from '../codex';
 import { spawnAgentProcess } from '../spawn-utils';
 
-vi.mock('../spawn-utils', () => ({
-  spawnAgentProcess: vi.fn(),
-}));
+vi.mock('../spawn-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../spawn-utils')>();
+  return {
+    ...actual,
+    spawnAgentProcess: vi.fn(),
+  };
+});
 
 class FakeReadable extends EventEmitter {}
 
@@ -201,5 +205,60 @@ describe('spawnCodex', () => {
     handle.answerQuestion('question-1', 'Backend first');
 
     expect(proc.stdin.writes.at(-1)).toBe('Backend first\n');
+  });
+
+  it('uses the detected remote Codex binary when available over SSH', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/tmp/flux-local',
+      sshHost: 'umera@extreme',
+      remoteCwd: '/remote/workspace',
+      binaryPath: '/opt/tools/codex',
+    });
+
+    expect(mockedSpawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
+      command: '/opt/tools/codex',
+      sshHost: 'umera@extreme',
+      remoteCwd: '/remote/workspace',
+    }));
+  });
+
+  it('skips local image temp files when Codex runs over SSH and emits a warning', () => {
+    vi.useFakeTimers();
+    try {
+      const proc = new FakeChildProcess();
+      mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+      const handle = spawnCodex({
+        taskId: 'task-1',
+        prompt: 'ship it',
+        mode: 'act',
+        cwd: '/tmp/flux-local',
+        sshHost: 'umera@extreme',
+        remoteCwd: '/remote/workspace',
+        images: ['data:image/png;base64,aGVsbG8='],
+      });
+
+      const messages: any[] = [];
+      handle.on('message', (message) => messages.push(message));
+
+      const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+      expect(args).not.toContain('--image');
+
+      vi.runAllTimers();
+
+      expect(messages).toContainEqual(expect.objectContaining({
+        type: 'text',
+        role: 'system',
+        content: 'Codex image attachments are not supported over SSH yet. They were skipped.',
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

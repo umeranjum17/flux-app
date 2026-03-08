@@ -18,6 +18,7 @@ import { createWorktree, mergeWorktree, removeWorktree } from './worktree/manage
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
 import type { WorkspaceStatus } from './worktree/types';
+import { extendedEnv, resolveSshCommand, classifySpawnError } from './process-utils';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -34,6 +35,7 @@ function requireFields(obj: Record<string, unknown>, ...fields: string[]): void 
 
 const activeTasks = new Map<string, AgentHandle>();
 const taskSessions = new Map<string, string>();
+const cleaningUp = new Set<string>();
 const activeTerminals = new Map<string, ChildProcess>();
 
 interface RateLimitInfo {
@@ -46,6 +48,31 @@ interface RateLimitInfo {
 }
 
 let cachedRateLimits: RateLimitInfo | null = null;
+
+function normalizeRateLimitInfo(raw: Record<string, any> | undefined | null): RateLimitInfo | null {
+  if (!raw) return null;
+
+  const utilization = typeof raw.utilization === 'number'
+    ? raw.utilization
+    : typeof raw.used_percent === 'number'
+      ? raw.used_percent / 100
+      : typeof raw.percentCapacity === 'number'
+        ? raw.percentCapacity / 100
+        : typeof raw.percent_capacity === 'number'
+          ? raw.percent_capacity / 100
+          : 0;
+
+  return {
+    status: raw.status ?? (utilization >= 1 ? 'rejected' : utilization >= 0.8 ? 'allowed_warning' : 'allowed'),
+    resetsAt: raw.resetsAt ?? raw.resets_at ?? raw.resetAt ?? 0,
+    rateLimitType: raw.rateLimitType ?? raw.rate_limit_type ?? raw.type ?? 'unknown',
+    utilization,
+    ...(raw.overageStatus ? { overageStatus: raw.overageStatus } : {}),
+    ...(raw.overageResetsAt ? { overageResetsAt: raw.overageResetsAt } : {}),
+    ...(raw.overage_status ? { overageStatus: raw.overage_status } : {}),
+    ...(raw.overage_resets_at ? { overageResetsAt: raw.overage_resets_at } : {}),
+  };
+}
 let currentCwd = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
 let localCwd = currentCwd;
 let sshHost: string | null = null;
@@ -141,9 +168,9 @@ async function runShellCommand(command: string, cwd: string, remoteHost: string 
   if (remoteHost) {
     try {
       const { stdout, stderr } = await execFileAsync(
-        'ssh',
+        resolveSshCommand(),
         [remoteHost, `cd ${toRemoteShellPath(cwd)} && ${command}`],
-        { timeout: 120000 },
+        { timeout: 120000, env: extendedEnv() },
       );
       return { stdout, stderr, exitCode: 0 };
     } catch (err: any) {
@@ -265,7 +292,10 @@ async function readAttachmentPreview(
 ): Promise<{ text: string; truncated: boolean; binary: boolean }> {
   if (sshHost) {
     const cmd = `head -c ${maxChars + 1} ${toRemoteShellPath(filePath)}`;
-    const { stdout } = await execFileAsync('ssh', [sshHost, cmd], { timeout: 10000 });
+    const { stdout } = await execFileAsync(resolveSshCommand(), [sshHost, cmd], {
+      timeout: 10000,
+      env: extendedEnv(),
+    });
     const text = stdout;
     return {
       text: text.slice(0, maxChars),
@@ -501,9 +531,30 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     };
     let detectedCodexSessionId: string | undefined = existingAgentSessionId;
 
+    if (sshHost) {
+      try {
+        await execFileAsync(
+          resolveSshCommand(),
+          ['-o', 'ConnectTimeout=3', '-o', 'BatchMode=yes', sshHost, 'echo', 'ok'],
+          { timeout: 5000, env: extendedEnv() },
+        );
+      } catch (err: any) {
+        const info = classifySpawnError(err as Error, { command: 'ssh', sshHost });
+        if (!existingSession) {
+          sessionStore.delete(session.id);
+        }
+        throw new Error(`SSH connection failed: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`);
+      }
+    }
+
+    // For OpenAI resume: load previous messages for context replay
+    const resumeMessages = (agentId === 'openai' && existingSession)
+      ? sessionStore.getMessages(session.id)
+      : undefined;
+
     let handle: AgentHandle;
     try {
-      handle = agentManager.spawn(agentId, spawnOptions);
+      handle = agentManager.spawn(agentId, spawnOptions, resumeMessages);
     } catch (err) {
       if (!existingSession) {
         sessionStore.delete(session.id);
@@ -559,9 +610,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       persistAgentSessionId(session.id, agentId, sessionMeta.id);
     });
 
+    const toolHeartbeats = new Map<string, NodeJS.Timeout>();
+
     handle.on('message', (message) => {
       if (message.type === 'rate_limit') {
-        cachedRateLimits = message.rateLimitInfo ?? null;
+        cachedRateLimits = normalizeRateLimitInfo(message.rateLimitInfo as Record<string, any> | undefined);
       }
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
@@ -586,59 +639,92 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         });
       }
       mainWindow.webContents.send('agent:message', { taskId: options.taskId, message });
+
+      // Tool-execution heartbeats to prevent false "Stalled" detection
+      if (message.type === 'tool_call' && message.toolCallId) {
+        const heartbeatInterval = setInterval(() => {
+          mainWindow.webContents.send('agent:message', {
+            taskId: options.taskId,
+            message: {
+              type: 'status',
+              role: 'system',
+              statusKind: 'progress',
+              content: `Running tool: ${message.toolName ?? 'unknown'}...`,
+              timestamp: Date.now(),
+            } satisfies AgentMessage,
+          });
+        }, 5_000);
+        toolHeartbeats.set(message.toolCallId, heartbeatInterval);
+      }
+
+      if (message.type === 'tool_result' && message.toolCallId) {
+        const interval = toolHeartbeats.get(message.toolCallId);
+        if (interval) {
+          clearInterval(interval);
+          toolHeartbeats.delete(message.toolCallId);
+        }
+      }
     });
 
     handle.on('done', (result) => {
       void (async () => {
-        let finalError = result?.error;
+        if (cleaningUp.has(options.taskId)) return;
+        cleaningUp.add(options.taskId);
+        try {
+          let finalError = result?.error;
 
-        if (agentId === 'codex' && !detectedCodexSessionId) {
-          const detectedSession = findLatestCodexSession(options.cwd, startedAt);
-          if (detectedSession?.id) {
-            detectedCodexSessionId = detectedSession.id;
-            persistAgentSessionId(session.id, agentId, detectedSession.id);
-          }
-        }
+          for (const interval of toolHeartbeats.values()) clearInterval(interval);
+          toolHeartbeats.clear();
 
-        if (!finalError && options.mode === 'act') {
-          const commands = await resolveQualityGateCommands(options.cwd);
-          for (const command of commands) {
-            const gateResult = await runShellCommand(command, options.cwd, sshHost);
-            const passed = gateResult.exitCode === 0;
-            const message: AgentMessage = {
-              type: 'quality_gate',
-              role: 'system',
-              content: passed ? `Quality gate passed: ${command}` : `Quality gate failed: ${command}`,
-              timestamp: Date.now(),
-              command,
-              exitCode: gateResult.exitCode,
-              passed,
-              stdout: gateResult.stdout,
-              stderr: gateResult.stderr,
-            };
-            emitQualityGateMessage(options.taskId, session.id, message);
-            if (!passed) {
-              finalError = `Quality gate failed: ${command}`;
-              break;
+          if (agentId === 'codex' && !detectedCodexSessionId) {
+            const detectedSession = findLatestCodexSession(options.cwd, startedAt);
+            if (detectedSession?.id) {
+              detectedCodexSessionId = detectedSession.id;
+              persistAgentSessionId(session.id, agentId, detectedSession.id);
             }
           }
-        }
 
-        mainWindow.webContents.send('agent:done', { taskId: options.taskId, error: finalError });
-
-        if (workspace) {
-          const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
-          emitWorkspaceStatus(workspace.id, nextStatus, { sessionId: session.id });
           if (!finalError && options.mode === 'act') {
-            await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
-              // Checkpoints are best-effort
-            });
+            const commands = await resolveQualityGateCommands(options.cwd);
+            for (const command of commands) {
+              const gateResult = await runShellCommand(command, options.cwd, sshHost);
+              const passed = gateResult.exitCode === 0;
+              const message: AgentMessage = {
+                type: 'quality_gate',
+                role: 'system',
+                content: passed ? `Quality gate passed: ${command}` : `Quality gate failed: ${command}`,
+                timestamp: Date.now(),
+                command,
+                exitCode: gateResult.exitCode,
+                passed,
+                stdout: gateResult.stdout,
+                stderr: gateResult.stderr,
+              };
+              emitQualityGateMessage(options.taskId, session.id, message);
+              if (!passed) {
+                finalError = `Quality gate failed: ${command}`;
+                break;
+              }
+            }
           }
-        }
 
-        handle.removeAllListeners();
-        activeTasks.delete(options.taskId);
-        taskSessions.delete(options.taskId);
+          mainWindow.webContents.send('agent:done', { taskId: options.taskId, error: finalError });
+
+          if (workspace) {
+            const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
+            emitWorkspaceStatus(workspace.id, nextStatus, { sessionId: session.id });
+            if (!finalError && options.mode === 'act') {
+              await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
+                // Checkpoints are best-effort
+              });
+            }
+          }
+        } finally {
+          handle.removeAllListeners();
+          activeTasks.delete(options.taskId);
+          taskSessions.delete(options.taskId);
+          cleaningUp.delete(options.taskId);
+        }
       })();
     });
 
@@ -653,6 +739,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('task:stop', async (_event, { taskId }: { taskId: string }) => {
     requireFields({ taskId }, 'taskId');
+    if (cleaningUp.has(taskId)) return; // done handler already running
+    cleaningUp.add(taskId);
     const handle = activeTasks.get(taskId);
     if (handle) {
       handle.stop();
@@ -660,6 +748,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       activeTasks.delete(taskId);
     }
     taskSessions.delete(taskId);
+    cleaningUp.delete(taskId);
     mainWindow.webContents.send('agent:done', { taskId, error: undefined });
     const workspace = workspaceStore.get(taskId);
     if (workspace) {
@@ -722,7 +811,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // --- Session handlers ---
 
   ipcMain.handle('sessions:list', async () => {
-    return sessionStore.list();
+    return sessionStore.listWithSummaries();
   });
 
   ipcMain.handle('sessions:get', async (_event, { id }: { id: string }) => {
@@ -824,7 +913,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           .join(' -o ');
         const escapedDir = targetDir.replace(/'/g, "'\\''");
         const cmd = `find '${escapedDir}' -maxdepth ${depth} \\( ${skipFilter} \\) -prune -o -not -name '.*' \\( -type d -o -type f \\) -print | while IFS= read -r p; do if [ -d "$p" ]; then echo "d $p"; else echo "f $p"; fi; done`;
-        const { stdout } = await execFileAsync('ssh', [sshHost, cmd], { timeout: 15000 });
+        const { stdout } = await execFileAsync(resolveSshCommand(), [sshHost, cmd], {
+          timeout: 15000,
+          env: extendedEnv(),
+        });
 
         const lines = stdout.trim().split('\n').filter(Boolean);
         // Build a map of path -> TreeNode
@@ -914,7 +1006,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('fs:read', async (_event, { filePath }: { filePath: string }) => {
     try {
       if (sshHost) {
-        const { stdout } = await execFileAsync('ssh', [sshHost, `cat ${toRemoteShellPath(filePath)}`], { timeout: 10000 });
+        const { stdout } = await execFileAsync(resolveSshCommand(), [sshHost, `cat ${toRemoteShellPath(filePath)}`], {
+          timeout: 10000,
+          env: extendedEnv(),
+        });
         return { content: stdout, error: null };
       }
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -940,7 +1035,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       if (sshHost) {
         // Resolve ~ and list directories + get the resolved path
         const cmd = `cd ${toRemoteShellPath(targetDir)} 2>/dev/null && pwd && ls -1pA 2>/dev/null | head -200`;
-        const { stdout } = await execFileAsync('ssh', [sshHost, cmd], { timeout: 10000 });
+        const { stdout } = await execFileAsync(resolveSshCommand(), [sshHost, cmd], {
+          timeout: 10000,
+          env: extendedEnv(),
+        });
         const lines = stdout.trim().split('\n');
         const resolvedPath = lines[0] || targetDir;
         const entries = lines.slice(1).filter(Boolean).map((line) => ({
@@ -981,9 +1079,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     let proc: ChildProcess;
 
     if (sshHost) {
-      proc = spawn('ssh', ['-tt', sshHost], {
+      proc = spawn(resolveSshCommand(), ['-tt', sshHost], {
         cwd: spawnCwd,
-        env: { ...process.env, TERM: 'xterm-256color' },
+        env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       if (termCwd && proc.stdin?.writable) {
@@ -992,7 +1090,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     } else {
       proc = spawn(shell, ['-i'], {
         cwd: spawnCwd,
-        env: { ...process.env, TERM: 'xterm-256color' },
+        env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
@@ -1036,19 +1134,27 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('ssh:test', async (_event, { host }: { host: string }) => {
     try {
-      await execFileAsync('ssh', ['-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', host, 'echo', 'ok'], { timeout: 10000 });
+      await execFileAsync(resolveSshCommand(), ['-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', host, 'echo', 'ok'], {
+        timeout: 10000,
+        env: extendedEnv(),
+      });
       return { success: true, error: null };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      const info = classifySpawnError(err as Error, { command: 'ssh', sshHost: host });
+      return { success: false, error: `${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}` };
     }
   });
 
   ipcMain.handle('ssh:connect', async (_event, { host, remoteCwd }: { host: string; remoteCwd?: string }) => {
     // Verify SSH connectivity before committing
     try {
-      await execFileAsync('ssh', ['-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', host, 'echo', 'ok'], { timeout: 10000 });
+      await execFileAsync(resolveSshCommand(), ['-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', host, 'echo', 'ok'], {
+        timeout: 10000,
+        env: extendedEnv(),
+      });
     } catch (err: any) {
-      throw new Error(`SSH connection failed: ${err.message}`);
+      const info = classifySpawnError(err as Error, { command: 'ssh', sshHost: host });
+      throw new Error(`SSH connection failed: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`);
     }
     sshHost = host;
     setToolsSshHost(host);

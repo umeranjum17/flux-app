@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, WifiOff, Loader2, Clock, X } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
+import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 
 interface RecentSshHost {
   host: string;
@@ -89,6 +90,8 @@ export function SshConnectDialog() {
       await saveRecentHost(host.trim(), remoteDir);
       useUiStore.getState().connectSsh(host.trim(), resolvedPath);
       await window.api.invoke('cwd:set', { cwd: resolvedPath });
+      const project = createRecentProject(resolvedPath, { isSSH: true, sshHost: host.trim() });
+      await rememberRecentProject(project);
       setOverlay(null);
     } catch (err: any) {
       // SSH connection failed — revert any partial state

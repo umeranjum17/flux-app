@@ -1,7 +1,10 @@
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
-import { spawnAgentProcess } from './spawn-utils';
+import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
+import { classifySpawnError } from '../process-utils';
+
+const GEMINI_STARTUP_TIMEOUT_MS = 20_000;
 
 /**
  * Spawn a Gemini CLI subprocess and parse its NDJSON stream output.
@@ -19,7 +22,7 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
   args.push(options.prompt);
 
   const proc: ChildProcess = spawnAgentProcess({
-    command: options.sshHost ? 'gemini' : (options.binaryPath || 'gemini'),
+    command: options.binaryPath || 'gemini',
     args,
     cwd: options.cwd,
     sshHost: options.sshHost,
@@ -27,14 +30,72 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
   });
 
   const emitter = new EventEmitter() as AgentHandle;
+  emitter.setMaxListeners(20);
   emitter.taskId = options.taskId;
   emitter.agentId = 'gemini';
   let stopped = false;
+  let finished = false;
 
+  const finish = (result: { code: number | null; error?: string }) => {
+    if (finished) return;
+    finished = true;
+    watchdog.clear();
+    emitter.emit('done', result);
+  };
+
+  const watchdog = createStartupWatchdog({
+    timeoutMs: GEMINI_STARTUP_TIMEOUT_MS,
+    label: 'Gemini',
+    sshHost: options.sshHost,
+    remoteCwd: options.remoteCwd,
+    cwd: options.cwd,
+    onTimeout: (error) => {
+      if (finished || stopped) return;
+      try { proc.kill('SIGTERM'); } catch {}
+      emitMessage({
+        type: 'error',
+        role: 'system',
+        content: error,
+        timestamp: Date.now(),
+      });
+      finish({ code: 1, error });
+    },
+  });
+
+  const emitMessage = (message: AgentMessage) => {
+    if (isMeaningfulMessage(message)) {
+      watchdog.markProgress();
+    }
+    emitter.emit('message', message);
+  };
+
+  if (options.sshHost) {
+    setTimeout(() => {
+      emitMessage({
+        type: 'status',
+        role: 'system',
+        statusKind: 'spawn',
+        content: `[SSH] Spawning gemini on ${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`,
+        timestamp: Date.now(),
+      } satisfies AgentMessage);
+    }, 0);
+  }
+
+  const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
   let buffer = '';
 
   proc.stdout?.on('data', (chunk: Buffer) => {
     buffer += chunk.toString('utf-8');
+    if (buffer.length > MAX_BUFFER) {
+      buffer = '';
+      emitMessage({
+        type: 'error',
+        role: 'system',
+        content: 'Stream buffer overflow - cleared',
+        timestamp: Date.now(),
+      });
+      return;
+    }
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
 
@@ -47,7 +108,7 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
         event = JSON.parse(trimmed);
       } catch {
         // Plain text fallback
-        emitter.emit('message', {
+        emitMessage({
           type: 'text',
           role: 'assistant',
           content: trimmed,
@@ -58,22 +119,24 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
 
       const message = mapGeminiEvent(event);
       if (message) {
-        emitter.emit('message', message);
+        emitMessage(message);
       }
     }
   });
 
   proc.stderr?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8').trim();
-    if (text) {
-      const msg: AgentMessage = {
-        type: 'error',
-        role: 'system',
-        content: text,
-        timestamp: Date.now(),
-      };
-      emitter.emit('message', msg);
-    }
+    if (!text) return;
+
+    const actionable = filterStderrNoise(text);
+    if (!actionable) return;
+
+    emitMessage({
+      type: 'error',
+      role: 'system',
+      content: actionable,
+      timestamp: Date.now(),
+    });
   });
 
   proc.on('close', (code: number | null) => {
@@ -82,13 +145,13 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
         const event = JSON.parse(buffer.trim());
         const message = mapGeminiEvent(event);
         if (message) {
-          emitter.emit('message', message);
+          emitMessage(message);
         }
       } catch {
         // ignore
       }
     }
-    emitter.emit('done', {
+    finish({
       code,
       ...(stopped || code === 0 || code === null ? {} : { error: `Gemini exited with code ${code}` }),
     });
@@ -96,18 +159,20 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
 
   proc.on('error', (err: Error) => {
     try { proc.kill(); } catch {}
-    const msg: AgentMessage = {
+    const info = classifySpawnError(err, { command: 'gemini', sshHost: options.sshHost });
+    const content = `Failed to start Gemini: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
+    emitMessage({
       type: 'error',
       role: 'system',
-      content: `Failed to spawn gemini: ${err.message}`,
+      content,
       timestamp: Date.now(),
-    };
-    emitter.emit('message', msg);
-    emitter.emit('done', { code: 1, error: err.message });
+    });
+    finish({ code: 1, error: content });
   });
 
   emitter.stop = () => {
     stopped = true;
+    watchdog.clear();
     proc.kill('SIGTERM');
   };
 

@@ -76,11 +76,15 @@ async function fetchGeminiModels(): Promise<ModelInfo[]> {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-        { signal: controller.signal },
-      );
-      clearTimeout(timer);
+      let res: Response;
+      try {
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+          { signal: controller.signal },
+        );
+      } finally {
+        clearTimeout(timer);
+      }
       if (res.ok) {
         const data = (await res.json()) as {
           models: { name: string; displayName: string; supportedGenerationMethods: string[] }[];
@@ -128,11 +132,15 @@ async function fetchOpenAIModels(): Promise<ModelInfo[]> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch('https://api.openai.com/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    let res: Response;
+    try {
+      res = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) return OPENAI_DEFAULTS;
 
@@ -153,10 +161,14 @@ async function fetchOllamaModels(): Promise<ModelInfo[]> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch('http://localhost:11434/api/tags', {
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    let res: Response;
+    try {
+      res = await fetch('http://localhost:11434/api/tags', {
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (res.ok) {
       const data = (await res.json()) as { models: { name: string }[] };

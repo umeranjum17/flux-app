@@ -60,6 +60,15 @@ export class ConversationLoop {
   }
 
   /**
+   * Restore messages from a previous session (for resume support).
+   * Messages are inserted after the system prompt.
+   */
+  restoreMessages(messages: LoopMessage[]): void {
+    // Insert after the system prompt (first message)
+    this.messages.splice(1, 0, ...messages);
+  }
+
+  /**
    * Add a user message to the conversation, optionally with images.
    */
   addUserMessage(content: string, images?: string[]): void {
@@ -313,11 +322,18 @@ export class ConversationLoop {
 }
 
 function buildDefaultSystemPrompt(mode: TaskMode, cwd: string): string {
-  const base = `You are an AI coding assistant. Working directory: ${cwd}`;
+  const repoName = cwd.split('/').pop() ?? 'project';
+  const base = `You are an expert coding assistant working in the "${repoName}" project.
+Working directory: ${cwd}`;
+
   if (mode === 'plan') {
-    return `${base}\n\nYou are in PLAN mode. Analyze the codebase, explain your reasoning, and suggest changes. Do NOT make any modifications.`;
+    return `${base}
+
+MODE: PLAN — Analyze thoroughly. Explain trade-offs. Suggest concrete changes with file paths and line references. Do NOT modify files or run destructive commands.`;
   }
-  return `${base}\n\nYou are in ACT mode. You can use tools to read, write, and modify files. Execute the user's request.`;
+  return `${base}
+
+MODE: ACT — Make changes directly. After modifications, verify with run_command when appropriate. Be concise about what you changed and why.`;
 }
 
 function toReasoningEffort(thinking: ThinkingLevel, model: string): 'low' | 'medium' | 'high' | 'xhigh' {

@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Bot, Clock3, Wrench } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 
-const STALLED_AFTER_MS = 15_000;
+const STALLED_THRESHOLDS: Record<string, number> = {
+  tool: 60_000,
+  thinking: 45_000,
+  default: 15_000,
+};
 
 const phaseLabels = {
   starting: 'Starting',
@@ -31,7 +35,8 @@ export function LiveRunHeader() {
     return null;
   }
 
-  const isStalled = task.status === 'running' && now - activeRun.lastActivityAt >= STALLED_AFTER_MS;
+  const threshold = STALLED_THRESHOLDS[activeRun.phase] ?? STALLED_THRESHOLDS.default;
+  const isStalled = task.status === 'running' && now - activeRun.lastActivityAt >= threshold;
   const phaseLabel = task.status === 'waiting_input'
     ? phaseLabels.waiting_input
     : task.status === 'waiting_approval'
@@ -61,7 +66,7 @@ export function LiveRunHeader() {
           </span>
         )}
         {isStalled && (
-          <span className="text-xs text-warning">No updates for 15s</span>
+          <span className="text-xs text-warning">No updates for {Math.round(threshold / 1000)}s</span>
         )}
       </div>
     </div>

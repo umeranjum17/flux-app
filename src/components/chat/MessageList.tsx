@@ -96,7 +96,7 @@ export function MessageList() {
                 exit="exit"
                 transition={{ duration: 0.15 }}
               >
-                {renderMessage(msg, idx, taskId!, taskStatus, mergedResult)}
+                {renderMessage(msg, idx, taskId!, taskStatus, mergedResult, task.mode)}
                 {isFileEditToolCall(msg) && (
                   <div className="mt-2">
                     <FileEditBlock
@@ -137,6 +137,7 @@ function renderMessage(
   taskId: string,
   taskStatus?: string,
   mergedResult?: AgentMessage | null,
+  taskMode?: string,
 ) {
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
 
@@ -148,6 +149,7 @@ function renderMessage(
           role={msg.role as 'user' | 'assistant' | 'system'}
           images={msg.images}
           attachments={msg.attachments}
+          mode={taskMode as 'plan' | 'act' | undefined}
         />
       );
 

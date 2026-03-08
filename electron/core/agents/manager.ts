@@ -1,5 +1,6 @@
-import { execSync, execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
+import { extendedEnv, resolveExecutable, resolveSshCommand } from '../process-utils';
 
 const execFileAsync = promisify(execFile);
 import {
@@ -9,6 +10,7 @@ import {
   AgentHandle,
   AuthResult,
 } from './types';
+import type { SessionMessage } from '../session/types';
 import { spawnClaude } from './claude';
 import { spawnCodex } from './codex';
 import { spawnGemini } from './gemini';
@@ -66,30 +68,12 @@ const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle> = {
   ollama: spawnOllama,
 };
 
-function whichSync(cmd: string): string | null {
-  // Electron apps often have a restricted PATH — extend it with common install locations
-  const extraPaths = [
-    '/usr/local/bin',
-    '/opt/homebrew/bin',
-    `${process.env.HOME}/.local/bin`,
-    `${process.env.HOME}/.npm-global/bin`,
-    `${process.env.HOME}/.nvm/versions/node`,
-  ].join(':');
-  const extendedPath = `${process.env.PATH}:${extraPaths}`;
-
+function versionSync(command: string): string {
   try {
-    return execSync(`which ${cmd}`, {
+    return execFileSync(command, ['--version'], {
       encoding: 'utf-8',
-      env: { ...process.env, PATH: extendedPath },
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
-function versionSync(cmd: string): string {
-  try {
-    return execSync(`${cmd} --version`, { encoding: 'utf-8' }).trim().split('\n')[0];
+      env: extendedEnv(),
+    }).trim().split('\n')[0];
   } catch {
     return 'unknown';
   }
@@ -129,7 +113,7 @@ class AgentManager {
 
     // CLI-based agents: check if the binary exists and responds
     if (def.cmd) {
-      const path = whichSync(def.cmd);
+      const path = resolveExecutable(def.cmd);
       if (!path) {
         return { authenticated: false, message: `${def.name} CLI not found` };
       }
@@ -154,7 +138,7 @@ class AgentManager {
 
     // ollama — local, no auth needed
     if (id === 'ollama') {
-      const path = whichSync('ollama');
+      const path = resolveExecutable('ollama');
       return path
         ? { authenticated: true, message: 'Ollama running locally' }
         : { authenticated: false, message: 'Ollama not found' };
@@ -167,14 +151,21 @@ class AgentManager {
     return fetchModelsForAgent(id);
   }
 
-  spawn(id: AgentId, options: SpawnOptions): AgentHandle {
+  spawn(id: AgentId, options: SpawnOptions, resumeMessages?: SessionMessage[]): AgentHandle {
     const agent = this.agents.get(id);
     if (!agent || !agent.available) {
       throw new Error(`Agent ${id} is not available`);
     }
 
+    const opts = { ...options, binaryPath: agent.path || undefined };
+
+    // OpenAI supports session resume via message replay
+    if (id === 'openai' && resumeMessages?.length) {
+      return spawnOpenAI(opts, resumeMessages);
+    }
+
     const spawner = spawners[id];
-    return spawner({ ...options, binaryPath: agent.path || undefined });
+    return spawner(opts);
   }
 
   async detectAllRemote(remoteHost: string): Promise<DetectedAgent[]> {
@@ -196,9 +187,9 @@ class AgentManager {
 
       try {
         const { stdout } = await execFileAsync(
-          'ssh',
-          [remoteHost, `which ${def.cmd} 2>/dev/null && ${def.cmd} --version 2>/dev/null || true`],
-          { encoding: 'utf-8', timeout: 15000 },
+          resolveSshCommand(),
+          [remoteHost, `command -v ${def.cmd} >/dev/null 2>&1 && command -v ${def.cmd} && ${def.cmd} --version 2>/dev/null || true`],
+          { encoding: 'utf-8', timeout: 15000, env: extendedEnv() },
         );
 
         const lines = stdout.trim().split('\n').filter(Boolean);
@@ -259,9 +250,9 @@ class AgentManager {
     }
 
     // CLI-based agents
-    const path = whichSync(def.cmd!);
+    const path = resolveExecutable(def.cmd!);
     const available = path !== null;
-    const version = available ? versionSync(def.cmd!) : 'unknown';
+    const version = available ? versionSync(path) : 'unknown';
 
     let authStatus: DetectedAgent['authStatus'] = 'unknown';
     if (!available) {

@@ -7,13 +7,15 @@ import { writeFile } from '../tools/write';
 import { executeBash } from '../tools/bash';
 import { globFiles } from '../tools/glob';
 import { grepFiles } from '../tools/grep';
+import type { SessionMessage } from '../session/types';
 
 /**
  * OpenAI API-based agent backed by the shared conversation loop so tool
  * execution actually completes instead of stopping after tool call emission.
  */
-export function spawnOpenAI(options: SpawnOptions): AgentHandle {
+export function spawnOpenAI(options: SpawnOptions, resumeMessages?: SessionMessage[]): AgentHandle {
   const emitter = new EventEmitter() as AgentHandle;
+  emitter.setMaxListeners(20);
   emitter.taskId = options.taskId;
   emitter.agentId = 'openai';
 
@@ -65,6 +67,11 @@ export function spawnOpenAI(options: SpawnOptions): AgentHandle {
       emitter.emit('done', fatalError ? { code: 1, error: fatalError } : { code: 0 });
     }
   };
+
+  // Restore previous session messages for resume
+  if (resumeMessages?.length) {
+    loop.restoreMessages(sessionMessagesToLoopMessages(resumeMessages));
+  }
 
   loop.addUserMessage(options.prompt, options.images);
   void runLoop();
@@ -165,11 +172,69 @@ function asOptionalString(value: unknown): string | null {
 }
 
 function buildSystemPrompt(mode: TaskMode, cwd: string): string {
-  const base = `You are an AI coding assistant. Working directory: ${cwd}`;
+  const repoName = cwd.split('/').pop() ?? 'project';
+  const base = `You are an expert coding assistant working in the "${repoName}" project.
+Working directory: ${cwd}
+
+Available tools: read_file, write_file, run_command, list_files, search_files.
+Use absolute paths. Prefer search_files to locate code before making changes.`;
+
   if (mode === 'plan') {
-    return `${base}\n\nYou are in PLAN mode. Analyze the codebase, explain your reasoning, and suggest changes. Do NOT make any modifications.`;
+    return `${base}
+
+MODE: PLAN — Analyze thoroughly. Explain trade-offs. Suggest concrete changes with file paths and line references. Do NOT modify files or run destructive commands.`;
   }
-  return `${base}\n\nYou are in ACT mode. You can use tools to read, write, and modify files. Execute the user's request.`;
+  return `${base}
+
+MODE: ACT — Make changes directly. After modifications, verify with run_command when appropriate. Be concise about what you changed and why.`;
+}
+
+function sessionMessagesToLoopMessages(messages: SessionMessage[]): Array<{
+  role: 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+  tool_call_id?: string;
+}> {
+  const result: Array<{
+    role: 'user' | 'assistant' | 'tool';
+    content: string | null;
+    tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+    tool_call_id?: string;
+  }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+
+    if (msg.role === 'user' && msg.type === 'text') {
+      result.push({ role: 'user', content: msg.content });
+    } else if (msg.role === 'assistant' && msg.type === 'text') {
+      result.push({ role: 'assistant', content: msg.content });
+    } else if (msg.role === 'assistant' && msg.type === 'tool_call' && msg.toolCallId && msg.toolName) {
+      let args = '{}';
+      if (msg.toolInput) {
+        try {
+          args = typeof msg.toolInput === 'string' ? msg.toolInput : JSON.stringify(msg.toolInput);
+        } catch { /* keep default */ }
+      }
+      result.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{
+          id: msg.toolCallId,
+          type: 'function',
+          function: { name: msg.toolName, arguments: args },
+        }],
+      });
+    } else if (msg.role === 'tool' && msg.type === 'tool_result' && msg.toolCallId) {
+      result.push({
+        role: 'tool',
+        content: msg.content,
+        tool_call_id: msg.toolCallId,
+      });
+    }
+  }
+
+  return result;
 }
 
 function getDefaultTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {

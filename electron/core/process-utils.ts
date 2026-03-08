@@ -1,0 +1,192 @@
+import fs from 'fs';
+import path from 'path';
+
+function listHomeBinDirectories(env: NodeJS.ProcessEnv): string[] {
+  const home = env.HOME ?? env.USERPROFILE;
+  if (!home) {
+    return [];
+  }
+
+  return [
+    path.join(home, '.local', 'bin'),
+    path.join(home, '.npm-global', 'bin'),
+    path.join(home, '.nix-profile', 'bin'),
+  ];
+}
+
+function listExtraBinDirectories(env: NodeJS.ProcessEnv): string[] {
+  return [
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/opt/homebrew/bin',
+    '/nix/var/nix/profiles/default/bin',
+    '/run/current-system/sw/bin',
+    ...listHomeBinDirectories(env),
+  ];
+}
+
+function dedupe(entries: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const entry of entries) {
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+
+  return result;
+}
+
+function listPathEntries(env: NodeJS.ProcessEnv): string[] {
+  const currentPath = env.PATH ?? '';
+  return dedupe([
+    ...currentPath.split(path.delimiter),
+    ...listExtraBinDirectories(env),
+  ]);
+}
+
+function isPathCommand(command: string): boolean {
+  return command.includes('/') || command.includes('\\');
+}
+
+function isExecutable(candidate: string): boolean {
+  try {
+    const stat = fs.statSync(candidate);
+    if (!stat.isFile()) {
+      return false;
+    }
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function listCommandExtensions(env: NodeJS.ProcessEnv): string[] {
+  if (process.platform !== 'win32') {
+    return [''];
+  }
+
+  const pathext = env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM';
+  return pathext
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+export function extendedEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const merged = { ...process.env, ...env };
+  const pathEntries = listPathEntries(merged);
+  return {
+    ...merged,
+    PATH: pathEntries.join(path.delimiter),
+  };
+}
+
+export function resolveExecutable(command: string, env?: NodeJS.ProcessEnv): string | null {
+  const spawnEnv = extendedEnv(env);
+
+  if (isPathCommand(command)) {
+    return isExecutable(command) ? command : null;
+  }
+
+  const extensions = listCommandExtensions(spawnEnv);
+  for (const dir of listPathEntries(spawnEnv)) {
+    for (const extension of extensions) {
+      const suffix = extension && !command.toLowerCase().endsWith(extension.toLowerCase())
+        ? extension
+        : '';
+      const candidate = path.join(dir, `${command}${suffix}`);
+      if (isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function resolveSshCommand(env?: NodeJS.ProcessEnv): string {
+  const command = process.platform === 'win32' ? 'ssh.exe' : 'ssh';
+  return resolveExecutable(command, env) ?? command;
+}
+
+export interface SpawnErrorInfo {
+  code: string;
+  userMessage: string;
+  suggestion: string;
+}
+
+export function classifySpawnError(
+  err: Error,
+  context: { command: string; sshHost?: string },
+): SpawnErrorInfo {
+  const msg = err.message ?? '';
+  const code = (err as NodeJS.ErrnoException).code ?? '';
+
+  if (code === 'ENOENT' || /ENOENT/.test(msg)) {
+    if (context.sshHost) {
+      return {
+        code: 'SSH_NOT_FOUND',
+        userMessage: 'SSH binary not found',
+        suggestion: 'Install OpenSSH or verify PATH includes /usr/bin',
+      };
+    }
+    return {
+      code: 'COMMAND_NOT_FOUND',
+      userMessage: `"${context.command}" not found`,
+      suggestion: `Install ${context.command} or check your PATH`,
+    };
+  }
+
+  if (code === 'EACCES' || /EACCES/.test(msg)) {
+    return {
+      code: 'PERMISSION_DENIED',
+      userMessage: `Permission denied running "${context.command}"`,
+      suggestion: 'Check file permissions (chmod +x)',
+    };
+  }
+
+  if (/Host key verification failed/i.test(msg)) {
+    return {
+      code: 'SSH_HOST_KEY',
+      userMessage: 'SSH host key verification failed',
+      suggestion: `Run: ssh-keyscan ${context.sshHost ?? 'HOST'} >> ~/.ssh/known_hosts`,
+    };
+  }
+
+  if (/Connection timed out/i.test(msg)) {
+    return {
+      code: 'SSH_TIMEOUT',
+      userMessage: `SSH connection timed out${context.sshHost ? ` to ${context.sshHost}` : ''}`,
+      suggestion: 'Verify the host is reachable (ping or ssh -v)',
+    };
+  }
+
+  if (/Connection refused/i.test(msg)) {
+    return {
+      code: 'SSH_REFUSED',
+      userMessage: `SSH connection refused${context.sshHost ? ` by ${context.sshHost}` : ''}`,
+      suggestion: 'Verify the SSH daemon is running on the remote host',
+    };
+  }
+
+  if (/Permission denied.*publickey/i.test(msg)) {
+    return {
+      code: 'SSH_AUTH',
+      userMessage: 'SSH authentication failed (publickey)',
+      suggestion: 'Check your SSH key is loaded: ssh-add -l',
+    };
+  }
+
+  return {
+    code: 'UNKNOWN',
+    userMessage: msg || 'Unknown error',
+    suggestion: '',
+  };
+}

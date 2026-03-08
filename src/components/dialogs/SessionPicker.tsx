@@ -6,7 +6,7 @@ import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import type { AgentId, TaskMode } from '../../lib/types';
-import type { SessionMessage } from '../../lib/ipc-api';
+import type { Session, SessionMessage } from '../../lib/ipc-api';
 import { restoreSessionMessage } from '../../lib/session-messages';
 
 export function SessionPicker() {
@@ -132,9 +132,12 @@ export function SessionPicker() {
                 >
                   <div className="flex items-start justify-between mb-1">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-text-primary truncate">
-                        {session.title}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-text-primary truncate">
+                          {session.title}
+                        </p>
+                        <ModeBadge mode={session.mode} />
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-text-tertiary">{session.agentId}</span>
                         <span className="text-xs text-text-tertiary">
@@ -143,7 +146,13 @@ export function SessionPicker() {
                         <span className="text-xs text-text-tertiary">
                           {formatDate(session.updatedAt)}
                         </span>
+                        <SessionStats summary={session.summary} />
                       </div>
+                      {session.summary?.lastMessagePreview && (
+                        <p className="text-xs text-text-tertiary mt-1 truncate">
+                          {session.summary.lastMessagePreview.slice(0, 60)}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -185,5 +194,43 @@ export function SessionPicker() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function ModeBadge({ mode }: { mode: string }) {
+  const isPlan = mode === 'plan';
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+      isPlan
+        ? 'bg-blue-500/15 text-blue-400'
+        : 'bg-emerald-500/15 text-emerald-400'
+    }`}>
+      {isPlan ? 'Plan' : 'Act'}
+    </span>
+  );
+}
+
+function SessionStats({ summary }: { summary?: Session['summary'] }) {
+  if (!summary || summary.messageCount === 0) return null;
+
+  const formatTokens = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+    return String(n);
+  };
+
+  return (
+    <>
+      {(summary.totalInputTokens > 0 || summary.totalOutputTokens > 0) && (
+        <span className="text-[10px] text-text-tertiary font-mono">
+          {formatTokens(summary.totalInputTokens)}&uarr; {formatTokens(summary.totalOutputTokens)}&darr;
+        </span>
+      )}
+      {summary.totalCostUsd > 0 && (
+        <span className="text-[10px] text-text-tertiary font-mono">
+          ${summary.totalCostUsd.toFixed(3)}
+        </span>
+      )}
+    </>
   );
 }

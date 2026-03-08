@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
+import { extendedEnv, resolveSshCommand } from '../process-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +20,10 @@ export async function sshExec(
   timeout: number = 30000,
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
-    const { stdout, stderr } = await execFileAsync('ssh', [host, command], { timeout });
+    const { stdout, stderr } = await execFileAsync(resolveSshCommand(), [host, command], {
+      timeout,
+      env: extendedEnv(),
+    });
     return { stdout, stderr, exitCode: 0 };
   } catch (err: any) {
     return {
@@ -37,8 +41,9 @@ export async function sshWriteFile(
   timeout: number = 30000,
 ): Promise<{ success: boolean; error?: string }> {
   const escaped = remotePath.replace(/'/g, "'\\''");
-  const proc = spawn('ssh', [host, `cat > '${escaped}'`], {
+  const proc = spawn(resolveSshCommand(), [host, `cat > '${escaped}'`], {
     timeout,
+    env: extendedEnv(),
     stdio: ['pipe', 'pipe', 'pipe'],
   } as any);
 

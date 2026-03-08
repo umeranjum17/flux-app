@@ -4,13 +4,16 @@ import path from 'path';
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage, QuestionField } from './types';
-import { spawnAgentProcess } from './spawn-utils';
+import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
+import { classifySpawnError } from '../process-utils';
 import {
   extractCodexSessionMeta,
   hasCodexProfile,
   inferCodexProfile,
   mapCodexReasoningEffort,
 } from './codex-utils';
+
+export const CODEX_STARTUP_TIMEOUT_MS = 30_000;
 
 /**
  * Spawn a Codex CLI subprocess and parse its JSONL output.
@@ -45,14 +48,18 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   }
 
   if (options.images?.length) {
-    try {
-      const persisted = persistImages(options.images);
-      imageDir = persisted.directory;
-      for (const imagePath of persisted.paths) {
-        args.push('--image', imagePath);
+    if (options.sshHost) {
+      imageWarning = 'Codex image attachments are not supported over SSH yet. They were skipped.';
+    } else {
+      try {
+        const persisted = persistImages(options.images);
+        imageDir = persisted.directory;
+        for (const imagePath of persisted.paths) {
+          args.push('--image', imagePath);
+        }
+      } catch (err: any) {
+        imageWarning = `Codex image attachments could not be prepared: ${err.message ?? String(err)}`;
       }
-    } catch (err: any) {
-      imageWarning = `Codex image attachments could not be prepared: ${err.message ?? String(err)}`;
     }
   }
 
@@ -60,7 +67,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   args.push(options.prompt);
 
   const proc: ChildProcess = spawnAgentProcess({
-    command: options.sshHost ? 'codex' : (options.binaryPath || 'codex'),
+    command: options.binaryPath || 'codex',
     args,
     cwd: options.cwd,
     sshHost: options.sshHost,
@@ -68,13 +75,60 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   });
 
   const emitter = new EventEmitter() as AgentHandle;
+  emitter.setMaxListeners(20);
   emitter.taskId = options.taskId;
   emitter.agentId = 'codex';
   let stopped = false;
+  let finished = false;
+
+  const finish = (result: { code: number | null; error?: string }) => {
+    if (finished) return;
+    finished = true;
+    watchdog.clear();
+    emitter.emit('done', result);
+  };
+
+  const watchdog = createStartupWatchdog({
+    timeoutMs: CODEX_STARTUP_TIMEOUT_MS,
+    label: 'Codex',
+    sshHost: options.sshHost,
+    remoteCwd: options.remoteCwd,
+    cwd: options.cwd,
+    onTimeout: (error) => {
+      if (finished || stopped) return;
+      try { proc.kill('SIGTERM'); } catch {}
+      emitMessage({
+        type: 'error',
+        role: 'system',
+        content: error,
+        timestamp: Date.now(),
+      });
+      finish({ code: 1, error });
+    },
+  });
+
+  const emitMessage = (message: AgentMessage) => {
+    if (isMeaningfulMessage(message)) {
+      watchdog.markProgress();
+    }
+    emitter.emit('message', message);
+  };
+
+  if (options.sshHost) {
+    setTimeout(() => {
+      emitMessage({
+        type: 'status',
+        role: 'system',
+        statusKind: 'spawn',
+        content: `[SSH] Spawning codex on ${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`,
+        timestamp: Date.now(),
+      } satisfies AgentMessage);
+    }, 0);
+  }
 
   if (imageWarning) {
     setTimeout(() => {
-      emitter.emit('message', {
+      emitMessage({
         type: 'text',
         role: 'system',
         content: imageWarning!,
@@ -83,10 +137,21 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     }, 0);
   }
 
+  const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
   let buffer = '';
 
   proc.stdout?.on('data', (chunk: Buffer) => {
     buffer += chunk.toString('utf-8');
+    if (buffer.length > MAX_BUFFER) {
+      buffer = '';
+      emitMessage({
+        type: 'error',
+        role: 'system',
+        content: 'Stream buffer overflow - cleared',
+        timestamp: Date.now(),
+      });
+      return;
+    }
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
 
@@ -99,7 +164,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
         event = JSON.parse(trimmed);
       } catch {
         // Plain text output — emit as text
-        emitter.emit('message', {
+        emitMessage({
           type: 'text',
           role: 'assistant',
           content: trimmed,
@@ -115,7 +180,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
       const message = mapCodexEvent(event);
       if (message) {
-        emitter.emit('message', message);
+        emitMessage(message);
       }
     }
   });
@@ -133,7 +198,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
       content: actionable,
       timestamp: Date.now(),
     };
-    emitter.emit('message', msg);
+    emitMessage(msg);
   });
 
   proc.on('close', (code: number | null) => {
@@ -147,13 +212,13 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
         }
         const message = mapCodexEvent(event);
         if (message) {
-          emitter.emit('message', message);
+          emitMessage(message);
         }
       } catch {
         // ignore
       }
     }
-    emitter.emit('done', {
+    finish({
       code,
       ...(stopped || code === 0 || code === null ? {} : { error: `Codex exited with code ${code}` }),
     });
@@ -162,17 +227,19 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   proc.on('error', (err: Error) => {
     cleanupTempDir(imageDir);
     try { proc.kill(); } catch {}
-    const msg: AgentMessage = {
+    const info = classifySpawnError(err, { command: 'codex', sshHost: options.sshHost });
+    const content = `Failed to start Codex: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
+    emitMessage({
       type: 'error',
       role: 'system',
-      content: `Failed to spawn codex: ${err.message}`,
+      content,
       timestamp: Date.now(),
-    };
-    emitter.emit('message', msg);
-    emitter.emit('done', { code: 1, error: err.message });
+    });
+    finish({ code: 1, error: content });
   });
 
   emitter.stop = () => {
+    watchdog.clear();
     stopped = true;
     cleanupTempDir(imageDir);
     proc.kill('SIGTERM');
@@ -238,20 +305,6 @@ function cleanupTempDir(directory: string | null): void {
   } catch {
     // best effort cleanup
   }
-}
-
-function filterStderrNoise(text: string): string | null {
-  const lines = text.split('\n').filter((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return false;
-    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return false;
-    if (/^\s*(ERROR|WARN|DEBUG|TRACE|INFO)\s/.test(trimmed)) return false;
-    if (/rmcp::/.test(trimmed)) return false;
-    if (/Transport channel closed/i.test(trimmed)) return false;
-    if (/transport error/i.test(trimmed)) return false;
-    return true;
-  });
-  return lines.length > 0 ? lines.join('\n') : null;
 }
 
 /**
@@ -624,3 +677,4 @@ function readCodexString(...values: unknown[]): string {
 
   return '';
 }
+

@@ -123,6 +123,49 @@ export class SessionStore {
       .all(sessionId) as any[];
     return rows.map(rowToMessage);
   }
+
+  getSummary(sessionId: string): SessionSummary {
+    const db = getDb();
+    const row = db.prepare(`
+      SELECT
+        COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+        COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+        COALESCE(SUM(cost_usd), 0) as total_cost_usd,
+        COUNT(*) as message_count
+      FROM messages
+      WHERE session_id = ?
+    `).get(sessionId) as any;
+
+    const lastMsg = db.prepare(`
+      SELECT content FROM messages
+      WHERE session_id = ? AND type IN ('text', 'result') AND role = 'assistant'
+      ORDER BY timestamp DESC LIMIT 1
+    `).get(sessionId) as any;
+
+    return {
+      totalInputTokens: row?.total_input_tokens ?? 0,
+      totalOutputTokens: row?.total_output_tokens ?? 0,
+      totalCostUsd: row?.total_cost_usd ?? 0,
+      messageCount: row?.message_count ?? 0,
+      lastMessagePreview: lastMsg?.content?.slice(0, 80) ?? null,
+    };
+  }
+
+  listWithSummaries(): (Session & { summary: SessionSummary })[] {
+    const sessions = this.list();
+    return sessions.map((s) => ({
+      ...s,
+      summary: this.getSummary(s.id),
+    }));
+  }
+}
+
+export interface SessionSummary {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+  messageCount: number;
+  lastMessagePreview: string | null;
 }
 
 function rowToSession(row: any): Session {

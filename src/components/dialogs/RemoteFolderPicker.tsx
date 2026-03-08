@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Folder, FolderOpen, ChevronRight, ArrowUp, Home, Loader2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
+import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 
 interface DirEntry {
   name: string;
@@ -52,6 +53,11 @@ export function RemoteFolderPicker() {
     const targetPath = resolvedPath || currentPath;
     useUiStore.getState().setCwd(targetPath);
     window.api.invoke('cwd:set', { cwd: targetPath });
+    const sshHost = useUiStore.getState().sshHost;
+    if (sshHost) {
+      const project = createRecentProject(targetPath, { isSSH: true, sshHost });
+      rememberRecentProject(project);
+    }
     setOverlay(null);
   }, [resolvedPath, currentPath, setOverlay]);
 

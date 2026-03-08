@@ -3,7 +3,7 @@ import { useAgentStore } from '../../stores/agent';
 import { useUiStore, type RecentProject } from '../../stores/ui';
 
 interface WelcomeScreenProps {
-  onOpenProject: (path?: string) => void;
+  onOpenProject: (path?: string, options?: { isSSH?: boolean; sshHost?: string }) => void;
 }
 
 export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
@@ -58,7 +58,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
                 <RecentProjectRow
                   key={project.path}
                   project={project}
-                  onClick={() => onOpenProject(project.path)}
+                  onClick={() => onOpenProject(project.path, project.isSSH ? { isSSH: true, sshHost: project.sshHost } : undefined)}
                 />
               ))}
             </div>

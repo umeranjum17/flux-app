@@ -21,6 +21,7 @@ import type { FluxConfig, Session } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
+import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 
 
 export function AppShell() {
@@ -164,7 +165,21 @@ export function AppShell() {
   }, []);
 
   // Open project handler
-  const openProject = useCallback(async (projectPath?: string) => {
+  const openProject = useCallback(async (projectPath?: string, options?: { isSSH?: boolean; sshHost?: string }) => {
+    // SSH reconnection
+    if (options?.isSSH && options.sshHost && projectPath) {
+      try {
+        const { host, cwd: remoteCwd } = await connectToSshWorkspace(options.sshHost, projectPath);
+        const project = createRecentProject(remoteCwd, { isSSH: true, sshHost: host });
+        await rememberRecentProject(project);
+        return;
+      } catch {
+        // SSH reconnection failed — open SSH dialog so user can re-authenticate
+        useUiStore.getState().setOverlay('ssh-connect');
+        return;
+      }
+    }
+
     let targetPath = projectPath;
     if (!targetPath) {
       const picked = await window.api.invoke('cwd:pick') as string | null;
@@ -177,19 +192,8 @@ export function AppShell() {
     useUiStore.getState().setCwd(targetPath);
     // Git info will be fetched by the cwd effect
 
-    // Add to recent projects
-    const project = {
-      path: targetPath,
-      name: targetPath.split('/').pop() || targetPath,
-      lastOpened: Date.now(),
-    };
-    useUiStore.getState().addRecentProject(project);
-
-    // Persist recent projects
-    try {
-      const recentProjects = useUiStore.getState().recentProjects;
-      await window.api.invoke('config:set', { recentProjects });
-    } catch {}
+    const project = createRecentProject(targetPath);
+    await rememberRecentProject(project);
   }, []);
 
   const switchToAgent = useCallback(() => {

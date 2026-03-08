@@ -90,6 +90,14 @@ export interface RepoMapIpcStatus {
   errorMessage?: string;
 }
 
+export interface SessionSummary {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+  messageCount: number;
+  lastMessagePreview: string | null;
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -100,6 +108,7 @@ export interface Session {
   createdAt: number;
   updatedAt: number;
   metadata: Record<string, unknown>;
+  summary?: SessionSummary;
 }
 
 export interface SessionMessage {

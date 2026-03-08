@@ -11,9 +11,10 @@ interface MessageBubbleProps {
   role: 'user' | 'assistant' | 'system';
   images?: string[];
   attachments?: FileAttachment[];
+  mode?: 'plan' | 'act';
 }
 
-export function MessageBubble({ content, role, images, attachments }: MessageBubbleProps) {
+export function MessageBubble({ content, role, images, attachments, mode }: MessageBubbleProps) {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   if (role === 'system') {
@@ -24,14 +25,17 @@ export function MessageBubble({ content, role, images, attachments }: MessageBub
     );
   }
 
+  const isPlanAssistant = mode === 'plan' && role === 'assistant';
+
   return (
     <>
       <div
-        className={
+        className={[
           role === 'user'
             ? 'bg-bg-elevated/80 rounded-lg px-4 py-3 w-full'
-            : 'w-full'
-        }
+            : 'w-full',
+          isPlanAssistant ? 'border-l-2 border-blue-400/40 pl-4' : '',
+        ].join(' ')}
       >
         {images && images.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">

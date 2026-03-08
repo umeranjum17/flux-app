@@ -3,9 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLAUDE_STARTUP_TIMEOUT_MS, spawnClaude } from '../claude';
 import { spawnAgentProcess } from '../spawn-utils';
 
-vi.mock('../spawn-utils', () => ({
-  spawnAgentProcess: vi.fn(),
-}));
+vi.mock('../spawn-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../spawn-utils')>();
+  return {
+    ...actual,
+    spawnAgentProcess: vi.fn(),
+  };
+});
 
 class FakeReadable extends EventEmitter {}
 
@@ -112,6 +116,27 @@ describe('spawnClaude', () => {
       type: 'status',
       statusKind: 'spawn',
       content: '[SSH] Spawning claude on umera@extreme (cwd: /remote/workspace)',
+    }));
+  });
+
+  it('uses the detected remote Claude binary when available over SSH', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/tmp/flux-local',
+      sshHost: 'umera@extreme',
+      remoteCwd: '/remote/workspace',
+      binaryPath: '/opt/tools/claude',
+    });
+
+    expect(mockedSpawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
+      command: '/opt/tools/claude',
+      sshHost: 'umera@extreme',
+      remoteCwd: '/remote/workspace',
     }));
   });
 
@@ -250,6 +275,158 @@ describe('spawnClaude', () => {
           content: 'User has answered your questions: "Do you want UI or backend changes first?" = Backend first. You can now continue with the user\'s answers in mind.',
         }],
       },
+    });
+  });
+
+  it('maps user events with tool_result content blocks', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'user',
+      message: {
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'toolu_abc',
+          content: [{ type: 'text', text: 'File contents here' }],
+        }],
+      },
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'tool_result',
+      role: 'tool',
+      content: 'File contents here',
+      toolCallId: 'toolu_abc',
+      isError: false,
+    }));
+  });
+
+  it('normalizes structured content arrays in tool_result to plain text', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'tool_result',
+      tool_use_id: 'toolu_xyz',
+      content: [
+        { type: 'text', text: 'Line 1' },
+        { type: 'text', text: 'Line 2' },
+      ],
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'tool_result',
+      content: 'Line 1\nLine 2',
+      toolCallId: 'toolu_xyz',
+    }));
+  });
+
+  it('emits both text and tool_use from a multi-block assistant message', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'text', text: 'Let me read the file.' },
+          { type: 'tool_use', id: 'toolu_read', name: 'Read', input: { path: '/foo.ts' } },
+        ],
+      },
+    });
+
+    expect(messages).toEqual([
+      expect.objectContaining({ type: 'text', content: 'Let me read the file.' }),
+      expect.objectContaining({
+        type: 'tool_call',
+        toolName: 'Read',
+        toolInput: { path: '/foo.ts' },
+        toolCallId: 'toolu_read',
+      }),
+    ]);
+  });
+
+  it('accumulates input_json_delta fragments into a complete tool_call', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    // content_block_start with tool_use
+    emitStdout(proc, {
+      type: 'content_block_start',
+      index: 1,
+      content_block: { type: 'tool_use', id: 'toolu_delta', name: 'Edit' },
+    });
+
+    // Streaming input_json_delta fragments
+    emitStdout(proc, {
+      type: 'content_block_delta',
+      index: 1,
+      delta: { type: 'input_json_delta', partial_json: '{"file_' },
+    });
+    emitStdout(proc, {
+      type: 'content_block_delta',
+      index: 1,
+      delta: { type: 'input_json_delta', partial_json: 'path": "/foo.ts"}' },
+    });
+
+    // No tool_call emitted yet during accumulation
+    const toolCalls = messages.filter((m) => m.type === 'tool_call');
+    expect(toolCalls).toHaveLength(0);
+
+    // content_block_stop triggers the complete tool_call emission
+    emitStdout(proc, {
+      type: 'content_block_stop',
+      index: 1,
+    });
+
+    const finalToolCalls = messages.filter((m) => m.type === 'tool_call');
+    expect(finalToolCalls).toHaveLength(1);
+    expect(finalToolCalls[0]).toMatchObject({
+      type: 'tool_call',
+      toolName: 'Edit',
+      toolInput: { file_path: '/foo.ts' },
+      toolCallId: 'toolu_delta',
     });
   });
 
