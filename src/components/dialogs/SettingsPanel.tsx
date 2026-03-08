@@ -13,6 +13,7 @@ const defaultConfig: FluxConfig = {
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
   defaultThinking: 'medium',
+  defaultMode: 'act' as const,
   qualityGateCommands: [],
   customAgentPaths: {},
   recentProjects: [],

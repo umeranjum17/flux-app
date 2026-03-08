@@ -302,6 +302,71 @@ describe('setPendingApproval', () => {
   });
 });
 
+describe('question requests and live run state', () => {
+  it('tracks pending questions and switches the task to waiting_input', () => {
+    makeTask('t1');
+    useChatStore.getState().setTaskStatus('t1', 'running');
+
+    useChatStore.getState().ingestStreamMessage('t1', {
+      type: 'question_request',
+      role: 'assistant',
+      content: 'Which area should I fix first?',
+      timestamp: 10,
+      requestId: 'q-1',
+      questions: [{
+        header: 'Priority',
+        question: 'Which area should I fix first?',
+        options: [{ label: 'Backend first' }, { label: 'UI first' }],
+        allowFreeform: false,
+      }],
+      options: [{ label: 'Backend first' }, { label: 'UI first' }],
+      allowFreeform: false,
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.status).toBe('waiting_input');
+    expect(task.pendingQuestion).toEqual({
+      requestId: 'q-1',
+      prompt: 'Which area should I fix first?',
+      questions: [{
+        header: 'Priority',
+        question: 'Which area should I fix first?',
+        options: [{ label: 'Backend first' }, { label: 'UI first' }],
+        allowFreeform: false,
+      }],
+      options: [{ label: 'Backend first' }, { label: 'UI first' }],
+      allowFreeform: false,
+      placeholder: undefined,
+    });
+    expect(task.activeRun?.phase).toBe('waiting_input');
+  });
+
+  it('clears pending questions and resumes running after a user answer arrives', () => {
+    makeTask('t1');
+    useChatStore.getState().setPendingQuestion('t1', {
+      requestId: 'q-1',
+      prompt: 'Which area should I fix first?',
+      questions: [{
+        question: 'Which area should I fix first?',
+        allowFreeform: true,
+      }],
+      allowFreeform: true,
+    });
+
+    useChatStore.getState().ingestStreamMessage('t1', {
+      type: 'text',
+      role: 'user',
+      content: 'Backend first',
+      timestamp: 11,
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.status).toBe('running');
+    expect(task.pendingQuestion).toBeUndefined();
+    expect(task.activeRun?.phase).toBe('progress');
+  });
+});
+
 describe('addUserMessage', () => {
   it('adds a message with role user and correct content', () => {
     makeTask('t1');

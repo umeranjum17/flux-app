@@ -42,7 +42,7 @@ export function ResultBlock({
   }
 
   return (
-    <div className="border-t border-border mt-4 pt-3">
+    <div className="border-t border-border/40 mt-4 pt-3">
       <div className="flex items-center gap-2 text-text-secondary text-[13px]">
         <CheckCircle size={14} className="text-success shrink-0" />
         <span>{parts.join(' \u00b7 ')}</span>

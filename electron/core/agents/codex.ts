@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { AgentHandle, SpawnOptions, AgentMessage } from './types';
+import { AgentHandle, SpawnOptions, AgentMessage, QuestionField } from './types';
 import { spawnAgentProcess } from './spawn-utils';
 import {
   extractCodexSessionMeta,
@@ -122,15 +122,18 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
   proc.stderr?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8').trim();
-    if (text) {
-      const msg: AgentMessage = {
-        type: 'error',
-        role: 'system',
-        content: text,
-        timestamp: Date.now(),
-      };
-      emitter.emit('message', msg);
-    }
+    if (!text) return;
+
+    const actionable = filterStderrNoise(text);
+    if (!actionable) return;
+
+    const msg: AgentMessage = {
+      type: 'error',
+      role: 'system',
+      content: actionable,
+      timestamp: Date.now(),
+    };
+    emitter.emit('message', msg);
   });
 
   proc.on('close', (code: number | null) => {
@@ -190,6 +193,10 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     }
   };
 
+  emitter.answerQuestion = (_requestId: string, response: string) => {
+    emitter.steer(response);
+  };
+
   return emitter;
 }
 
@@ -233,117 +240,146 @@ function cleanupTempDir(directory: string | null): void {
   }
 }
 
+function filterStderrNoise(text: string): string | null {
+  const lines = text.split('\n').filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return false;
+    if (/^\s*(ERROR|WARN|DEBUG|TRACE|INFO)\s/.test(trimmed)) return false;
+    if (/rmcp::/.test(trimmed)) return false;
+    if (/Transport channel closed/i.test(trimmed)) return false;
+    if (/transport error/i.test(trimmed)) return false;
+    return true;
+  });
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
 /**
  * Map a Codex JSON event to our unified AgentMessage format.
  */
 function mapCodexEvent(event: any): AgentMessage | null {
   const now = Date.now();
-  const normalized = unwrapCodexEvent(event);
-
-  if (!normalized) {
+  if (!event || typeof event !== 'object') {
     return null;
   }
 
-  if (normalized.type === 'token_count' && normalized.rate_limits?.primary) {
-    const primary = normalized.rate_limits.primary;
-    const secondary = normalized.rate_limits.secondary;
-    const utilization = Math.max(
-      typeof primary.used_percent === 'number' ? primary.used_percent : 0,
-      typeof secondary?.used_percent === 'number' ? secondary.used_percent : 0,
-    );
+  if (event.type === 'event_msg') {
+    const payload = event.payload;
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
 
-    return {
-      type: 'rate_limit',
-      role: 'system',
-      content: `Codex rate limit ${Math.round(utilization)}%`,
-      timestamp: now,
-      rateLimitInfo: {
-        status: mapCodexRateLimitStatus(utilization),
-        resetsAt: typeof primary.resets_at === 'number' ? primary.resets_at * 1000 : now,
-        rateLimitType: normalized.rate_limits.limit_name ?? normalized.rate_limits.limit_id ?? 'codex',
-        utilization,
-        overageStatus: typeof secondary?.used_percent === 'number'
-          ? mapCodexRateLimitStatus(secondary.used_percent)
-          : undefined,
-        overageResetsAt: typeof secondary?.resets_at === 'number'
-          ? secondary.resets_at * 1000
-          : undefined,
-      },
-    };
-  }
-
-  // Message event with role
-  if (normalized.type === 'message' || normalized.role) {
-    const role = normalized.role ?? 'assistant';
-
-    // Text content
-    if (typeof normalized.content === 'string') {
+    if (payload.type === 'agent_message') {
+      const content = readCodexString(payload.message, payload.content, payload.text);
+      if (!content) return null;
       return {
-        type: 'text',
-        role,
-        content: normalized.content,
+        type: 'status',
+        role: 'system',
+        content,
+        timestamp: now,
+        statusKind: 'progress',
+      };
+    }
+
+    if (payload.type === 'agent_reasoning') {
+      const content = readCodexString(payload.text, payload.message, payload.content);
+      if (!content) return null;
+      return {
+        type: 'thinking',
+        role: 'assistant',
+        content,
         timestamp: now,
       };
     }
 
-    // Structured content blocks
-    if (Array.isArray(normalized.content)) {
-      const textParts = normalized.content
-        .filter((b: any) => b.type === 'text' || b.type === 'output_text')
-        .map((b: any) => b.text ?? b.output_text ?? '')
-        .join('');
-
-      if (textParts) {
-        return {
-          type: 'text',
-          role,
-          content: textParts,
-          timestamp: now,
-        };
-      }
+    if (payload.type === 'token_count') {
+      return mapCodexRateLimit(payload, now);
     }
   }
 
-  // Function/tool call
-  if (normalized.type === 'function_call' || normalized.type === 'tool_call') {
+  const normalized = unwrapCodexEvent(event);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.type === 'token_count') {
+    return mapCodexRateLimit(normalized, now);
+  }
+
+  if (normalized.type === 'reasoning') {
+    const content = extractCodexReasoningSummary(normalized);
+    if (content) {
+      return {
+        type: 'thinking',
+        role: 'assistant',
+        content,
+        timestamp: now,
+      };
+    }
+
     return {
-      type: 'tool_call',
-      role: 'assistant',
-      content: `Calling: ${normalized.name ?? normalized.function?.name ?? 'unknown'}`,
+      type: 'status',
+      role: 'system',
+      content: 'Thinking',
       timestamp: now,
-      toolName: normalized.name ?? normalized.function?.name,
-      toolInput: normalized.arguments ? tryParseJson(normalized.arguments) : (normalized.input ?? {}),
-      toolCallId: normalized.call_id ?? normalized.id,
+      statusKind: 'progress',
     };
   }
 
-  // Function/tool output
-  if (normalized.type === 'function_call_output' || normalized.type === 'tool_result') {
+  if (normalized.type === 'message' || normalized.role) {
+    const role = normalized.role ?? 'assistant';
+    if (role === 'developer' || role === 'user') {
+      return null;
+    }
+
+    const content = extractCodexMessageText(normalized.content);
+    if (content) {
+      return {
+        type: 'text',
+        role,
+        content,
+        timestamp: now,
+      };
+    }
+  }
+
+  if (
+    normalized.type === 'function_call' ||
+    normalized.type === 'tool_call' ||
+    normalized.type === 'custom_tool_call'
+  ) {
+    return mapCodexToolCall(normalized, now);
+  }
+
+  if (
+    normalized.type === 'function_call_output' ||
+    normalized.type === 'tool_result' ||
+    normalized.type === 'custom_tool_call_output'
+  ) {
     return {
       type: 'tool_result',
       role: 'tool',
-      content: typeof normalized.output === 'string' ? normalized.output : JSON.stringify(normalized.output ?? ''),
+      content: stringifyCodexOutput(normalized.output ?? normalized.content ?? normalized.result ?? ''),
       timestamp: now,
-      toolCallId: normalized.call_id ?? normalized.tool_use_id,
+      toolCallId: normalized.call_id ?? normalized.tool_use_id ?? normalized.id,
       isError: normalized.is_error ?? false,
     };
   }
 
-  // Completion / result summary
   if (normalized.type === 'result' || normalized.type === 'completion') {
+    const usage = normalized.usage ?? normalized.result?.usage ?? normalized.completion?.usage;
     return {
       type: 'result',
       role: 'assistant',
       content: normalized.result ?? normalized.text ?? '',
       timestamp: now,
-      costUsd: normalized.cost_usd,
-      inputTokens: normalized.usage?.input_tokens,
-      outputTokens: normalized.usage?.output_tokens,
-      durationMs: normalized.duration_ms,
+      costUsd: normalized.cost_usd ?? normalized.total_cost_usd ?? normalized.total_cost ?? usage?.cost_usd,
+      inputTokens: usage?.input_tokens ?? normalized.input_tokens,
+      outputTokens: usage?.output_tokens ?? normalized.output_tokens,
+      durationMs: normalized.duration_ms ?? normalized.duration_api_ms,
     };
   }
 
-  // Error
   if (normalized.type === 'error') {
     return {
       type: 'error',
@@ -358,10 +394,15 @@ function mapCodexEvent(event: any): AgentMessage | null {
 
 function tryParseJson(str: string): Record<string, unknown> {
   try {
-    return JSON.parse(str);
+    const parsed = JSON.parse(str);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
   } catch {
-    return { raw: str };
+    // Fall through
   }
+
+  return { raw: str };
 }
 
 function unwrapCodexEvent(event: any): any {
@@ -377,7 +418,209 @@ function unwrapCodexEvent(event: any): any {
 }
 
 function mapCodexRateLimitStatus(utilization: number): 'allowed' | 'allowed_warning' | 'rejected' {
-  if (utilization >= 100) return 'rejected';
-  if (utilization >= 80) return 'allowed_warning';
+  if (utilization >= 1) return 'rejected';
+  if (utilization >= 0.8) return 'allowed_warning';
   return 'allowed';
+}
+
+function mapCodexRateLimit(normalized: any, timestamp: number): AgentMessage | null {
+  if (!normalized?.rate_limits?.primary) {
+    return null;
+  }
+
+  const primary = normalized.rate_limits.primary;
+  const secondary = normalized.rate_limits.secondary;
+  const primaryUtilization = normalizeCodexUtilization(primary.used_percent);
+  const secondaryUtilization = normalizeCodexUtilization(secondary?.used_percent);
+  const utilization = Math.max(primaryUtilization ?? 0, secondaryUtilization ?? 0);
+
+  return {
+    type: 'rate_limit',
+    role: 'system',
+    content: `Codex rate limit ${Math.round(utilization * 100)}%`,
+    timestamp,
+    rateLimitInfo: {
+      status: mapCodexRateLimitStatus(utilization),
+      resetsAt: typeof primary.resets_at === 'number' ? primary.resets_at * 1000 : timestamp,
+      rateLimitType: normalized.rate_limits.limit_name ?? normalized.rate_limits.limit_id ?? 'codex',
+      utilization,
+      overageStatus: secondaryUtilization !== undefined
+        ? mapCodexRateLimitStatus(secondaryUtilization)
+        : undefined,
+      overageResetsAt: typeof secondary?.resets_at === 'number'
+        ? secondary.resets_at * 1000
+        : undefined,
+    },
+  };
+}
+
+function normalizeCodexUtilization(value: unknown): number | undefined {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return undefined;
+  }
+
+  if (value > 1) {
+    return Math.max(0, Math.min(1, value / 100));
+  }
+
+  return Math.max(0, Math.min(1, value));
+}
+
+function extractCodexMessageText(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  return content
+    .filter((block: any) => ['text', 'output_text', 'input_text'].includes(block?.type))
+    .map((block: any) => block.text ?? block.output_text ?? block.input_text ?? '')
+    .join('')
+    .trim();
+}
+
+function extractCodexReasoningSummary(reasoning: any): string {
+  if (!Array.isArray(reasoning?.summary)) {
+    return '';
+  }
+
+  return reasoning.summary
+    .map((item: any) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item.text === 'string') return item.text;
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function mapCodexToolCall(normalized: any, timestamp: number): AgentMessage {
+  const toolName = normalized.name ?? normalized.function?.name ?? 'unknown';
+  const toolInput = getCodexToolInput(normalized);
+  const requestId = normalized.call_id ?? normalized.id ?? `question-${timestamp}`;
+
+  if (toolName === 'request_user_input') {
+    const question = parseStructuredQuestionRequest(toolInput, requestId, timestamp);
+    if (question) {
+      return question;
+    }
+  }
+
+  return {
+    type: 'tool_call',
+    role: 'assistant',
+    content: `Calling: ${toolName}`,
+    timestamp,
+    toolName,
+    toolInput,
+    toolCallId: normalized.call_id ?? normalized.id,
+  };
+}
+
+function getCodexToolInput(normalized: any): Record<string, unknown> {
+  if (typeof normalized.arguments === 'string') {
+    return tryParseJson(normalized.arguments);
+  }
+
+  if (normalized.input && typeof normalized.input === 'object' && !Array.isArray(normalized.input)) {
+    return normalized.input as Record<string, unknown>;
+  }
+
+  if (typeof normalized.input === 'string') {
+    return { raw: normalized.input };
+  }
+
+  return {};
+}
+
+function parseStructuredQuestionRequest(
+  toolInput: Record<string, unknown>,
+  requestId: string,
+  timestamp: number,
+): AgentMessage | null {
+  const questions = normalizeQuestionFields(toolInput);
+  if (questions.length === 0) {
+    return null;
+  }
+
+  const firstQuestion = questions[0];
+  const content = questions.length === 1
+    ? firstQuestion.question
+    : `${firstQuestion.question}\n\n${questions.length - 1} more question${questions.length > 2 ? 's' : ''} pending`;
+
+  return {
+    type: 'question_request',
+    role: 'assistant',
+    content,
+    timestamp,
+    requestId,
+    questions,
+    options: firstQuestion.options,
+    allowFreeform: questions.some((question) => question.allowFreeform),
+    placeholder: firstQuestion.placeholder,
+  };
+}
+
+function normalizeQuestionFields(toolInput: Record<string, unknown>): QuestionField[] {
+  const rawQuestions = Array.isArray(toolInput.questions)
+    ? toolInput.questions
+    : typeof toolInput.question === 'string'
+      ? [{ question: toolInput.question, header: toolInput.header, options: toolInput.options, placeholder: toolInput.placeholder }]
+      : [];
+
+  return rawQuestions
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => {
+      const options = Array.isArray(item.options)
+        ? item.options
+          .filter((option): option is Record<string, unknown> => !!option && typeof option === 'object' && !Array.isArray(option))
+          .map((option) => ({
+            label: typeof option.label === 'string' ? option.label : String(option.value ?? ''),
+            ...(typeof option.description === 'string' ? { description: option.description } : {}),
+            ...(typeof option.value === 'string' ? { value: option.value } : {}),
+          }))
+          .filter((option) => option.label.trim().length > 0)
+        : undefined;
+      const allowFreeform = typeof item.allowFreeform === 'boolean'
+        ? item.allowFreeform
+        : typeof item.allow_freeform === 'boolean'
+          ? item.allow_freeform
+          : !options || options.length === 0;
+
+      return {
+        ...(typeof item.header === 'string' ? { header: item.header } : {}),
+        question: typeof item.question === 'string' ? item.question : String(item.prompt ?? ''),
+        ...(options?.length ? { options } : {}),
+        allowFreeform,
+        ...(typeof item.placeholder === 'string' ? { placeholder: item.placeholder } : {}),
+        ...(typeof item.multiSelect === 'boolean' ? { multiSelect: item.multiSelect } : {}),
+      };
+    })
+    .filter((question) => question.question.trim().length > 0);
+}
+
+function stringifyCodexOutput(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value ?? '');
+  } catch {
+    return String(value ?? '');
+  }
+}
+
+function readCodexString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
 }

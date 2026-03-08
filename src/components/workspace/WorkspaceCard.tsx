@@ -5,6 +5,7 @@ const statusConfig: Record<WorkspaceStatus, { color: string; label: string; puls
   idle: { color: 'bg-text-tertiary', label: 'Idle' },
   running: { color: 'bg-success', label: 'Running', pulse: true },
   waiting_approval: { color: 'bg-warning', label: 'Waiting', pulse: true },
+  waiting_input: { color: 'bg-info', label: 'Question', pulse: true },
   done: { color: 'bg-info', label: 'Done' },
   error: { color: 'bg-error', label: 'Error' },
   merging: { color: 'bg-accent', label: 'Merging', pulse: true },
@@ -30,7 +31,7 @@ export function WorkspaceCard({
   onDelete,
 }: WorkspaceCardProps) {
   const status = statusConfig[workspace.status] ?? statusConfig.idle;
-  const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval';
+  const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
 
   return (
     <button

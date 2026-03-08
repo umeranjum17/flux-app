@@ -29,7 +29,7 @@ export function MessageBubble({ content, role, images, attachments }: MessageBub
       <div
         className={
           role === 'user'
-            ? 'bg-bg-elevated rounded-xl p-4 w-full'
+            ? 'bg-bg-elevated/80 rounded-lg px-4 py-3 w-full'
             : 'w-full'
         }
       >
@@ -63,7 +63,7 @@ export function MessageBubble({ content, role, images, attachments }: MessageBub
             ))}
           </div>
         )}
-        <div className="prose prose-sm max-w-none text-text-primary">
+        <div className={`prose prose-sm max-w-none text-text-primary ${role === 'assistant' ? 'font-mono text-[13px] leading-relaxed' : ''}`}>
           <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -81,7 +81,7 @@ export function MessageBubble({ content, role, images, attachments }: MessageBub
 
               return (
                 <code
-                  className="bg-bg-elevated rounded px-1.5 py-0.5 font-mono text-[13px]"
+                  className="bg-bg-hover rounded px-1.5 py-0.5 font-mono text-[13px]"
                   {...props}
                 >
                   {children}
@@ -155,7 +155,7 @@ function CodeBlock({ children, language }: { children: string; language?: string
         </pre>
       )}
       {language && (
-        <span className="absolute top-2 left-3 text-[10px] text-text-tertiary uppercase tracking-wider">
+        <span className="absolute top-2 left-3 text-[9px] text-text-tertiary uppercase tracking-wider opacity-20">
           {language}
         </span>
       )}

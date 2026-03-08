@@ -30,6 +30,7 @@ export interface FluxConfig {
   defaultAgent: string;
   defaultModel: string;
   defaultThinking: ThinkingLevel;
+  defaultMode: 'plan' | 'act';
   qualityGateCommands: string[];
   customAgentPaths: Record<string, string>;
   recentProjects: RecentProject[];

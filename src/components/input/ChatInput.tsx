@@ -85,11 +85,24 @@ export function ChatInput({ focused }: ChatInputProps) {
       task = useChatStore.getState().tasks.get(taskId)!;
     }
 
-    addUserMessage(task.id, text, images.length > 0 ? images : undefined, attachments);
+    const pendingQuestion = task.pendingQuestion;
+    const isAnsweringQuestion = !!pendingQuestion;
+
+    if (!isAnsweringQuestion) {
+      addUserMessage(task.id, text, images.length > 0 ? images : undefined, attachments);
+    }
 
     try {
-      const hasActiveRun = task.status === 'running' || task.status === 'waiting_approval';
-      if (!hasActiveRun) {
+      const hasActiveRun = task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input';
+      if (isAnsweringQuestion) {
+        useChatStore.getState().setPendingQuestion(task.id, null);
+        setTaskStatus(task.id, 'running');
+        await window.api.invoke('task:answer-question', {
+          taskId: task.id,
+          requestId: pendingQuestion.requestId,
+          response: text,
+        });
+      } else if (!hasActiveRun) {
         setTaskStatus(task.id, 'running');
         const result = await window.api.invoke('task:spawn', {
           taskId: task.id,
@@ -117,8 +130,13 @@ export function ChatInput({ focused }: ChatInputProps) {
         });
       }
     } catch (err: unknown) {
-      setTaskStatus(task.id, 'error');
       const message = err instanceof Error ? err.message : 'Failed to start task';
+      if (isAnsweringQuestion) {
+        useChatStore.getState().setPendingQuestion(task.id, pendingQuestion ?? null);
+        setTaskStatus(task.id, 'waiting_input');
+      } else {
+        setTaskStatus(task.id, 'error');
+      }
       toast.error(message);
     }
 
@@ -261,6 +279,12 @@ export function ChatInput({ focused }: ChatInputProps) {
     setSlashQuery('');
   };
 
+  const activeTask = getActiveTask();
+  const pendingQuestion = activeTask?.pendingQuestion;
+  const placeholder = pendingQuestion
+    ? pendingQuestion.placeholder ?? pendingQuestion.prompt
+    : 'Ask Flux anything... (@ to mention files)';
+
   const hasContent = value.trim().length > 0;
 
   return (
@@ -281,7 +305,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="bg-bg-elevated border border-border rounded-xl p-4">
+      <div className="bg-bg-elevated/80 border border-border/40 rounded-lg p-3">
         {/* Attached files chips */}
         {attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -318,7 +342,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder="Ask Flux anything... (@ to mention files)"
+            placeholder={placeholder}
             rows={1}
             autoFocus
             className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-sm leading-6"

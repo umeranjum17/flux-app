@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('api', {
     if (!listenerMap.has(channel)) {
       listenerMap.set(channel, new Map());
     }
+    // Remove existing wrapper for the same callback to prevent orphaned listeners
+    const existing = listenerMap.get(channel)!.get(callback);
+    if (existing) {
+      ipcRenderer.removeListener(channel, existing);
+    }
     listenerMap.get(channel)!.set(callback, listener);
     ipcRenderer.on(channel, listener);
     return () => {

@@ -27,7 +27,7 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region flex items-center justify-between h-10 min-h-[40px] bg-bg-secondary border-b border-border px-3 ${isMac ? 'pl-[70px]' : ''}`}
+      className={`drag-region flex items-center justify-between h-10 min-h-[40px] bg-bg-secondary border-b border-border/30 px-3 ${isMac ? 'pl-[70px]' : ''}`}
     >
       {/* Left: hamburger */}
       <div className="no-drag flex items-center gap-2">
@@ -55,7 +55,7 @@ export function TopBar() {
       {/* Right: controls */}
       <div className="no-drag flex items-center gap-2">
         {/* Plan / Act toggle */}
-        <div className="flex items-center rounded-md bg-bg-primary text-xs font-medium overflow-hidden border border-border">
+        <div className="flex items-center rounded-md bg-bg-elevated/50 text-xs font-medium overflow-hidden">
           <button
             onClick={() => setMode('plan')}
             className={`px-2.5 py-1 transition-colors ${

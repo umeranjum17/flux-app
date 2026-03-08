@@ -19,6 +19,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
   defaultThinking: 'medium',
+  defaultMode: 'act',
   qualityGateCommands: [],
   customAgentPaths: {},
   recentProjects: [],
@@ -39,12 +40,15 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
         ? 'high'
         : DEFAULT_CONFIG.defaultThinking;
 
+  const defaultMode = raw.defaultMode === 'plan' ? 'plan' : 'act';
+
   return {
     ...DEFAULT_CONFIG,
     ...raw,
     theme,
     sendKey,
     defaultThinking,
+    defaultMode,
     customAgentPaths:
       raw.customAgentPaths && typeof raw.customAgentPaths === 'object' && !Array.isArray(raw.customAgentPaths)
         ? raw.customAgentPaths as FluxConfig['customAgentPaths']

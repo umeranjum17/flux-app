@@ -13,12 +13,27 @@ export interface FileAttachment {
   name: string;
 }
 
+export interface QuestionOption {
+  label: string;
+  description?: string;
+  value?: string;
+}
+
+export interface QuestionField {
+  header?: string;
+  question: string;
+  options?: QuestionOption[];
+  allowFreeform?: boolean;
+  placeholder?: string;
+  multiSelect?: boolean;
+}
+
 export interface AgentMessage {
-  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'rate_limit' | 'quality_gate';
+  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'question_request' | 'rate_limit' | 'quality_gate';
   role: MessageRole;
   content: string;
   timestamp: number;
-  statusKind?: 'spawn' | 'startup' | 'diagnostic';
+  statusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
   // For tool calls
   toolName?: string;
   toolInput?: Record<string, unknown>;
@@ -29,6 +44,10 @@ export interface AgentMessage {
   requestId?: string;
   action?: string;
   filePath?: string;
+  options?: QuestionOption[];
+  questions?: QuestionField[];
+  allowFreeform?: boolean;
+  placeholder?: string;
   // For results
   costUsd?: number;
   inputTokens?: number;
@@ -82,6 +101,7 @@ export interface AgentHandle extends EventEmitter {
   approve(requestId: string): void;
   deny(requestId: string): void;
   steer(prompt: string, images?: string[]): void;
+  answerQuestion(requestId: string, response: string): void;
 }
 
 export interface ModelInfo {

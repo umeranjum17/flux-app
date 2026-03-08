@@ -2,26 +2,26 @@
 
 @theme {
   /* Dark mode colors (default) */
-  --color-bg-primary: hsl(220 15% 10%);
-  --color-bg-secondary: hsl(220 15% 13%);
-  --color-bg-elevated: hsl(220 15% 16%);
-  --color-bg-hover: hsl(220 15% 19%);
+  --color-bg-primary: hsl(220 8% 8%);
+  --color-bg-secondary: hsl(220 6% 11%);
+  --color-bg-elevated: hsl(220 6% 14%);
+  --color-bg-hover: hsl(220 6% 17%);
 
-  --color-text-primary: hsl(220 10% 90%);
-  --color-text-secondary: hsl(220 10% 60%);
-  --color-text-tertiary: hsl(220 10% 40%);
+  --color-text-primary: hsl(0 0% 88%);
+  --color-text-secondary: hsl(0 0% 55%);
+  --color-text-tertiary: hsl(0 0% 38%);
 
-  --color-accent: hsl(20 70% 55%);
-  --color-accent-hover: hsl(20 70% 60%);
-  --color-accent-muted: hsl(20 40% 20%);
+  --color-accent: hsl(220 50% 55%);
+  --color-accent-hover: hsl(220 50% 60%);
+  --color-accent-muted: hsl(220 30% 18%);
 
-  --color-success: hsl(145 60% 45%);
-  --color-error: hsl(0 70% 55%);
-  --color-warning: hsl(40 80% 55%);
-  --color-info: hsl(210 70% 55%);
+  --color-success: hsl(145 50% 42%);
+  --color-error: hsl(0 55% 50%);
+  --color-warning: hsl(40 60% 50%);
+  --color-info: hsl(210 50% 50%);
 
-  --color-border: hsl(220 15% 18%);
-  --color-border-focus: hsl(20 70% 55%);
+  --color-border: hsl(220 6% 15%);
+  --color-border-focus: hsl(220 50% 55%);
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -49,7 +49,7 @@ body {
   margin: 0;
   overflow: hidden;
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }

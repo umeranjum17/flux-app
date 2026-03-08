@@ -8,6 +8,7 @@ export interface IpcChannels {
   'task:stop': { args: [{ taskId: string }]; result: void };
   'task:approve': { args: [{ taskId: string; requestId: string }]; result: void };
   'task:deny': { args: [{ taskId: string; requestId: string }]; result: void };
+  'task:answer-question': { args: [{ taskId: string; requestId: string; response: string }]; result: void };
   'task:steer': { args: [{ taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }]; result: void };
   'sessions:list': { args: []; result: Session[] };
   'sessions:get': { args: [{ id: string }]; result: Session | null };
@@ -124,6 +125,7 @@ export interface FluxConfig {
   defaultAgent: string;
   defaultModel: string;
   defaultThinking: ThinkingLevel;
+  defaultMode: TaskMode;
   qualityGateCommands: string[];
   customAgentPaths: Record<string, string>;
   recentProjects: Array<{
@@ -177,7 +179,7 @@ export interface Workspace {
   sessionId?: string;
 }
 
-export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'done' | 'error' | 'merging';
+export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
 export interface MergeResult {
   success: boolean;

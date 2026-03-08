@@ -45,7 +45,7 @@ export function ApprovalPrompt({
   }, [handleAllow, handleDeny]);
 
   return (
-    <div className="border-2 border-warning rounded-xl p-4 bg-bg-elevated">
+    <div className="border border-warning/40 rounded-lg p-4 bg-bg-elevated">
       <div className="flex items-start gap-3">
         <ShieldAlert size={20} className="text-warning shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">

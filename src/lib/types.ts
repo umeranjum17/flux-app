@@ -8,12 +8,27 @@ export interface FileAttachment {
   name: string;
 }
 
+export interface QuestionOption {
+  label: string;
+  description?: string;
+  value?: string;
+}
+
+export interface QuestionField {
+  header?: string;
+  question: string;
+  options?: QuestionOption[];
+  allowFreeform?: boolean;
+  placeholder?: string;
+  multiSelect?: boolean;
+}
+
 export interface AgentMessage {
-  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'rate_limit' | 'quality_gate';
+  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'question_request' | 'rate_limit' | 'quality_gate';
   role: MessageRole;
   content: string;
   timestamp: number;
-  statusKind?: 'spawn' | 'startup' | 'diagnostic';
+  statusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolCallId?: string;
@@ -21,6 +36,10 @@ export interface AgentMessage {
   requestId?: string;
   action?: string;
   filePath?: string;
+  options?: QuestionOption[];
+  questions?: QuestionField[];
+  allowFreeform?: boolean;
+  placeholder?: string;
   costUsd?: number;
   inputTokens?: number;
   outputTokens?: number;
@@ -43,6 +62,32 @@ export interface AgentMessage {
     overageStatus?: string;
     overageResetsAt?: number;
   };
+}
+
+export type TaskRunPhase =
+  | 'starting'
+  | 'progress'
+  | 'thinking'
+  | 'tool'
+  | 'waiting_input'
+  | 'waiting_approval'
+  | 'responding';
+
+export interface ActiveRunState {
+  startedAt: number;
+  lastActivityAt: number;
+  phase: TaskRunPhase;
+  activeToolCallId?: string;
+  activeToolName?: string;
+}
+
+export interface PendingQuestionState {
+  requestId: string;
+  prompt: string;
+  questions: QuestionField[];
+  options?: QuestionOption[];
+  allowFreeform: boolean;
+  placeholder?: string;
 }
 
 export interface ModelInfo {
@@ -81,7 +126,7 @@ export interface SpawnOptions {
   contextBlock?: string;
 }
 
-export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'done' | 'error';
+export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
 export interface Task {
   id: string;
@@ -103,6 +148,7 @@ export interface Task {
     command: string;
     exitCode: number;
   };
+  activeRun?: ActiveRunState;
   pendingApproval?: {
     requestId: string;
     toolName: string;
@@ -110,4 +156,5 @@ export interface Task {
     action?: string;
     path?: string;
   };
+  pendingQuestion?: PendingQuestionState;
 }

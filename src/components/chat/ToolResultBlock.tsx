@@ -7,7 +7,7 @@ interface ToolResultBlockProps {
   toolCallId?: string;
 }
 
-const MAX_LINES = 10;
+const MAX_LINES = 3;
 
 export function ToolResultBlock({ content, isError, toolCallId }: ToolResultBlockProps) {
   const [expanded, setExpanded] = useState(false);
@@ -19,11 +19,7 @@ export function ToolResultBlock({ content, isError, toolCallId }: ToolResultBloc
     : lines.slice(0, MAX_LINES).join('\n');
 
   return (
-    <div
-      className={`rounded-lg bg-bg-elevated p-3 border-l-2 ${
-        isError ? 'border-error' : 'border-success'
-      }`}
-    >
+    <div className="rounded-md bg-bg-elevated/60 p-3">
       <pre className="text-[13px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap">
         <code>{displayContent}</code>
       </pre>

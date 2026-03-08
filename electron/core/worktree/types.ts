@@ -24,7 +24,7 @@ export interface MergeResult {
   error?: string;
 }
 
-export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'done' | 'error' | 'merging';
+export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
 export interface Workspace {
   id: string;

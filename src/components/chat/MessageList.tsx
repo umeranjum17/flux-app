@@ -10,6 +10,7 @@ import { ToolResultBlock } from './ToolResultBlock';
 import { ThinkingBlock } from './ThinkingBlock';
 import { FileEditBlock } from './FileEditBlock';
 import { ApprovalPrompt } from './ApprovalPrompt';
+import { QuestionPrompt } from './QuestionPrompt';
 import { ResultBlock } from './ResultBlock';
 import { StreamingCursor } from './StreamingCursor';
 import { ActivityIndicator } from './ActivityIndicator';
@@ -31,6 +32,7 @@ export function MessageList() {
   const messages = task?.messages ?? [];
   const taskStatus = task?.status;
   const taskId = task?.id;
+  const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
 
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
     useAutoScroll([messages.length, messages[messages.length - 1]?.content]);
@@ -51,39 +53,62 @@ export function MessageList() {
     );
   }
 
-  const isStreaming = taskStatus === 'running';
+  const isStreaming = isActiveRun;
   const lastMessage = messages[messages.length - 1];
   const showCursor = isStreaming && lastMessage?.role === 'assistant' && lastMessage?.type === 'text';
+
+  // Build a set of tool_result indices that are merged into their preceding tool_call
+  const mergedResultIndices = new Set<number>();
+  for (let i = 0; i < messages.length - 1; i++) {
+    const msg = messages[i];
+    const next = messages[i + 1];
+    if (
+      msg.type === 'tool_call' &&
+      next.type === 'tool_result' &&
+      next.toolCallId &&
+      msg.toolCallId &&
+      next.toolCallId === msg.toolCallId
+    ) {
+      mergedResultIndices.add(i + 1);
+    }
+  }
 
   return (
     <div className="relative flex-1 min-h-0">
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-4 py-4 space-y-3"
+        className="h-full overflow-y-auto px-5 py-5 space-y-4"
       >
         <AnimatePresence initial={false}>
-          {messages.map((msg, idx) => (
-            <motion.div
-              key={`${msg.timestamp}-${idx}`}
-              variants={messageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.15 }}
-            >
-              {renderMessage(msg, idx, taskId!, taskStatus)}
-              {isFileEditToolCall(msg) && (
-                <div className="mt-2">
-                  <FileEditBlock
-                    diff={msg.diff}
-                    filePath={msg.filePath ?? (msg.toolInput?.file_path as string | undefined) ?? (msg.toolInput?.path as string | undefined)}
-                    toolName={msg.toolName}
-                  />
-                </div>
-              )}
-            </motion.div>
-          ))}
+          {messages.map((msg, idx) => {
+            if (mergedResultIndices.has(idx)) return null;
+
+            // If this is a tool_call with a merged result, pass result data
+            const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
+
+            return (
+              <motion.div
+                key={`${msg.timestamp}-${idx}`}
+                variants={messageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={{ duration: 0.15 }}
+              >
+                {renderMessage(msg, idx, taskId!, taskStatus, mergedResult)}
+                {isFileEditToolCall(msg) && (
+                  <div className="mt-2">
+                    <FileEditBlock
+                      diff={msg.diff}
+                      filePath={msg.filePath ?? (msg.toolInput?.file_path as string | undefined) ?? (msg.toolInput?.path as string | undefined)}
+                      toolName={msg.toolName}
+                    />
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
 
         {showCursor && (
@@ -96,7 +121,7 @@ export function MessageList() {
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg-elevated border border-border rounded-full p-2 shadow-lg hover:bg-bg-hover transition-colors"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg-elevated/90 rounded-full p-2 shadow-lg hover:bg-bg-hover transition-colors"
           aria-label="Scroll to bottom"
         >
           <ArrowDown size={16} className="text-text-secondary" />
@@ -111,7 +136,10 @@ function renderMessage(
   _idx: number,
   taskId: string,
   taskStatus?: string,
+  mergedResult?: AgentMessage | null,
 ) {
+  const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
+
   switch (msg.type) {
     case 'text':
       return (
@@ -128,7 +156,7 @@ function renderMessage(
         <ActivityIndicator
           label={msg.content}
           statusKind={msg.statusKind}
-          active={taskStatus === 'running' || taskStatus === 'waiting_approval'}
+          active={isActiveRun}
         />
       );
 
@@ -139,7 +167,10 @@ function renderMessage(
           toolInput={msg.toolInput}
           toolCallId={msg.toolCallId}
           content={msg.content}
-          isRunning={taskStatus === 'running'}
+          isRunning={isActiveRun}
+          resultContent={mergedResult?.content}
+          resultIsError={mergedResult?.isError}
+          isComplete={!!mergedResult}
         />
       );
 
@@ -153,7 +184,7 @@ function renderMessage(
       );
 
     case 'thinking':
-      return <ThinkingBlock content={msg.content} />;
+      return <ThinkingBlock content={msg.content} active={isActiveRun} />;
 
     case 'error':
       return (
@@ -209,6 +240,21 @@ function renderMessage(
           taskId={taskId}
         />
       );
+
+    case 'question_request':
+      return (
+        <QuestionPrompt
+          taskId={taskId}
+          requestId={msg.requestId ?? `question-${msg.timestamp}`}
+          prompt={msg.content}
+          questions={msg.questions ?? []}
+          allowFreeform={msg.allowFreeform}
+          placeholder={msg.placeholder}
+        />
+      );
+
+    case 'rate_limit':
+      return null;
 
     default:
       return (

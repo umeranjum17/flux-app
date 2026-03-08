@@ -92,6 +92,10 @@ export function spawnOpenAI(options: SpawnOptions): AgentHandle {
     void runLoop();
   };
 
+  emitter.answerQuestion = (_requestId: string, response: string) => {
+    emitter.steer(response);
+  };
+
   return emitter;
 }
 

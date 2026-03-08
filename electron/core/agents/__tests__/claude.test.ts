@@ -194,6 +194,65 @@ describe('spawnClaude', () => {
     ]);
   });
 
+  it('maps AskUserQuestion tool use into a question request and responds with tool_result input', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'assistant',
+      message: {
+        content: [{
+          type: 'tool_use',
+          id: 'toolu_123',
+          name: 'AskUserQuestion',
+          input: {
+            questions: [{
+              header: 'Scope',
+              question: 'Do you want UI or backend changes first?',
+              options: [
+                { label: 'UI first', description: 'Prioritize the renderer path' },
+                { label: 'Backend first', description: 'Fix the adapters before UI polish' },
+              ],
+              multiSelect: false,
+            }],
+          },
+        }],
+      },
+    });
+
+    expect(messages).toEqual([
+      expect.objectContaining({
+        type: 'question_request',
+        requestId: 'toolu_123',
+        content: 'Do you want UI or backend changes first?',
+      }),
+    ]);
+
+    handle.answerQuestion('toolu_123', '"Do you want UI or backend changes first?" = Backend first');
+
+    expect(JSON.parse(proc.stdin.writes.at(-1)!)).toEqual({
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'toolu_123',
+          content: 'User has answered your questions: "Do you want UI or backend changes first?" = Backend first. You can now continue with the user\'s answers in mind.',
+        }],
+      },
+    });
+  });
+
   it('times out when startup never becomes healthy after spawn and hook noise', () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);

@@ -138,4 +138,50 @@ describe('ChatInput', () => {
     });
     expect(mockApi.invoke).not.toHaveBeenCalledWith('fs:read', expect.anything());
   });
+
+  it('routes replies through task:answer-question while waiting for input', async () => {
+    const user = userEvent.setup();
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Existing task',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+      sessionId: 'session-1',
+    });
+    useChatStore.getState().setPendingQuestion('task-1', {
+      requestId: 'q-1',
+      prompt: 'Which area should I fix first?',
+      questions: [{
+        question: 'Which area should I fix first?',
+        options: [{ label: 'Backend first' }, { label: 'UI first' }],
+        allowFreeform: false,
+      }],
+      options: [{ label: 'Backend first' }, { label: 'UI first' }],
+      allowFreeform: false,
+      placeholder: 'Answer the active question',
+    });
+
+    render(<ChatInput />);
+
+    await user.type(screen.getByPlaceholderText('Answer the active question'), 'Backend first');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:answer-question',
+        {
+          taskId: 'task-1',
+          requestId: 'q-1',
+          response: 'Backend first',
+        },
+      );
+    });
+    expect(mockApi.invoke).not.toHaveBeenCalledWith(
+      'task:steer',
+      expect.anything(),
+    );
+  });
 });

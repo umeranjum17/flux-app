@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
 import { GitBranch, Wifi, WifiOff, FolderOpen, Brain } from 'lucide-react';
+import type { ThinkingLevel } from '../../lib/types';
 
 export function StatusLine() {
   const activeTask = useChatStore((s) => {
@@ -25,6 +26,27 @@ export function StatusLine() {
   const repoMapStatus = useIntelligenceStore((s) => s.status);
 
   const selectedModel = useAgentStore((s) => s.selectedModel);
+  const dynamicModels = useAgentStore((s) => s.dynamicModels);
+
+  const thinkingLevels: ThinkingLevel[] = useMemo(() => ['low', 'medium', 'high', 'xhigh'], []);
+
+  const handleCycleModel = useCallback(() => {
+    const modelIds = dynamicModels.length > 0
+      ? dynamicModels.map((m) => m.id)
+      : selectedAgent?.models ?? [];
+    if (modelIds.length === 0) return;
+    const idx = modelIds.indexOf(selectedModel);
+    useAgentStore.getState().setSelectedModel(modelIds[(idx + 1) % modelIds.length]);
+  }, [dynamicModels, selectedAgent, selectedModel]);
+
+  const handleCycleThinking = useCallback(() => {
+    const idx = thinkingLevels.indexOf(selectedThinking);
+    useAgentStore.getState().setSelectedThinking(thinkingLevels[(idx + 1) % thinkingLevels.length]);
+  }, [selectedThinking, thinkingLevels]);
+
+  const handleAgentClick = useCallback(() => {
+    useUiStore.getState().setOverlay('agent-selector');
+  }, []);
 
   const agentName = selectedAgent?.name ?? selectedAgentId;
   const model = activeTask?.model ?? selectedModel;
@@ -52,7 +74,7 @@ export function StatusLine() {
   }, [sshConnected]);
 
   return (
-    <div className="flex items-center h-7 min-h-[28px] bg-bg-secondary border-t border-border select-none">
+    <div className="flex items-center h-7 min-h-[28px] bg-bg-secondary border-t border-border/20 select-none">
       {/* Left side: Remote indicator + folder */}
       <div className="flex items-center gap-0 shrink-0">
         {/* VS Code-style remote indicator */}
@@ -117,17 +139,29 @@ export function StatusLine() {
 
       {/* Right side: agent, model, cost, tokens */}
       <div className="flex items-center gap-2 px-3">
-        <span className="text-[11px] text-text-tertiary truncate">
+        <button
+          onClick={handleAgentClick}
+          className="text-[11px] text-text-tertiary truncate hover:text-text-primary cursor-pointer transition-colors"
+          title="Switch agent (Ctrl+Shift+A)"
+        >
           {agentName}
-        </span>
+        </button>
         <Dot />
-        <span className="text-[11px] text-text-tertiary truncate">
+        <button
+          onClick={handleCycleModel}
+          className="text-[11px] text-text-tertiary truncate hover:text-text-primary cursor-pointer transition-colors"
+          title="Cycle model (Ctrl+Shift+M)"
+        >
           {model}
-        </span>
+        </button>
         <Dot />
-        <span className="text-[11px] text-text-tertiary truncate">
+        <button
+          onClick={handleCycleThinking}
+          className="text-[11px] text-text-tertiary truncate hover:text-text-primary cursor-pointer transition-colors"
+          title="Cycle thinking level (Ctrl+Shift+T)"
+        >
           think {thinking}
-        </span>
+        </button>
         {qualityGate && (
           <>
             <Dot />
@@ -138,7 +172,7 @@ export function StatusLine() {
             </span>
           </>
         )}
-        {rateLimit && (
+        {rateLimit && Number.isFinite(rateLimit.utilization) && (
           <>
             <Dot />
             <span className={`text-[11px] font-medium ${rateLimitColor(rateLimit.utilization)}`}>

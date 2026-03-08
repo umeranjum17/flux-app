@@ -15,6 +15,7 @@ type SidebarTab = 'chat' | 'files' | 'search' | 'usage' | 'git';
 const statusColors: Record<TaskStatus, string> = {
   running: 'bg-success',
   waiting_approval: 'bg-warning',
+  waiting_input: 'bg-info',
   idle: 'bg-text-tertiary',
   error: 'bg-error',
   done: 'bg-info',

@@ -147,6 +147,34 @@ describe('useAgentStream', () => {
     expect(task!.status).toBe('waiting_approval');
   });
 
+  it('agent:message question requests set pendingQuestion and waiting_input status', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('agent:message', {
+      taskId: 'task-1',
+      message: {
+        type: 'question_request' as const,
+        role: 'assistant' as const,
+        content: 'Which direction should I take?',
+        timestamp: 3,
+        requestId: 'q-1',
+        questions: [{
+          question: 'Which direction should I take?',
+          options: [{ label: 'Backend first' }, { label: 'UI first' }],
+          allowFreeform: false,
+        }],
+        options: [{ label: 'Backend first' }, { label: 'UI first' }],
+        allowFreeform: false,
+      },
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.status).toBe('waiting_input');
+    expect(task?.pendingQuestion?.requestId).toBe('q-1');
+    expect(task?.pendingQuestion?.prompt).toBe('Which direction should I take?');
+  });
+
   it('callbacks receive data as first arg (not old _event, data pattern)', () => {
     // The hook destructures data directly from the first callback argument.
     // If the old Electron (_event, data) pattern were used, taskId would be

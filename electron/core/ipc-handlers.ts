@@ -80,6 +80,23 @@ function buildSessionTitle(prompt: string): string {
   return (nonEmptyLines[nonEmptyLines.length - 1] ?? 'Untitled').slice(0, 80);
 }
 
+function getAgentLabel(agentId: AgentId): string {
+  switch (agentId) {
+    case 'claude-code':
+      return 'Claude Code';
+    case 'codex':
+      return 'Codex';
+    case 'gemini':
+      return 'Gemini';
+    case 'openai':
+      return 'OpenAI';
+    case 'ollama':
+      return 'Ollama';
+    default:
+      return agentId;
+  }
+}
+
 function serializePayload(payload: unknown): string | null {
   try {
     return JSON.stringify(payload);
@@ -160,12 +177,12 @@ async function runShellCommand(command: string, cwd: string, remoteHost: string 
   }
 }
 
-function buildStoredUserMessage(
+function buildUserMessagePayload(
   prompt: string,
   images?: string[],
   attachments?: FileAttachment[],
-) {
-  const payload: AgentMessage = {
+) : AgentMessage {
+  return {
     type: 'text',
     role: 'user',
     content: prompt,
@@ -173,7 +190,14 @@ function buildStoredUserMessage(
     ...(images?.length ? { images } : {}),
     ...(attachments?.length ? { attachments } : {}),
   };
+}
 
+function buildStoredUserMessage(
+  prompt: string,
+  images?: string[],
+  attachments?: FileAttachment[],
+) {
+  const payload = buildUserMessagePayload(prompt, images, attachments);
   return {
     role: 'user',
     type: 'text',
@@ -279,6 +303,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'task:stop',
     'task:approve',
     'task:deny',
+    'task:answer-question',
     'task:steer',
     'sessions:list',
     'sessions:get',
@@ -372,6 +397,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   };
 
   const emitQualityGateMessage = (taskId: string, sessionId: string, message: AgentMessage) => {
+    sessionStore.addMessage(sessionId, toStoredMessage(message));
+    mainWindow.webContents.send('agent:message', { taskId, message });
+  };
+
+  const emitTaskMessage = (taskId: string, sessionId: string, message: AgentMessage) => {
     sessionStore.addMessage(sessionId, toStoredMessage(message));
     mainWindow.webContents.send('agent:message', { taskId, message });
   };
@@ -505,6 +535,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     activeTasks.set(options.taskId, handle);
     taskSessions.set(options.taskId, session.id);
 
+    emitTaskMessage(options.taskId, session.id, {
+      type: 'status',
+      role: 'system',
+      statusKind: 'spawn',
+      content: `Starting ${getAgentLabel(agentId)}...`,
+      timestamp: Date.now(),
+    });
+
     handle.on('session-meta', (meta) => {
       if (!meta || typeof meta !== 'object') {
         return;
@@ -530,6 +568,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       if (workspace) {
         if (message.type === 'permission_request') {
           emitWorkspaceStatus(workspace.id, 'waiting_approval', { sessionId: session.id });
+        } else if (message.type === 'question_request') {
+          emitWorkspaceStatus(workspace.id, 'waiting_input', { sessionId: session.id });
         } else if (message.type !== 'rate_limit') {
           emitWorkspaceStatus(workspace.id, 'running', { sessionId: session.id });
         }
@@ -620,6 +660,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       activeTasks.delete(taskId);
     }
     taskSessions.delete(taskId);
+    mainWindow.webContents.send('agent:done', { taskId, error: undefined });
     const workspace = workspaceStore.get(taskId);
     if (workspace) {
       emitWorkspaceStatus(workspace.id, 'done');
@@ -634,6 +675,30 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('task:deny', async (_event, { taskId, requestId }: { taskId: string; requestId: string }) => {
     const handle = activeTasks.get(taskId);
     if (handle) handle.deny(requestId);
+  });
+
+  ipcMain.handle('task:answer-question', async (_event, { taskId, requestId, response }: {
+    taskId: string;
+    requestId: string;
+    response: string;
+  }) => {
+    requireFields({ taskId, requestId, response }, 'taskId', 'requestId', 'response');
+    const handle = activeTasks.get(taskId);
+    if (!handle) {
+      throw new Error(`Task ${taskId} does not have an active run`);
+    }
+
+    const sessionId = taskSessions.get(taskId);
+    if (sessionId) {
+      emitTaskMessage(taskId, sessionId, buildUserMessagePayload(response));
+    }
+
+    const workspace = workspaceStore.get(taskId);
+    if (workspace) {
+      emitWorkspaceStatus(workspace.id, 'running', sessionId ? { sessionId } : undefined);
+    }
+
+    handle.answerQuestion(requestId, response);
   });
 
   ipcMain.handle('task:steer', async (_event, { taskId, prompt, images, attachments }: { taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }) => {

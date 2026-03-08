@@ -14,10 +14,14 @@ import {
   PanelRight,
   Terminal,
   LayoutGrid,
+  Brain,
+  Cpu,
 } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { useAgentStore } from '../../stores/agent';
 import { useWorkspaceStore } from '../../stores/workspace';
+import type { ThinkingLevel } from '../../lib/types';
 
 interface PaletteAction {
   id: string;
@@ -88,8 +92,39 @@ export function CommandPalette() {
         id: 'switch-agent',
         name: 'Switch Agent',
         icon: Bot,
+        shortcut: 'Ctrl+Shift+A',
         handler: () => {
           setOverlay('agent-selector');
+        },
+      },
+      {
+        id: 'cycle-model',
+        name: 'Cycle Model',
+        icon: Cpu,
+        shortcut: 'Ctrl+Shift+M',
+        handler: () => {
+          const { dynamicModels, selectedModel, agents, selectedAgentId } = useAgentStore.getState();
+          const modelIds = dynamicModels.length > 0
+            ? dynamicModels.map((m) => m.id)
+            : agents.find((a) => a.id === selectedAgentId)?.models ?? [];
+          if (modelIds.length > 0) {
+            const idx = modelIds.indexOf(selectedModel);
+            useAgentStore.getState().setSelectedModel(modelIds[(idx + 1) % modelIds.length]);
+          }
+          setOverlay(null);
+        },
+      },
+      {
+        id: 'cycle-thinking',
+        name: 'Cycle Thinking Level',
+        icon: Brain,
+        shortcut: 'Ctrl+Shift+T',
+        handler: () => {
+          const levels: ThinkingLevel[] = ['low', 'medium', 'high', 'xhigh'];
+          const current = useAgentStore.getState().selectedThinking;
+          const idx = levels.indexOf(current);
+          useAgentStore.getState().setSelectedThinking(levels[(idx + 1) % levels.length]);
+          setOverlay(null);
         },
       },
       {

@@ -133,6 +133,10 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
     }
   };
 
+  emitter.answerQuestion = (_requestId: string, response: string) => {
+    emitter.steer(response);
+  };
+
   return emitter;
 }
 

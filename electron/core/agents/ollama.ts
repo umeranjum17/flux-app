@@ -39,12 +39,22 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
 
   const startTime = Date.now();
   let fullText = '';
+  let idleTimer: NodeJS.Timeout | null = null;
+  const IDLE_TIMEOUT_MS = 3000;
+
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      // Ollama finished responding — send /bye to exit gracefully
+      if (proc.stdin?.writable) {
+        proc.stdin.write('/bye\n');
+      }
+    }, IDLE_TIMEOUT_MS);
+  };
 
   // Send the prompt via stdin since `ollama run` reads from stdin
   if (proc.stdin?.writable) {
     proc.stdin.write(options.prompt + '\n');
-    // Signal end of input so ollama processes the prompt
-    // but keep stdin open for follow-up steers
   }
 
   let buffer = '';
@@ -53,6 +63,8 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
     const text = chunk.toString('utf-8');
     buffer += text;
     fullText += text;
+
+    resetIdleTimer();
 
     // Emit text chunks as they arrive for real-time streaming
     const msg: AgentMessage = {
@@ -85,6 +97,7 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
   });
 
   proc.on('close', (code: number | null) => {
+    if (idleTimer) clearTimeout(idleTimer);
     const durationMs = Date.now() - startTime;
 
     // Emit final result
@@ -116,6 +129,7 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
 
   emitter.stop = () => {
     stopped = true;
+    if (idleTimer) clearTimeout(idleTimer);
     proc.kill('SIGTERM');
   };
 
@@ -128,10 +142,15 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
   };
 
   emitter.steer = (prompt: string) => {
-    // Send follow-up messages via stdin
+    // Reset idle timer for follow-up messages
+    if (idleTimer) clearTimeout(idleTimer);
     if (proc.stdin?.writable) {
       proc.stdin.write(prompt + '\n');
     }
+  };
+
+  emitter.answerQuestion = (_requestId: string, response: string) => {
+    emitter.steer(response);
   };
 
   return emitter;
