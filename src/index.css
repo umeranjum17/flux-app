@@ -69,6 +69,34 @@ body {
   background: var(--color-text-tertiary);
 }
 
+/* File viewer shiki code */
+.file-viewer-code pre {
+  counter-reset: line;
+}
+.file-viewer-code pre > code {
+  display: block;
+}
+.file-viewer-code pre > code > .line {
+  display: inline-block;
+  width: 100%;
+  padding: 0 16px 0 0;
+}
+.file-viewer-code pre > code > .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 3.5em;
+  margin-right: 1.5em;
+  text-align: right;
+  color: var(--color-text-tertiary);
+  opacity: 0.5;
+  font-size: 12px;
+  user-select: none;
+}
+.file-viewer-code pre > code > .line:hover {
+  background: var(--color-bg-hover);
+}
+
 /* Drag region for frameless window */
 .drag-region {
   -webkit-app-region: drag;

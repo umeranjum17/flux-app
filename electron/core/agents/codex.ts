@@ -1,17 +1,28 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
+import { spawnAgentProcess } from './spawn-utils';
+import {
+  extractCodexSessionMeta,
+  hasCodexProfile,
+  inferCodexProfile,
+  mapCodexReasoningEffort,
+} from './codex-utils';
 
 /**
  * Spawn a Codex CLI subprocess and parse its JSONL output.
  */
 export function spawnCodex(options: SpawnOptions): AgentHandle {
-  const args: string[] = ['exec', '--json'];
+  const args: string[] = options.resumeSessionId
+    ? ['exec', 'resume', options.resumeSessionId, '--json']
+    : ['exec', '--json'];
   let imageDir: string | null = null;
   let imageWarning: string | null = null;
+  const inferredProfile = inferCodexProfile(options);
+  const reasoningEffort = mapCodexReasoningEffort(options.thinking);
 
   if (options.mode === 'act') {
     args.push('--full-auto');
@@ -21,8 +32,16 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
   args.push('--skip-git-repo-check');
 
+  if (hasCodexProfile(inferredProfile)) {
+    args.push('--profile', inferredProfile);
+  }
+
   if (options.model) {
     args.push('--model', options.model);
+  }
+
+  if (reasoningEffort) {
+    args.push('-c', `model_reasoning_effort="${reasoningEffort}"`);
   }
 
   if (options.images?.length) {
@@ -40,10 +59,12 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   // Prompt as last positional argument
   args.push(options.prompt);
 
-  const proc: ChildProcess = spawn('codex', args, {
+  const proc: ChildProcess = spawnAgentProcess({
+    command: options.sshHost ? 'codex' : (options.binaryPath || 'codex'),
+    args,
     cwd: options.cwd,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env },
+    sshHost: options.sshHost,
+    remoteCwd: options.remoteCwd,
   });
 
   const emitter = new EventEmitter() as AgentHandle;
@@ -87,6 +108,11 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
         continue;
       }
 
+      const sessionMeta = extractCodexSessionMeta(event);
+      if (sessionMeta) {
+        emitter.emit('session-meta', sessionMeta);
+      }
+
       const message = mapCodexEvent(event);
       if (message) {
         emitter.emit('message', message);
@@ -112,6 +138,10 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     if (buffer.trim()) {
       try {
         const event = JSON.parse(buffer.trim());
+        const sessionMeta = extractCodexSessionMeta(event);
+        if (sessionMeta) {
+          emitter.emit('session-meta', sessionMeta);
+        }
         const message = mapCodexEvent(event);
         if (message) {
           emitter.emit('message', message);
@@ -208,24 +238,57 @@ function cleanupTempDir(directory: string | null): void {
  */
 function mapCodexEvent(event: any): AgentMessage | null {
   const now = Date.now();
+  const normalized = unwrapCodexEvent(event);
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.type === 'token_count' && normalized.rate_limits?.primary) {
+    const primary = normalized.rate_limits.primary;
+    const secondary = normalized.rate_limits.secondary;
+    const utilization = Math.max(
+      typeof primary.used_percent === 'number' ? primary.used_percent : 0,
+      typeof secondary?.used_percent === 'number' ? secondary.used_percent : 0,
+    );
+
+    return {
+      type: 'rate_limit',
+      role: 'system',
+      content: `Codex rate limit ${Math.round(utilization)}%`,
+      timestamp: now,
+      rateLimitInfo: {
+        status: mapCodexRateLimitStatus(utilization),
+        resetsAt: typeof primary.resets_at === 'number' ? primary.resets_at * 1000 : now,
+        rateLimitType: normalized.rate_limits.limit_name ?? normalized.rate_limits.limit_id ?? 'codex',
+        utilization,
+        overageStatus: typeof secondary?.used_percent === 'number'
+          ? mapCodexRateLimitStatus(secondary.used_percent)
+          : undefined,
+        overageResetsAt: typeof secondary?.resets_at === 'number'
+          ? secondary.resets_at * 1000
+          : undefined,
+      },
+    };
+  }
 
   // Message event with role
-  if (event.type === 'message' || event.role) {
-    const role = event.role ?? 'assistant';
+  if (normalized.type === 'message' || normalized.role) {
+    const role = normalized.role ?? 'assistant';
 
     // Text content
-    if (typeof event.content === 'string') {
+    if (typeof normalized.content === 'string') {
       return {
         type: 'text',
         role,
-        content: event.content,
+        content: normalized.content,
         timestamp: now,
       };
     }
 
     // Structured content blocks
-    if (Array.isArray(event.content)) {
-      const textParts = event.content
+    if (Array.isArray(normalized.content)) {
+      const textParts = normalized.content
         .filter((b: any) => b.type === 'text' || b.type === 'output_text')
         .map((b: any) => b.text ?? b.output_text ?? '')
         .join('');
@@ -242,50 +305,50 @@ function mapCodexEvent(event: any): AgentMessage | null {
   }
 
   // Function/tool call
-  if (event.type === 'function_call' || event.type === 'tool_call') {
+  if (normalized.type === 'function_call' || normalized.type === 'tool_call') {
     return {
       type: 'tool_call',
       role: 'assistant',
-      content: `Calling: ${event.name ?? event.function?.name ?? 'unknown'}`,
+      content: `Calling: ${normalized.name ?? normalized.function?.name ?? 'unknown'}`,
       timestamp: now,
-      toolName: event.name ?? event.function?.name,
-      toolInput: event.arguments ? tryParseJson(event.arguments) : (event.input ?? {}),
-      toolCallId: event.call_id ?? event.id,
+      toolName: normalized.name ?? normalized.function?.name,
+      toolInput: normalized.arguments ? tryParseJson(normalized.arguments) : (normalized.input ?? {}),
+      toolCallId: normalized.call_id ?? normalized.id,
     };
   }
 
   // Function/tool output
-  if (event.type === 'function_call_output' || event.type === 'tool_result') {
+  if (normalized.type === 'function_call_output' || normalized.type === 'tool_result') {
     return {
       type: 'tool_result',
       role: 'tool',
-      content: typeof event.output === 'string' ? event.output : JSON.stringify(event.output ?? ''),
+      content: typeof normalized.output === 'string' ? normalized.output : JSON.stringify(normalized.output ?? ''),
       timestamp: now,
-      toolCallId: event.call_id ?? event.tool_use_id,
-      isError: event.is_error ?? false,
+      toolCallId: normalized.call_id ?? normalized.tool_use_id,
+      isError: normalized.is_error ?? false,
     };
   }
 
   // Completion / result summary
-  if (event.type === 'result' || event.type === 'completion') {
+  if (normalized.type === 'result' || normalized.type === 'completion') {
     return {
       type: 'result',
       role: 'assistant',
-      content: event.result ?? event.text ?? '',
+      content: normalized.result ?? normalized.text ?? '',
       timestamp: now,
-      costUsd: event.cost_usd,
-      inputTokens: event.usage?.input_tokens,
-      outputTokens: event.usage?.output_tokens,
-      durationMs: event.duration_ms,
+      costUsd: normalized.cost_usd,
+      inputTokens: normalized.usage?.input_tokens,
+      outputTokens: normalized.usage?.output_tokens,
+      durationMs: normalized.duration_ms,
     };
   }
 
   // Error
-  if (event.type === 'error') {
+  if (normalized.type === 'error') {
     return {
       type: 'error',
       role: 'system',
-      content: event.message ?? event.error ?? JSON.stringify(event),
+      content: normalized.message ?? normalized.error ?? JSON.stringify(normalized),
       timestamp: now,
     };
   }
@@ -299,4 +362,22 @@ function tryParseJson(str: string): Record<string, unknown> {
   } catch {
     return { raw: str };
   }
+}
+
+function unwrapCodexEvent(event: any): any {
+  if (!event || typeof event !== 'object') {
+    return null;
+  }
+
+  if ((event.type === 'response_item' || event.type === 'event_msg') && event.payload) {
+    return event.payload;
+  }
+
+  return event;
+}
+
+function mapCodexRateLimitStatus(utilization: number): 'allowed' | 'allowed_warning' | 'rejected' {
+  if (utilization >= 100) return 'rejected';
+  if (utilization >= 80) return 'allowed_warning';
+  return 'allowed';
 }

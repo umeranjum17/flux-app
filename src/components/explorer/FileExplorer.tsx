@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Copy, Check, FileCode2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
+import { getHighlighter } from '../../lib/shiki';
 
-// Map file extensions to language names for syntax hint
 function getLang(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
@@ -18,105 +18,37 @@ function getLang(filename: string): string {
   return map[ext] || ext || 'text';
 }
 
-// Basic keyword highlighting per language family
-function getKeywords(lang: string): Set<string> {
-  const tsKeywords = new Set([
-    'import', 'export', 'from', 'const', 'let', 'var', 'function', 'return',
-    'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue',
-    'class', 'extends', 'implements', 'interface', 'type', 'enum', 'namespace',
-    'new', 'this', 'super', 'typeof', 'instanceof', 'in', 'of', 'as',
-    'async', 'await', 'try', 'catch', 'finally', 'throw',
-    'default', 'void', 'null', 'undefined', 'true', 'false',
-    'public', 'private', 'protected', 'static', 'readonly', 'abstract',
-  ]);
-
-  const pyKeywords = new Set([
-    'import', 'from', 'def', 'class', 'return', 'if', 'elif', 'else',
-    'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'yield',
-    'lambda', 'pass', 'break', 'continue', 'raise', 'and', 'or', 'not',
-    'in', 'is', 'None', 'True', 'False', 'self', 'async', 'await',
-  ]);
-
-  if (['typescript', 'tsx', 'javascript', 'jsx'].includes(lang)) return tsKeywords;
-  if (lang === 'python') return pyKeywords;
-  return tsKeywords; // reasonable default
-}
-
-interface TokenSpan {
-  text: string;
-  type: 'keyword' | 'string' | 'comment' | 'number' | 'normal';
-}
-
-function tokenizeLine(line: string, keywords: Set<string>): TokenSpan[] {
-  const tokens: TokenSpan[] = [];
-  let i = 0;
-
-  while (i < line.length) {
-    // Comments: // or #
-    if ((line[i] === '/' && line[i + 1] === '/') || (line[i] === '#' && (i === 0 || line[i - 1] === ' '))) {
-      tokens.push({ text: line.slice(i), type: 'comment' });
-      return tokens;
-    }
-
-    // Strings
-    if (line[i] === '"' || line[i] === "'" || line[i] === '`') {
-      const quote = line[i];
-      let j = i + 1;
-      while (j < line.length && line[j] !== quote) {
-        if (line[j] === '\\') j++;
-        j++;
-      }
-      tokens.push({ text: line.slice(i, j + 1), type: 'string' });
-      i = j + 1;
-      continue;
-    }
-
-    // Numbers
-    if (/\d/.test(line[i]) && (i === 0 || /[\s(,=:+\-*/<>[\]{]/.test(line[i - 1]))) {
-      let j = i;
-      while (j < line.length && /[\d._xXa-fA-F]/.test(line[j])) j++;
-      tokens.push({ text: line.slice(i, j), type: 'number' });
-      i = j;
-      continue;
-    }
-
-    // Words (identifiers/keywords)
-    if (/[a-zA-Z_$]/.test(line[i])) {
-      let j = i;
-      while (j < line.length && /[a-zA-Z0-9_$]/.test(line[j])) j++;
-      const word = line.slice(i, j);
-      tokens.push({ text: word, type: keywords.has(word) ? 'keyword' : 'normal' });
-      i = j;
-      continue;
-    }
-
-    // Other characters
-    tokens.push({ text: line[i], type: 'normal' });
-    i++;
-  }
-
-  return tokens;
-}
-
-const typeColors: Record<TokenSpan['type'], string> = {
-  keyword: 'text-purple-400',
-  string: 'text-green-400',
-  comment: 'text-text-tertiary italic',
-  number: 'text-orange-400',
-  normal: 'text-text-secondary',
-};
-
 export function FileExplorer() {
   const activeFile = useUiStore((s) => s.activeFile);
+  const theme = useUiStore((s) => s.theme);
   const [content, setContent] = useState<string | null>(null);
+  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const filePath = activeFile?.path ?? null;
+
+  const close = useCallback(() => {
+    setContent(null);
+    setHighlightedHtml(null);
+    useUiStore.getState().setActiveFile(null);
+    useUiStore.getState().setExplorerOpen(false);
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [close]);
 
   // Load file content
   useEffect(() => {
     if (!filePath) return;
     let cancelled = false;
     setLoading(true);
+    setHighlightedHtml(null);
     (async () => {
       try {
         const result = await window.api.invoke('fs:read', { filePath }) as { content: string | null };
@@ -129,6 +61,34 @@ export function FileExplorer() {
     return () => { cancelled = true; };
   }, [filePath]);
 
+  // Syntax highlight with shiki
+  useEffect(() => {
+    if (!content || !filePath) return;
+    let cancelled = false;
+    const fileName = filePath.split('/').pop() || filePath;
+    const lang = getLang(fileName);
+
+    getHighlighter().then((highlighter) => {
+      if (cancelled) return;
+      const loadedLangs = highlighter.getLoadedLanguages();
+      const resolvedLang = loadedLangs.includes(lang) ? lang : 'text';
+      const html = highlighter.codeToHtml(content, {
+        lang: resolvedLang,
+        theme: theme === 'dark' ? 'github-dark' : 'github-light',
+      });
+      if (!cancelled) setHighlightedHtml(html);
+    });
+
+    return () => { cancelled = true; };
+  }, [content, filePath, theme]);
+
+  const handleCopy = useCallback(() => {
+    if (!content) return;
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [content]);
+
   if (!filePath) {
     return (
       <div className="flex flex-col w-[400px] min-w-[300px] h-full bg-bg-primary border-l border-border items-center justify-center">
@@ -139,55 +99,66 @@ export function FileExplorer() {
 
   const fileName = filePath.split('/').pop() || filePath;
   const lang = getLang(fileName);
-  const keywords = getKeywords(lang);
-  const lines = content?.split('\n') ?? [];
+  const lineCount = content?.split('\n').length ?? 0;
+
+  // Relative path from cwd
+  const cwd = useUiStore.getState().cwd;
+  const displayPath = cwd && filePath.startsWith(cwd)
+    ? filePath.slice(cwd.length + 1)
+    : filePath;
 
   return (
-    <div className="flex flex-col w-[400px] min-w-[300px] h-full bg-bg-primary border-l border-border overflow-hidden">
-      {/* File header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-bg-secondary border-b border-border shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[11px] font-medium text-text-primary truncate">{fileName}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-tertiary font-mono">{lang}</span>
+    <div className="absolute inset-0 z-30 flex flex-col bg-bg-primary animate-in fade-in duration-150">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <FileCode2 size={14} className="text-accent shrink-0" />
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[12px] font-semibold text-text-primary truncate">{fileName}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-tertiary font-mono uppercase">{lang}</span>
+          </div>
+          <span className="text-[11px] text-text-tertiary truncate hidden sm:block">{displayPath}</span>
         </div>
-        <button
-          onClick={() => {
-            setContent(null);
-            useUiStore.getState().setActiveFile(null);
-            useUiStore.getState().setExplorerOpen(false);
-          }}
-          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors shrink-0"
-        >
-          <X size={12} />
-        </button>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-text-tertiary mr-2">{lineCount} lines</span>
+          <button
+            onClick={handleCopy}
+            className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+            title="Copy file contents"
+          >
+            {copied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+          </button>
+          <button
+            onClick={close}
+            className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+            title="Close (Esc)"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Content with line numbers */}
+      {/* Code content */}
       <div className="flex-1 overflow-auto">
         {loading ? (
-          <p className="text-[11px] text-text-tertiary px-4 py-4">Loading...</p>
-        ) : content === null ? (
-          <p className="text-[11px] text-text-tertiary px-4 py-4">Unable to read file</p>
-        ) : (
-          <div className="flex text-[12px] font-mono leading-5">
-            {/* Line numbers gutter */}
-            <div className="flex flex-col items-end px-3 py-2 bg-bg-secondary/50 text-text-tertiary select-none border-r border-border shrink-0">
-              {lines.map((_, i) => (
-                <span key={i} className="leading-5">{i + 1}</span>
-              ))}
-            </div>
-            {/* Code content */}
-            <pre className="flex-1 py-2 px-4 overflow-x-auto">
-              {lines.map((line, i) => (
-                <div key={i} className="leading-5 hover:bg-bg-hover/50">
-                  {tokenizeLine(line, keywords).map((token, j) => (
-                    <span key={j} className={typeColors[token.type]}>{token.text}</span>
-                  ))}
-                  {line.length === 0 && '\n'}
-                </div>
-              ))}
-            </pre>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-[12px] text-text-tertiary">Loading...</p>
           </div>
+        ) : content === null ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-[12px] text-text-tertiary">Unable to read file</p>
+          </div>
+        ) : highlightedHtml ? (
+          <div
+            className="file-viewer-code overflow-x-auto [&>pre]:p-4 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-6"
+            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+          />
+        ) : (
+          /* Fallback while shiki loads */
+          <pre className="p-4 font-mono text-[13px] leading-6 text-text-secondary overflow-x-auto whitespace-pre">
+            {content}
+          </pre>
         )}
       </div>
     </div>

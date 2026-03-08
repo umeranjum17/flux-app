@@ -1,6 +1,7 @@
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
+import { spawnAgentProcess } from './spawn-utils';
 
 /**
  * Spawn an Ollama CLI subprocess for local model inference.
@@ -12,10 +13,12 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
 
   const args: string[] = ['run', model];
 
-  const proc: ChildProcess = spawn('ollama', args, {
+  const proc: ChildProcess = spawnAgentProcess({
+    command: options.sshHost ? 'ollama' : (options.binaryPath || 'ollama'),
+    args,
     cwd: options.cwd,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env },
+    sshHost: options.sshHost,
+    remoteCwd: options.remoteCwd,
   });
 
   const emitter = new EventEmitter() as AgentHandle;

@@ -14,6 +14,15 @@ export interface RecentSshHost {
   lastUsed: number;
 }
 
+export interface RepoMapConfig {
+  enabled: boolean;
+  maxTokens: number;
+  indexedFilePatterns: string[];
+  excludePatterns: string[];
+  perAgentEnabled: Record<string, boolean>;
+  autoRefresh: boolean;
+}
+
 export interface FluxConfig {
   theme: 'light' | 'dark';
   fontSize: number;
@@ -25,4 +34,5 @@ export interface FluxConfig {
   customAgentPaths: Record<string, string>;
   recentProjects: RecentProject[];
   recentSshHosts: RecentSshHost[];
+  repoMap: RepoMapConfig;
 }

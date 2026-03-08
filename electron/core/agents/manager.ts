@@ -1,4 +1,7 @@
-import { execSync } from 'child_process';
+import { execSync, execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 import {
   DetectedAgent,
   AgentId,
@@ -29,8 +32,8 @@ const AGENT_DEFS: Record<
     name: 'Codex',
     cmd: 'codex',
     envKeys: [],
-    defaultModels: ['gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex'],
-    supportsThinking: false,
+    defaultModels: ['gpt-5.3-codex', 'gpt-5.4', 'gpt-5-codex', 'gpt-5-codex-mini', 'gpt-5.2-codex'],
+    supportsThinking: true,
   },
   gemini: {
     name: 'Gemini CLI',
@@ -64,8 +67,21 @@ const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle> = {
 };
 
 function whichSync(cmd: string): string | null {
+  // Electron apps often have a restricted PATH — extend it with common install locations
+  const extraPaths = [
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+    `${process.env.HOME}/.local/bin`,
+    `${process.env.HOME}/.npm-global/bin`,
+    `${process.env.HOME}/.nvm/versions/node`,
+  ].join(':');
+  const extendedPath = `${process.env.PATH}:${extraPaths}`;
+
   try {
-    return execSync(`which ${cmd}`, { encoding: 'utf-8' }).trim();
+    return execSync(`which ${cmd}`, {
+      encoding: 'utf-8',
+      env: { ...process.env, PATH: extendedPath },
+    }).trim();
   } catch {
     return null;
   }
@@ -158,7 +174,67 @@ class AgentManager {
     }
 
     const spawner = spawners[id];
-    return spawner(options);
+    return spawner({ ...options, binaryPath: agent.path || undefined });
+  }
+
+  async detectAllRemote(remoteHost: string): Promise<DetectedAgent[]> {
+    const ids = Object.keys(AGENT_DEFS) as AgentId[];
+    const detected: DetectedAgent[] = [];
+
+    // Run all SSH detection commands concurrently to avoid blocking
+    const promises = ids.map(async (id) => {
+      const def = AGENT_DEFS[id];
+
+      if (!def.cmd) {
+        const existing = this.agents.get(id);
+        return existing ?? null;
+      }
+
+      let remotePath = '';
+      let version = 'unknown';
+      let available = false;
+
+      try {
+        const { stdout } = await execFileAsync(
+          'ssh',
+          [remoteHost, `which ${def.cmd} 2>/dev/null && ${def.cmd} --version 2>/dev/null || true`],
+          { encoding: 'utf-8', timeout: 15000 },
+        );
+
+        const lines = stdout.trim().split('\n').filter(Boolean);
+        if (lines.length > 0 && lines[0].startsWith('/')) {
+          remotePath = lines[0];
+          available = true;
+          if (lines.length > 1) {
+            version = lines[1];
+          }
+        }
+      } catch {
+        // Remote detection failed — mark unavailable
+      }
+
+      return {
+        id,
+        name: def.name,
+        path: remotePath,
+        version,
+        available,
+        models: def.defaultModels,
+        supportsThinking: def.supportsThinking,
+        authStatus: available ? 'authenticated' : 'unauthenticated',
+        envKeys: def.envKeys,
+      } satisfies DetectedAgent;
+    });
+
+    const results = await Promise.allSettled(promises);
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        this.agents.set(result.value.id, result.value);
+        detected.push(result.value);
+      }
+    }
+
+    return detected;
   }
 
   // ---- private ----

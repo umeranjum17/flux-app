@@ -5,7 +5,9 @@ import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
+import { restoreSessionMessage } from '../../lib/session-messages';
 import type { TaskStatus } from '../../lib/types';
+import type { SessionMessage } from '../../lib/ipc-api';
 import { UsagePanel } from './UsagePanel';
 
 type SidebarTab = 'chat' | 'files' | 'search' | 'usage' | 'git';
@@ -90,6 +92,36 @@ function ChatTab() {
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
 
+  const handleLoadSession = useCallback(async (session: { id: string; title: string; agentId: string; model: string; mode: string; cwd: string }) => {
+    const taskId = crypto.randomUUID();
+    useChatStore.getState().createTask({
+      id: taskId,
+      title: session.title || 'Untitled',
+      agentId: session.agentId as import('../../lib/types').AgentId,
+      model: session.model,
+      mode: (session.mode as import('../../lib/types').TaskMode) || 'act',
+      thinking: 'medium',
+      cwd: session.cwd || useUiStore.getState().cwd || '.',
+    });
+    useChatStore.getState().setTaskSessionId(taskId, session.id);
+    useChatStore.getState().setActiveTask(taskId);
+
+    // Load session messages into the task
+    try {
+      const messages = await window.api.invoke('sessions:messages', { id: session.id }) as SessionMessage[];
+      for (const msg of messages) {
+        const restored = restoreSessionMessage(msg);
+        if (restored) {
+          useChatStore.getState().addMessage(taskId, restored);
+        }
+      }
+    } catch {
+      // Failed to load session messages
+    }
+
+    useUiStore.getState().setBottomPanelMode('agent');
+  }, []);
+
   const taskList = useMemo(() => Array.from(tasks.values()), [tasks]);
   const totalCost = useMemo(() => taskList.reduce((sum, t) => sum + t.costUsd, 0), [taskList]);
 
@@ -109,7 +141,13 @@ function ChatTab() {
       {/* Tasks */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Active</span>
-        <button className="p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors">
+        <button
+          onClick={() => {
+            useChatStore.getState().setActiveTask(null);
+            useUiStore.getState().setBottomPanelMode('agent');
+          }}
+          className="p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+        >
           <Plus size={14} />
         </button>
       </div>
@@ -146,9 +184,13 @@ function ChatTab() {
           <p className="text-[11px] text-text-tertiary px-2 py-3">No saved sessions</p>
         )}
         {sessions.map((session) => (
-          <div key={session.id} className="w-full flex items-center rounded-md px-2 py-1.5 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors cursor-pointer">
+          <button
+            key={session.id}
+            onClick={() => handleLoadSession(session)}
+            className="w-full flex items-center rounded-md px-2 py-1.5 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
+          >
             <span className="truncate">{session.title || 'Untitled'}</span>
-          </div>
+          </button>
         ))}
       </div>
 

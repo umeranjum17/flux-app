@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
 
-type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | null;
+type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'context-settings' | 'diagnostics' | 'help' | null;
 
 export interface RecentProject {
   path: string;
@@ -76,6 +76,8 @@ interface UiState {
   setPendingMention(mention: { path: string; name: string } | null): void;
   setRecentProjects(projects: RecentProject[]): void;
   addRecentProject(project: RecentProject): void;
+  connectSsh(host: string, cwd: string): void;
+  disconnectSsh(localCwd: string): void;
 }
 
 function basename(p: string): string {
@@ -259,6 +261,28 @@ export const useUiStore = create<UiState>()(
       set((state) => {
         const filtered = state.recentProjects.filter((p) => p.path !== project.path);
         state.recentProjects = [project, ...filtered].slice(0, 10);
+      });
+    },
+
+    connectSsh(host, cwd) {
+      set((state) => {
+        state.sshHost = host;
+        state.sshConnected = true;
+        state.environment = 'ssh';
+        state.cwd = cwd;
+        state.projectName = basename(cwd);
+        state.activeFile = null;
+      });
+    },
+
+    disconnectSsh(localCwd) {
+      set((state) => {
+        state.sshHost = null;
+        state.sshConnected = false;
+        state.environment = 'local';
+        state.cwd = localCwd;
+        state.projectName = basename(localCwd);
+        state.activeFile = null;
       });
     },
   })),

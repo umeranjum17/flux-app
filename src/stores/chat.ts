@@ -167,6 +167,16 @@ function appendMessage(task: Task, message: AgentMessage): void {
     task.inputTokens += message.inputTokens ?? 0;
     task.outputTokens += message.outputTokens ?? 0;
   }
+  if (message.type === 'rate_limit') {
+    task.rateLimitInfo = message.rateLimitInfo;
+  }
+  if (message.type === 'quality_gate' && message.command) {
+    task.lastQualityGate = {
+      status: message.passed ? 'passed' : 'failed',
+      command: message.command,
+      exitCode: message.exitCode ?? 0,
+    };
+  }
   if (task.status !== 'running' && task.status !== 'waiting_approval') {
     task.status = 'running';
   }

@@ -6,10 +6,12 @@ import { SettingsPanel } from './components/dialogs/SettingsPanel';
 import { SessionPicker } from './components/dialogs/SessionPicker';
 import { SshConnectDialog } from './components/dialogs/SshConnectDialog';
 import { RemoteFolderPicker } from './components/dialogs/RemoteFolderPicker';
+import { ContextSettings } from './components/dialogs/ContextSettings';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export function App() {
   return (
-    <>
+    <ErrorBoundary>
       <AppShell />
       <AgentSelector />
       <CommandPalette />
@@ -17,7 +19,8 @@ export function App() {
       <SessionPicker />
       <SshConnectDialog />
       <RemoteFolderPicker />
+      <ContextSettings />
       <Toaster position="top-right" theme="dark" />
-    </>
+    </ErrorBoundary>
   );
 }

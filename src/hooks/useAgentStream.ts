@@ -11,6 +11,14 @@ export function useAgentStream() {
 
     const unsubDone = window.api.on('agent:done', (data: unknown) => {
       const { taskId, error } = data as { taskId: string; error?: string };
+      if (error) {
+        useChatStore.getState().addMessage(taskId, {
+          type: 'error',
+          role: 'system',
+          content: error,
+          timestamp: Date.now(),
+        });
+      }
       useChatStore.getState().setTaskStatus(taskId, error ? 'error' : 'done');
     });
 

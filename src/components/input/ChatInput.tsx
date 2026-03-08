@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
 import { SendHorizontal, Paperclip, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useSessionStore } from '../../stores/session';
@@ -115,8 +116,10 @@ export function ChatInput({ focused }: ChatInputProps) {
           attachments,
         });
       }
-    } catch {
+    } catch (err: unknown) {
       setTaskStatus(task.id, 'error');
+      const message = err instanceof Error ? err.message : 'Failed to start task';
+      toast.error(message);
     }
 
     setValue('');

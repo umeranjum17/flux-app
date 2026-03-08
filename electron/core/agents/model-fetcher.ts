@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { AgentId, ModelInfo } from './types';
@@ -20,18 +23,20 @@ export function clearModelCache(id?: AgentId): void {
 // --- Fallback defaults ---
 
 const CLAUDE_DEFAULTS: ModelInfo[] = [
-  { id: 'sonnet', name: 'Sonnet' },
-  { id: 'opus', name: 'Opus' },
-  { id: 'haiku', name: 'Haiku' },
+  { id: 'sonnet', name: 'Sonnet 4.6 (alias)' },
+  { id: 'opus', name: 'Opus 4.6 (alias)' },
+  { id: 'haiku', name: 'Haiku 4.5 (alias)' },
 ];
 
 const CODEX_DEFAULTS: ModelInfo[] = [
   { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex' },
+  { id: 'gpt-5.4', name: 'GPT-5.4' },
   { id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex' },
-  { id: 'gpt-5.1-codex-max', name: 'GPT-5.1 Codex Max' },
-  { id: 'gpt-5.1-codex', name: 'GPT-5.1 Codex' },
   { id: 'gpt-5-codex', name: 'GPT-5 Codex' },
+  { id: 'gpt-5-codex-mini', name: 'GPT-5 Codex Mini' },
 ];
+
+const CODEX_MODELS_CACHE_PATH = path.join(os.homedir(), '.codex', 'models_cache.json');
 
 const GEMINI_DEFAULTS: ModelInfo[] = [
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
@@ -57,9 +62,11 @@ async function fetchClaudeModels(): Promise<ModelInfo[]> {
 }
 
 async function fetchCodexModels(): Promise<ModelInfo[]> {
-  // Codex CLI supports --model but does not expose a machine-readable list of
-  // available remote models. Use the current curated Codex lineup instead of
-  // trying to scrape help output.
+  const cached = readCodexModelsFromCache();
+  if (cached.length > 0) {
+    return orderModels(cached, CODEX_DEFAULTS);
+  }
+
   return CODEX_DEFAULTS;
 }
 
@@ -244,4 +251,51 @@ function prettifyModelId(id: string): string {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
     .replace(/\s(\d{8,})$/, ' ($1)'); // move date suffix into parens
+}
+
+function readCodexModelsFromCache(): ModelInfo[] {
+  try {
+    const raw = fs.readFileSync(CODEX_MODELS_CACHE_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as {
+      models?: Array<{
+        slug?: string;
+        display_name?: string;
+        visibility?: string;
+      }>;
+    };
+
+    if (!Array.isArray(parsed.models)) {
+      return [];
+    }
+
+    const models = parsed.models
+      .filter((model) => model.visibility !== 'hidden')
+      .map((model) => {
+        const id = model.slug?.trim();
+        if (!id) return null;
+        return {
+          id,
+          name: model.display_name?.trim() || prettifyModelId(id),
+        } satisfies ModelInfo;
+      })
+      .filter((model): model is ModelInfo => !!model)
+      .filter((model) => /codex|^gpt-5(\.|-|$)/i.test(model.id));
+
+    return dedupeModels(models);
+  } catch {
+    return [];
+  }
+}
+
+function dedupeModels(models: ModelInfo[]): ModelInfo[] {
+  const seen = new Set<string>();
+  const deduped: ModelInfo[] = [];
+
+  for (const model of models) {
+    if (seen.has(model.id)) continue;
+    seen.add(model.id);
+    deduped.push(model);
+  }
+
+  return deduped;
 }

@@ -9,10 +9,11 @@ export interface FileAttachment {
 }
 
 export interface AgentMessage {
-  type: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request';
+  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'rate_limit' | 'quality_gate';
   role: MessageRole;
   content: string;
   timestamp: number;
+  statusKind?: 'spawn' | 'startup' | 'diagnostic';
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolCallId?: string;
@@ -29,6 +30,19 @@ export interface AgentMessage {
   newContent?: string;
   images?: string[];
   attachments?: FileAttachment[];
+  command?: string;
+  exitCode?: number;
+  passed?: boolean;
+  stdout?: string;
+  stderr?: string;
+  rateLimitInfo?: {
+    status: string;
+    resetsAt: number;
+    rateLimitType: string;
+    utilization: number;
+    overageStatus?: string;
+    overageResetsAt?: number;
+  };
 }
 
 export interface ModelInfo {
@@ -61,8 +75,10 @@ export interface SpawnOptions {
   thinking?: ThinkingLevel;
   cwd: string;
   sessionId?: string;
+  resumeSessionId?: string;
   images?: string[];
   attachments?: FileAttachment[];
+  contextBlock?: string;
 }
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'done' | 'error';
@@ -81,6 +97,12 @@ export interface Task {
   outputTokens: number;
   cwd: string;
   sessionId?: string;
+  rateLimitInfo?: AgentMessage['rateLimitInfo'];
+  lastQualityGate?: {
+    status: 'passed' | 'failed';
+    command: string;
+    exitCode: number;
+  };
   pendingApproval?: {
     requestId: string;
     toolName: string;

@@ -13,9 +13,11 @@ import {
   WifiOff,
   PanelRight,
   Terminal,
+  LayoutGrid,
 } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 
 interface PaletteAction {
   id: string;
@@ -108,7 +110,6 @@ export function CommandPalette() {
           if (picked) {
             const { useUiStore: ui } = await import('../../stores/ui');
             ui.getState().setCwd(picked);
-            ui.getState().setExplorerOpen(true);
           }
         },
       },
@@ -130,6 +131,15 @@ export function CommandPalette() {
         handler: () => {
           setOverlay(null);
           useUiStore.getState().toggleTerminal();
+        },
+      },
+      {
+        id: 'open-workspaces',
+        name: 'Open Workspace Dashboard',
+        icon: LayoutGrid,
+        handler: () => {
+          setOverlay(null);
+          useWorkspaceStore.getState().setDashboardOpen(true);
         },
       },
       {

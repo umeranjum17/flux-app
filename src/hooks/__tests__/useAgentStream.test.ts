@@ -120,6 +120,8 @@ describe('useAgentStream', () => {
     const task = useChatStore.getState().tasks.get('task-1');
     expect(task).toBeDefined();
     expect(task!.status).toBe('error');
+    expect(task!.messages.at(-1)?.type).toBe('error');
+    expect(task!.messages.at(-1)?.content).toBe('oops');
   });
 
   it('agent:permission sets pendingApproval on the task', () => {

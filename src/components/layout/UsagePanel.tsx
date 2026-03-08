@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BarChart3, RefreshCw } from 'lucide-react';
-import type { UsageInfo } from '../../lib/ipc-api';
+import type { UsageInfo, RateLimitInfo } from '../../lib/ipc-api';
 
 const PROVIDER_COLORS: Record<string, string> = {
   'claude-code': '#D97706',
@@ -10,8 +10,42 @@ const PROVIDER_COLORS: Record<string, string> = {
   ollama: '#6D28D9',
 };
 
+function formatTimeUntil(timestamp: number): string {
+  const diffMs = Math.max(0, timestamp - Date.now());
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+}
+
+function RateLimitBar({ label, utilization, resetsAt, status }: {
+  label: string;
+  utilization: number;
+  resetsAt: number;
+  status: string;
+}) {
+  const pct = Math.round(utilization * 100);
+  const barColor = status === 'rejected' ? 'bg-error' : status === 'allowed_warning' ? 'bg-warning' : 'bg-accent';
+  return (
+    <div className="rounded-xl border border-border bg-bg-elevated p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{label}</span>
+        <span className="text-[10px] text-text-tertiary">resets in {formatTimeUntil(resetsAt)}</span>
+      </div>
+      <div className="h-2 rounded-full bg-bg-primary overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.max(2, pct)}%` }} />
+      </div>
+      <p className="text-[10px] text-text-secondary mt-1">{pct}% used</p>
+    </div>
+  );
+}
+
 export function UsagePanel() {
   const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const [rateLimits, setRateLimits] = useState<RateLimitInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -23,8 +57,12 @@ export function UsagePanel() {
     }
 
     try {
-      const result = await window.api.invoke('usage:get') as UsageInfo;
-      setUsage(result);
+      const [usageResult, rlResult] = await Promise.all([
+        window.api.invoke('usage:get') as Promise<UsageInfo>,
+        window.api.invoke('usage:rate-limits') as Promise<RateLimitInfo | null>,
+      ]);
+      setUsage(usageResult);
+      setRateLimits(rlResult);
     } catch {
       setUsage(null);
     } finally {
@@ -41,6 +79,19 @@ export function UsagePanel() {
     return cleanup;
   }, [loadUsage]);
 
+  // Also refresh rate limits on incoming agent messages
+  useEffect(() => {
+    const cleanup = window.api.on('agent:message', (...args: unknown[]) => {
+      const data = args[0] as { message?: { type?: string } } | undefined;
+      if (data?.message?.type === 'rate_limit') {
+        window.api.invoke('usage:rate-limits').then((rl) => {
+          setRateLimits(rl as RateLimitInfo | null);
+        }).catch(() => {});
+      }
+    });
+    return cleanup;
+  }, []);
+
   if (loading && !usage) {
     return (
       <div className="flex flex-col flex-1 min-h-0 px-3 pt-3">
@@ -49,31 +100,16 @@ export function UsagePanel() {
     );
   }
 
-  if (!usage || usage.summary.requests === 0) {
-    return (
-      <div className="flex flex-col flex-1 min-h-0 px-3 pt-3">
-        <div className="rounded-xl border border-border bg-bg-elevated px-4 py-5 text-center">
-          <BarChart3 size={18} className="mx-auto text-text-tertiary mb-2" />
-          <p className="text-sm text-text-primary">No usage yet</p>
-          <p className="text-[11px] text-text-tertiary mt-1">
-            Provider spend, requests, and token totals will appear after your first completed run.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const maxDailyRequests = Math.max(1, ...usage.daily.map((day) => day.requests));
-  const hasReportedCost = usage.providers.some((provider) => provider.reportedCostAvailable);
-
   return (
     <div className="flex flex-col flex-1 min-h-0 px-3 pt-3 pb-2 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Usage</p>
-          <p className="text-[10px] text-text-tertiary mt-0.5">
-            Updated {formatRelativeTime(usage.updatedAt)}
-          </p>
+          {usage && (
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              Updated {formatRelativeTime(usage.updatedAt)}
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -85,90 +121,121 @@ export function UsagePanel() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <StatCard label="Reported Spend" value={hasReportedCost ? formatUsd(usage.summary.costUsd) : 'Unavailable'} />
-        <StatCard label="Requests" value={formatCount(usage.summary.requests)} />
-        <StatCard label="Input Tokens" value={formatTokens(usage.summary.inputTokens)} />
-        <StatCard label="Output Tokens" value={formatTokens(usage.summary.outputTokens)} />
-      </div>
+      {/* Rate Limits */}
+      {rateLimits ? (
+        <div className="space-y-2 mb-3">
+          <RateLimitBar
+            label={rateLimits.rateLimitType.replace(/_/g, ' ')}
+            utilization={rateLimits.utilization}
+            resetsAt={rateLimits.resetsAt}
+            status={rateLimits.status}
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-bg-elevated px-4 py-3 text-center mb-3">
+          <p className="text-[11px] text-text-tertiary">No rate limit data yet — start a task to see limits</p>
+        </div>
+      )}
 
-      <div className="rounded-xl border border-border bg-bg-elevated p-3 mb-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-            Last {usage.windowDays} Days
-          </span>
-          <span className="text-[10px] text-text-tertiary">
-            {usage.daily.reduce((sum, day) => sum + day.requests, 0)} requests
-          </span>
-        </div>
-        <div className="flex items-end gap-1 h-20">
-          {usage.daily.map((day) => {
-            const height = Math.max(10, Math.round((day.requests / maxDailyRequests) * 100));
-            const active = day.requests > 0;
-            return (
-              <div
-                key={day.date}
-                className={`flex-1 rounded-md transition-colors ${active ? 'bg-accent/70 hover:bg-accent' : 'bg-bg-primary'}`}
-                style={{ height: `${height}%` }}
-                title={`${formatDay(day.date)}: ${day.requests} req, ${formatUsd(day.costUsd)}`}
-              />
-            );
-          })}
-        </div>
-        <div className="flex justify-between mt-2 text-[10px] text-text-tertiary">
-          <span>{formatDay(usage.daily[0]?.date)}</span>
-          <span>{formatDay(usage.daily[usage.daily.length - 1]?.date)}</span>
-        </div>
-      </div>
+      {usage && usage.summary.requests > 0 && (
+        <>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <StatCard label="Reported Spend" value={usage.providers.some((p) => p.reportedCostAvailable) ? formatUsd(usage.summary.costUsd) : 'Unavailable'} />
+            <StatCard label="Requests" value={formatCount(usage.summary.requests)} />
+            <StatCard label="Input Tokens" value={formatTokens(usage.summary.inputTokens)} />
+            <StatCard label="Output Tokens" value={formatTokens(usage.summary.outputTokens)} />
+          </div>
 
-      <div className="space-y-2">
-        {usage.providers.map((provider) => {
-          const color = PROVIDER_COLORS[provider.agentId] ?? '#64748B';
-          return (
-            <div
-              key={provider.agentId}
-              className="rounded-xl border border-border bg-bg-elevated p-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">{provider.label}</p>
-                    <p className="text-[10px] text-text-tertiary">
-                      {provider.lastUsedAt ? `Last used ${formatRelativeTime(provider.lastUsedAt)}` : 'No recent runs'}
-                    </p>
+          <div className="rounded-xl border border-border bg-bg-elevated p-3 mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                Last {usage.windowDays} Days
+              </span>
+              <span className="text-[10px] text-text-tertiary">
+                {usage.daily.reduce((sum, day) => sum + day.requests, 0)} requests
+              </span>
+            </div>
+            <div className="flex items-end gap-1 h-20">
+              {usage.daily.map((day) => {
+                const maxDailyRequests = Math.max(1, ...usage.daily.map((d) => d.requests));
+                const height = Math.max(10, Math.round((day.requests / maxDailyRequests) * 100));
+                const active = day.requests > 0;
+                return (
+                  <div
+                    key={day.date}
+                    className={`flex-1 rounded-md transition-colors ${active ? 'bg-accent/70 hover:bg-accent' : 'bg-bg-primary'}`}
+                    style={{ height: `${height}%` }}
+                    title={`${formatDay(day.date)}: ${day.requests} req, ${formatUsd(day.costUsd)}`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex justify-between mt-2 text-[10px] text-text-tertiary">
+              <span>{formatDay(usage.daily[0]?.date)}</span>
+              <span>{formatDay(usage.daily[usage.daily.length - 1]?.date)}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {usage.providers.map((provider) => {
+              const color = PROVIDER_COLORS[provider.agentId] ?? '#64748B';
+              return (
+                <div
+                  key={provider.agentId}
+                  className="rounded-xl border border-border bg-bg-elevated p-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text-primary truncate">{provider.label}</p>
+                        <p className="text-[10px] text-text-tertiary">
+                          {provider.lastUsedAt ? `Last used ${formatRelativeTime(provider.lastUsedAt)}` : 'No recent runs'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-text-tertiary shrink-0">
+                      {Math.round(provider.shareOfRequests * 100)}% of requests
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    <ProviderMetric
+                      label="Spend"
+                      value={provider.reportedCostAvailable ? formatUsd(provider.costUsd) : 'Unavailable'}
+                    />
+                    <ProviderMetric label="Requests" value={formatCount(provider.requests)} />
+                    <ProviderMetric
+                      label="Tokens"
+                      value={formatTokens(provider.inputTokens + provider.outputTokens)}
+                    />
+                  </div>
+
+                  <div className="mt-3 h-1.5 rounded-full bg-bg-primary overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(4, provider.shareOfRequests * 100)}%`,
+                        backgroundColor: color,
+                      }}
+                    />
                   </div>
                 </div>
-                <span className="text-[10px] text-text-tertiary shrink-0">
-                  {Math.round(provider.shareOfRequests * 100)}% of requests
-                </span>
-              </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <ProviderMetric
-                  label="Spend"
-                  value={provider.reportedCostAvailable ? formatUsd(provider.costUsd) : 'Unavailable'}
-                />
-                <ProviderMetric label="Requests" value={formatCount(provider.requests)} />
-                <ProviderMetric
-                  label="Tokens"
-                  value={formatTokens(provider.inputTokens + provider.outputTokens)}
-                />
-              </div>
-
-              <div className="mt-3 h-1.5 rounded-full bg-bg-primary overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.max(4, provider.shareOfRequests * 100)}%`,
-                    backgroundColor: color,
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {(!usage || usage.summary.requests === 0) && !rateLimits && (
+        <div className="rounded-xl border border-border bg-bg-elevated px-4 py-5 text-center">
+          <BarChart3 size={18} className="mx-auto text-text-tertiary mb-2" />
+          <p className="text-sm text-text-primary">No usage yet</p>
+          <p className="text-[11px] text-text-tertiary mt-1">
+            Provider spend, requests, and token totals will appear after your first completed run.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,15 @@ import path from 'path';
 import { app } from 'electron';
 import { FluxConfig } from './types';
 
+const DEFAULT_REPOMAP_CONFIG: FluxConfig['repoMap'] = {
+  enabled: false,
+  maxTokens: 2048,
+  indexedFilePatterns: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'],
+  excludePatterns: ['node_modules/**', '.git/**', 'dist/**', 'build/**', '.vite/**', '__pycache__/**'],
+  perAgentEnabled: {},
+  autoRefresh: true,
+};
+
 const DEFAULT_CONFIG: FluxConfig = {
   theme: 'dark',
   fontSize: 14,
@@ -14,6 +23,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   customAgentPaths: {},
   recentProjects: [],
   recentSshHosts: [],
+  repoMap: DEFAULT_REPOMAP_CONFIG,
 };
 
 function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
@@ -45,6 +55,9 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     recentSshHosts: Array.isArray(raw.recentSshHosts)
       ? raw.recentSshHosts as FluxConfig['recentSshHosts']
       : DEFAULT_CONFIG.recentSshHosts,
+    repoMap: raw.repoMap && typeof raw.repoMap === 'object' && !Array.isArray(raw.repoMap)
+      ? { ...DEFAULT_REPOMAP_CONFIG, ...(raw.repoMap as Record<string, unknown>) } as FluxConfig['repoMap']
+      : DEFAULT_REPOMAP_CONFIG,
   };
 }
 

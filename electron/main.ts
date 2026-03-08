@@ -1,7 +1,14 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
-import { registerIpcHandlers } from './core/ipc-handlers';
+import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers';
 import { runMigrations } from './core/db/migrations';
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -45,6 +52,10 @@ function createWindow(): void {
 app.on('ready', () => {
   runMigrations();
   createWindow();
+});
+
+app.on('before-quit', () => {
+  cleanupProcesses();
 });
 
 app.on('window-all-closed', () => {

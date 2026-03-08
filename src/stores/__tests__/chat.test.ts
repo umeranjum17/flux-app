@@ -151,6 +151,45 @@ describe('addMessage', () => {
     expect(task.outputTokens).toBe(0);
   });
 
+  it('tracks the latest rate limit info for the task', () => {
+    makeTask('t1');
+    useChatStore.getState().addMessage('t1', {
+      type: 'rate_limit',
+      role: 'system',
+      content: 'rate',
+      timestamp: Date.now(),
+      rateLimitInfo: {
+        status: 'allowed_warning',
+        resetsAt: Date.now() + 60_000,
+        rateLimitType: 'claude',
+        utilization: 0.72,
+      },
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.rateLimitInfo?.utilization).toBe(0.72);
+  });
+
+  it('tracks the latest quality gate result for the task', () => {
+    makeTask('t1');
+    useChatStore.getState().addMessage('t1', {
+      type: 'quality_gate',
+      role: 'system',
+      content: 'Quality gate failed: npm run typecheck',
+      timestamp: Date.now(),
+      command: 'npm run typecheck',
+      exitCode: 2,
+      passed: false,
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.lastQualityGate).toEqual({
+      status: 'failed',
+      command: 'npm run typecheck',
+      exitCode: 2,
+    });
+  });
+
   it('no-ops for a nonexistent task', () => {
     useChatStore.getState().addMessage('nonexistent', textMsg);
     // should not throw

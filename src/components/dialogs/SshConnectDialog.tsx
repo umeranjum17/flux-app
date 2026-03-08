@@ -85,21 +85,15 @@ export function SshConnectDialog() {
       } catch {
         // Path resolution failed — use raw path, don't block connection
       }
-      // All good — update UI state
+      // All good — update UI state atomically
       await saveRecentHost(host.trim(), remoteDir);
-      useUiStore.getState().setSshHost(host.trim());
-      useUiStore.getState().setSshConnected(true);
-      useUiStore.getState().setEnvironment('ssh');
-      useUiStore.getState().setCwd(resolvedPath);
+      useUiStore.getState().connectSsh(host.trim(), resolvedPath);
       await window.api.invoke('cwd:set', { cwd: resolvedPath });
-      useUiStore.getState().setExplorerOpen(true);
       setOverlay(null);
     } catch (err: any) {
       // SSH connection failed — revert any partial state
       await window.api.invoke('ssh:disconnect').catch(() => {});
-      useUiStore.getState().setSshHost(null);
-      useUiStore.getState().setSshConnected(false);
-      useUiStore.getState().setEnvironment('local');
+      useUiStore.getState().disconnectSsh(useUiStore.getState().cwd);
       setError(err.message || 'Connection failed');
     }
     setConnecting(false);
@@ -107,12 +101,7 @@ export function SshConnectDialog() {
 
   const handleDisconnect = useCallback(async () => {
     const result = await window.api.invoke('ssh:disconnect') as { cwd?: string };
-    useUiStore.getState().setSshHost(null);
-    useUiStore.getState().setSshConnected(false);
-    useUiStore.getState().setEnvironment('local');
-    if (result?.cwd) {
-      useUiStore.getState().setCwd(result.cwd);
-    }
+    useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
     setOverlay(null);
   }, [setOverlay]);
 

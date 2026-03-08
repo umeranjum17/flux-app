@@ -1,6 +1,7 @@
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
+import { spawnAgentProcess } from './spawn-utils';
 
 /**
  * Spawn a Gemini CLI subprocess and parse its NDJSON stream output.
@@ -17,10 +18,12 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
   // Prompt as last positional argument
   args.push(options.prompt);
 
-  const proc: ChildProcess = spawn('gemini', args, {
+  const proc: ChildProcess = spawnAgentProcess({
+    command: options.sshHost ? 'gemini' : (options.binaryPath || 'gemini'),
+    args,
     cwd: options.cwd,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env },
+    sshHost: options.sshHost,
+    remoteCwd: options.remoteCwd,
   });
 
   const emitter = new EventEmitter() as AgentHandle;

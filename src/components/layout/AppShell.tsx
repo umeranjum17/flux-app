@@ -17,21 +17,10 @@ import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
+import { useWorkspaceStore } from '../../stores/workspace';
+import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
+import { WorkspacePanel } from '../workspace/WorkspacePanel';
 
-async function fetchGitInfo() {
-  try {
-    const branch = await window.api.invoke('git:branch') as string | null;
-    useUiStore.getState().setGitBranch(branch);
-  } catch {
-    useUiStore.getState().setGitBranch(null);
-  }
-  try {
-    const status = await window.api.invoke('git:status') as { dirty: boolean };
-    useUiStore.getState().setGitDirty(status.dirty);
-  } catch {
-    useUiStore.getState().setGitDirty(false);
-  }
-}
 
 export function AppShell() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
@@ -40,6 +29,9 @@ export function AppShell() {
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const bottomPanelMode = useUiStore((s) => s.bottomPanelMode);
   const tasks = useChatStore((s) => s.tasks);
+  const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const termRef = useRef<TerminalPanelHandle>(null);
 
   const hasTasks = tasks.size > 0;
@@ -106,9 +98,21 @@ export function AppShell() {
     init().catch(console.error);
   }, []);
 
-  // Fetch git info when CWD changes
+  // Fetch git info when CWD changes (with cancellation for stale requests)
   useEffect(() => {
-    if (cwd) fetchGitInfo();
+    if (!cwd) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const branch = await window.api.invoke('git:branch') as string | null;
+        if (!cancelled) useUiStore.getState().setGitBranch(branch);
+      } catch { if (!cancelled) useUiStore.getState().setGitBranch(null); }
+      try {
+        const status = await window.api.invoke('git:status') as { dirty: boolean };
+        if (!cancelled) useUiStore.getState().setGitDirty(status.dirty);
+      } catch { if (!cancelled) useUiStore.getState().setGitDirty(false); }
+    })();
+    return () => { cancelled = true; };
   }, [cwd]);
 
   // Apply theme
@@ -128,8 +132,7 @@ export function AppShell() {
     }
 
     useUiStore.getState().setCwd(targetPath);
-    useUiStore.getState().setExplorerOpen(true);
-    await fetchGitInfo();
+    // Git info will be fetched by the cwd effect
 
     // Add to recent projects
     const project = {
@@ -176,56 +179,64 @@ export function AppShell() {
       <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
         <div className="flex flex-col flex-1 min-w-0">
-          {(hasTasks || explorerOpen) ? (
-            <div className="flex flex-col flex-1 overflow-hidden">
-              {/* Tab bar */}
-              <div className="flex items-center gap-0 bg-bg-secondary border-b border-border shrink-0">
-                <button
-                  onClick={switchToAgent}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
-                    isAgent
-                      ? 'border-accent text-accent'
-                      : 'border-transparent text-text-tertiary hover:text-text-secondary'
-                  }`}
-                >
-                  <Bot size={13} />
-                  Agent
-                </button>
-                <button
-                  onClick={switchToTerminal}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
-                    !isAgent
-                      ? 'border-accent text-accent'
-                      : 'border-transparent text-text-tertiary hover:text-text-secondary'
-                  }`}
-                >
-                  <TerminalSquare size={13} />
-                  Terminal
-                </button>
-              </div>
-
-              {/* Content area */}
-              <div className="flex flex-1 overflow-hidden">
-                {/* Agent view */}
-                <div className={`flex flex-col flex-1 min-w-0 ${isAgent ? '' : 'hidden'}`}>
-                  <MessageList />
-                  <div className="px-3 py-2 border-t border-border shrink-0">
-                    <ChatInput focused={isAgent} />
-                  </div>
-                </div>
-
-                {/* Terminal view */}
-                <div className={`flex flex-col flex-1 min-w-0 ${isAgent ? 'hidden' : ''}`}>
-                  <TerminalPanel ref={termRef} visible={!isAgent} />
-                </div>
-
-                {/* File explorer (always visible when open, regardless of tab) */}
-                {explorerOpen && <FileExplorer />}
-              </div>
+          <div className="relative flex flex-col flex-1 overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex items-center gap-0 bg-bg-secondary border-b border-border shrink-0">
+              <button
+                onClick={switchToAgent}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+                  isAgent
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-text-tertiary hover:text-text-secondary'
+                }`}
+              >
+                <Bot size={13} />
+                Agent
+              </button>
+              <button
+                onClick={switchToTerminal}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+                  !isAgent
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-text-tertiary hover:text-text-secondary'
+                }`}
+              >
+                <TerminalSquare size={13} />
+                Terminal
+              </button>
             </div>
-          ) : (
-            <WelcomeScreen onOpenProject={openProject} />
-          )}
+
+            {/* Content area */}
+            <div className="relative flex flex-1 overflow-hidden">
+              {/* Agent view */}
+              <div className={`flex flex-col flex-1 min-w-0 ${isAgent ? '' : 'hidden'}`}>
+                {dashboardOpen ? (
+                  reviewingWorkspaceId ? (
+                    <WorkspaceDashboard />
+                  ) : activeWorkspaceId ? (
+                    <WorkspacePanel />
+                  ) : (
+                    <WorkspaceDashboard />
+                  )
+                ) : (
+                  <>
+                    {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                    <div className="px-3 py-2 border-t border-border shrink-0">
+                      <ChatInput focused={isAgent} />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Terminal view */}
+              <div className={`flex flex-col flex-1 min-w-0 ${isAgent ? 'hidden' : ''}`}>
+                <TerminalPanel ref={termRef} visible={!isAgent} />
+              </div>
+
+              {/* File viewer overlay */}
+              {explorerOpen && <FileExplorer />}
+            </div>
+          </div>
           <StatusLine />
         </div>
       </div>

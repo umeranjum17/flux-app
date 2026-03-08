@@ -12,7 +12,7 @@ beforeEach(() => {
 
 describe('UsagePanel', () => {
   it('renders provider totals and marks missing cost data clearly', async () => {
-    mockApi.invoke.mockResolvedValue({
+    const usageData = {
       summary: {
         costUsd: 1.234,
         inputTokens: 1200,
@@ -54,6 +54,12 @@ describe('UsagePanel', () => {
       ],
       windowDays: 7,
       updatedAt: Date.now(),
+    };
+
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'usage:get') return usageData;
+      if (channel === 'usage:rate-limits') return null;
+      return null;
     });
 
     render(<UsagePanel />);

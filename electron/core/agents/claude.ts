@@ -1,13 +1,21 @@
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
+import { spawnAgentProcess } from './spawn-utils';
+
+export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
 
 /**
  * Spawn a Claude Code CLI subprocess and parse its NDJSON stream output.
  */
 export function spawnClaude(options: SpawnOptions): AgentHandle {
   const args: string[] = [
+    '-p',
     '--output-format', 'stream-json',
+    '--input-format', 'stream-json',
+    '--permission-prompt-tool', 'stdio',
+    '--no-chrome',
+    '--include-partial-messages',
     '--verbose',
   ];
 
@@ -23,124 +31,282 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     args.push('--effort', mapClaudeEffort(options.thinking));
   }
 
-  if (options.sessionId) {
-    args.push('--session-id', options.sessionId);
+  if (options.resumeSessionId) {
+    args.push('--session-id', options.resumeSessionId);
   }
 
-  // Prompt as last positional argument
-  args.push(options.prompt);
-
-  const proc: ChildProcess = spawn('claude', args, {
+  const proc: ChildProcess = spawnAgentProcess({
+    command: options.sshHost ? 'claude' : (options.binaryPath || 'claude'),
+    args,
     cwd: options.cwd,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env },
+    sshHost: options.sshHost,
+    remoteCwd: options.remoteCwd,
   });
 
   const emitter = new EventEmitter() as AgentHandle;
   emitter.taskId = options.taskId;
   emitter.agentId = 'claude-code';
+
   let stopped = false;
+  let finished = false;
+  let sawMeaningfulProgress = false;
+
+  const clearStartupWatchdog = (() => {
+    let timer: NodeJS.Timeout | null = setTimeout(() => {
+      if (finished || stopped || sawMeaningfulProgress) return;
+
+      const target = options.sshHost
+        ? `${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`
+        : `cwd: ${options.cwd}`;
+      const error = options.sshHost
+        ? `Claude startup timed out over SSH after ${Math.round(CLAUDE_STARTUP_TIMEOUT_MS / 1000)}s on ${target}`
+        : `Claude startup timed out after ${Math.round(CLAUDE_STARTUP_TIMEOUT_MS / 1000)}s (${target})`;
+
+      try { proc.kill('SIGTERM'); } catch {}
+      emitMessage({
+        type: 'error',
+        role: 'system',
+        content: error,
+        timestamp: Date.now(),
+      });
+      finish({ code: 1, error });
+    }, CLAUDE_STARTUP_TIMEOUT_MS);
+
+    return () => {
+      if (!timer) return;
+      clearTimeout(timer);
+      timer = null;
+    };
+  })();
+
+  const markMeaningfulProgress = () => {
+    if (sawMeaningfulProgress) return;
+    sawMeaningfulProgress = true;
+    clearStartupWatchdog();
+  };
+
+  const emitMessage = (message: AgentMessage) => {
+    if (isMeaningfulClaudeMessage(message)) {
+      markMeaningfulProgress();
+    }
+    emitter.emit('message', message);
+  };
+
+  const finish = (result: { code: number | null; error?: string }) => {
+    if (finished) return;
+    finished = true;
+    clearStartupWatchdog();
+    emitter.emit('done', result);
+  };
+
+  if (options.sshHost) {
+    setTimeout(() => {
+      emitMessage({
+        type: 'status',
+        role: 'system',
+        statusKind: 'spawn',
+        content: `[SSH] Spawning claude on ${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`,
+        timestamp: Date.now(),
+      } satisfies AgentMessage);
+    }, 0);
+  }
 
   let buffer = '';
+  const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
 
   proc.stdout?.on('data', (chunk: Buffer) => {
     buffer += chunk.toString('utf-8');
+    if (buffer.length > MAX_BUFFER) {
+      buffer = '';
+      emitMessage({
+        type: 'error',
+        role: 'system',
+        content: 'Stream buffer overflow - cleared',
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
     const lines = buffer.split('\n');
-    // Keep the last partial line in the buffer
     buffer = lines.pop() ?? '';
 
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
+      const event = parseClaudeEvent(line);
+      if (!event) continue;
 
-      let event: any;
-      try {
-        event = JSON.parse(trimmed);
-      } catch {
-        // Not valid JSON, skip
-        continue;
+      if (event.session_id || event.sessionId) {
+        emitter.emit('session-meta', { id: event.session_id ?? event.sessionId });
       }
 
       const message = mapClaudeEvent(event);
       if (message) {
-        emitter.emit('message', message);
+        emitMessage(message);
       }
     }
   });
 
   proc.stderr?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8').trim();
-    if (text) {
-      const msg: AgentMessage = {
-        type: 'error',
-        role: 'system',
-        content: text,
-        timestamp: Date.now(),
-      };
-      emitter.emit('message', msg);
-    }
+    if (!text) return;
+
+    emitMessage({
+      type: 'error',
+      role: 'system',
+      content: text,
+      timestamp: Date.now(),
+    });
   });
 
   proc.on('close', (code: number | null) => {
-    // Flush remaining buffer
     if (buffer.trim()) {
-      try {
-        const event = JSON.parse(buffer.trim());
+      const event = parseClaudeEvent(buffer);
+      if (event) {
         const message = mapClaudeEvent(event);
         if (message) {
-          emitter.emit('message', message);
+          emitMessage(message);
         }
-      } catch {
-        // ignore
       }
     }
-    emitter.emit('done', {
+
+    const exitError = stopped || code === 0 || code === null
+      ? undefined
+      : `Claude exited with code ${code}`;
+    const noResponseError = !stopped && !sawMeaningfulProgress
+      ? 'Claude exited before producing a response'
+      : undefined;
+
+    finish({
       code,
-      ...(stopped || code === 0 || code === null ? {} : { error: `Claude exited with code ${code}` }),
+      ...(exitError ?? noResponseError ? { error: exitError ?? noResponseError } : {}),
     });
   });
 
   proc.on('error', (err: Error) => {
     try { proc.kill(); } catch {}
-    const msg: AgentMessage = {
+
+    emitMessage({
       type: 'error',
       role: 'system',
       content: `Failed to spawn claude: ${err.message}`,
       timestamp: Date.now(),
-    };
-    emitter.emit('message', msg);
-    emitter.emit('done', { code: 1, error: err.message });
+    });
+    finish({ code: 1, error: err.message });
   });
 
   emitter.stop = () => {
     stopped = true;
+    clearStartupWatchdog();
     proc.kill('SIGTERM');
   };
 
   emitter.approve = (requestId: string) => {
-    // Write approval JSON to stdin for permission requests
-    if (proc.stdin?.writable) {
-      proc.stdin.write(JSON.stringify({ type: 'approve', requestId }) + '\n');
-    }
+    writeClaudeControlResponse(proc, requestId, { behavior: 'allow' });
   };
 
   emitter.deny = (requestId: string) => {
-    if (proc.stdin?.writable) {
-      proc.stdin.write(JSON.stringify({ type: 'deny', requestId }) + '\n');
-    }
+    writeClaudeControlResponse(proc, requestId, {
+      behavior: 'deny',
+      message: 'User denied permission',
+    });
   };
 
   emitter.steer = (prompt: string, images?: string[]) => {
-    if (proc.stdin?.writable) {
-      const payload: Record<string, unknown> = { type: 'user_message', content: prompt };
-      if (images?.length) {
-        payload.images = images;
-      }
-      proc.stdin.write(JSON.stringify(payload) + '\n');
-    }
+    writeClaudeUserMessage(proc, prompt, images);
   };
 
+  writeClaudeUserMessage(proc, options.prompt, options.images);
+
   return emitter;
+}
+
+function parseClaudeEvent(line: string): Record<string, any> | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>;
+    }
+  } catch {
+    // Ignore malformed lines.
+  }
+
+  return null;
+}
+
+function isMeaningfulClaudeMessage(message: AgentMessage): boolean {
+  if (message.type === 'error' || message.type === 'permission_request' || message.type === 'result') {
+    return true;
+  }
+
+  if (message.type === 'tool_call') {
+    return true;
+  }
+
+  if ((message.type === 'text' || message.type === 'thinking') && message.role === 'assistant') {
+    return true;
+  }
+
+  return false;
+}
+
+function writeClaudeUserMessage(proc: ChildProcess, prompt: string, images?: string[]): void {
+  if (!proc.stdin?.writable) return;
+
+  const content: Array<Record<string, unknown>> = [];
+  if (prompt.trim()) {
+    content.push({ type: 'text', text: prompt });
+  }
+
+  for (const image of images ?? []) {
+    const block = toClaudeImageBlock(image);
+    if (block) {
+      content.push(block);
+    }
+  }
+
+  if (content.length === 0) return;
+
+  proc.stdin.write(JSON.stringify({
+    type: 'user',
+    message: {
+      role: 'user',
+      content,
+    },
+  }) + '\n');
+}
+
+function writeClaudeControlResponse(
+  proc: ChildProcess,
+  requestId: string,
+  response: { behavior: 'allow' } | { behavior: 'deny'; message: string },
+): void {
+  if (!proc.stdin?.writable) return;
+
+  proc.stdin.write(JSON.stringify({
+    type: 'control_response',
+    response: {
+      subtype: 'success',
+      request_id: requestId,
+      response,
+    },
+  }) + '\n');
+}
+
+function toClaudeImageBlock(image: string): Record<string, unknown> | null {
+  const match = image.match(/^data:(.+?);base64,(.+)$/);
+  if (!match) return null;
+
+  const [, mediaType, data] = match;
+  return {
+    type: 'image',
+    source: {
+      type: 'base64',
+      media_type: mediaType,
+      data,
+    },
+  };
 }
 
 function mapClaudeEffort(thinking: NonNullable<SpawnOptions['thinking']>): 'low' | 'medium' | 'high' {
@@ -151,13 +317,12 @@ function mapClaudeEffort(thinking: NonNullable<SpawnOptions['thinking']>): 'low'
 /**
  * Map a Claude stream-json event to our unified AgentMessage format.
  */
-function mapClaudeEvent(event: any): AgentMessage | null {
+function mapClaudeEvent(event: Record<string, any>): AgentMessage | null {
   const now = Date.now();
 
-  // Assistant text content
   if (event.type === 'assistant' && event.message?.content) {
     const textBlock = Array.isArray(event.message.content)
-      ? event.message.content.find((b: any) => b.type === 'text')
+      ? event.message.content.find((block: any) => block.type === 'text')
       : null;
 
     if (textBlock) {
@@ -169,9 +334,8 @@ function mapClaudeEvent(event: any): AgentMessage | null {
       };
     }
 
-    // Thinking blocks
     const thinkingBlock = Array.isArray(event.message.content)
-      ? event.message.content.find((b: any) => b.type === 'thinking')
+      ? event.message.content.find((block: any) => block.type === 'thinking')
       : null;
 
     if (thinkingBlock) {
@@ -184,7 +348,6 @@ function mapClaudeEvent(event: any): AgentMessage | null {
     }
   }
 
-  // Content block delta (streaming text)
   if (event.type === 'content_block_delta') {
     if (event.delta?.type === 'text_delta') {
       return {
@@ -194,6 +357,7 @@ function mapClaudeEvent(event: any): AgentMessage | null {
         timestamp: now,
       };
     }
+
     if (event.delta?.type === 'thinking_delta') {
       return {
         type: 'thinking',
@@ -204,8 +368,7 @@ function mapClaudeEvent(event: any): AgentMessage | null {
     }
   }
 
-  // Tool use
-  if (event.type === 'tool_use' || event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+  if (event.type === 'tool_use' || (event.type === 'content_block_start' && event.content_block?.type === 'tool_use')) {
     const tool = event.type === 'tool_use' ? event : event.content_block;
     return {
       type: 'tool_call',
@@ -218,7 +381,6 @@ function mapClaudeEvent(event: any): AgentMessage | null {
     };
   }
 
-  // Tool result
   if (event.type === 'tool_result') {
     const content = typeof event.content === 'string'
       ? event.content
@@ -234,7 +396,6 @@ function mapClaudeEvent(event: any): AgentMessage | null {
     };
   }
 
-  // Permission request (Claude Code specific)
   if (event.type === 'permission_request') {
     return {
       type: 'permission_request',
@@ -248,7 +409,6 @@ function mapClaudeEvent(event: any): AgentMessage | null {
     };
   }
 
-  // Final result with cost/token info
   if (event.type === 'result') {
     return {
       type: 'result',
@@ -262,13 +422,86 @@ function mapClaudeEvent(event: any): AgentMessage | null {
     };
   }
 
-  // System-level messages
-  if (event.type === 'system' || event.type === 'error') {
+  if (event.type === 'rate_limit_event' && event.rate_limit_info) {
     return {
-      type: event.type === 'error' ? 'error' : 'text',
+      type: 'rate_limit',
       role: 'system',
-      content: event.message ?? event.error ?? JSON.stringify(event),
+      content: JSON.stringify(event.rate_limit_info),
       timestamp: now,
+      rateLimitInfo: event.rate_limit_info,
+    };
+  }
+
+  if (event.type === 'system') {
+    return mapClaudeSystemEvent(event, now);
+  }
+
+  if (event.type === 'error') {
+    return {
+      type: 'error',
+      role: 'system',
+      content: event.message ?? event.error ?? 'Claude reported an error',
+      timestamp: now,
+    };
+  }
+
+  return null;
+}
+
+function mapClaudeSystemEvent(event: Record<string, any>, timestamp: number): AgentMessage | null {
+  if (event.subtype === 'hook_started') {
+    const hookEvent = event.hook_event ?? event.hookEvent;
+    const hookName = event.hook_name ?? event.hookName;
+
+    return {
+      type: 'status',
+      role: 'system',
+      statusKind: hookEvent === 'SessionStart' ? 'startup' : 'diagnostic',
+      content: hookEvent === 'SessionStart'
+        ? 'Initializing Claude session'
+        : hookName
+          ? `Running hook: ${hookName}`
+          : 'Running Claude hook',
+      timestamp,
+    };
+  }
+
+  if (event.subtype === 'hook_response') {
+    const hookEvent = event.hook_event ?? event.hookEvent;
+    const hookName = event.hook_name ?? event.hookName;
+
+    if (hookEvent === 'SessionStart') {
+      return null;
+    }
+
+    return {
+      type: 'status',
+      role: 'system',
+      statusKind: 'diagnostic',
+      content: hookName
+        ? `Completed hook: ${hookName}`
+        : 'Claude hook completed',
+      timestamp,
+    };
+  }
+
+  if (typeof event.message === 'string' && event.message.trim()) {
+    return {
+      type: 'status',
+      role: 'system',
+      statusKind: 'diagnostic',
+      content: event.message.trim(),
+      timestamp,
+    };
+  }
+
+  if (typeof event.content === 'string' && event.content.trim()) {
+    return {
+      type: 'status',
+      role: 'system',
+      statusKind: 'diagnostic',
+      content: event.content.trim(),
+      timestamp,
     };
   }
 

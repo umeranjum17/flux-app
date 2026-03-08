@@ -2,13 +2,15 @@ import { useCallback } from 'react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
-import { GitBranch, Wifi, WifiOff, FolderOpen } from 'lucide-react';
+import { useIntelligenceStore } from '../../stores/intelligence';
+import { GitBranch, Wifi, WifiOff, FolderOpen, Brain } from 'lucide-react';
 
 export function StatusLine() {
   const activeTask = useChatStore((s) => {
     const id = s.activeTaskId;
     return id ? s.tasks.get(id) : undefined;
   });
+  const selectedThinking = useAgentStore((s) => s.selectedThinking);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const agents = useAgentStore((s) => s.agents);
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
@@ -19,10 +21,18 @@ export function StatusLine() {
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
 
+  const repoMapConfig = useIntelligenceStore((s) => s.config);
+  const repoMapStatus = useIntelligenceStore((s) => s.status);
+
+  const selectedModel = useAgentStore((s) => s.selectedModel);
+
   const agentName = selectedAgent?.name ?? selectedAgentId;
-  const model = activeTask?.model ?? useAgentStore.getState().selectedModel;
+  const model = activeTask?.model ?? selectedModel;
+  const thinking = activeTask?.thinking ?? selectedThinking;
   const cost = activeTask?.costUsd ?? 0;
   const tokens = (activeTask?.inputTokens ?? 0) + (activeTask?.outputTokens ?? 0);
+  const qualityGate = activeTask?.lastQualityGate;
+  const rateLimit = activeTask?.rateLimitInfo;
 
   const shortCwd = cwd ? truncatePath(cwd, 30) : '';
 
@@ -38,7 +48,6 @@ export function StatusLine() {
     const picked = await window.api.invoke('cwd:pick') as string | null;
     if (picked) {
       useUiStore.getState().setCwd(picked);
-      useUiStore.getState().setExplorerOpen(true);
     }
   }, [sshConnected]);
 
@@ -77,6 +86,30 @@ export function StatusLine() {
             {gitDirty && <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />}
           </span>
         )}
+
+        {/* Repo map indicator */}
+        <button
+          onClick={() => useUiStore.getState().setOverlay('context-settings')}
+          className={`flex items-center gap-1 h-7 px-2 text-[11px] transition-colors hover:bg-bg-hover ${
+            !repoMapConfig.enabled
+              ? 'text-text-tertiary'
+              : repoMapStatus.state === 'ready'
+                ? 'text-success'
+                : repoMapStatus.state === 'building'
+                  ? 'text-warning'
+                  : repoMapStatus.state === 'error'
+                    ? 'text-error'
+                    : 'text-text-tertiary'
+          }`}
+          title={
+            !repoMapConfig.enabled
+              ? 'Repo map: off (click to configure)'
+              : `Repo map: ${repoMapStatus.state} (${repoMapStatus.totalTags} tags)`
+          }
+        >
+          <Brain size={11} className={repoMapStatus.state === 'building' ? 'animate-pulse' : ''} />
+          {repoMapConfig.enabled && <span>{repoMapStatus.state === 'building' ? 'indexing' : 'map'}</span>}
+        </button>
       </div>
 
       {/* Spacer */}
@@ -92,10 +125,31 @@ export function StatusLine() {
           {model}
         </span>
         <Dot />
+        <span className="text-[11px] text-text-tertiary truncate">
+          think {thinking}
+        </span>
+        {qualityGate && (
+          <>
+            <Dot />
+            <span className={`text-[11px] font-medium ${
+              qualityGate.status === 'passed' ? 'text-success' : 'text-error'
+            }`}>
+              checks {qualityGate.status}
+            </span>
+          </>
+        )}
+        {rateLimit && (
+          <>
+            <Dot />
+            <span className={`text-[11px] font-medium ${rateLimitColor(rateLimit.utilization)}`}>
+              rl {Math.round(rateLimit.utilization * 100)}%
+            </span>
+          </>
+        )}
+        <Dot />
         <span className="text-[11px] text-text-tertiary tabular-nums">
           ${cost.toFixed(4)}
         </span>
-        <Dot />
         <span className="text-[11px] text-text-tertiary tabular-nums">
           {formatTokens(tokens)} tokens
         </span>
@@ -123,4 +177,10 @@ function truncatePath(p: string, maxLen: number): string {
   const parts = p.split('/');
   if (parts.length <= 2) return p;
   return `.../${parts.slice(-2).join('/')}`;
+}
+
+function rateLimitColor(utilization: number): string {
+  if (utilization >= 0.8) return 'text-error';
+  if (utilization >= 0.5) return 'text-warning';
+  return 'text-success';
 }

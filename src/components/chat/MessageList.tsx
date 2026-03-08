@@ -12,6 +12,7 @@ import { FileEditBlock } from './FileEditBlock';
 import { ApprovalPrompt } from './ApprovalPrompt';
 import { ResultBlock } from './ResultBlock';
 import { StreamingCursor } from './StreamingCursor';
+import { ActivityIndicator } from './ActivityIndicator';
 
 const messageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -122,6 +123,15 @@ function renderMessage(
         />
       );
 
+    case 'status':
+      return (
+        <ActivityIndicator
+          label={msg.content}
+          statusKind={msg.statusKind}
+          active={taskStatus === 'running' || taskStatus === 'waiting_approval'}
+        />
+      );
+
     case 'tool_call':
       return (
         <ToolCallBlock
@@ -160,6 +170,32 @@ function renderMessage(
           outputTokens={msg.outputTokens}
           durationMs={msg.durationMs}
         />
+      );
+
+    case 'quality_gate':
+      return (
+        <div className={`rounded-lg border p-3 text-sm ${
+          msg.passed
+            ? 'border-success/30 bg-success/10 text-text-primary'
+            : 'border-error/30 bg-error/10 text-text-primary'
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">
+              {msg.passed ? 'Quality gate passed' : 'Quality gate failed'}
+            </span>
+            {typeof msg.exitCode === 'number' && (
+              <span className="text-xs text-text-tertiary">exit {msg.exitCode}</span>
+            )}
+          </div>
+          {msg.command && (
+            <div className="mt-1 font-mono text-xs text-text-secondary">{msg.command}</div>
+          )}
+          {(msg.stderr || msg.stdout) && (
+            <pre className="mt-2 overflow-x-auto rounded bg-bg-primary/70 p-2 text-xs text-text-secondary whitespace-pre-wrap">
+              {(msg.stderr || msg.stdout || '').trim()}
+            </pre>
+          )}
+        </div>
       );
 
     case 'permission_request':

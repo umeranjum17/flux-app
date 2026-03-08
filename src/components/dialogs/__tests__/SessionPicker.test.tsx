@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMockApi, type MockApi } from '../../../../test/mocks/window-api';
 import { SessionPicker } from '../SessionPicker';
@@ -9,6 +9,10 @@ import { useSessionStore } from '../../../stores/session';
 import { useUiStore } from '../../../stores/ui';
 
 let mockApi: MockApi;
+
+afterEach(() => {
+  cleanup();
+});
 
 beforeEach(() => {
   mockApi = createMockApi();
@@ -89,5 +93,96 @@ describe('SessionPicker', () => {
     expect(task!.messages).toHaveLength(1);
     expect(task!.messages[0].attachments).toEqual([{ path: '/workspace/src/app.ts', name: 'app.ts' }]);
     expect(task!.messages[0].images).toEqual(['data:image/png;base64,abc']);
+  });
+
+  it('sanitizes legacy Claude startup hook dumps when restoring a session', async () => {
+    const user = userEvent.setup();
+    mockApi.invoke.mockImplementation((channel: string) => {
+      if (channel === 'sessions:get') {
+        return Promise.resolve({
+          id: 'session-1',
+          title: 'Existing session',
+          agentId: 'claude-code',
+          model: 'sonnet',
+          mode: 'act',
+          cwd: '/workspace',
+        });
+      }
+
+      if (channel === 'sessions:messages') {
+        return Promise.resolve([
+          {
+            id: 1,
+            sessionId: 'session-1',
+            role: 'system',
+            type: 'text',
+            content: JSON.stringify({
+              type: 'system',
+              subtype: 'hook_started',
+              hook_event: 'SessionStart',
+              hook_name: 'SessionStart:startup',
+            }),
+            toolName: null,
+            toolInput: null,
+            toolCallId: null,
+            costUsd: null,
+            inputTokens: null,
+            outputTokens: null,
+            payloadJson: JSON.stringify({
+              type: 'text',
+              role: 'system',
+              content: JSON.stringify({
+                type: 'system',
+                subtype: 'hook_started',
+                hook_event: 'SessionStart',
+                hook_name: 'SessionStart:startup',
+              }),
+              timestamp: 100,
+            }),
+            timestamp: 100,
+          },
+          {
+            id: 2,
+            sessionId: 'session-1',
+            role: 'system',
+            type: 'text',
+            content: JSON.stringify({
+              type: 'system',
+              subtype: 'hook_response',
+              hook_event: 'SessionStart',
+              hook_name: 'SessionStart:startup',
+              output: '{ raw }',
+            }),
+            toolName: null,
+            toolInput: null,
+            toolCallId: null,
+            costUsd: null,
+            inputTokens: null,
+            outputTokens: null,
+            payloadJson: null,
+            timestamp: 101,
+          },
+        ]);
+      }
+
+      return Promise.resolve(undefined);
+    });
+
+    render(<SessionPicker />);
+
+    await user.click(screen.getByRole('button', { name: /Resume/i }));
+
+    await waitFor(() => {
+      expect(useChatStore.getState().activeTaskId).not.toBeNull();
+    });
+
+    const task = useChatStore.getState().getActiveTask();
+    expect(task).toBeDefined();
+    expect(task!.messages).toHaveLength(1);
+    expect(task!.messages[0]).toMatchObject({
+      type: 'status',
+      statusKind: 'startup',
+      content: 'Initializing Claude session',
+    });
   });
 });

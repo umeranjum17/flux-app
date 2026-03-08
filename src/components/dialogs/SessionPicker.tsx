@@ -5,8 +5,9 @@ import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
-import type { AgentId, TaskMode, AgentMessage } from '../../lib/types';
+import type { AgentId, TaskMode } from '../../lib/types';
 import type { SessionMessage } from '../../lib/ipc-api';
+import { restoreSessionMessage } from '../../lib/session-messages';
 
 export function SessionPicker() {
   const { activeOverlay, setOverlay } = useUiStore();
@@ -43,7 +44,10 @@ export function SessionPicker() {
     });
 
     for (const msg of messages) {
-      addMessage(taskId, restoreSessionMessage(msg));
+      const restored = restoreSessionMessage(msg);
+      if (restored) {
+        addMessage(taskId, restored);
+      }
     }
 
     setTaskStatus(taskId, 'idle');
@@ -182,49 +186,4 @@ export function SessionPicker() {
       )}
     </AnimatePresence>
   );
-}
-
-function restoreSessionMessage(message: SessionMessage): AgentMessage {
-  if (message.payloadJson) {
-    try {
-      const parsed = JSON.parse(message.payloadJson) as AgentMessage;
-      return {
-        ...parsed,
-        type: parsed.type ?? (message.type as AgentMessage['type']),
-        role: parsed.role ?? (message.role as AgentMessage['role']),
-        content: parsed.content ?? message.content,
-        timestamp: message.timestamp,
-      };
-    } catch {
-      // Fall back to the legacy columns below.
-    }
-  }
-
-  return {
-    type: message.type as AgentMessage['type'],
-    role: message.role as AgentMessage['role'],
-    content: message.content,
-    timestamp: message.timestamp,
-    toolName: message.toolName ?? undefined,
-    toolInput: parseToolInput(message.toolInput),
-    toolCallId: message.toolCallId ?? undefined,
-    costUsd: message.costUsd ?? undefined,
-    inputTokens: message.inputTokens ?? undefined,
-    outputTokens: message.outputTokens ?? undefined,
-  };
-}
-
-function parseToolInput(toolInput: string | null): Record<string, unknown> | undefined {
-  if (!toolInput) return undefined;
-
-  try {
-    const parsed = JSON.parse(toolInput);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // Older rows may contain a plain string. Ignore it.
-  }
-
-  return undefined;
 }

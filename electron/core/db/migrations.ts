@@ -4,6 +4,8 @@ import {
   CREATE_MESSAGES_TABLE,
   CREATE_CONFIG_TABLE,
   CREATE_USAGE_METRICS_TABLE,
+  CREATE_WORKSPACES_TABLE,
+  CREATE_CHECKPOINTS_TABLE,
   CREATE_MIGRATIONS_TABLE,
 } from './schema';
 
@@ -13,6 +15,8 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: '003_create_config', sql: CREATE_CONFIG_TABLE },
   { name: '004_create_usage_metrics', sql: CREATE_USAGE_METRICS_TABLE },
   { name: '005_add_message_payload_json', sql: 'ALTER TABLE messages ADD COLUMN payload_json TEXT' },
+  { name: '006_create_workspaces', sql: CREATE_WORKSPACES_TABLE },
+  { name: '007_create_checkpoints', sql: CREATE_CHECKPOINTS_TABLE },
 ];
 
 export function runMigrations(): void {

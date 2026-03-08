@@ -1,6 +1,7 @@
-import { Menu, Settings, ChevronDown } from 'lucide-react';
+import { Menu, Settings, ChevronDown, LayoutGrid } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
+import { useWorkspaceStore } from '../../stores/workspace';
 
 const isMac = window.api?.platform === 'darwin';
 
@@ -9,6 +10,8 @@ export function TopBar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setMode = useUiStore((s) => s.setMode);
   const setOverlay = useUiStore((s) => s.setOverlay);
+  const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
+  const setDashboardOpen = useWorkspaceStore((s) => s.setDashboardOpen);
 
   const projectName = useUiStore((s) => s.projectName);
   const sshConnected = useUiStore((s) => s.sshConnected);
@@ -85,6 +88,19 @@ export function TopBar() {
             <span className="text-text-tertiary font-normal">{selectedModel}</span>
           )}
           <ChevronDown size={12} />
+        </button>
+
+        <button
+          onClick={() => setDashboardOpen(!dashboardOpen)}
+          className={`p-1.5 rounded-md transition-colors ${
+            dashboardOpen
+              ? 'bg-accent/10 text-accent'
+              : 'text-text-secondary hover:bg-bg-hover'
+          }`}
+          aria-label="Toggle workspaces"
+          title="Workspaces"
+        >
+          <LayoutGrid size={16} />
         </button>
 
         {/* Settings */}

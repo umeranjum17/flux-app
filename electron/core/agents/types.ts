@@ -14,10 +14,11 @@ export interface FileAttachment {
 }
 
 export interface AgentMessage {
-  type: 'text' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request';
+  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'rate_limit' | 'quality_gate';
   role: MessageRole;
   content: string;
   timestamp: number;
+  statusKind?: 'spawn' | 'startup' | 'diagnostic';
   // For tool calls
   toolName?: string;
   toolInput?: Record<string, unknown>;
@@ -40,6 +41,21 @@ export interface AgentMessage {
   // For image attachments
   images?: string[];
   attachments?: FileAttachment[];
+  // For quality gates
+  command?: string;
+  exitCode?: number;
+  passed?: boolean;
+  stdout?: string;
+  stderr?: string;
+  // For rate limits
+  rateLimitInfo?: {
+    status: string;
+    resetsAt: number;
+    rateLimitType: string;
+    utilization: number;
+    overageStatus?: string;
+    overageResetsAt?: number;
+  };
 }
 
 export interface SpawnOptions {
@@ -50,8 +66,13 @@ export interface SpawnOptions {
   thinking?: ThinkingLevel;
   cwd: string;
   sessionId?: string;
+  resumeSessionId?: string;
   images?: string[]; // base64 encoded
   attachments?: FileAttachment[];
+  contextBlock?: string; // Injected repo map context (for logging/diagnostics)
+  binaryPath?: string; // Resolved absolute path to the agent binary
+  sshHost?: string;      // e.g., "umera@extreme" — spawn agent over SSH
+  remoteCwd?: string;    // Remote working directory for SSH mode
 }
 
 export interface AgentHandle extends EventEmitter {

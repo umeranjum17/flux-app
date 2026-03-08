@@ -51,7 +51,6 @@ export function RemoteFolderPicker() {
   const handleSelect = useCallback(() => {
     const targetPath = resolvedPath || currentPath;
     useUiStore.getState().setCwd(targetPath);
-    useUiStore.getState().setExplorerOpen(true);
     window.api.invoke('cwd:set', { cwd: targetPath });
     setOverlay(null);
   }, [resolvedPath, currentPath, setOverlay]);

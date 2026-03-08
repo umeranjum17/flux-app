@@ -16,6 +16,7 @@ export interface IpcChannels {
   'config:get': { args: []; result: FluxConfig };
   'config:set': { args: [Partial<FluxConfig>]; result: void };
   'usage:get': { args: []; result: UsageInfo };
+  'usage:rate-limits': { args: []; result: RateLimitInfo | null };
   'cwd:get': { args: []; result: string };
   'cwd:set': { args: [{ cwd: string }]; result: string };
   'cwd:pick': { args: []; result: string | null };
@@ -32,6 +33,32 @@ export interface IpcChannels {
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
+  'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
+  'workspace:create': {
+    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string }];
+    result: Workspace;
+  };
+  'workspace:spawn': { args: [{ workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
+  'workspace:stop': { args: [{ workspaceId: string }]; result: void };
+  'workspace:delete': { args: [{ workspaceId: string }]; result: void };
+  'workspace:merge': {
+    args: [{ workspaceId: string; targetBranch: string; squash?: boolean }];
+    result: MergeResult;
+  };
+  'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
+  'workspace:file-diff': {
+    args: [{ workspaceId: string; filePath: string }];
+    result: { oldContent: string; newContent: string; unified: string };
+  };
+  'workspace:discard-file': { args: [{ workspaceId: string; filePath: string }]; result: void };
+  'checkpoint:list': { args: [{ workspaceId: string }]; result: Checkpoint[] };
+  'checkpoint:diff': { args: [{ checkpointId: string; workspaceId: string }]; result: string };
+  'checkpoint:revert': { args: [{ checkpointId: string; workspaceId: string }]; result: void };
+  'repomap:get-config': { args: []; result: RepoMapIpcConfig };
+  'repomap:set-config': { args: [RepoMapIpcConfig]; result: void };
+  'repomap:get-status': { args: []; result: RepoMapIpcStatus };
+  'repomap:rebuild': { args: []; result: void };
+  'repomap:preview': { args: [{ prompt: string }]; result: string };
 }
 
 // Events main sends to renderer
@@ -39,6 +66,27 @@ export interface IpcEvents {
   'agent:message': { taskId: string; message: AgentMessage };
   'agent:done': { taskId: string; error?: string };
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
+  'workspace:status': { workspaceId: string; status: WorkspaceStatus };
+  'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
+  'repomap:status': RepoMapIpcStatus;
+}
+
+export interface RepoMapIpcConfig {
+  enabled: boolean;
+  maxTokens: number;
+  indexedFilePatterns: string[];
+  excludePatterns: string[];
+  perAgentEnabled: Record<string, boolean>;
+  autoRefresh: boolean;
+}
+
+export interface RepoMapIpcStatus {
+  state: 'idle' | 'building' | 'ready' | 'error';
+  totalFiles: number;
+  parsedFiles: number;
+  totalTags: number;
+  lastBuiltAt: number | null;
+  errorMessage?: string;
 }
 
 export interface Session {
@@ -90,6 +138,60 @@ export interface FluxConfig {
     remotePath: string;
     lastUsed: number;
   }>;
+  repoMap: RepoMapIpcConfig;
+}
+
+export interface Checkpoint {
+  id: string;
+  workspaceId: string;
+  sessionId: string;
+  messageIndex: number;
+  gitCommitSha: string;
+  parentSha: string;
+  description: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+  createdAt: number;
+}
+
+export interface DiffFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  parentRepo: string;
+  branch: string;
+  status: WorkspaceStatus;
+  createdAt: number;
+  updatedAt: number;
+  agentId: string;
+  model: string;
+  worktreePath: string;
+  sessionId?: string;
+}
+
+export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'done' | 'error' | 'merging';
+
+export interface MergeResult {
+  success: boolean;
+  error?: string;
+  conflicts?: string[];
+}
+
+export interface RateLimitInfo {
+  status: 'allowed' | 'allowed_warning' | 'rejected';
+  resetsAt: number;
+  rateLimitType: string;
+  utilization: number;
+  overageStatus?: string;
+  overageResetsAt?: number;
 }
 
 export interface UsageInfo {
