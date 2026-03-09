@@ -35,9 +35,11 @@ function requireFields(obj: Record<string, unknown>, ...fields: string[]): void 
   }
 }
 
+console.log('[ipc-handlers] module loaded');
 const activeTasks = new Map<string, AgentHandle>();
 const taskSessions = new Map<string, string>();
 const cleaningUp = new Set<string>();
+const taskIdleHeartbeats = new Map<string, NodeJS.Timeout>();
 const activeTerminals = new Map<string, ChildProcess>();
 const activeSubagents = new Map<string, {
   parentTaskId: string;
@@ -637,7 +639,26 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
     const workspace = workspaceStore.get(options.taskId);
     if (activeTasks.has(options.taskId)) {
-      throw new Error(`Task ${options.taskId} already has an active run`);
+      // Defensive cleanup: the renderer may have fired task:stop but it hasn't
+      // completed yet (race). Stop the stale handle instead of throwing.
+      for (const [subagentId, subagent] of activeSubagents.entries()) {
+        if (subagent.parentTaskId !== options.taskId) continue;
+        subagent.handle.stop();
+        subagent.handle.removeAllListeners();
+        activeSubagents.delete(subagentId);
+        activeTasks.delete(subagentId);
+        taskSessions.delete(subagentId);
+      }
+      const staleHandle = activeTasks.get(options.taskId)!;
+      staleHandle.stop();
+      staleHandle.removeAllListeners();
+      activeTasks.delete(options.taskId);
+      taskSessions.delete(options.taskId);
+      cleaningUp.delete(options.taskId);
+      if (taskIdleHeartbeats.has(options.taskId)) {
+        clearInterval(taskIdleHeartbeats.get(options.taskId)!);
+        taskIdleHeartbeats.delete(options.taskId);
+      }
     }
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments);
@@ -811,6 +832,27 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     activeTasks.set(options.taskId, handle);
     taskSessions.set(options.taskId, session.id);
 
+    // Idle heartbeat: emit periodic status while no tool heartbeat is active,
+    // preventing false "Stalled" detection between tool executions.
+    const idleHeartbeat = setInterval(() => {
+      if (!activeTasks.has(options.taskId) || cleaningUp.has(options.taskId)) {
+        clearInterval(idleHeartbeat);
+        taskIdleHeartbeats.delete(options.taskId);
+        return;
+      }
+      mainWindow.webContents.send('agent:message', {
+        taskId: options.taskId,
+        message: {
+          type: 'status',
+          role: 'system',
+          statusKind: 'progress',
+          content: 'Agent is working...',
+          timestamp: Date.now(),
+        } satisfies AgentMessage,
+      });
+    }, 10_000);
+    taskIdleHeartbeats.set(options.taskId, idleHeartbeat);
+
     emitTaskMessage(options.taskId, session.id, {
       type: 'status',
       role: 'system',
@@ -908,6 +950,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
           for (const interval of toolHeartbeats.values()) clearInterval(interval);
           toolHeartbeats.clear();
+          if (taskIdleHeartbeats.has(options.taskId)) {
+            clearInterval(taskIdleHeartbeats.get(options.taskId)!);
+            taskIdleHeartbeats.delete(options.taskId);
+          }
 
           if (agentId === 'codex' && !detectedCodexSessionId) {
             const detectedSession = findLatestCodexSession(options.cwd, startedAt);
@@ -1007,6 +1053,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       handle.stop();
       handle.removeAllListeners();
       activeTasks.delete(taskId);
+    }
+    if (taskIdleHeartbeats.has(taskId)) {
+      clearInterval(taskIdleHeartbeats.get(taskId)!);
+      taskIdleHeartbeats.delete(taskId);
     }
     taskSessions.delete(taskId);
     cleaningUp.delete(taskId);

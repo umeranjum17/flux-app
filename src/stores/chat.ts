@@ -171,6 +171,7 @@ export const useChatStore = create<ChatState>()(
           task.pendingApproval = undefined;
           task.pendingQuestion = undefined;
           task.activeRun = undefined;
+          task.rateLimitSuggestion = undefined;
           return;
         }
 
@@ -237,18 +238,25 @@ export const useChatStore = create<ChatState>()(
     },
 
     switchTaskAgent(taskId, newAgentId, newModel) {
+      const task = get().tasks.get(taskId);
+      if (task && (task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input')) {
+        window.api?.invoke('task:stop', { taskId }).catch(() => {});
+      }
       set((state) => {
-        const task = state.tasks.get(taskId);
-        if (!task) return;
-        task.agentHistory.push({
-          agentId: task.agentId,
-          model: task.model,
-          fromMessageIndex: task.messages.length,
+        const t = state.tasks.get(taskId);
+        if (!t) return;
+        t.agentHistory.push({
+          agentId: t.agentId,
+          model: t.model,
+          fromMessageIndex: t.messages.length,
         });
-        task.agentId = newAgentId;
-        task.model = newModel;
-        task.status = 'idle';
-        task.rateLimitSuggestion = undefined;
+        t.agentId = newAgentId;
+        t.model = newModel;
+        t.status = 'idle';
+        t.activeRun = undefined;
+        t.pendingApproval = undefined;
+        t.pendingQuestion = undefined;
+        t.rateLimitSuggestion = undefined;
       });
     },
 
@@ -384,6 +392,11 @@ function promoteTaskStatus(task: Task, message: AgentMessage): void {
 }
 
 function applyLiveMessage(task: Task, message: AgentMessage): void {
+  // Status messages (heartbeats, progress updates) should not resurrect a finished task
+  if (message.type === 'status' && (task.status === 'done' || task.status === 'error')) {
+    return;
+  }
+
   const nextPhase = getRunPhaseForMessage(message);
   if (nextPhase) {
     ensureActiveRun(task, nextPhase, message);

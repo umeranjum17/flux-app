@@ -5,7 +5,7 @@ import { useChatStore } from '../../stores/chat';
 const STALLED_THRESHOLDS: Record<string, number> = {
   tool: 60_000,
   thinking: 45_000,
-  default: 15_000,
+  default: 30_000,
 };
 
 const phaseLabels = {

@@ -50,6 +50,7 @@ function createWindow(): void {
 }
 
 app.on('ready', () => {
+  console.info('[main] Electron app ready; starting initialization');
   runMigrations();
   createWindow();
 });
