@@ -61,7 +61,7 @@ function getToolIcon(toolName: string) {
   return { Icon: Wrench, color: 'text-text-secondary' };
 }
 
-function getToolDescription(toolName: string, toolInput?: Record<string, unknown>): string {
+function getToolDescription(toolName: string, toolInput?: Record<string, unknown>, resultContent?: string): string {
   if (!toolInput) return toolName;
   const name = toolName.toLowerCase();
   const todoItems = parseTodoItems(toolName, toolInput);
@@ -76,16 +76,27 @@ function getToolDescription(toolName: string, toolInput?: Record<string, unknown
 
   if (name.includes('bash') && toolInput.command) {
     const cmd = String(toolInput.command);
-    return cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd;
+    const trimmed = cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd;
+    const exitCode = parseExitCode(resultContent);
+    return typeof exitCode === 'number' ? `$ ${trimmed} · exit ${exitCode}` : `$ ${trimmed}`;
   }
   if ((name.includes('read') || name.includes('write') || name.includes('edit')) && (toolInput.file_path || toolInput.path)) {
-    return String(toolInput.file_path || toolInput.path);
+    const filePath = String(toolInput.file_path || toolInput.path);
+    if (name.includes('read') && resultContent) {
+      const lineCount = resultContent.split('\n').length;
+      return `${filePath} (${lineCount} lines)`;
+    }
+    return filePath;
   }
   if (name.includes('grep') && toolInput.pattern) {
-    return `/${toolInput.pattern}/`;
+    const summary = summarizeGrepResult(resultContent);
+    return summary
+      ? `/${toolInput.pattern}/ · ${summary.matches} matches in ${summary.files} files`
+      : `/${toolInput.pattern}/`;
   }
   if (name.includes('glob') && toolInput.pattern) {
-    return String(toolInput.pattern);
+    const count = extractGlobPaths(resultContent).length;
+    return count > 0 ? `${String(toolInput.pattern)} · ${count} files found` : String(toolInput.pattern);
   }
   return toolName;
 }
@@ -109,6 +120,126 @@ function isFileEditTool(toolName: string): boolean {
 
 const MAX_RESULT_LINES = 3;
 
+function parseExitCode(resultContent?: string): number | null {
+  if (!resultContent) return null;
+  const match = resultContent.match(/\bexit(?:\s+code)?[: ]+(-?\d+)\b/i);
+  return match ? Number(match[1]) : null;
+}
+
+function summarizeGrepResult(resultContent?: string): { matches: number; files: number } | null {
+  if (!resultContent) return null;
+  const counts = extractGrepMatches(resultContent);
+  if (counts.length === 0) return null;
+  return {
+    matches: counts.reduce((total, item) => total + item.count, 0),
+    files: counts.length,
+  };
+}
+
+function extractGrepMatches(resultContent?: string): Array<{ file: string; count: number }> {
+  if (!resultContent) return [];
+  const counts = new Map<string, number>();
+  for (const line of resultContent.split('\n')) {
+    const match = line.match(/^(.+?):\d+:/);
+    if (!match) continue;
+    const file = match[1];
+    counts.set(file, (counts.get(file) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([file, count]) => ({ file, count }));
+}
+
+function extractGlobPaths(resultContent?: string): string[] {
+  if (!resultContent) return [];
+  try {
+    const parsed = JSON.parse(resultContent);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string');
+    }
+  } catch {
+    // Fall through to line parsing.
+  }
+
+  return resultContent
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function getPreviewLines(resultContent: string, maxLines: number): string[] {
+  return resultContent.split('\n').slice(0, maxLines);
+}
+
+function ToolResultPreview({
+  toolName,
+  resultContent,
+}: {
+  toolName: string;
+  resultContent: string;
+}) {
+  const lowerName = toolName.toLowerCase();
+
+  if (lowerName.includes('read')) {
+    const lines = resultContent.split('\n');
+    const preview = lines.slice(0, MAX_RESULT_LINES).join('\n');
+    const remaining = Math.max(0, lines.length - MAX_RESULT_LINES);
+    return (
+      <div className="px-3 pb-2">
+        <div className="max-h-28 overflow-hidden rounded-md bg-bg-primary/70 px-3 py-2">
+          <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{preview}</pre>
+        </div>
+        {remaining > 0 && (
+          <div className="mt-1 text-[11px] text-text-tertiary">({remaining} more lines)</div>
+        )}
+      </div>
+    );
+  }
+
+  if (lowerName.includes('grep')) {
+    const matches = extractGrepMatches(resultContent).slice(0, 5);
+    if (matches.length === 0) return null;
+    return (
+      <div className="px-3 pb-2">
+        <div className="space-y-1 rounded-md bg-bg-primary/50 px-3 py-2">
+          {matches.map((match) => (
+            <div key={match.file} className="flex items-center justify-between gap-3 text-xs font-mono text-text-secondary">
+              <span className="truncate">{match.file}</span>
+              <span className="shrink-0 text-text-tertiary">{match.count} match{match.count === 1 ? '' : 'es'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (lowerName.includes('glob')) {
+    const paths = extractGlobPaths(resultContent).slice(0, 8);
+    if (paths.length === 0) return null;
+    return (
+      <div className="px-3 pb-2">
+        <div className="space-y-1 rounded-md bg-bg-primary/50 px-3 py-2">
+          {paths.map((filePath) => (
+            <div key={filePath} className="truncate text-xs font-mono text-text-secondary">{filePath}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (lowerName.includes('bash') || lowerName.includes('command') || lowerName.includes('shell')) {
+    const lines = getPreviewLines(resultContent, 3).filter((line) => line.trim().length > 0);
+    if (lines.length === 0) return null;
+    return (
+      <div className="px-3 pb-2">
+        <div className="max-h-24 overflow-hidden rounded-md bg-black/30 px-3 py-2">
+          <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{lines.join('\n')}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function ToolCallBlock({
   toolName,
   toolInput,
@@ -121,7 +252,7 @@ export function ToolCallBlock({
 }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const { Icon, color } = getToolIcon(toolName);
-  const description = getToolDescription(toolName, toolInput);
+  const description = getToolDescription(toolName, toolInput, resultContent);
   const todoItems = useMemo(() => parseTodoItems(toolName, toolInput), [toolInput, toolName]);
   const questionItems = useMemo(() => parseQuestionItems(toolName, toolInput), [toolInput, toolName]);
   const isSemanticTodo = todoItems.length > 0;
@@ -184,6 +315,10 @@ export function ToolCallBlock({
             <QuestionPreview questions={questionItems} />
           )}
         </div>
+      )}
+
+      {!expanded && resultContent && !isSemanticTodo && !isSemanticQuestion && (
+        <ToolResultPreview toolName={toolName} resultContent={resultContent} />
       )}
 
       {expanded && !isSemanticTodo && !isSemanticQuestion && (

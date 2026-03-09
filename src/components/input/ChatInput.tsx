@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { SendHorizontal, Paperclip, X } from 'lucide-react';
+import { SendHorizontal, Paperclip, Users2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -8,7 +8,7 @@ import { useUiStore } from '../../stores/ui';
 import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
-import type { Session } from '../../lib/ipc-api';
+import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment } from '../../lib/types';
 
 interface ChatInputProps {
@@ -25,6 +25,9 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [showMention, setShowMention] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<FileAttachment[]>([]);
+  const [showSubagentDialog, setShowSubagentDialog] = useState(false);
+  const [subagentModel, setSubagentModel] = useState('haiku');
+  const [subagentDrafts, setSubagentDrafts] = useState([{ name: 'Explore', prompt: '' }]);
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
@@ -280,12 +283,54 @@ export function ChatInput({ focused }: ChatInputProps) {
   };
 
   const activeTask = getActiveTask();
+  const canSpawnSubagents = !!activeTask && (activeTask.status === 'running' || activeTask.status === 'waiting_approval' || activeTask.status === 'waiting_input');
   const pendingQuestion = activeTask?.pendingQuestion;
   const placeholder = pendingQuestion
     ? pendingQuestion.placeholder ?? pendingQuestion.prompt
     : 'Ask Flux anything... (@ to mention files)';
 
   const hasContent = value.trim().length > 0;
+
+  useEffect(() => {
+    if (!showSubagentDialog) return;
+    window.api.invoke('config:get').then((config) => {
+      const typed = config as FluxConfig;
+      setSubagentModel(typed.subagentModel?.trim() || 'haiku');
+    }).catch(() => {});
+  }, [showSubagentDialog]);
+
+  const handleSpawnSubagents = useCallback(async () => {
+    if (!activeTask || !canSpawnSubagents) {
+      toast.error('Start a task before spawning subagents');
+      return;
+    }
+
+    const drafts = subagentDrafts
+      .map((draft) => ({ name: draft.name.trim(), prompt: draft.prompt.trim() }))
+      .filter((draft) => draft.name.length > 0 && draft.prompt.length > 0)
+      .slice(0, 5);
+
+    if (drafts.length === 0) {
+      toast.error('Add at least one subagent prompt');
+      return;
+    }
+
+    try {
+      await Promise.all(drafts.map((draft) => (
+        window.api.invoke('subagent:spawn', {
+          parentTaskId: activeTask.id,
+          name: draft.name,
+          prompt: draft.prompt,
+          model: subagentModel.trim() || undefined,
+          cwd: activeTask.cwd,
+        })
+      )));
+      setShowSubagentDialog(false);
+      setSubagentDrafts([{ name: 'Explore', prompt: '' }]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to spawn subagents');
+    }
+  }, [activeTask, canSpawnSubagents, subagentDrafts, subagentModel]);
 
   return (
     <div className="relative w-full">
@@ -306,6 +351,74 @@ export function ChatInput({ focused }: ChatInputProps) {
       )}
 
       <div className="bg-bg-elevated/80 border border-border/40 rounded-lg p-3">
+        {showSubagentDialog && (
+          <div className="mb-3 space-y-3 rounded-lg border border-border bg-bg-primary/80 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-text-primary">Spawn subagents</p>
+                <p className="text-xs text-text-tertiary">Parallel plan-mode agents for the active run.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubagentDialog(false)}
+                className="rounded-md p-1 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-text-tertiary">Model</label>
+              <input
+                type="text"
+                value={subagentModel}
+                onChange={(e) => setSubagentModel(e.target.value)}
+                className="flex-1 rounded-md border border-border bg-bg-elevated px-2 py-1.5 text-sm text-text-primary outline-none"
+                placeholder="haiku"
+              />
+            </div>
+
+            <div className="space-y-2">
+              {subagentDrafts.map((draft, index) => (
+                <div key={index} className="space-y-2 rounded-md border border-border/70 bg-bg-elevated px-3 py-2">
+                  <input
+                    type="text"
+                    value={draft.name}
+                    onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
+                    className="w-full rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary outline-none"
+                    placeholder="Agent name"
+                  />
+                  <textarea
+                    value={draft.prompt}
+                    onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: e.target.value } : item))}
+                    className="min-h-20 w-full resize-y rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary outline-none"
+                    placeholder="What should this subagent explore?"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setSubagentDrafts((current) => current.length >= 5 ? current : [...current, { name: `Explore ${current.length + 1}`, prompt: '' }])}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+              >
+                <Plus size={12} />
+                Add agent
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSpawnSubagents()}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                disabled={!canSpawnSubagents}
+              >
+                Spawn
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Attached files chips */}
         {attachedFiles.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -327,6 +440,17 @@ export function ChatInput({ focused }: ChatInputProps) {
         )}
 
         <div className="flex items-end gap-3">
+          <button
+            type="button"
+            onClick={() => setShowSubagentDialog((current) => !current)}
+            className="flex-shrink-0 p-1.5 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors mb-0.5 disabled:opacity-40"
+            aria-label="Spawn subagents"
+            disabled={!canSpawnSubagents}
+            title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task to spawn subagents'}
+          >
+            <Users2 size={18} />
+          </button>
+
           <button
             type="button"
             onClick={handleFileSelect}

@@ -29,6 +29,7 @@ export interface FluxConfig {
   sendKey: 'enter' | 'cmd+enter';
   defaultAgent: string;
   defaultModel: string;
+  subagentModel?: string;
   defaultThinking: ThinkingLevel;
   defaultMode: 'plan' | 'act';
   qualityGateCommands: string[];

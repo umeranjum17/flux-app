@@ -1,6 +1,7 @@
 import { ipcMain, BrowserWindow, dialog, app } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'child_process';
 import { promisify } from 'util';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { agentManager } from './agents/manager';
@@ -8,6 +9,7 @@ import { findLatestCodexSession } from './agents/codex-utils';
 import { SessionStore } from './session/store';
 import { ConfigManager } from './config/config';
 import { UsageTracker } from './usage/tracker';
+import { LiveUsageService } from './usage/live';
 import type { AgentHandle, SpawnOptions, AgentId, AgentMessage, FileAttachment } from './agents/types';
 import { setSshHost as setToolsSshHost } from './tools/ssh';
 import { grepFiles } from './tools/grep';
@@ -37,19 +39,33 @@ const activeTasks = new Map<string, AgentHandle>();
 const taskSessions = new Map<string, string>();
 const cleaningUp = new Set<string>();
 const activeTerminals = new Map<string, ChildProcess>();
+const activeSubagents = new Map<string, {
+  parentTaskId: string;
+  handle: AgentHandle;
+  name: string;
+  toolCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  sessionId: string;
+}>();
 
 interface RateLimitInfo {
-  status: string;
+  providerId: 'claude-code' | 'codex';
+  status: 'allowed' | 'allowed_warning' | 'rejected';
   resetsAt: number;
   rateLimitType: string;
   utilization: number;
   overageStatus?: string;
   overageResetsAt?: number;
+  fetchedAt?: number;
 }
 
-let cachedRateLimits: RateLimitInfo | null = null;
+const cachedRateLimits = new Map<string, RateLimitInfo>();
 
-function normalizeRateLimitInfo(raw: Record<string, any> | undefined | null): RateLimitInfo | null {
+function normalizeRateLimitInfo(
+  raw: Record<string, any> | undefined | null,
+  providerId: 'claude-code' | 'codex',
+): RateLimitInfo | null {
   if (!raw) return null;
 
   const utilization = typeof raw.utilization === 'number'
@@ -63,10 +79,12 @@ function normalizeRateLimitInfo(raw: Record<string, any> | undefined | null): Ra
           : 0;
 
   return {
+    providerId,
     status: raw.status ?? (utilization >= 1 ? 'rejected' : utilization >= 0.8 ? 'allowed_warning' : 'allowed'),
     resetsAt: raw.resetsAt ?? raw.resets_at ?? raw.resetAt ?? 0,
     rateLimitType: raw.rateLimitType ?? raw.rate_limit_type ?? raw.type ?? 'unknown',
     utilization,
+    ...(raw.fetchedAt ? { fetchedAt: raw.fetchedAt } : {}),
     ...(raw.overageStatus ? { overageStatus: raw.overageStatus } : {}),
     ...(raw.overageResetsAt ? { overageResetsAt: raw.overageResetsAt } : {}),
     ...(raw.overage_status ? { overageStatus: raw.overage_status } : {}),
@@ -324,6 +342,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const sessionStore = new SessionStore();
   const configManager = new ConfigManager();
   const usageTracker = new UsageTracker();
+  const liveUsageService = new LiveUsageService();
   const workspaceStore = new WorkspaceStore();
   const registeredChannels = [
     'agents:detect',
@@ -331,6 +350,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'agents:list-models',
     'task:spawn',
     'task:stop',
+    'subagent:spawn',
+    'subagent:stop',
     'task:approve',
     'task:deny',
     'task:answer-question',
@@ -343,6 +364,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'config:set',
     'usage:get',
     'usage:rate-limits',
+    'usage:live',
     'cwd:get',
     'cwd:set',
     'cwd:pick',
@@ -434,6 +456,21 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const emitTaskMessage = (taskId: string, sessionId: string, message: AgentMessage) => {
     sessionStore.addMessage(sessionId, toStoredMessage(message));
     mainWindow.webContents.send('agent:message', { taskId, message });
+  };
+
+  const emitSubagentMessage = (
+    parentTaskId: string,
+    subagentId: string,
+    subagentName: string,
+    message: AgentMessage,
+  ) => {
+    const payload: AgentMessage = {
+      ...message,
+      subagentId,
+      subagentName,
+      ...(message.subagentStatus ? {} : { subagentStatus: 'running' }),
+    };
+    mainWindow.webContents.send('agent:message', { taskId: parentTaskId, message: payload });
   };
 
   const persistAgentSessionId = (sessionId: string, agentId: AgentId, agentSessionId: string) => {
@@ -614,7 +651,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
     handle.on('message', (message) => {
       if (message.type === 'rate_limit') {
-        cachedRateLimits = normalizeRateLimitInfo(message.rateLimitInfo as Record<string, any> | undefined);
+        const normalized = (agentId === 'claude-code' || agentId === 'codex')
+          ? normalizeRateLimitInfo(
+            message.rateLimitInfo as Record<string, any> | undefined,
+            agentId,
+          )
+          : null;
+        if (normalized) {
+          cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
+        }
       }
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
@@ -741,6 +786,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     requireFields({ taskId }, 'taskId');
     if (cleaningUp.has(taskId)) return; // done handler already running
     cleaningUp.add(taskId);
+    for (const [subagentId, subagent] of activeSubagents.entries()) {
+      if (subagent.parentTaskId !== taskId) continue;
+      subagent.handle.stop();
+      subagent.handle.removeAllListeners();
+      activeSubagents.delete(subagentId);
+      activeTasks.delete(subagentId);
+      taskSessions.delete(subagentId);
+    }
     const handle = activeTasks.get(taskId);
     if (handle) {
       handle.stop();
@@ -753,6 +806,177 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const workspace = workspaceStore.get(taskId);
     if (workspace) {
       emitWorkspaceStatus(workspace.id, 'done');
+    }
+  });
+
+  ipcMain.handle('subagent:spawn', async (_event, options: {
+    parentTaskId: string;
+    prompt: string;
+    model?: string;
+    name: string;
+    cwd?: string;
+  }) => {
+    requireFields(options as unknown as Record<string, unknown>, 'parentTaskId', 'prompt', 'name');
+
+    const parentHandle = activeTasks.get(options.parentTaskId);
+    if (!parentHandle) {
+      throw new Error(`Task ${options.parentTaskId} does not have an active run`);
+    }
+
+    const parentSessionId = taskSessions.get(options.parentTaskId);
+    const parentSession = parentSessionId ? sessionStore.get(parentSessionId) : null;
+    const parentAgentId = parentHandle.agentId;
+    const config = configManager.get();
+    const model = options.model || config.subagentModel || parentSession?.model || config.defaultModel;
+    const subagentId = `${options.parentTaskId}:sub-${crypto.randomUUID().slice(0, 8)}`;
+    const session = sessionStore.create({
+      title: `[Subagent] ${options.name}`,
+      agentId: parentAgentId,
+      model,
+      mode: 'plan',
+      cwd: options.cwd ?? parentSession?.cwd ?? currentCwd,
+      metadata: {
+        parentTaskId: options.parentTaskId,
+        subagentId,
+        subagentName: options.name,
+      },
+    });
+
+    const spawnOptions: SpawnOptions = {
+      taskId: subagentId,
+      prompt: options.prompt,
+      model,
+      mode: 'plan',
+      thinking: 'low',
+      cwd: options.cwd ?? parentSession?.cwd ?? currentCwd,
+      sessionId: parentAgentId === 'claude-code' ? session.id : undefined,
+      parentTaskId: options.parentTaskId,
+      subagentName: options.name,
+    };
+
+    let handle: AgentHandle;
+    try {
+      handle = agentManager.spawn(parentAgentId, spawnOptions);
+    } catch (error) {
+      sessionStore.delete(session.id);
+      throw error;
+    }
+
+    activeTasks.set(subagentId, handle);
+    taskSessions.set(subagentId, session.id);
+    activeSubagents.set(subagentId, {
+      parentTaskId: options.parentTaskId,
+      handle,
+      name: options.name,
+      toolCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      sessionId: session.id,
+    });
+
+    emitSubagentMessage(options.parentTaskId, subagentId, options.name, {
+      type: 'status',
+      role: 'system',
+      content: options.name,
+      timestamp: Date.now(),
+      statusKind: 'spawn',
+      subagentStatus: 'spawning',
+      subagentToolCount: 0,
+      subagentTokens: {
+        input: 0,
+        output: 0,
+      },
+    });
+
+    handle.on('session-meta', (meta) => {
+      if (!meta || typeof meta !== 'object') {
+        return;
+      }
+      const sessionMeta = meta as { id?: string };
+      if (typeof sessionMeta.id !== 'string') {
+        return;
+      }
+      persistAgentSessionId(session.id, parentAgentId, sessionMeta.id);
+    });
+
+    handle.on('message', (message) => {
+      const subagent = activeSubagents.get(subagentId);
+      if (!subagent) return;
+
+      if (message.type === 'tool_call') {
+        subagent.toolCount += 1;
+      }
+      if (message.type === 'result') {
+        subagent.inputTokens += message.inputTokens ?? 0;
+        subagent.outputTokens += message.outputTokens ?? 0;
+      }
+
+      sessionStore.addMessage(session.id, toStoredMessage(message));
+      emitSubagentMessage(options.parentTaskId, subagentId, options.name, {
+        ...message,
+        subagentToolCount: subagent.toolCount,
+        subagentTokens: {
+          input: subagent.inputTokens,
+          output: subagent.outputTokens,
+        },
+      });
+    });
+
+    handle.on('done', (result) => {
+      const subagent = activeSubagents.get(subagentId);
+      if (!subagent) return;
+
+      emitSubagentMessage(options.parentTaskId, subagentId, options.name, {
+        type: 'status',
+        role: 'system',
+        content: result?.error ? `${options.name} failed` : `${options.name} finished`,
+        timestamp: Date.now(),
+        statusKind: 'progress',
+        subagentStatus: result?.error ? 'error' : 'done',
+        subagentToolCount: subagent.toolCount,
+        subagentTokens: {
+          input: subagent.inputTokens,
+          output: subagent.outputTokens,
+        },
+      });
+
+      handle.removeAllListeners();
+      activeSubagents.delete(subagentId);
+      activeTasks.delete(subagentId);
+      taskSessions.delete(subagentId);
+    });
+
+    return { subagentId };
+  });
+
+  ipcMain.handle('subagent:stop', async (_event, { subagentId, parentTaskId }: { subagentId?: string; parentTaskId?: string }) => {
+    const targets = subagentId
+      ? [subagentId]
+      : Array.from(activeSubagents.entries())
+        .filter(([, subagent]) => !parentTaskId || subagent.parentTaskId === parentTaskId)
+        .map(([id]) => id);
+
+    for (const targetId of targets) {
+      const subagent = activeSubagents.get(targetId);
+      if (!subagent) continue;
+      subagent.handle.stop();
+      subagent.handle.removeAllListeners();
+      activeSubagents.delete(targetId);
+      activeTasks.delete(targetId);
+      taskSessions.delete(targetId);
+      emitSubagentMessage(subagent.parentTaskId, targetId, subagent.name, {
+        type: 'status',
+        role: 'system',
+        content: `${subagent.name} stopped`,
+        timestamp: Date.now(),
+        statusKind: 'progress',
+        subagentStatus: 'error',
+        subagentToolCount: subagent.toolCount,
+        subagentTokens: {
+          input: subagent.inputTokens,
+          output: subagent.outputTokens,
+        },
+      });
     }
   });
 
@@ -843,7 +1067,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle('usage:rate-limits', async () => {
-    return cachedRateLimits;
+    return Array.from(cachedRateLimits.values());
+  });
+
+  ipcMain.handle('usage:live', async () => {
+    return liveUsageService.getOverview(Array.from(cachedRateLimits.values()));
   });
 
   // --- CWD handlers ---

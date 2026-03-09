@@ -97,6 +97,9 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     }, 0);
   }
 
+  proc.stdout?.on('data', () => watchdog.resetProgress());
+  proc.stderr?.on('data', () => watchdog.resetProgress());
+
   let buffer = '';
   const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
 

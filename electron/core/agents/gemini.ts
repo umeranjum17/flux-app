@@ -81,6 +81,9 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
     }, 0);
   }
 
+  proc.stdout?.on('data', () => watchdog.resetProgress());
+  proc.stderr?.on('data', () => watchdog.resetProgress());
+
   const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
   let buffer = '';
 

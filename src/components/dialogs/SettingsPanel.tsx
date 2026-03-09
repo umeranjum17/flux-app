@@ -12,6 +12,7 @@ const defaultConfig: FluxConfig = {
   sendKey: 'cmd+enter',
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
+  subagentModel: 'haiku',
   defaultThinking: 'medium',
   defaultMode: 'act' as const,
   qualityGateCommands: [],
@@ -209,6 +210,16 @@ export function SettingsPanel() {
                         type="text"
                         value={config.defaultModel}
                         onChange={(e) => updateConfig({ defaultModel: e.target.value })}
+                        className="w-40 bg-bg-primary border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary outline-none focus:border-border-focus transition-colors"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm text-text-primary">Subagent Model</label>
+                      <input
+                        type="text"
+                        value={config.subagentModel ?? ''}
+                        onChange={(e) => updateConfig({ subagentModel: e.target.value })}
                         className="w-40 bg-bg-primary border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary outline-none focus:border-border-focus transition-colors"
                       />
                     </div>

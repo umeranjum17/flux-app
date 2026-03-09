@@ -456,7 +456,8 @@ describe('spawnClaude', () => {
       hook_name: 'SessionStart:startup',
     });
 
-    vi.advanceTimersByTime(CLAUDE_STARTUP_TIMEOUT_MS);
+    // SSH doubles the effective timeout
+    vi.advanceTimersByTime(CLAUDE_STARTUP_TIMEOUT_MS * 2);
 
     expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
     expect(messages.at(-1)).toMatchObject({

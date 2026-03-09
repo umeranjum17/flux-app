@@ -75,6 +75,9 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
     }, 0);
   }
 
+  proc.stdout?.on('data', () => watchdog.resetProgress());
+  proc.stderr?.on('data', () => watchdog.resetProgress());
+
   const startTime = Date.now();
   let fullText = '';
   let idleTimer: NodeJS.Timeout | null = null;

@@ -148,7 +148,7 @@ describe('createStartupWatchdog', () => {
     );
   });
 
-  it('includes SSH details in timeout error', () => {
+  it('includes SSH details in timeout error and doubles timeout for SSH', () => {
     const onTimeout = vi.fn();
     createStartupWatchdog({
       timeoutMs: 10000,
@@ -159,12 +159,20 @@ describe('createStartupWatchdog', () => {
       onTimeout,
     });
 
+    // Should not fire at original timeout
+    vi.advanceTimersByTime(10000);
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    // Should fire at 2x timeout (20s)
     vi.advanceTimersByTime(10000);
     expect(onTimeout).toHaveBeenCalledWith(
       expect.stringContaining('over SSH'),
     );
     expect(onTimeout).toHaveBeenCalledWith(
       expect.stringContaining('user@remote'),
+    );
+    expect(onTimeout).toHaveBeenCalledWith(
+      expect.stringContaining('20s'),
     );
   });
 
@@ -184,6 +192,79 @@ describe('createStartupWatchdog', () => {
     expect(onTimeout).not.toHaveBeenCalled();
   });
 
+  it('resetProgress resets the resettable timer', () => {
+    const onTimeout = vi.fn();
+    const watchdog = createStartupWatchdog({
+      timeoutMs: 10000,
+      label: 'TestAgent',
+      cwd: '/workspace',
+      onTimeout,
+    });
+
+    // Advance 8s, then reset
+    vi.advanceTimersByTime(8000);
+    watchdog.resetProgress();
+
+    // Advance another 8s — would be 16s total, past original 10s, but timer was reset
+    vi.advanceTimersByTime(8000);
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    // Advance remaining 2s to hit the reset timer (10s from reset point)
+    vi.advanceTimersByTime(2000);
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it('hard timeout fires even when resetProgress keeps resetting', () => {
+    const onTimeout = vi.fn();
+    const watchdog = createStartupWatchdog({
+      timeoutMs: 10000,
+      maxTimeoutMs: 25000,
+      label: 'TestAgent',
+      cwd: '/workspace',
+      onTimeout,
+    });
+
+    // Reset every 8s to keep the resettable timer alive
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(8000);
+      watchdog.resetProgress();
+    }
+
+    // At 24s — still alive, hard timeout at 25s
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    // Advance past the hard timeout
+    vi.advanceTimersByTime(2000);
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+    expect(onTimeout).toHaveBeenCalledWith(
+      expect.stringContaining('25s'),
+    );
+  });
+
+  it('uses default hard timeout of 3x effective timeout', () => {
+    const onTimeout = vi.fn();
+    const watchdog = createStartupWatchdog({
+      timeoutMs: 5000,
+      label: 'TestAgent',
+      cwd: '/workspace',
+      onTimeout,
+    });
+
+    // Default hard timeout = 5000 * 3 = 15000
+    // Keep resetting to avoid resettable timer
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(4000);
+      watchdog.resetProgress();
+    }
+
+    // At 12s — not yet at hard timeout (15s)
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    // Advance to 15s
+    vi.advanceTimersByTime(3000);
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
   it('does not fire when clear is called before timeout', () => {
     const onTimeout = vi.fn();
     const watchdog = createStartupWatchdog({
@@ -198,6 +279,24 @@ describe('createStartupWatchdog', () => {
 
     expect(onTimeout).not.toHaveBeenCalled();
   });
+
+  it('markProgress clears both resettable and hard timers', () => {
+    const onTimeout = vi.fn();
+    const watchdog = createStartupWatchdog({
+      timeoutMs: 5000,
+      maxTimeoutMs: 10000,
+      label: 'TestAgent',
+      cwd: '/workspace',
+      onTimeout,
+    });
+
+    vi.advanceTimersByTime(2000);
+    watchdog.markProgress();
+
+    // Neither resettable nor hard timer should fire
+    vi.advanceTimersByTime(20000);
+    expect(onTimeout).not.toHaveBeenCalled();
+  });
 });
 
 describe('filterStderrNoise', () => {
@@ -205,12 +304,15 @@ describe('filterStderrNoise', () => {
     expect(filterStderrNoise('2024-01-15T10:30:00Z some tracing output')).toBeNull();
   });
 
-  it('filters log level prefixes', () => {
-    expect(filterStderrNoise('ERROR something happened')).toBeNull();
-    expect(filterStderrNoise('WARN something')).toBeNull();
+  it('filters noise-level log prefixes (DEBUG/TRACE/INFO)', () => {
     expect(filterStderrNoise('DEBUG something')).toBeNull();
     expect(filterStderrNoise('TRACE something')).toBeNull();
     expect(filterStderrNoise('INFO something')).toBeNull();
+  });
+
+  it('preserves ERROR and WARN log lines', () => {
+    expect(filterStderrNoise('ERROR codex: Profile not found')).toBe('ERROR codex: Profile not found');
+    expect(filterStderrNoise('WARN codex: API key missing')).toBe('WARN codex: API key missing');
   });
 
   it('filters rmcp namespace messages', () => {
@@ -230,7 +332,7 @@ describe('filterStderrNoise', () => {
     const input = [
       '2024-01-15T10:30:00Z tracing',
       'Error: something real',
-      'WARN noisy',
+      'DEBUG noisy',
       'Another real error',
     ].join('\n');
     expect(filterStderrNoise(input)).toBe('Error: something real\nAnother real error');

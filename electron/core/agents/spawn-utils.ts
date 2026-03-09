@@ -54,11 +54,13 @@ export function spawnAgentProcess(options: SpawnAgentProcessOptions): ChildProce
 
 export interface StartupWatchdog {
   markProgress: () => void;
+  resetProgress: () => void;
   clear: () => void;
 }
 
 export function createStartupWatchdog(opts: {
   timeoutMs: number;
+  maxTimeoutMs?: number;
   label: string;
   sshHost?: string;
   remoteCwd?: string;
@@ -68,30 +70,46 @@ export function createStartupWatchdog(opts: {
   let fired = false;
   let cleared = false;
 
-  const timer = setTimeout(() => {
-    if (cleared) return;
-    fired = true;
+  const effectiveTimeout = opts.sshHost ? opts.timeoutMs * 2 : opts.timeoutMs;
+  const hardTimeout = opts.maxTimeoutMs ?? effectiveTimeout * 3;
 
+  const fireTimeout = (isHard: boolean) => {
+    if (fired || cleared) return;
+    fired = true;
+    clearTimeout(resettableTimer);
+    clearTimeout(hardTimer);
+
+    const timeoutSec = Math.round((isHard ? hardTimeout : effectiveTimeout) / 1000);
     const target = opts.sshHost
       ? `${opts.sshHost} (cwd: ${opts.remoteCwd ?? opts.cwd})`
       : `cwd: ${opts.cwd}`;
     const error = opts.sshHost
-      ? `${opts.label} startup timed out over SSH after ${Math.round(opts.timeoutMs / 1000)}s on ${target}`
-      : `${opts.label} startup timed out after ${Math.round(opts.timeoutMs / 1000)}s (${target})`;
+      ? `${opts.label} startup timed out over SSH after ${timeoutSec}s on ${target}`
+      : `${opts.label} startup timed out after ${timeoutSec}s (${target})`;
 
     opts.onTimeout(error);
-  }, opts.timeoutMs);
+  };
+
+  let resettableTimer = setTimeout(() => fireTimeout(false), effectiveTimeout);
+  const hardTimer = setTimeout(() => fireTimeout(true), hardTimeout);
 
   return {
     markProgress() {
       if (fired || cleared) return;
       cleared = true;
-      clearTimeout(timer);
+      clearTimeout(resettableTimer);
+      clearTimeout(hardTimer);
+    },
+    resetProgress() {
+      if (fired || cleared) return;
+      clearTimeout(resettableTimer);
+      resettableTimer = setTimeout(() => fireTimeout(false), effectiveTimeout);
     },
     clear() {
       if (cleared) return;
       cleared = true;
-      clearTimeout(timer);
+      clearTimeout(resettableTimer);
+      clearTimeout(hardTimer);
     },
   };
 }
@@ -102,7 +120,8 @@ export function filterStderrNoise(text: string): string | null {
     if (!trimmed) return false;
     // Rust tracing / logging output
     if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return false;
-    if (/^\s*(ERROR|WARN|DEBUG|TRACE|INFO)\s/.test(trimmed)) return false;
+    if (/^\s*(DEBUG|TRACE|INFO)\s/.test(trimmed)) return false;
+    if (/^\s*(ERROR|WARN)\s/.test(trimmed)) return true;
     if (/rmcp::/.test(trimmed)) return false;
     // MCP transport noise
     if (/Transport channel closed/i.test(trimmed)) return false;

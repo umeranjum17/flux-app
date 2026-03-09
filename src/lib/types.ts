@@ -29,6 +29,14 @@ export interface AgentMessage {
   content: string;
   timestamp: number;
   statusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
+  subagentId?: string;
+  subagentName?: string;
+  subagentStatus?: 'spawning' | 'running' | 'done' | 'error';
+  subagentToolCount?: number;
+  subagentTokens?: {
+    input: number;
+    output: number;
+  };
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolCallId?: string;
@@ -55,12 +63,14 @@ export interface AgentMessage {
   stdout?: string;
   stderr?: string;
   rateLimitInfo?: {
+    providerId?: 'claude-code' | 'codex';
     status: string;
     resetsAt: number;
     rateLimitType: string;
     utilization: number;
     overageStatus?: string;
     overageResetsAt?: number;
+    fetchedAt?: number;
   };
 }
 
@@ -124,6 +134,17 @@ export interface SpawnOptions {
   images?: string[];
   attachments?: FileAttachment[];
   contextBlock?: string;
+  parentTaskId?: string;
+  subagentName?: string;
+}
+
+export interface SubagentState {
+  name: string;
+  status: 'spawning' | 'running' | 'done' | 'error';
+  messages: AgentMessage[];
+  toolCount: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
@@ -157,4 +178,5 @@ export interface Task {
     path?: string;
   };
   pendingQuestion?: PendingQuestionState;
+  subagents: Map<string, SubagentState>;
 }

@@ -35,7 +35,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
   args.push('--skip-git-repo-check');
 
-  if (hasCodexProfile(inferredProfile)) {
+  if (!options.sshHost && hasCodexProfile(inferredProfile)) {
     args.push('--profile', inferredProfile);
   }
 
@@ -80,13 +80,24 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   emitter.agentId = 'codex';
   let stopped = false;
   let finished = false;
+  let heartbeatInterval: ReturnType<typeof setInterval>;
 
   const finish = (result: { code: number | null; error?: string }) => {
     if (finished) return;
     finished = true;
+    clearInterval(heartbeatInterval);
     watchdog.clear();
     emitter.emit('done', result);
   };
+
+  // Capture first 2KB of raw stderr for diagnostics on timeout
+  let stderrCapture = '';
+  const STDERR_CAPTURE_LIMIT = 2048;
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    if (stderrCapture.length < STDERR_CAPTURE_LIMIT) {
+      stderrCapture += chunk.toString('utf-8').slice(0, STDERR_CAPTURE_LIMIT - stderrCapture.length);
+    }
+  });
 
   const watchdog = createStartupWatchdog({
     timeoutMs: CODEX_STARTUP_TIMEOUT_MS,
@@ -96,19 +107,39 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     cwd: options.cwd,
     onTimeout: (error) => {
       if (finished || stopped) return;
+      clearInterval(heartbeatInterval);
       try { proc.kill('SIGTERM'); } catch {}
+      const detail = stderrCapture.trim()
+        ? `${error}\n\nStderr output:\n${stderrCapture.trim()}`
+        : error;
       emitMessage({
         type: 'error',
         role: 'system',
-        content: error,
+        content: detail,
         timestamp: Date.now(),
       });
-      finish({ code: 1, error });
+      finish({ code: 1, error: detail });
     },
   });
 
+  // Emit startup heartbeats every 10s to prevent UI showing "Stalled"
+  heartbeatInterval = setInterval(() => {
+    if (finished || stopped) {
+      clearInterval(heartbeatInterval);
+      return;
+    }
+    emitter.emit('message', {
+      type: 'status',
+      role: 'system',
+      statusKind: 'progress',
+      content: 'Starting Codex…',
+      timestamp: Date.now(),
+    } satisfies AgentMessage);
+  }, 10_000);
+
   const emitMessage = (message: AgentMessage) => {
     if (isMeaningfulMessage(message)) {
+      clearInterval(heartbeatInterval);
       watchdog.markProgress();
     }
     emitter.emit('message', message);
@@ -136,6 +167,9 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
       } satisfies AgentMessage);
     }, 0);
   }
+
+  // Reset watchdog on stdout (actual JSONL output), but NOT on stderr
+  proc.stdout?.on('data', () => watchdog.resetProgress());
 
   const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
   let buffer = '';
@@ -176,6 +210,12 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
       const sessionMeta = extractCodexSessionMeta(event);
       if (sessionMeta) {
         emitter.emit('session-meta', sessionMeta);
+      } else if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
+        emitter.emit('session-meta', {
+          sessionId: event.thread_id,
+          cwd: options.cwd,
+          createdAt: Date.now(),
+        });
       }
 
       const message = mapCodexEvent(event);
@@ -239,6 +279,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   });
 
   emitter.stop = () => {
+    clearInterval(heartbeatInterval);
     watchdog.clear();
     stopped = true;
     cleanupTempDir(imageDir);
@@ -313,6 +354,31 @@ function cleanupTempDir(directory: string | null): void {
 function mapCodexEvent(event: any): AgentMessage | null {
   const now = Date.now();
   if (!event || typeof event !== 'object') {
+    return null;
+  }
+
+  // Codex CLI JSONL format: item.completed, item.started, turn.completed
+  if (event.type === 'item.completed' && event.item) {
+    return mapCodexItemCompleted(event.item, now);
+  }
+
+  if (event.type === 'item.started' && event.item) {
+    return mapCodexItemStarted(event.item, now);
+  }
+
+  if (event.type === 'turn.completed') {
+    const usage = event.usage;
+    return {
+      type: 'result',
+      role: 'assistant',
+      content: '',
+      timestamp: now,
+      inputTokens: usage?.input_tokens,
+      outputTokens: usage?.output_tokens,
+    };
+  }
+
+  if (event.type === 'thread.started' || event.type === 'turn.started') {
     return null;
   }
 
@@ -549,6 +615,59 @@ function extractCodexReasoningSummary(reasoning: any): string {
     .filter(Boolean)
     .join('\n')
     .trim();
+}
+
+function mapCodexItemCompleted(item: any, timestamp: number): AgentMessage | null {
+  if (item.type === 'agent_message') {
+    const content = item.text ?? item.message ?? '';
+    if (!content) return null;
+    return {
+      type: 'text',
+      role: 'assistant',
+      content,
+      timestamp,
+    };
+  }
+
+  if (item.type === 'agent_reasoning') {
+    const content = item.text ?? '';
+    if (!content) return null;
+    return {
+      type: 'thinking',
+      role: 'assistant',
+      content,
+      timestamp,
+    };
+  }
+
+  if (item.type === 'command_execution') {
+    return {
+      type: 'tool_result',
+      role: 'tool',
+      content: item.aggregated_output ?? '',
+      timestamp,
+      toolCallId: item.id,
+      isError: item.exit_code !== 0 && item.exit_code !== null,
+    };
+  }
+
+  return null;
+}
+
+function mapCodexItemStarted(item: any, timestamp: number): AgentMessage | null {
+  if (item.type === 'command_execution') {
+    return {
+      type: 'tool_call',
+      role: 'assistant',
+      content: `Calling: shell`,
+      timestamp,
+      toolName: 'shell',
+      toolInput: { command: item.command ?? '' },
+      toolCallId: item.id,
+    };
+  }
+
+  return null;
 }
 
 function mapCodexToolCall(normalized: any, timestamp: number): AgentMessage {

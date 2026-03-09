@@ -44,6 +44,21 @@ CREATE TABLE IF NOT EXISTS usage_metrics (
   requests INTEGER
 )`;
 
+export const CREATE_USAGE_WINDOW_SNAPSHOTS_TABLE = `
+CREATE TABLE IF NOT EXISTS usage_window_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider_id TEXT NOT NULL,
+  window_key TEXT NOT NULL,
+  sampled_at INTEGER NOT NULL,
+  used_percent REAL NOT NULL,
+  resets_at INTEGER,
+  used_value REAL,
+  limit_value REAL,
+  remaining_value REAL,
+  unit TEXT,
+  source TEXT NOT NULL
+)`;
+
 export const CREATE_WORKSPACES_TABLE = `
 CREATE TABLE IF NOT EXISTS workspaces (
   id TEXT PRIMARY KEY,

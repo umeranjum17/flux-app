@@ -18,6 +18,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   sendKey: 'cmd+enter',
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
+  subagentModel: 'haiku',
   defaultThinking: 'medium',
   defaultMode: 'act',
   qualityGateCommands: [],
@@ -49,6 +50,7 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     sendKey,
     defaultThinking,
     defaultMode,
+    subagentModel: typeof raw.subagentModel === 'string' ? raw.subagentModel : DEFAULT_CONFIG.subagentModel,
     customAgentPaths:
       raw.customAgentPaths && typeof raw.customAgentPaths === 'object' && !Array.isArray(raw.customAgentPaths)
         ? raw.customAgentPaths as FluxConfig['customAgentPaths']

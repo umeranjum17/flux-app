@@ -34,6 +34,14 @@ export interface AgentMessage {
   content: string;
   timestamp: number;
   statusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
+  subagentId?: string;
+  subagentName?: string;
+  subagentStatus?: 'spawning' | 'running' | 'done' | 'error';
+  subagentToolCount?: number;
+  subagentTokens?: {
+    input: number;
+    output: number;
+  };
   // For tool calls
   toolName?: string;
   toolInput?: Record<string, unknown>;
@@ -68,12 +76,14 @@ export interface AgentMessage {
   stderr?: string;
   // For rate limits
   rateLimitInfo?: {
+    providerId?: 'claude-code' | 'codex';
     status: string;
     resetsAt: number;
     rateLimitType: string;
     utilization: number;
     overageStatus?: string;
     overageResetsAt?: number;
+    fetchedAt?: number;
   };
 }
 
@@ -92,6 +102,8 @@ export interface SpawnOptions {
   binaryPath?: string; // Resolved absolute path to the agent binary
   sshHost?: string;      // e.g., "umera@extreme" — spawn agent over SSH
   remoteCwd?: string;    // Remote working directory for SSH mode
+  parentTaskId?: string;
+  subagentName?: string;
 }
 
 export interface AgentHandle extends EventEmitter {

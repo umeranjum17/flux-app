@@ -7,6 +7,7 @@ import type {
   AgentId,
   FileAttachment,
   PendingQuestionState,
+  SubagentState,
   Task,
   TaskMode,
   TaskStatus,
@@ -69,6 +70,7 @@ export const useChatStore = create<ChatState>()(
           outputTokens: 0,
           cwd: opts.cwd,
           sessionId: opts.sessionId,
+          subagents: new Map(),
         });
         state.activeTaskId = opts.id;
       });
@@ -94,6 +96,10 @@ export const useChatStore = create<ChatState>()(
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task) return;
+        if (message.subagentId) {
+          appendSubagentMessage(task, message);
+          return;
+        }
         appendMessage(task, message);
         promoteTaskStatus(task, message);
       });
@@ -103,6 +109,13 @@ export const useChatStore = create<ChatState>()(
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task) return;
+        if (message.subagentId) {
+          appendSubagentMessage(task, message, true);
+          if (message.subagentStatus === 'spawning' || (!message.subagentStatus && message.type !== 'rate_limit')) {
+            task.status = 'running';
+          }
+          return;
+        }
         const last = task.messages[task.messages.length - 1];
 
         if (shouldMergeStreamChunk(last, message)) {
@@ -219,6 +232,68 @@ function appendMessage(task: Task, message: AgentMessage): void {
       command: message.command,
       exitCode: message.exitCode ?? 0,
     };
+  }
+}
+
+function appendSubagentMessage(task: Task, message: AgentMessage, mergeStream = false): void {
+  const subagentId = message.subagentId;
+  if (!subagentId) return;
+
+  const subagent = ensureSubagent(task, subagentId, message.subagentName);
+
+  if (message.subagentStatus === 'spawning' || message.subagentStatus === 'done' || message.subagentStatus === 'error') {
+    subagent.status = message.subagentStatus;
+    syncSubagentStats(subagent, message);
+    task.messages.push(message);
+    return;
+  }
+
+  subagent.status = 'running';
+  syncSubagentStats(subagent, message);
+
+  const last = subagent.messages[subagent.messages.length - 1];
+  if (mergeStream && shouldMergeStreamChunk(last, message)) {
+    last.content += message.content;
+    last.timestamp = message.timestamp;
+  } else {
+    subagent.messages.push(message);
+  }
+}
+
+function ensureSubagent(task: Task, subagentId: string, name?: string): SubagentState {
+  let subagent = task.subagents.get(subagentId);
+  if (!subagent) {
+    subagent = {
+      name: name ?? 'Subagent',
+      status: 'spawning',
+      messages: [],
+      toolCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+    task.subagents.set(subagentId, subagent);
+  } else if (name) {
+    subagent.name = name;
+  }
+  return subagent;
+}
+
+function syncSubagentStats(subagent: SubagentState, message: AgentMessage): void {
+  if (typeof message.subagentToolCount === 'number') {
+    subagent.toolCount = message.subagentToolCount;
+  } else if (message.type === 'tool_call') {
+    subagent.toolCount += 1;
+  }
+
+  if (message.subagentTokens) {
+    subagent.inputTokens = message.subagentTokens.input;
+    subagent.outputTokens = message.subagentTokens.output;
+    return;
+  }
+
+  if (message.type === 'result') {
+    subagent.inputTokens += message.inputTokens ?? 0;
+    subagent.outputTokens += message.outputTokens ?? 0;
   }
 }
 

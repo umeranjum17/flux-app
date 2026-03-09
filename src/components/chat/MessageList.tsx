@@ -14,6 +14,7 @@ import { QuestionPrompt } from './QuestionPrompt';
 import { ResultBlock } from './ResultBlock';
 import { StreamingCursor } from './StreamingCursor';
 import { ActivityIndicator } from './ActivityIndicator';
+import { SubagentBlock } from './SubagentBlock';
 
 const messageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -27,9 +28,14 @@ function isFileEditToolCall(msg: AgentMessage): boolean {
   return name.includes('edit') || name.includes('write');
 }
 
+function isSubagentMarker(msg: AgentMessage): boolean {
+  return Boolean(msg.subagentId && msg.subagentStatus);
+}
+
 export function MessageList() {
   const task = useChatStore((s) => s.getActiveTask());
   const messages = task?.messages ?? [];
+  const subagents = task?.subagents ?? new Map();
   const taskStatus = task?.status;
   const taskId = task?.id;
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
@@ -81,34 +87,74 @@ export function MessageList() {
         className="h-full overflow-y-auto px-5 py-5 space-y-4"
       >
         <AnimatePresence initial={false}>
-          {messages.map((msg, idx) => {
-            if (mergedResultIndices.has(idx)) return null;
+          {(() => {
+            const rendered: React.ReactNode[] = [];
+            for (let idx = 0; idx < messages.length; idx++) {
+              const msg = messages[idx];
+              if (mergedResultIndices.has(idx)) continue;
 
-            // If this is a tool_call with a merged result, pass result data
-            const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
+              if (isSubagentMarker(msg)) {
+                const groupIds: string[] = [];
+                let cursor = idx;
+                while (cursor < messages.length && isSubagentMarker(messages[cursor])) {
+                  if (messages[cursor].subagentId) {
+                    groupIds.push(messages[cursor].subagentId!);
+                  }
+                  cursor += 1;
+                }
+                const uniqueIds = Array.from(new Set(groupIds));
+                const group = uniqueIds
+                  .map((id) => {
+                    const state = subagents.get(id);
+                    return state ? { id, state } : null;
+                  })
+                  .filter((entry): entry is { id: string; state: NonNullable<typeof entry>['state'] } => !!entry);
 
-            return (
-              <motion.div
-                key={`${msg.timestamp}-${idx}`}
-                variants={messageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                transition={{ duration: 0.15 }}
-              >
-                {renderMessage(msg, idx, taskId!, taskStatus, mergedResult, task.mode)}
-                {isFileEditToolCall(msg) && (
-                  <div className="mt-2">
-                    <FileEditBlock
-                      diff={msg.diff}
-                      filePath={msg.filePath ?? (msg.toolInput?.file_path as string | undefined) ?? (msg.toolInput?.path as string | undefined)}
-                      toolName={msg.toolName}
-                    />
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
+                if (group.length > 0) {
+                  const stage = msg.subagentStatus === 'done' || msg.subagentStatus === 'error' ? 'finished' : 'running';
+                  rendered.push(
+                    <motion.div
+                      key={`subagent-group-${msg.timestamp}-${idx}`}
+                      variants={messageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={{ duration: 0.15 }}
+                    >
+                      <SubagentBlock subagents={group} stage={stage} taskMode={task.mode} />
+                    </motion.div>,
+                  );
+                }
+                idx = cursor - 1;
+                continue;
+              }
+
+              const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
+
+              rendered.push(
+                <motion.div
+                  key={`${msg.timestamp}-${idx}`}
+                  variants={messageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.15 }}
+                >
+                  {renderMessage(msg, idx, taskId!, taskStatus, mergedResult, task.mode)}
+                  {isFileEditToolCall(msg) && (
+                    <div className="mt-2">
+                      <FileEditBlock
+                        diff={msg.diff}
+                        filePath={msg.filePath ?? (msg.toolInput?.file_path as string | undefined) ?? (msg.toolInput?.path as string | undefined)}
+                        toolName={msg.toolName}
+                      />
+                    </div>
+                  )}
+                </motion.div>,
+              );
+            }
+            return rendered;
+          })()}
         </AnimatePresence>
 
         {showCursor && (

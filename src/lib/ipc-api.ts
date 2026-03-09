@@ -6,6 +6,11 @@ export interface IpcChannels {
   'agents:check-auth': { args: [{ agentId: string }]; result: AuthResult };
   'task:spawn': { args: [SpawnOptions & { agentId?: string }]; result: { taskId: string; session: Session } };
   'task:stop': { args: [{ taskId: string }]; result: void };
+  'subagent:spawn': {
+    args: [{ parentTaskId: string; prompt: string; model?: string; name: string; cwd?: string }];
+    result: { subagentId: string };
+  };
+  'subagent:stop': { args: [{ subagentId?: string; parentTaskId?: string }]; result: void };
   'task:approve': { args: [{ taskId: string; requestId: string }]; result: void };
   'task:deny': { args: [{ taskId: string; requestId: string }]; result: void };
   'task:answer-question': { args: [{ taskId: string; requestId: string; response: string }]; result: void };
@@ -17,7 +22,8 @@ export interface IpcChannels {
   'config:get': { args: []; result: FluxConfig };
   'config:set': { args: [Partial<FluxConfig>]; result: void };
   'usage:get': { args: []; result: UsageInfo };
-  'usage:rate-limits': { args: []; result: RateLimitInfo | null };
+  'usage:rate-limits': { args: []; result: RateLimitInfo[] };
+  'usage:live': { args: []; result: LiveUsageOverview };
   'cwd:get': { args: []; result: string };
   'cwd:set': { args: [{ cwd: string }]; result: string };
   'cwd:pick': { args: []; result: string | null };
@@ -133,6 +139,7 @@ export interface FluxConfig {
   sendKey: 'cmd+enter' | 'enter';
   defaultAgent: string;
   defaultModel: string;
+  subagentModel?: string;
   defaultThinking: ThinkingLevel;
   defaultMode: TaskMode;
   qualityGateCommands: string[];
@@ -197,12 +204,57 @@ export interface MergeResult {
 }
 
 export interface RateLimitInfo {
+  providerId: 'claude-code' | 'codex';
   status: 'allowed' | 'allowed_warning' | 'rejected';
   resetsAt: number;
   rateLimitType: string;
   utilization: number;
   overageStatus?: string;
   overageResetsAt?: number;
+  fetchedAt?: number;
+}
+
+export interface LiveUsageWindow {
+  providerId: 'claude-code' | 'codex';
+  providerLabel: string;
+  windowKey: 'five_hour' | 'seven_day';
+  windowLabel: string;
+  status: 'allowed' | 'allowed_warning' | 'rejected';
+  usedPercent: number;
+  resetsAt: number | null;
+  remainingMs: number | null;
+  fetchedAt: number;
+  source: 'live' | 'stream_fallback' | 'snapshot';
+  isStale: boolean;
+  usedValue: number | null;
+  limitValue: number | null;
+  remainingValue: number | null;
+  unit: string | null;
+}
+
+export interface LiveUsageProvider {
+  providerId: 'claude-code' | 'codex';
+  label: string;
+  status: 'connected' | 'auth_missing' | 'error';
+  fetchedAt: number | null;
+  source: 'live' | 'stream_fallback' | 'snapshot' | null;
+  message: string | null;
+  windows: LiveUsageWindow[];
+}
+
+export interface UsageHistoryPoint {
+  providerId: 'claude-code' | 'codex';
+  windowKey: 'five_hour' | 'seven_day';
+  sampledAt: number;
+  usedPercent: number;
+  resetsAt: number | null;
+  source: 'live' | 'stream_fallback' | 'snapshot';
+}
+
+export interface LiveUsageOverview {
+  providers: LiveUsageProvider[];
+  history: UsageHistoryPoint[];
+  updatedAt: number;
 }
 
 export interface UsageInfo {
