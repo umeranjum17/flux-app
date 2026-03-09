@@ -1,10 +1,11 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowDown, ArrowRightLeft, X } from 'lucide-react';
+import { ArrowDown, ArrowRightLeft, X, Play, Copy, ClipboardList, Check } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
+import { useUiStore } from '../../stores/ui';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
-import type { AgentId, AgentMessage, AgentHistoryEntry } from '../../lib/types';
+import type { AgentId, AgentMessage, AgentHistoryEntry, Task } from '../../lib/types';
 
 const AGENT_LABELS: Record<string, string> = {
   'claude-code': 'Claude',
@@ -218,6 +219,10 @@ export function MessageList() {
           </>
         )}
 
+        {task.mode === 'plan' && taskStatus === 'done' && taskId && (
+          <PlanActionBar task={task} />
+        )}
+
         {rateLimitSuggestion && taskId && (
           <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -268,6 +273,63 @@ export function MessageList() {
           <ArrowDown size={16} className="text-text-secondary" />
         </button>
       )}
+    </div>
+  );
+}
+
+function PlanActionBar({ task }: { task: Task }) {
+  const [copied, setCopied] = React.useState(false);
+  const setTaskStatus = useChatStore((s) => s.setTaskStatus);
+  const setTaskMode = useChatStore((s) => s.setTaskMode);
+
+  const handleImplement = async () => {
+    setTaskMode(task.id, 'act');
+    useUiStore.getState().setMode('act');
+    setTaskStatus(task.id, 'running');
+    await window.api.invoke('task:spawn', {
+      taskId: task.id,
+      prompt: 'Implement the plan above.',
+      agentId: task.agentId,
+      model: task.model,
+      mode: 'act',
+      thinking: task.thinking,
+      cwd: task.cwd,
+      sessionId: task.sessionId,
+    });
+  };
+
+  const handleCopyPlan = () => {
+    const planText = task.messages
+      .filter((m) => m.role === 'assistant' && m.type === 'text')
+      .map((m) => m.content)
+      .join('\n\n');
+    navigator.clipboard.writeText(planText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-lg border border-accent/20 bg-accent/5 p-3 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 text-sm text-text-secondary">
+        <ClipboardList size={14} className="text-accent" />
+        <span>Plan complete</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleCopyPlan}
+          className="px-3 py-1.5 rounded-md text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors flex items-center gap-1.5"
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy Plan'}
+        </button>
+        <button
+          onClick={handleImplement}
+          className="px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors flex items-center gap-1.5"
+        >
+          <Play size={12} />
+          Implement Plan
+        </button>
+      </div>
     </div>
   );
 }

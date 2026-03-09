@@ -1,6 +1,6 @@
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { AgentHandle, SpawnOptions, AgentMessage, QuestionField } from './types';
+import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
 import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
 import { classifySpawnError } from '../process-utils';
 
@@ -282,7 +282,10 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     writeClaudeQuestionResponse(proc, requestId, response);
   };
 
-  writeClaudeUserMessage(proc, options.prompt, options.images);
+  const promptText = options.mode === 'plan'
+    ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
+    : options.prompt;
+  writeClaudeUserMessage(proc, promptText, options.images);
 
   return emitter;
 }

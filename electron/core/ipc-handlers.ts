@@ -259,21 +259,69 @@ function buildStoredUserMessage(
 
 const AGENTS_WITH_NATIVE_RESUME = new Set<AgentId>(['claude-code', 'codex']);
 
-function buildConversationContext(sessionId: string, sessionStore: SessionStore, maxChars = 20_000): string {
+function safeParse(input: string | null | undefined): Record<string, unknown> | null {
+  if (!input) return null;
+  try { return JSON.parse(input); } catch { return null; }
+}
+
+function buildConversationContext(sessionId: string, sessionStore: SessionStore, maxChars = 16_000): string {
   const messages = sessionStore.getMessages(sessionId);
-  const textMessages = messages.filter(
-    (m) => (m.role === 'user' || m.role === 'assistant') && m.type === 'text' && m.content,
-  );
-  const parts: string[] = [];
-  let chars = 0;
-  for (let i = textMessages.length - 1; i >= 0 && chars < maxChars; i--) {
-    const m = textMessages[i];
-    const label = m.role === 'user' ? 'User' : 'Assistant';
-    const entry = `${label}: ${m.content}`;
-    parts.unshift(entry);
-    chars += entry.length;
+  if (!messages.length) return '';
+
+  // 1. Extract file paths from tool calls and shell commands
+  const filePaths = new Set<string>();
+  const toolActions: string[] = [];
+  for (const m of messages) {
+    if (m.toolName && m.toolInput) {
+      const input = safeParse(typeof m.toolInput === 'string' ? m.toolInput : JSON.stringify(m.toolInput));
+      for (const key of ['file_path', 'path', 'filePath']) {
+        if (typeof input?.[key] === 'string') filePaths.add(input[key] as string);
+      }
+      if (m.toolName === 'shell' || m.toolName === 'bash') {
+        const cmd = input?.command ?? input?.cmd;
+        if (typeof cmd === 'string') toolActions.push(cmd);
+      }
+    }
   }
-  return parts.join('\n\n');
+
+  // 2. Get the last substantial assistant response (most recent plan/analysis)
+  const lastAssistant = [...messages]
+    .reverse()
+    .find(m => m.role === 'assistant' && m.type === 'text' && m.content && m.content.length > 100);
+
+  // 3. Build recent user turns (compact)
+  const userTurns = messages
+    .filter(m => m.role === 'user' && m.type === 'text' && m.content)
+    .slice(-5)
+    .map(m => m.content);
+
+  // 4. Compose structured output
+  const sections: string[] = [];
+
+  if (lastAssistant) {
+    const truncated = lastAssistant.content.length > 6000
+      ? lastAssistant.content.slice(0, 6000) + '\n[truncated]'
+      : lastAssistant.content;
+    sections.push(`## Last assistant response\n${truncated}`);
+  }
+
+  if (userTurns.length > 1) {
+    sections.push(`## Recent user messages\n${userTurns.slice(0, -1).map(t => `- ${t.slice(0, 200)}`).join('\n')}`);
+  }
+
+  if (filePaths.size > 0) {
+    sections.push(`## Files discussed\n${[...filePaths].slice(0, 30).map(f => `- ${f}`).join('\n')}`);
+  }
+
+  if (toolActions.length > 0) {
+    sections.push(`## Commands run\n${toolActions.slice(-10).map(c => `- \`${c.slice(0, 120)}\``).join('\n')}`);
+  }
+
+  let result = sections.join('\n\n');
+  if (result.length > maxChars) {
+    result = result.slice(0, maxChars) + '\n[truncated]';
+  }
+  return result;
 }
 
 interface DiffHunk { header: string; lines: string[] }
@@ -665,31 +713,65 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       ? sessionStore.getMessages(session.id)
       : undefined;
 
-    // Agent switch: inject full conversation context when switching to a different agent
+    // Agent switch: inject structured conversation context when switching to a different agent
     const isAgentSwitch = existingSession && existingSession.agentId !== agentId;
     if (isAgentSwitch) {
       const context = buildConversationContext(session.id, sessionStore);
       if (context) {
-        spawnOptions.prompt = `[Previous conversation context (from ${getAgentLabel(existingSession.agentId as AgentId)})]\n${context}\n\n[New message]\n${spawnOptions.prompt}`;
+        const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
+        // If plan→act across agents, frame as plan execution
+        if (existingSession.mode === 'plan' && options.mode === 'act') {
+          spawnOptions.prompt = [
+            `You are continuing work started by ${fromAgent}. The previous agent created a plan. Execute it.`,
+            '',
+            context,
+            '',
+            `## User instruction`,
+            spawnOptions.prompt,
+          ].join('\n');
+        } else {
+          spawnOptions.prompt = [
+            `You are continuing a conversation previously handled by ${fromAgent}. Here is the context:`,
+            '',
+            context,
+            '',
+            `## Current request`,
+            spawnOptions.prompt,
+          ].join('\n');
+        }
       }
     }
 
-    // Context forwarding for agents without native resume (non-switch continuations)
-    if (existingSession && !isAgentSwitch && !AGENTS_WITH_NATIVE_RESUME.has(agentId)) {
+    // Context forwarding for continuations without working native resume
+    const hasWorkingResume = AGENTS_WITH_NATIVE_RESUME.has(agentId) && !!spawnOptions.resumeSessionId;
+    if (existingSession && !isAgentSwitch && !hasWorkingResume) {
       const context = buildConversationContext(session.id, sessionStore);
       if (context) {
-        spawnOptions.prompt = `[Previous conversation context]\n${context}\n\n[New message]\n${spawnOptions.prompt}`;
+        spawnOptions.prompt = [
+          `You are continuing a previous conversation. Here is the context:`,
+          '',
+          context,
+          '',
+          `## Current request`,
+          spawnOptions.prompt,
+        ].join('\n');
       }
     }
-    // Plan→act transition marker
-    if (existingSession && existingSession.mode === 'plan' && options.mode === 'act') {
-      const marker = '[User approved the plan. Execute it.]';
-      if (AGENTS_WITH_NATIVE_RESUME.has(agentId)) {
-        spawnOptions.prompt = `${marker}\n\n${spawnOptions.prompt}`;
-      } else {
-        // Context was already injected above; append the marker
-        spawnOptions.prompt = `${spawnOptions.prompt}\n\n${marker}`;
-      }
+
+    // Plan→act same-agent with native resume
+    if (existingSession && !isAgentSwitch && existingSession.mode === 'plan' && options.mode === 'act' && hasWorkingResume) {
+      spawnOptions.prompt = `The user reviewed and approved the plan above. Implement each step now.\n\n${spawnOptions.prompt}`;
+    }
+
+    // Log when falling back from native resume to context injection
+    if (existingSession && !isAgentSwitch && AGENTS_WITH_NATIVE_RESUME.has(agentId) && !spawnOptions.resumeSessionId) {
+      emitTaskMessage(options.taskId, session.id, {
+        type: 'status',
+        role: 'system',
+        statusKind: 'progress',
+        content: 'Continuing with conversation context (session resume unavailable)',
+        timestamp: Date.now(),
+      });
     }
 
     // Capture git baseline for diff tracking

@@ -137,3 +137,17 @@ export interface AuthResult {
   authenticated: boolean;
   message: string;
 }
+
+export const PLAN_FORMAT_PREAMBLE = `Format your response as a structured plan using markdown:
+
+## Summary
+Brief overview of the approach.
+
+## Analysis
+Key observations, constraints, and considerations.
+
+## Steps
+Numbered, actionable steps with file paths and specifics.
+
+## Trade-offs
+What alternatives were considered and why this approach is preferred.`;

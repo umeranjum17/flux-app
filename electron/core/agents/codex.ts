@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { AgentHandle, SpawnOptions, AgentMessage, QuestionField } from './types';
+import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
 import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
 import { classifySpawnError } from '../process-utils';
 import {
@@ -64,7 +64,10 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   }
 
   // Prompt as last positional argument
-  args.push(options.prompt);
+  const prompt = options.mode === 'plan'
+    ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
+    : options.prompt;
+  args.push(prompt);
 
   const proc: ChildProcess = spawnAgentProcess({
     command: options.binaryPath || 'codex',
@@ -212,7 +215,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
         emitter.emit('session-meta', sessionMeta);
       } else if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
         emitter.emit('session-meta', {
-          sessionId: event.thread_id,
+          id: event.thread_id,
           cwd: options.cwd,
           createdAt: Date.now(),
         });

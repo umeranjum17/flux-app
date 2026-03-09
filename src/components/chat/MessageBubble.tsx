@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ClipboardCopy, Check, Paperclip } from 'lucide-react';
+import { ClipboardCopy, Check, Paperclip, ClipboardList } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { getHighlighter } from '../../lib/shiki';
 import type { FileAttachment } from '../../lib/types';
@@ -34,9 +34,15 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
           role === 'user'
             ? 'bg-bg-elevated/80 rounded-lg px-4 py-3 w-full'
             : 'w-full',
-          isPlanAssistant ? 'border-l-2 border-blue-400/40 pl-4' : '',
+          isPlanAssistant ? 'bg-accent/5 border border-accent/15 rounded-lg p-4' : '',
         ].join(' ')}
       >
+        {isPlanAssistant && (
+          <div className="flex items-center gap-1.5 mb-2">
+            <ClipboardList size={13} className="text-accent" />
+            <span className="text-xs text-accent font-medium">Plan</span>
+          </div>
+        )}
         {images && images.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
             {images.map((src, i) => (
@@ -67,7 +73,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             ))}
           </div>
         )}
-        <div className={`prose prose-sm max-w-none text-text-primary ${role === 'assistant' ? 'font-mono text-[13px] leading-relaxed' : ''}`}>
+        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-sm leading-relaxed' : role === 'assistant' ? 'font-mono text-[13px] leading-relaxed' : ''}`}>
           <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -94,6 +100,24 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             },
             pre({ children }) {
               return <>{children}</>;
+            },
+            h1({ children }) {
+              return <h1 className="text-xl font-bold font-sans mt-5 mb-2">{children}</h1>;
+            },
+            h2({ children }) {
+              return <h2 className="text-lg font-semibold font-sans mt-4 mb-1.5">{children}</h2>;
+            },
+            h3({ children }) {
+              return <h3 className="text-base font-semibold font-sans mt-3 mb-1">{children}</h3>;
+            },
+            ul({ children }) {
+              return <ul className="list-disc pl-6 my-1.5">{children}</ul>;
+            },
+            ol({ children }) {
+              return <ol className="list-decimal pl-6 my-1.5">{children}</ol>;
+            },
+            blockquote({ children }) {
+              return <blockquote className="border-l-3 border-accent pl-4 italic text-text-secondary my-2">{children}</blockquote>;
             },
           }}
         >
