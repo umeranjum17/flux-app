@@ -14,6 +14,7 @@ import {
   XCircle,
   Download,
 } from 'lucide-react';
+import { BashPanel, ReadPanel, EditDiffPanel, SearchPanel, GlobPanel, GenericPanel } from './ToolPanels';
 
 interface ToolCallBlockProps {
   toolName: string;
@@ -24,6 +25,8 @@ interface ToolCallBlockProps {
   resultContent?: string;
   resultIsError?: boolean;
   isComplete?: boolean;
+  diff?: string;
+  filePath?: string;
 }
 
 interface TodoItem {
@@ -249,8 +252,12 @@ export function ToolCallBlock({
   resultContent,
   resultIsError,
   isComplete,
+  diff,
+  filePath,
 }: ToolCallBlockProps) {
-  const [expanded, setExpanded] = useState(false);
+  const isEdit = isFileEditTool(toolName);
+  const resolvedFilePath = filePath ?? (toolInput?.file_path as string | undefined) ?? (toolInput?.path as string | undefined);
+  const [expanded, setExpanded] = useState(isEdit);
   const { Icon, color } = getToolIcon(toolName);
   const description = getToolDescription(toolName, toolInput, resultContent);
   const todoItems = useMemo(() => parseTodoItems(toolName, toolInput), [toolInput, toolName]);
@@ -259,9 +266,11 @@ export function ToolCallBlock({
   const isSemanticQuestion = questionItems.length > 0;
 
   const diffStats = useMemo(() => {
-    if (!isFileEditTool(toolName) || !resultContent) return null;
-    return countDiffStats(resultContent);
-  }, [toolName, resultContent]);
+    if (!isFileEditTool(toolName)) return null;
+    const diffSource = diff ?? resultContent;
+    if (!diffSource) return null;
+    return countDiffStats(diffSource);
+  }, [toolName, diff, resultContent]);
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
@@ -317,28 +326,57 @@ export function ToolCallBlock({
         </div>
       )}
 
-      {!expanded && resultContent && !isSemanticTodo && !isSemanticQuestion && (
+      {!expanded && !isEdit && resultContent && !isSemanticTodo && !isSemanticQuestion && (
         <ToolResultPreview toolName={toolName} resultContent={resultContent} />
       )}
 
       {expanded && !isSemanticTodo && !isSemanticQuestion && (
-        <div className="px-3 pb-3 space-y-2">
-          {toolInput && (
-            <pre className="bg-bg-primary rounded-md p-3 text-[13px] font-mono text-text-secondary overflow-x-auto">
-              {JSON.stringify(toolInput, null, 2)}
-            </pre>
-          )}
-          {resultContent && (
-            <div className={`rounded-md p-3 ${resultIsError ? 'bg-error/5' : 'bg-bg-primary'}`}>
-              <pre className="text-[13px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap">
-                <code>{resultContent}</code>
-              </pre>
-            </div>
-          )}
-        </div>
+        <ExpandedToolContent
+          toolName={toolName}
+          toolInput={toolInput}
+          resultContent={resultContent}
+          resultIsError={resultIsError}
+          diff={diff}
+          filePath={resolvedFilePath}
+        />
       )}
     </div>
   );
+}
+
+function ExpandedToolContent({
+  toolName,
+  toolInput,
+  resultContent,
+  resultIsError,
+  diff,
+  filePath,
+}: {
+  toolName: string;
+  toolInput?: Record<string, unknown>;
+  resultContent?: string;
+  resultIsError?: boolean;
+  diff?: string;
+  filePath?: string;
+}) {
+  const name = toolName.toLowerCase();
+
+  if (name.includes('edit') || name.includes('write') || name.includes('patch')) {
+    return <EditDiffPanel diff={diff} filePath={filePath} />;
+  }
+  if (name.includes('bash') || name.includes('command') || name.includes('shell')) {
+    return <BashPanel toolInput={toolInput} resultContent={resultContent} resultIsError={resultIsError} />;
+  }
+  if (name.includes('read') || name.includes('view')) {
+    return <ReadPanel toolInput={toolInput} resultContent={resultContent} />;
+  }
+  if (name.includes('grep') || name.includes('search')) {
+    return <SearchPanel toolInput={toolInput} resultContent={resultContent} />;
+  }
+  if (name.includes('glob') || name.includes('find')) {
+    return <GlobPanel toolInput={toolInput} resultContent={resultContent} />;
+  }
+  return <GenericPanel toolInput={toolInput} resultContent={resultContent} resultIsError={resultIsError} />;
 }
 
 function TodoPreview({ items, expanded }: { items: TodoItem[]; expanded: boolean }) {

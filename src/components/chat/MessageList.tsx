@@ -18,7 +18,6 @@ import { MessageBubble } from './MessageBubble';
 import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
 import { ThinkingBlock } from './ThinkingBlock';
-import { FileEditBlock } from './FileEditBlock';
 import { ApprovalPrompt } from './ApprovalPrompt';
 import { QuestionPrompt } from './QuestionPrompt';
 import { ResultBlock } from './ResultBlock';
@@ -32,12 +31,6 @@ const messageVariants = {
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0 },
 };
-
-function isFileEditToolCall(msg: AgentMessage): boolean {
-  if (msg.type !== 'tool_call' || !msg.toolName) return false;
-  const name = msg.toolName.toLowerCase();
-  return name.includes('edit') || name.includes('write');
-}
 
 function isSubagentMarker(msg: AgentMessage): boolean {
   return Boolean(msg.subagentId && msg.subagentStatus);
@@ -187,15 +180,6 @@ export function MessageList() {
                   transition={{ duration: 0.15 }}
                 >
                   {renderMessage(msg, idx, taskId!, taskStatus, mergedResult, task.mode)}
-                  {isFileEditToolCall(msg) && (
-                    <div className="mt-2">
-                      <FileEditBlock
-                        diff={msg.diff}
-                        filePath={msg.filePath ?? (msg.toolInput?.file_path as string | undefined) ?? (msg.toolInput?.path as string | undefined)}
-                        toolName={msg.toolName}
-                      />
-                    </div>
-                  )}
                 </motion.div>,
               );
             }
@@ -376,6 +360,8 @@ function renderMessage(
           resultContent={mergedResult?.content}
           resultIsError={mergedResult?.isError}
           isComplete={!!mergedResult}
+          diff={msg.diff}
+          filePath={msg.filePath}
         />
       );
 

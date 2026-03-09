@@ -1,22 +1,11 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, FileCode } from 'lucide-react';
 import type { DiffData, DiffFileEntry } from '../../lib/types';
+import { diffFileEntryToHunks } from '../../lib/diff-parser';
+import { DiffLines } from './DiffLines';
 
 interface DiffBlockProps {
   diff: DiffData;
-}
-
-function DiffFileLine({ line }: { line: string }) {
-  if (line.startsWith('+') && !line.startsWith('+++')) {
-    return <div className="text-success bg-success/5 px-3">{line}</div>;
-  }
-  if (line.startsWith('-') && !line.startsWith('---')) {
-    return <div className="text-error bg-error/5 px-3">{line}</div>;
-  }
-  if (line.startsWith('@@')) {
-    return <div className="text-accent/70 bg-accent/5 px-3 font-medium">{line}</div>;
-  }
-  return <div className="text-text-tertiary px-3">{line}</div>;
 }
 
 function DiffFileAccordion({ file }: { file: DiffFileEntry }) {
@@ -38,15 +27,9 @@ function DiffFileAccordion({ file }: { file: DiffFileEntry }) {
         </span>
       </button>
       {expanded && (
-        <pre className="overflow-x-auto text-[11px] font-mono leading-[18px] bg-bg-primary/50 border-t border-border/20">
-          {file.hunks.map((hunk, i) => (
-            <div key={i}>
-              {hunk.lines.map((line, j) => (
-                <DiffFileLine key={j} line={line} />
-              ))}
-            </div>
-          ))}
-        </pre>
+        <div className="border-t border-border/20 bg-bg-primary/50">
+          <DiffLines hunks={diffFileEntryToHunks(file)} maxHeight="32rem" />
+        </div>
       )}
     </div>
   );
