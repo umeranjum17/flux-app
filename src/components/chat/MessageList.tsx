@@ -1,9 +1,18 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, ArrowRightLeft, X } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
+import { useAgentStore } from '../../stores/agent';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
-import type { AgentMessage } from '../../lib/types';
+import type { AgentId, AgentMessage, AgentHistoryEntry } from '../../lib/types';
+
+const AGENT_LABELS: Record<string, string> = {
+  'claude-code': 'Claude',
+  codex: 'Codex',
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  ollama: 'Ollama',
+};
 import { MessageBubble } from './MessageBubble';
 import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
@@ -15,6 +24,7 @@ import { ResultBlock } from './ResultBlock';
 import { StreamingCursor } from './StreamingCursor';
 import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
+import { DiffBlock } from './DiffBlock';
 
 const messageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -34,8 +44,13 @@ function isSubagentMarker(msg: AgentMessage): boolean {
 
 export function MessageList() {
   const task = useChatStore((s) => s.getActiveTask());
+  const switchTaskAgent = useChatStore((s) => s.switchTaskAgent);
+  const agents = useAgentStore((s) => s.agents);
   const messages = task?.messages ?? [];
   const subagents = task?.subagents ?? new Map();
+  const agentHistory = task?.agentHistory ?? [];
+  const rateLimitSuggestion = task?.rateLimitSuggestion;
+  const diffs = task?.diffs ?? new Map();
   const taskStatus = task?.status;
   const taskId = task?.id;
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
@@ -62,6 +77,9 @@ export function MessageList() {
   const isStreaming = isActiveRun;
   const lastMessage = messages[messages.length - 1];
   const showCursor = isStreaming && lastMessage?.role === 'assistant' && lastMessage?.type === 'text';
+
+  // Build set of message indices where agent switches happened
+  const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
 
   // Build a set of tool_result indices that are merged into their preceding tool_call
   const mergedResultIndices = new Set<number>();
@@ -129,6 +147,33 @@ export function MessageList() {
                 continue;
               }
 
+              // Agent switch badge at boundary
+              if (agentHistory.length > 0 && agentSwitchIndices.has(idx)) {
+                const switchEntry = agentHistory.find((h) => h.fromMessageIndex === idx);
+                if (switchEntry) {
+                  const nextAgent = agentHistory.indexOf(switchEntry) < agentHistory.length - 1
+                    ? agentHistory[agentHistory.indexOf(switchEntry) + 1]
+                    : { agentId: task.agentId, model: task.model };
+                  rendered.push(
+                    <motion.div
+                      key={`agent-switch-${idx}`}
+                      variants={messageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={{ duration: 0.15 }}
+                    >
+                      <div className="flex items-center gap-2 py-1 px-1">
+                        <ArrowRightLeft size={12} className="text-text-tertiary" />
+                        <span className="text-[11px] text-text-tertiary">
+                          Switched from {AGENT_LABELS[switchEntry.agentId] ?? switchEntry.agentId} to {AGENT_LABELS[nextAgent.agentId] ?? nextAgent.agentId}
+                        </span>
+                      </div>
+                    </motion.div>,
+                  );
+                }
+              }
+
               const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
 
               rendered.push(
@@ -160,6 +205,56 @@ export function MessageList() {
         {showCursor && (
           <div className="pl-1">
             <StreamingCursor />
+          </div>
+        )}
+
+        {diffs.size > 0 && (taskStatus === 'done' || taskStatus === 'error') && (
+          <>
+            {Array.from(diffs.entries()).map(([key, diff]) => (
+              <div key={`diff-${key}`} className="mt-2">
+                <DiffBlock diff={diff} />
+              </div>
+            ))}
+          </>
+        )}
+
+        {rateLimitSuggestion && taskId && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-warning font-medium">Rate limited.</span>
+              <span className="text-text-secondary">Switch to another agent?</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {rateLimitSuggestion.agents
+                .filter((agentId) => agents.some((a) => a.id === agentId && a.available))
+                .slice(0, 3)
+                .map((agentId) => {
+                  const agent = agents.find((a) => a.id === agentId);
+                  return (
+                    <button
+                      key={agentId}
+                      onClick={() => {
+                        switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
+                        useAgentStore.getState().setSelectedAgent(agentId);
+                      }}
+                      className="px-2 py-1 rounded-md text-xs font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors"
+                    >
+                      {AGENT_LABELS[agentId] ?? agentId}
+                    </button>
+                  );
+                })}
+              <button
+                onClick={() => {
+                  useChatStore.setState((state) => {
+                    const t = state.tasks.get(taskId);
+                    if (t) t.rateLimitSuggestion = undefined;
+                  });
+                }}
+                className="p-1 rounded text-text-tertiary hover:text-text-primary"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
         )}
       </div>

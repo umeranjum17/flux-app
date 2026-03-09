@@ -15,7 +15,7 @@ function makeTask(id = 'task-1') {
 }
 
 beforeEach(() => {
-  useChatStore.setState({ tasks: new Map(), activeTaskId: null });
+  useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
 });
 
 describe('createTask', () => {

@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { SendHorizontal, Paperclip, Users2, Plus, X } from 'lucide-react';
+import { SendHorizontal, Paperclip, Users2, Plus, X, RotateCcw, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -9,7 +9,15 @@ import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
-import type { FileAttachment } from '../../lib/types';
+import type { AgentId, FileAttachment } from '../../lib/types';
+
+const AGENT_LABELS: Record<string, string> = {
+  'claude-code': 'Claude',
+  codex: 'Codex',
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  ollama: 'Ollama',
+};
 
 interface ChatInputProps {
   focused?: boolean;
@@ -28,10 +36,11 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [showSubagentDialog, setShowSubagentDialog] = useState(false);
   const [subagentModel, setSubagentModel] = useState('haiku');
   const [subagentDrafts, setSubagentDrafts] = useState([{ name: 'Explore', prompt: '' }]);
+  const [showAgentSwitcher, setShowAgentSwitcher] = useState(false);
 
-  const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId } = useChatStore();
+  const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode, switchTaskAgent } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
-  const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
+  const { selectedAgentId, selectedModel, selectedThinking, agents } = useAgentStore();
   const { mode, sendKey } = useUiStore();
   const pendingMention = useUiStore((s) => s.pendingMention);
 
@@ -106,13 +115,17 @@ export function ChatInput({ focused }: ChatInputProps) {
           response: text,
         });
       } else if (!hasActiveRun) {
+        const currentMode = useUiStore.getState().mode;
+        if (task.mode !== currentMode) {
+          setTaskMode(task.id, currentMode);
+        }
         setTaskStatus(task.id, 'running');
         const result = await window.api.invoke('task:spawn', {
           taskId: task.id,
           prompt: text,
           agentId: task.agentId,
           model: task.model,
-          mode: task.mode,
+          mode: currentMode,
           thinking: task.thinking,
           cwd: task.cwd,
           sessionId: task.sessionId,
@@ -251,12 +264,15 @@ export function ChatInput({ focused }: ChatInputProps) {
     setSlashQuery('');
 
     const ui = useUiStore.getState();
+    const activeTaskForSlash = getActiveTask();
     switch (command) {
       case '/plan':
         ui.setMode('plan');
+        if (activeTaskForSlash) setTaskMode(activeTaskForSlash.id, 'plan');
         break;
       case '/act':
         ui.setMode('act');
+        if (activeTaskForSlash) setTaskMode(activeTaskForSlash.id, 'act');
         break;
       case '/agent':
         ui.setOverlay('agent-selector');
@@ -332,8 +348,25 @@ export function ChatInput({ focused }: ChatInputProps) {
     }
   }, [activeTask, canSpawnSubagents, subagentDrafts, subagentModel]);
 
+  const isContinuing = activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
+  const isModeSwitch = isContinuing && activeTask.mode !== mode;
+
   return (
     <div className="relative w-full">
+      {isContinuing && (
+        <div className="flex items-center gap-2 mb-2 px-1">
+          <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
+            <RotateCcw size={11} />
+            Continuing conversation
+          </span>
+          {isModeSwitch && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent/15 text-accent">
+              switching to {mode} mode
+            </span>
+          )}
+        </div>
+      )}
+
       {showSlash && (
         <SlashMenu
           query={slashQuery}
@@ -416,6 +449,51 @@ export function ChatInput({ focused }: ChatInputProps) {
                 Spawn
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Agent/model switcher pill */}
+        {activeTask && (
+          <div className="relative mb-2">
+            <button
+              type="button"
+              onClick={() => setShowAgentSwitcher((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+            >
+              <span className="font-medium">{AGENT_LABELS[activeTask.agentId] ?? activeTask.agentId}</span>
+              <span className="text-text-tertiary">{activeTask.model}</span>
+              <ChevronDown size={11} className="text-text-tertiary" />
+            </button>
+            {showAgentSwitcher && (
+              <div className="absolute left-0 bottom-full mb-1 w-56 rounded-lg border border-border bg-bg-elevated shadow-lg z-50 p-1 max-h-64 overflow-y-auto">
+                {agents.filter((a) => a.available).map((agent) => (
+                  <div key={agent.id}>
+                    {agent.models.map((model) => (
+                      <button
+                        key={`${agent.id}-${model}`}
+                        type="button"
+                        onClick={() => {
+                          if (agent.id !== activeTask.agentId || model !== activeTask.model) {
+                            switchTaskAgent(activeTask.id, agent.id as AgentId, model);
+                            useAgentStore.getState().setSelectedAgent(agent.id as AgentId);
+                            useAgentStore.getState().setSelectedModel(model);
+                          }
+                          setShowAgentSwitcher(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                          agent.id === activeTask.agentId && model === activeTask.model
+                            ? 'bg-accent/10 text-accent'
+                            : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                        }`}
+                      >
+                        <span className="font-medium">{AGENT_LABELS[agent.id] ?? agent.id}</span>
+                        <span className="text-text-tertiary">{model}</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

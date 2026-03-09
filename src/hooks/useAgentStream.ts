@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useChatStore } from '../stores/chat';
-import type { AgentMessage } from '../lib/types';
+import type { AgentMessage, DiffData } from '../lib/types';
 
 export function useAgentStream() {
   useEffect(() => {
@@ -27,10 +27,21 @@ export function useAgentStream() {
       useChatStore.getState().setPendingApproval(taskId, { requestId, toolName, description, action, path });
     });
 
+    const unsubDiff = window.api.on('agent:diff', (data: unknown) => {
+      const { taskId, key, diff } = data as { taskId: string; key: string; diff: DiffData };
+      useChatStore.setState((state) => {
+        const task = state.tasks.get(taskId);
+        if (task) {
+          task.diffs.set(key, diff);
+        }
+      });
+    });
+
     return () => {
       unsubMessage();
       unsubDone();
       unsubPermission();
+      unsubDiff();
     };
   }, []);
 }

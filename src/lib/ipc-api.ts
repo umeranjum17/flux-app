@@ -1,4 +1,4 @@
-import type { DetectedAgent, AuthResult, AgentMessage, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment } from './types';
+import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment } from './types';
 
 // Channels the renderer can invoke on main
 export interface IpcChannels {
@@ -66,12 +66,14 @@ export interface IpcChannels {
   'repomap:get-status': { args: []; result: RepoMapIpcStatus };
   'repomap:rebuild': { args: []; result: void };
   'repomap:preview': { args: [{ prompt: string }]; result: string };
+  'diff:get': { args: [{ taskId: string; sessionId: string }]; result: DiffData | null };
 }
 
 // Events main sends to renderer
 export interface IpcEvents {
   'agent:message': { taskId: string; message: AgentMessage };
   'agent:done': { taskId: string; error?: string };
+  'agent:diff': { taskId: string; key: string; diff: DiffData };
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };

@@ -8,6 +8,7 @@ import { MessageList } from '../chat/MessageList';
 import { LiveRunHeader } from '../chat/LiveRunHeader';
 import { ChatInput } from '../input/ChatInput';
 import { WelcomeScreen } from './WelcomeScreen';
+import { TabBar } from './TabBar';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { TerminalPanel, type TerminalPanelHandle } from '../terminal/TerminalPanel';
 import { useUiStore } from '../../stores/ui';
@@ -223,16 +224,55 @@ export function AppShell() {
     useAgentStore.getState().setSelectedThinking(thinkingLevels[(idx + 1) % thinkingLevels.length]);
   }, [thinkingLevels]);
 
+  // New tab helper
+  const createNewTab = useCallback(() => {
+    const { selectedAgentId: agent, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
+    const taskId = crypto.randomUUID();
+    useChatStore.getState().createTask({
+      id: taskId,
+      title: 'New task',
+      agentId: agent,
+      model,
+      mode: useUiStore.getState().mode,
+      thinking,
+      cwd: useUiStore.getState().cwd || '.',
+    });
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key === 'b') { e.preventDefault(); useUiStore.getState().toggleSidebar(); }
-      if (meta && e.key === 't') { e.preventDefault(); useUiStore.getState().toggleMode(); }
+      if (meta && !e.shiftKey && e.key === 't') { e.preventDefault(); createNewTab(); }
+      if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
       if (meta && e.key === 'k') { e.preventDefault(); useUiStore.getState().setOverlay('command-palette'); }
       if (meta && e.key === 'e') { e.preventDefault(); useUiStore.getState().toggleExplorer(); }
       if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanelMode(); }
+
+      // Cmd+1-9 switch tabs
+      if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const idx = parseInt(e.key, 10) - 1;
+        const order = useChatStore.getState().tabOrder;
+        if (idx < order.length) {
+          useChatStore.getState().setActiveTask(order[idx]);
+        }
+      }
+
+      // Cmd+Shift+] / Cmd+Shift+[ to cycle tabs
+      if (meta && e.shiftKey && (e.key === ']' || e.key === '[')) {
+        e.preventDefault();
+        const { tabOrder: order, activeTaskId: current } = useChatStore.getState();
+        if (order.length > 1 && current) {
+          const curIdx = order.indexOf(current);
+          const nextIdx = e.key === ']'
+            ? (curIdx + 1) % order.length
+            : (curIdx - 1 + order.length) % order.length;
+          useChatStore.getState().setActiveTask(order[nextIdx]);
+        }
+      }
 
       // Cycle model: Ctrl/Cmd+Shift+M
       if (meta && e.shiftKey && e.key === 'M') {
@@ -244,6 +284,11 @@ export function AppShell() {
         e.preventDefault();
         cycleThinking();
       }
+      // Toggle mode: Ctrl/Cmd+Shift+P
+      if (meta && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        useUiStore.getState().toggleMode();
+      }
       // Open agent selector: Ctrl/Cmd+Shift+A
       if (meta && e.shiftKey && e.key === 'A') {
         e.preventDefault();
@@ -252,7 +297,7 @@ export function AppShell() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [createNewTab]);
 
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
@@ -301,6 +346,7 @@ export function AppShell() {
                   )
                 ) : (
                   <>
+                    <TabBar />
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
                     <div className="px-4 py-3 border-t border-border/30 shrink-0">
                       <LiveRunHeader />

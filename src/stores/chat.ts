@@ -17,6 +17,7 @@ import type {
 interface ChatState {
   tasks: Map<string, Task>;
   activeTaskId: string | null;
+  tabOrder: string[];
 
   createTask(opts: {
     id: string;
@@ -30,6 +31,8 @@ interface ChatState {
   }): void;
   removeTask(taskId: string): void;
   setActiveTask(taskId: string | null): void;
+  closeTab(taskId: string): void;
+  reorderTabs(fromIndex: number, toIndex: number): void;
   addMessage(taskId: string, message: AgentMessage): void;
   ingestStreamMessage(taskId: string, message: AgentMessage): void;
   setTaskStatus(taskId: string, status: TaskStatus): void;
@@ -45,6 +48,8 @@ interface ChatState {
     } | null,
   ): void;
   setPendingQuestion(taskId: string, question: PendingQuestionState | null): void;
+  setTaskMode(taskId: string, mode: TaskMode): void;
+  switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string): void;
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   getActiveTask(): Task | undefined;
 }
@@ -53,9 +58,11 @@ export const useChatStore = create<ChatState>()(
   immer((set, get) => ({
     tasks: new Map(),
     activeTaskId: null,
+    tabOrder: [],
 
     createTask(opts) {
       set((state) => {
+        state.tabOrder.push(opts.id);
         state.tasks.set(opts.id, {
           id: opts.id,
           title: opts.title,
@@ -71,6 +78,8 @@ export const useChatStore = create<ChatState>()(
           cwd: opts.cwd,
           sessionId: opts.sessionId,
           subagents: new Map(),
+          agentHistory: [],
+          diffs: new Map(),
         });
         state.activeTaskId = opts.id;
       });
@@ -79,10 +88,35 @@ export const useChatStore = create<ChatState>()(
     removeTask(taskId) {
       set((state) => {
         state.tasks.delete(taskId);
+        state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
         if (state.activeTaskId === taskId) {
-          const keys = Array.from(state.tasks.keys());
-          state.activeTaskId = keys.length > 0 ? keys[keys.length - 1] : null;
+          state.activeTaskId = state.tabOrder.length > 0 ? state.tabOrder[state.tabOrder.length - 1] : null;
         }
+      });
+    },
+
+    closeTab(taskId) {
+      const handle = get().tasks.get(taskId);
+      if (handle && (handle.status === 'running' || handle.status === 'waiting_approval' || handle.status === 'waiting_input')) {
+        window.api?.invoke('task:stop', { taskId }).catch(() => {});
+      }
+      set((state) => {
+        const tabIdx = state.tabOrder.indexOf(taskId);
+        state.tasks.delete(taskId);
+        state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
+        if (state.activeTaskId === taskId) {
+          const adjacentIdx = Math.min(tabIdx, state.tabOrder.length - 1);
+          state.activeTaskId = state.tabOrder.length > 0 ? state.tabOrder[adjacentIdx] : null;
+        }
+      });
+    },
+
+    reorderTabs(fromIndex, toIndex) {
+      set((state) => {
+        const order = [...state.tabOrder];
+        const [moved] = order.splice(fromIndex, 1);
+        order.splice(toIndex, 0, moved);
+        state.tabOrder = order;
       });
     },
 
@@ -194,6 +228,30 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
+    setTaskMode(taskId, mode) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task) return;
+        task.mode = mode;
+      });
+    },
+
+    switchTaskAgent(taskId, newAgentId, newModel) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task) return;
+        task.agentHistory.push({
+          agentId: task.agentId,
+          model: task.model,
+          fromMessageIndex: task.messages.length,
+        });
+        task.agentId = newAgentId;
+        task.model = newModel;
+        task.status = 'idle';
+        task.rateLimitSuggestion = undefined;
+      });
+    },
+
     addUserMessage(taskId, content, images?, attachments?) {
       set((state) => {
         const task = state.tasks.get(taskId);
@@ -225,6 +283,10 @@ function appendMessage(task: Task, message: AgentMessage): void {
   }
   if (message.type === 'rate_limit') {
     task.rateLimitInfo = message.rateLimitInfo;
+    const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
+    task.rateLimitSuggestion = {
+      agents: allAgents.filter((a) => a !== task.agentId),
+    };
   }
   if (message.type === 'quality_gate' && message.command) {
     task.lastQualityGate = {

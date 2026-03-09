@@ -147,6 +147,30 @@ export interface SubagentState {
   outputTokens: number;
 }
 
+export interface DiffHunk {
+  header: string;
+  lines: string[];
+}
+
+export interface DiffFileEntry {
+  path: string;
+  additions: number;
+  deletions: number;
+  hunks: DiffHunk[];
+}
+
+export interface DiffData {
+  files: DiffFileEntry[];
+  totalAdditions: number;
+  totalDeletions: number;
+}
+
+export interface AgentHistoryEntry {
+  agentId: AgentId;
+  model: string;
+  fromMessageIndex: number;
+}
+
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
 export interface Task {
@@ -179,4 +203,7 @@ export interface Task {
   };
   pendingQuestion?: PendingQuestionState;
   subagents: Map<string, SubagentState>;
+  agentHistory: AgentHistoryEntry[];
+  rateLimitSuggestion?: { agents: AgentId[] };
+  diffs: Map<string, DiffData>;
 }

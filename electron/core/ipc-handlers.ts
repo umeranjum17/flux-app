@@ -257,6 +257,82 @@ function buildStoredUserMessage(
   };
 }
 
+const AGENTS_WITH_NATIVE_RESUME = new Set<AgentId>(['claude-code', 'codex']);
+
+function buildConversationContext(sessionId: string, sessionStore: SessionStore, maxChars = 20_000): string {
+  const messages = sessionStore.getMessages(sessionId);
+  const textMessages = messages.filter(
+    (m) => (m.role === 'user' || m.role === 'assistant') && m.type === 'text' && m.content,
+  );
+  const parts: string[] = [];
+  let chars = 0;
+  for (let i = textMessages.length - 1; i >= 0 && chars < maxChars; i--) {
+    const m = textMessages[i];
+    const label = m.role === 'user' ? 'User' : 'Assistant';
+    const entry = `${label}: ${m.content}`;
+    parts.unshift(entry);
+    chars += entry.length;
+  }
+  return parts.join('\n\n');
+}
+
+interface DiffHunk { header: string; lines: string[] }
+interface DiffFileEntry { path: string; additions: number; deletions: number; hunks: DiffHunk[] }
+interface DiffData { files: DiffFileEntry[]; totalAdditions: number; totalDeletions: number }
+
+async function captureGitSnapshot(cwd: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd, timeout: 5000 });
+    return stdout.trim();
+  } catch {
+    return '';
+  }
+}
+
+async function captureGitDiff(cwd: string, baseRef: string): Promise<DiffData | null> {
+  try {
+    const args = baseRef ? ['diff', baseRef, '--unified=3'] : ['diff', '--unified=3'];
+    const { stdout } = await execFileAsync('git', args, { cwd, timeout: 15000 });
+    if (!stdout.trim()) return null;
+    return parseUnifiedDiff(stdout);
+  } catch {
+    return null;
+  }
+}
+
+function parseUnifiedDiff(raw: string): DiffData {
+  const files: DiffFileEntry[] = [];
+  const fileSections = raw.split(/^diff --git /m).filter(Boolean);
+
+  for (const section of fileSections) {
+    const headerMatch = section.match(/a\/(.+?)\s+b\/(.+)/);
+    const filePath = headerMatch?.[2] ?? 'unknown';
+    const hunks: DiffHunk[] = [];
+    let additions = 0;
+    let deletions = 0;
+
+    const hunkParts = section.split(/^(@@.+@@.*$)/m);
+    for (let i = 1; i < hunkParts.length; i += 2) {
+      const hunkHeader = hunkParts[i];
+      const hunkBody = hunkParts[i + 1] ?? '';
+      const lines = hunkBody.split('\n').filter((l) => l !== '');
+      for (const line of lines) {
+        if (line.startsWith('+') && !line.startsWith('+++')) additions++;
+        if (line.startsWith('-') && !line.startsWith('---')) deletions++;
+      }
+      hunks.push({ header: hunkHeader, lines });
+    }
+
+    files.push({ path: filePath, additions, deletions, hunks });
+  }
+
+  return {
+    files,
+    totalAdditions: files.reduce((s, f) => s + f.additions, 0),
+    totalDeletions: files.reduce((s, f) => s + f.deletions, 0),
+  };
+}
+
 function toAbsoluteFilePath(root: string, file: string): string {
   if (path.isAbsolute(file)) return file;
   if (root === '/') return `/${file}`;
@@ -589,6 +665,36 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       ? sessionStore.getMessages(session.id)
       : undefined;
 
+    // Agent switch: inject full conversation context when switching to a different agent
+    const isAgentSwitch = existingSession && existingSession.agentId !== agentId;
+    if (isAgentSwitch) {
+      const context = buildConversationContext(session.id, sessionStore);
+      if (context) {
+        spawnOptions.prompt = `[Previous conversation context (from ${getAgentLabel(existingSession.agentId as AgentId)})]\n${context}\n\n[New message]\n${spawnOptions.prompt}`;
+      }
+    }
+
+    // Context forwarding for agents without native resume (non-switch continuations)
+    if (existingSession && !isAgentSwitch && !AGENTS_WITH_NATIVE_RESUME.has(agentId)) {
+      const context = buildConversationContext(session.id, sessionStore);
+      if (context) {
+        spawnOptions.prompt = `[Previous conversation context]\n${context}\n\n[New message]\n${spawnOptions.prompt}`;
+      }
+    }
+    // Plan→act transition marker
+    if (existingSession && existingSession.mode === 'plan' && options.mode === 'act') {
+      const marker = '[User approved the plan. Execute it.]';
+      if (AGENTS_WITH_NATIVE_RESUME.has(agentId)) {
+        spawnOptions.prompt = `${marker}\n\n${spawnOptions.prompt}`;
+      } else {
+        // Context was already injected above; append the marker
+        spawnOptions.prompt = `${spawnOptions.prompt}\n\n${marker}`;
+      }
+    }
+
+    // Capture git baseline for diff tracking
+    const preRunRef = await captureGitSnapshot(options.cwd);
+
     let handle: AgentHandle;
     try {
       handle = agentManager.spawn(agentId, spawnOptions, resumeMessages);
@@ -750,6 +856,26 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
                 finalError = `Quality gate failed: ${command}`;
                 break;
               }
+            }
+          }
+
+          // Capture post-run diff
+          if (preRunRef && !sshHost) {
+            try {
+              const diffData = await captureGitDiff(options.cwd, preRunRef);
+              if (diffData && diffData.files.length > 0) {
+                const msgCount = (await (() => {
+                  try { return sessionStore.getMessages(session.id).length; } catch { return 0; }
+                })());
+                const key = `0-${msgCount}`;
+                mainWindow.webContents.send('agent:diff', {
+                  taskId: options.taskId,
+                  key,
+                  diff: diffData,
+                });
+              }
+            } catch {
+              // Diff capture is best-effort
             }
           }
 
@@ -1593,6 +1719,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('repomap:preview', async (_event, { prompt }: { prompt: string }) => {
     const config = configManager.get().repoMap;
     return repoMapService.getMap(prompt, config.maxTokens);
+  });
+
+  ipcMain.handle('diff:get', async (_event, { taskId, sessionId }: { taskId: string; sessionId: string }) => {
+    const session = sessionStore.get(sessionId);
+    if (!session) return null;
+    return captureGitDiff(session.cwd, '');
   });
 
   // Initialize repo map if enabled
