@@ -928,7 +928,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
               timestamp: Date.now(),
             } satisfies AgentMessage,
           });
-        }, 5_000);
+        }, 15_000);
         toolHeartbeats.set(message.toolCallId, heartbeatInterval);
       }
 

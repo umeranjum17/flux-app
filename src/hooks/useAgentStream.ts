@@ -4,9 +4,24 @@ import type { AgentMessage, DiffData } from '../lib/types';
 
 export function useAgentStream() {
   useEffect(() => {
+    // Buffer messages and flush in batches to avoid per-message re-renders
+    let messageBuffer: Array<{ taskId: string; message: AgentMessage }> = [];
+    let rafId: number | null = null;
+
+    function flushMessages() {
+      rafId = null;
+      if (messageBuffer.length === 0) return;
+      const batch = messageBuffer;
+      messageBuffer = [];
+      useChatStore.getState().ingestStreamBatch(batch);
+    }
+
     const unsubMessage = window.api.on('agent:message', (data: unknown) => {
       const { taskId, message } = data as { taskId: string; message: AgentMessage };
-      useChatStore.getState().ingestStreamMessage(taskId, message);
+      messageBuffer.push({ taskId, message });
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushMessages);
+      }
     });
 
     const unsubDone = window.api.on('agent:done', (data: unknown) => {
@@ -38,6 +53,8 @@ export function useAgentStream() {
     });
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      flushMessages(); // flush any remaining
       unsubMessage();
       unsubDone();
       unsubPermission();
