@@ -1,16 +1,17 @@
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Bot, TerminalSquare } from 'lucide-react';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
+import { RightSidebar } from './RightSidebar';
 import { StatusLine } from './StatusLine';
 import { MessageList } from '../chat/MessageList';
 import { LiveRunHeader } from '../chat/LiveRunHeader';
 import { ChatInput } from '../input/ChatInput';
 import { WelcomeScreen } from './WelcomeScreen';
 import { TabBar } from './TabBar';
+import { BottomPanel } from './BottomPanel';
 import { FileExplorer } from '../explorer/FileExplorer';
-import { TerminalPanel, type TerminalPanelHandle } from '../terminal/TerminalPanel';
+import { type TerminalPanelHandle } from '../terminal/TerminalPanel';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
@@ -28,10 +29,11 @@ import { connectToSshWorkspace, createRecentProject, rememberRecentProject } fro
 
 export function AppShell() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const rightSidebarOpen = useUiStore((s) => s.rightSidebarOpen);
+  const bottomPanelOpen = useUiStore((s) => s.bottomPanelOpen);
   const theme = useUiStore((s) => s.theme);
   const cwd = useUiStore((s) => s.cwd);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
-  const bottomPanelMode = useUiStore((s) => s.bottomPanelMode);
   const tasks = useChatStore((s) => s.tasks);
   const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -39,7 +41,6 @@ export function AppShell() {
   const termRef = useRef<TerminalPanelHandle>(null);
 
   const hasTasks = tasks.size > 0;
-  const isAgent = bottomPanelMode === 'agent';
 
   useAgentStream();
 
@@ -114,7 +115,7 @@ export function AppShell() {
     init().catch(console.error);
   }, []);
 
-  // Fetch git info when CWD changes (with cancellation for stale requests)
+  // Fetch git info when CWD changes
   useEffect(() => {
     if (!cwd) return;
     let cancelled = false;
@@ -136,7 +137,7 @@ export function AppShell() {
     applyTheme(theme);
   }, [theme]);
 
-  // Auto-persist agent selections (debounced to avoid startup noise)
+  // Auto-persist agent selections (debounced)
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
     let prev = {
@@ -182,7 +183,6 @@ export function AppShell() {
 
   // Open project handler
   const openProject = useCallback(async (projectPath?: string, options?: { isSSH?: boolean; sshHost?: string }) => {
-    // SSH reconnection
     if (options?.isSSH && options.sshHost && projectPath) {
       try {
         const { host, cwd: remoteCwd } = await connectToSshWorkspace(options.sshHost, projectPath);
@@ -190,7 +190,6 @@ export function AppShell() {
         await rememberRecentProject(project);
         return;
       } catch {
-        // SSH reconnection failed — open SSH dialog so user can re-authenticate
         useUiStore.getState().setOverlay('ssh-connect');
         return;
       }
@@ -206,22 +205,11 @@ export function AppShell() {
     }
 
     useUiStore.getState().setCwd(targetPath);
-    // Git info will be fetched by the cwd effect
-
     const project = createRecentProject(targetPath);
     await rememberRecentProject(project);
   }, []);
 
-  const switchToAgent = useCallback(() => {
-    useUiStore.getState().setBottomPanelMode('agent');
-  }, []);
-
-  const switchToTerminal = useCallback(() => {
-    useUiStore.getState().setBottomPanelMode('terminal');
-    requestAnimationFrame(() => termRef.current?.focusActive());
-  }, []);
-
-  // Cycle helpers for model and thinking level
+  // Cycle helpers
   const cycleModel = useCallback(() => {
     const { dynamicModels, selectedModel, agents, selectedAgentId } = useAgentStore.getState();
     const modelIds = dynamicModels.length > 0
@@ -263,8 +251,8 @@ export function AppShell() {
       if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
       if (meta && e.key === 'k') { e.preventDefault(); useUiStore.getState().setOverlay('command-palette'); }
-      if (meta && e.key === 'e') { e.preventDefault(); useUiStore.getState().toggleExplorer(); }
-      if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanelMode(); }
+      if (meta && e.key === 'e') { e.preventDefault(); useUiStore.getState().toggleRightSidebar(); }
+      if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanel(); }
 
       // Cmd+1-9 switch tabs
       if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
@@ -312,7 +300,7 @@ export function AppShell() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [createNewTab]);
+  }, [createNewTab, cycleModel, cycleThinking]);
 
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
@@ -320,66 +308,39 @@ export function AppShell() {
       <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
         <div className="flex flex-col flex-1 min-w-0">
-          <div className="relative flex flex-col flex-1 overflow-hidden">
-            {/* Tab bar */}
-            <div className="flex items-center gap-0 bg-bg-secondary/50 border-b border-border-subtle shrink-0">
-              <button
-                onClick={switchToAgent}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
-                  isAgent
-                    ? 'border-text-secondary text-text-primary'
-                    : 'border-transparent text-text-tertiary hover:text-text-secondary'
-                }`}
-              >
-                <Bot size={12} />
-                Agent
-              </button>
-              <button
-                onClick={switchToTerminal}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
-                  !isAgent
-                    ? 'border-text-secondary text-text-primary'
-                    : 'border-transparent text-text-tertiary hover:text-text-secondary'
-                }`}
-              >
-                <TerminalSquare size={12} />
-                Terminal
-              </button>
-            </div>
-
-            {/* Content area */}
-            <div className="relative flex flex-1 overflow-hidden">
-              {/* Agent view */}
-              <div className={`flex flex-col flex-1 min-w-0 ${isAgent ? '' : 'hidden'}`}>
-                {dashboardOpen ? (
-                  reviewingWorkspaceId ? (
-                    <WorkspaceDashboard />
-                  ) : activeWorkspaceId ? (
-                    <WorkspacePanel />
-                  ) : (
-                    <WorkspaceDashboard />
-                  )
+          {/* Chat area + right sidebar */}
+          <div className="flex flex-1 overflow-hidden">
+            <div className="relative flex flex-col flex-1 min-w-0">
+              {dashboardOpen ? (
+                reviewingWorkspaceId ? (
+                  <WorkspaceDashboard />
+                ) : activeWorkspaceId ? (
+                  <WorkspacePanel />
                 ) : (
-                  <>
-                    <TabBar />
-                    {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                    <div className="px-4 py-2.5 border-t border-border-subtle shrink-0">
-                      <LiveRunHeader />
-                      <ChatInput focused={isAgent} />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Terminal view */}
-              <div className={`flex flex-col flex-1 min-w-0 ${isAgent ? 'hidden' : ''}`}>
-                <TerminalPanel ref={termRef} visible={!isAgent} />
-              </div>
+                  <WorkspaceDashboard />
+                )
+              ) : (
+                <>
+                  <TabBar />
+                  {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                  <div className="px-4 py-2.5 border-t border-border-subtle shrink-0">
+                    <LiveRunHeader />
+                    <ChatInput focused />
+                  </div>
+                </>
+              )}
 
               {/* File viewer overlay */}
               {explorerOpen && <FileExplorer />}
             </div>
+
+            {/* Right sidebar */}
+            <AnimatePresence>{rightSidebarOpen && <RightSidebar />}</AnimatePresence>
           </div>
+
+          {/* Bottom panel */}
+          {bottomPanelOpen && <BottomPanel ref={termRef} />}
+
           <StatusLine />
         </div>
       </div>
