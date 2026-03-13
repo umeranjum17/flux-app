@@ -61,7 +61,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       const term = new Terminal({
         cursorBlink: true,
         fontSize: 13,
-        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Cascadia Code", monospace',
         theme: currentTheme === 'dark' ? DARK_THEME : LIGHT_THEME,
       });
 

@@ -206,8 +206,8 @@ async function runShellCommand(command: string, cwd: string, remoteHost: string 
     ? 'powershell.exe'
     : process.env.SHELL && fs.existsSync(process.env.SHELL)
       ? process.env.SHELL
-      : '/bin/bash';
-  const args = process.platform === 'win32' ? ['-Command', command] : ['-lc', command];
+      : '/bin/sh';
+  const args = process.platform === 'win32' ? ['-NoProfile', '-Command', command] : ['-lc', command];
 
   try {
     const { stdout, stderr } = await execFileAsync(shell, args, {
@@ -1553,7 +1553,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd }: { id: string; cwd?: string }) => {
     requireFields({ id }, 'id');
-    let shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/bash';
+    let shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
     if (process.platform !== 'win32') {
       const preferred = process.env.SHELL;
       if (preferred && fs.existsSync(preferred)) {
@@ -1574,7 +1574,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         proc.stdin.write(`cd ${toRemoteShellPath(termCwd)}\n`);
       }
     } else {
-      proc = spawn(shell, ['-i'], {
+      const shellArgs = process.platform === 'win32' ? ['-NoLogo', '-NoExit'] : ['-i'];
+      proc = spawn(shell, shellArgs, {
         cwd: spawnCwd,
         env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],

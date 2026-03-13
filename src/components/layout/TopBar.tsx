@@ -61,7 +61,7 @@ export function TopBar() {
                 ? 'bg-accent text-white'
                 : 'text-text-tertiary hover:text-text-secondary'
             }`}
-            title="Plan mode (Cmd+Shift+P)"
+            title={`Plan mode (${isMac ? 'Cmd' : 'Ctrl'}+Shift+P)`}
           >
             <ClipboardList size={12} />
             Plan
@@ -73,7 +73,7 @@ export function TopBar() {
                 ? 'bg-success text-white'
                 : 'text-text-tertiary hover:text-text-secondary'
             }`}
-            title="Act mode (Cmd+Shift+P)"
+            title={`Act mode (${isMac ? 'Cmd' : 'Ctrl'}+Shift+P)`}
           >
             <Zap size={12} />
             Act

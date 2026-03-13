@@ -170,7 +170,7 @@ export function SettingsPanel() {
                     <label className="text-sm text-text-primary">Send Key</label>
                     <div className="flex gap-1.5">
                       {([
-                        { value: 'cmd+enter' as const, label: 'Cmd+Enter' },
+                        { value: 'cmd+enter' as const, label: window.api?.platform === 'darwin' ? 'Cmd+Enter' : 'Ctrl+Enter' },
                         { value: 'enter' as const, label: 'Enter' },
                       ]).map((opt) => (
                         <button
