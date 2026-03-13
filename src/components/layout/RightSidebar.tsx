@@ -18,30 +18,28 @@ export function RightSidebar() {
       animate={{ width: 280, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="flex flex-col h-full shrink-0 bg-bg-secondary border-l border-border-subtle overflow-hidden"
+      className="flex h-full shrink-0 flex-col overflow-hidden border-l border-border bg-bg-secondary"
     >
-      {/* Tab bar */}
-      <div className="flex items-center gap-0.5 px-1.5 py-1.5 border-b border-border-subtle">
+      <div className="flex items-center gap-1 border-b border-border px-2 py-2">
         <TabButton label="All files" active={activeTab === 'files'} onClick={() => setTab('files')} />
-        <TabButton label="Changes 0" active={activeTab === 'changes'} onClick={() => setTab('changes')} />
+        <TabButton label="Changes" active={activeTab === 'changes'} onClick={() => setTab('changes')} />
         <TabButton label="Checks" active={activeTab === 'checks'} onClick={() => setTab('checks')} />
         <div className="flex-1" />
-        <button className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors" title="Filter">
+        <button className="premium-toolbar-button rounded-md p-1 text-text-secondary" title="Filter">
           <Filter size={13} />
         </button>
-        <button className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors" title="Search">
+        <button className="premium-toolbar-button rounded-md p-1 text-text-secondary" title="Search">
           <Search size={13} />
         </button>
         <button
           onClick={close}
-          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button rounded-md p-1 text-text-secondary"
         >
           <X size={13} />
         </button>
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {activeTab === 'files' && <FilesTab />}
         {activeTab === 'changes' && <ChangesTab />}
         {activeTab === 'checks' && <ChecksTab />}
@@ -58,11 +56,7 @@ function TabButton({ label, active, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-        active
-          ? 'bg-bg-hover text-text-primary'
-          : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/60'
-      }`}
+      className={`classic-tab-button rounded-md px-2 py-1 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
     >
       {label}
     </button>
@@ -119,30 +113,30 @@ function FilesTab() {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-between px-3 pt-2 pb-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary truncate">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <span className="classic-section-label truncate">
           {projectName || 'No folder open'}
         </span>
-        <button onClick={handleOpenFolder} className="p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors" title="Open Folder">
+        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-md p-1 text-text-secondary" title="Open Folder">
           <FolderOpen size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-2">
         {!cwd && (
-          <div className="px-3 py-6 text-center">
-            <button onClick={handleOpenFolder} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-primary border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors">
+          <div className="px-4 py-6 text-center">
+            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-secondary">
               <FolderOpen size={14} />
               Open Folder
             </button>
           </div>
         )}
         {cwd && tree.length === 0 && !loading && (
-          <p className="text-[11px] text-text-tertiary px-3 py-4 text-center">Empty directory</p>
+          <p className="px-4 py-4 text-center text-[11px] text-text-tertiary">Empty directory</p>
         )}
         {loading && tree.length === 0 && (
-          <p className="text-[11px] text-text-tertiary px-3 py-4 text-center">Loading...</p>
+          <p className="px-4 py-4 text-center text-[11px] text-text-tertiary">Loading...</p>
         )}
         <FileTree nodes={tree} onFileSelect={handleFileSelect} onFileDoubleClick={handleFileMention} />
       </div>
@@ -157,12 +151,12 @@ function ChangesTab() {
   const gitBranch = useUiStore((s) => s.gitBranch);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-3 pt-3">
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
       <div className="flex items-center gap-2 mb-3">
         <GitCompareArrows size={14} className="text-text-tertiary" />
         <span className="text-xs text-text-secondary">{gitBranch || 'No branch'}</span>
         {gitDirty && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning font-medium">modified</span>
+          <span className="rounded-md border border-warning/20 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning">modified</span>
         )}
       </div>
       {!gitDirty && (
@@ -185,7 +179,7 @@ function ChecksTab() {
   const qualityGate = activeTask?.lastQualityGate;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-3 pt-3">
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
       {qualityGate ? (
         <div className="flex items-center gap-2">
           <CheckCircle2 size={14} className={qualityGate.status === 'passed' ? 'text-success' : 'text-error'} />

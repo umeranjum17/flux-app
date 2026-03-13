@@ -33,16 +33,16 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
       <div
         className={[
           role === 'user'
-            ? 'premium-message-user w-full rounded-[22px] px-4 py-3.5'
+            ? 'premium-message-user w-full px-4 py-3.5'
             : isActAssistant
-              ? 'premium-message-assistant w-full rounded-[22px] px-4 py-3.5'
+              ? 'premium-message-assistant w-full px-4 py-3.5'
               : 'w-full',
-          isPlanAssistant ? 'premium-plan-card rounded-[24px] p-[18px]' : '',
+          isPlanAssistant ? 'premium-plan-card p-[18px]' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (
           <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-plan/20 bg-plan/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-plan">
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-plan/20 bg-plan/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-plan">
               <ClipboardList size={12} className="text-plan" />
               Plan
             </span>
@@ -54,7 +54,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
               <button
                 key={i}
                 onClick={() => setEnlargedImage(src)}
-                className="premium-toolbar-button overflow-hidden rounded-2xl border border-border/70"
+                className="premium-toolbar-button overflow-hidden rounded-md border border-border/70"
               >
                 <img
                   src={src}
@@ -70,7 +70,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             {attachments.map((attachment) => (
               <div
                 key={`${attachment.path}:${attachment.name}`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/75 bg-bg-primary/70 px-2.5 py-1 text-xs text-text-secondary"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border/75 bg-bg-primary/70 px-2.5 py-1 text-xs text-text-secondary"
               >
                 <Paperclip size={12} />
                 <span className="truncate max-w-[220px]">{attachment.name}</span>
@@ -78,7 +78,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             ))}
           </div>
         )}
-        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-[13px] leading-6' : role === 'assistant' ? 'font-mono text-[12.5px] leading-6' : 'text-[13px] leading-6'}`}>
+        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-[13px] leading-6' : 'text-[13px] leading-6'}`}>
           <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{

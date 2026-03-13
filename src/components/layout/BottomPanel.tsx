@@ -40,19 +40,17 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
 
   return (
     <div
-      className="flex flex-col border-t border-border-subtle bg-bg-primary shrink-0"
+      className="flex shrink-0 flex-col border-t border-border bg-bg-secondary"
       style={{ height, minHeight: 120 }}
     >
-      {/* Drag handle */}
       <div
-        className="flex items-center justify-center h-1.5 cursor-row-resize hover:bg-accent/20 transition-colors group"
+        className="group flex h-2 cursor-row-resize items-center justify-center transition-colors hover:bg-bg-hover"
         onMouseDown={handleMouseDown}
       >
         <GripHorizontal size={12} className="text-text-tertiary/40 group-hover:text-text-tertiary" />
       </div>
 
-      {/* Tab bar */}
-      <div className="flex items-center gap-0 bg-bg-secondary/50 border-b border-border-subtle shrink-0">
+      <div className="flex shrink-0 items-center gap-0 border-b border-border bg-bg-secondary">
         <TabBtn active={tab === 'setup'} onClick={() => switchTab('setup')}>
           <Settings2 size={12} />
           Setup
@@ -66,7 +64,7 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
           Terminal
         </TabBtn>
         <button
-          className="flex items-center gap-1 px-2 py-1.5 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button ml-1 flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] text-text-secondary"
           title="New terminal"
         >
           <Plus size={11} />
@@ -93,11 +91,7 @@ function TabBtn({ active, onClick, children }: {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
-        active
-          ? 'border-text-secondary text-text-primary'
-          : 'border-transparent text-text-tertiary hover:text-text-secondary'
-      }`}
+      className={`classic-tab-button flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
     >
       {children}
     </button>

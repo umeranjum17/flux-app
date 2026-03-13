@@ -334,45 +334,47 @@ export function AppShell() {
   }, [createNewTab, cycleModel, cycleThinking]);
 
   return (
-    <div className="premium-shell flex min-w-[400px] flex-col h-screen bg-bg-primary text-text-primary">
-      <TopBar />
-      <div className="flex flex-1 overflow-hidden">
-        <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
-        <div className="flex flex-col flex-1 min-w-0">
-          {/* Chat area + right sidebar */}
-          <div className="flex flex-1 overflow-hidden">
-            <div className="relative flex flex-col flex-1 min-w-0">
-              {dashboardOpen ? (
-                reviewingWorkspaceId ? (
-                  <WorkspaceDashboard />
-                ) : activeWorkspaceId ? (
-                  <WorkspacePanel />
+    <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary text-text-primary">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-surface">
+        <TopBar />
+        <div className="flex flex-1 overflow-hidden">
+          <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
+          <div className="flex min-w-0 flex-1 flex-col">
+            {/* Chat area + right sidebar */}
+            <div className="flex flex-1 overflow-hidden">
+              <div className="relative flex min-w-0 flex-1 flex-col">
+                {dashboardOpen ? (
+                  reviewingWorkspaceId ? (
+                    <WorkspaceDashboard />
+                  ) : activeWorkspaceId ? (
+                    <WorkspacePanel />
+                  ) : (
+                    <WorkspaceDashboard />
+                  )
                 ) : (
-                  <WorkspaceDashboard />
-                )
-              ) : (
-                <>
-                  <TabBar />
-                  {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                  <div className="shrink-0 border-t border-border-subtle/80 bg-bg-secondary/55 px-4 py-3 backdrop-blur-xl">
-                    <LiveRunHeader />
-                    <ChatInput focused />
-                  </div>
-                </>
-              )}
+                  <>
+                    <TabBar />
+                    {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                    <div className="shrink-0 border-t border-border bg-bg-secondary px-4 py-3">
+                      <LiveRunHeader />
+                      <ChatInput focused />
+                    </div>
+                  </>
+                )}
 
-              {/* File viewer overlay */}
-              {explorerOpen && <FileExplorer />}
+                {/* File viewer overlay */}
+                {explorerOpen && <FileExplorer />}
+              </div>
+
+              {/* Right sidebar */}
+              <AnimatePresence>{rightSidebarOpen && <RightSidebar />}</AnimatePresence>
             </div>
 
-            {/* Right sidebar */}
-            <AnimatePresence>{rightSidebarOpen && <RightSidebar />}</AnimatePresence>
+            {/* Bottom panel */}
+            {bottomPanelOpen && <BottomPanel ref={termRef} />}
+
+            <StatusLine />
           </div>
-
-          {/* Bottom panel */}
-          {bottomPanelOpen && <BottomPanel ref={termRef} />}
-
-          <StatusLine />
         </div>
       </div>
     </div>

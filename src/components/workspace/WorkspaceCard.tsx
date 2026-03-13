@@ -36,43 +36,39 @@ export function WorkspaceCard({
   return (
     <button
       onClick={onSelect}
-      className={`w-full text-left rounded-lg border p-3 transition-all ${
+      className={`w-full rounded-[4px] border px-4 py-3 text-left transition-colors ${
         isActive
-          ? 'border-accent bg-accent/5 shadow-sm'
-          : 'border-border bg-bg-secondary hover:border-text-tertiary hover:bg-bg-hover'
+          ? 'border-accent/30 bg-accent-muted/35'
+          : 'border-border bg-bg-secondary hover:border-border-focus/40 hover:bg-bg-hover/70'
       }`}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
-          <span className="text-sm font-medium text-text-primary truncate">{workspace.name}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-text-primary">{workspace.name}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
+              <span className="inline-flex items-center gap-1">
+                <Bot size={11} />
+                {workspace.agentId}
+              </span>
+              <span>{workspace.model}</span>
+              <span>{workspace.branch}</span>
+            </div>
+          </div>
         </div>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-elevated text-text-tertiary font-medium shrink-0">
+        <span className="shrink-0 rounded-md border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-text-tertiary">
           {status.label}
         </span>
-      </div>
-
-      {/* Meta */}
-      <div className="flex items-center gap-3 text-[11px] text-text-tertiary mb-3">
-        <span className="flex items-center gap-1">
-          <Bot size={11} />
-          {workspace.agentId}
-        </span>
-        <span className="truncate">{workspace.model}</span>
-        <span className="truncate">{workspace.branch}</span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
         {isRunning && (
           <ActionButton icon={<Square size={12} />} label="Stop" onClick={onStop} variant="warning" />
         )}
         <ActionButton icon={<MessageSquare size={12} />} label="Chat" onClick={onSelect} />
         <ActionButton icon={<Eye size={12} />} label="Review" onClick={onReview} />
         <ActionButton icon={<GitMerge size={12} />} label="Merge" onClick={onMerge} />
-        <div className="flex-1" />
         <ActionButton icon={<Trash2 size={12} />} label="Delete" onClick={onDelete} variant="danger" />
+        </div>
       </div>
     </button>
   );
@@ -94,7 +90,7 @@ function ActionButton({ icon, label, onClick, variant }: {
     <button
       onClick={onClick}
       title={label}
-      className={`p-1.5 rounded-md text-text-tertiary transition-colors ${colors}`}
+      className={`premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors ${colors}`}
     >
       {icon}
     </button>
