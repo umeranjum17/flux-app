@@ -1,4 +1,4 @@
-import { Menu, Settings, ChevronDown, LayoutGrid } from 'lucide-react';
+import { Menu, Settings, ChevronDown, LayoutGrid, ClipboardList, Zap, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -10,6 +10,8 @@ export function TopBar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setMode = useUiStore((s) => s.setMode);
   const setOverlay = useUiStore((s) => s.setOverlay);
+  const autoApprove = useUiStore((s) => s.autoApprove);
+  const toggleAutoApprove = useUiStore((s) => s.toggleAutoApprove);
   const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
   const setDashboardOpen = useWorkspaceStore((s) => s.setDashboardOpen);
 
@@ -54,25 +56,43 @@ export function TopBar() {
         <div className="flex items-center rounded-md bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle">
           <button
             onClick={() => setMode('plan')}
-            className={`px-2.5 py-[3px] transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-[3px] transition-all ${
               mode === 'plan'
                 ? 'bg-accent text-white'
                 : 'text-text-tertiary hover:text-text-secondary'
             }`}
+            title="Plan mode (Cmd+Shift+P)"
           >
+            <ClipboardList size={12} />
             Plan
           </button>
           <button
             onClick={() => setMode('act')}
-            className={`px-2.5 py-[3px] transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-[3px] transition-all ${
               mode === 'act'
-                ? 'bg-accent text-white'
+                ? 'bg-success text-white'
                 : 'text-text-tertiary hover:text-text-secondary'
             }`}
+            title="Act mode (Cmd+Shift+P)"
           >
+            <Zap size={12} />
             Act
           </button>
         </div>
+
+        {/* Auto-approve toggle */}
+        <button
+          onClick={toggleAutoApprove}
+          className={`p-1.5 rounded-md transition-colors ${
+            autoApprove
+              ? 'bg-success/15 text-success hover:bg-success/25'
+              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
+          }`}
+          aria-label={autoApprove ? 'Auto-approve on' : 'Auto-approve off'}
+          title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
+        >
+          {autoApprove ? <ShieldCheck size={15} /> : <ShieldOff size={15} />}
+        </button>
 
         {/* Agent selector */}
         <button

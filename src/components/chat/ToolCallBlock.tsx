@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { Component, useState, useMemo } from 'react';
 import {
   Terminal,
   FileText,
@@ -13,8 +13,39 @@ import {
   CheckCircle,
   XCircle,
   Download,
+  AlertTriangle,
 } from 'lucide-react';
 import { BashPanel, ReadPanel, EditDiffPanel, SearchPanel, GlobPanel, GenericPanel } from './ToolPanels';
+
+class ToolContentErrorBoundary extends Component<
+  { children: React.ReactNode; fallbackContent?: string },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="px-3 pb-3">
+          <div className="rounded-md border border-error/20 bg-error/5 p-3">
+            <div className="flex items-center gap-2 text-xs text-error font-medium mb-1">
+              <AlertTriangle size={12} />
+              Failed to render tool output
+            </div>
+            {this.props.fallbackContent && (
+              <pre className="text-xs font-mono text-text-tertiary whitespace-pre-wrap max-h-32 overflow-y-auto mt-2">
+                {this.props.fallbackContent.slice(0, 500)}
+              </pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface ToolCallBlockProps {
   toolName: string;
@@ -327,18 +358,22 @@ export function ToolCallBlock({
       )}
 
       {!expanded && !isEdit && resultContent && !isSemanticTodo && !isSemanticQuestion && (
-        <ToolResultPreview toolName={toolName} resultContent={resultContent} />
+        <ToolContentErrorBoundary fallbackContent={resultContent}>
+          <ToolResultPreview toolName={toolName} resultContent={resultContent} />
+        </ToolContentErrorBoundary>
       )}
 
       {expanded && !isSemanticTodo && !isSemanticQuestion && (
-        <ExpandedToolContent
-          toolName={toolName}
-          toolInput={toolInput}
-          resultContent={resultContent}
-          resultIsError={resultIsError}
-          diff={diff}
-          filePath={resolvedFilePath}
-        />
+        <ToolContentErrorBoundary fallbackContent={resultContent ?? diff}>
+          <ExpandedToolContent
+            toolName={toolName}
+            toolInput={toolInput}
+            resultContent={resultContent}
+            resultIsError={resultIsError}
+            diff={diff}
+            filePath={resolvedFilePath}
+          />
+        </ToolContentErrorBoundary>
       )}
     </div>
   );

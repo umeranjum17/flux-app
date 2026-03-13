@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { SendHorizontal, Paperclip, Users2, Plus, X, RotateCcw, ChevronDown } from 'lucide-react';
+import { SendHorizontal, Paperclip, Users2, Plus, X, RotateCcw, ChevronDown, ClipboardList, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -37,6 +37,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [subagentModel, setSubagentModel] = useState('haiku');
   const [subagentDrafts, setSubagentDrafts] = useState([{ name: 'Explore', prompt: '' }]);
   const [showAgentSwitcher, setShowAgentSwitcher] = useState(false);
+  const agentSwitcherRef = useRef<HTMLDivElement>(null);
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode, switchTaskAgent } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
@@ -62,6 +63,18 @@ export function ChatInput({ focused }: ChatInputProps) {
       textareaRef.current?.focus();
     }
   }, [pendingMention]);
+
+  // Close agent switcher on click outside
+  useEffect(() => {
+    if (!showAgentSwitcher) return;
+    const handler = (e: MouseEvent) => {
+      if (agentSwitcherRef.current && !agentSwitcherRef.current.contains(e.target as Node)) {
+        setShowAgentSwitcher(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAgentSwitcher]);
 
   const autoResize = useCallback(() => {
     const el = textareaRef.current;
@@ -454,7 +467,7 @@ export function ChatInput({ focused }: ChatInputProps) {
 
         {/* Agent/model switcher pill */}
         {activeTask && (
-          <div className="relative mb-2">
+          <div ref={agentSwitcherRef} className="relative mb-2">
             <button
               type="button"
               onClick={() => setShowAgentSwitcher((v) => !v)}
@@ -551,13 +564,25 @@ export function ChatInput({ focused }: ChatInputProps) {
             style={{ maxHeight: 192 }}
           />
 
+          {/* Mode badge */}
+          <span className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold shrink-0 mb-0.5 select-none ${
+            mode === 'plan'
+              ? 'bg-accent/15 text-accent'
+              : 'bg-success/15 text-success'
+          }`}>
+            {mode === 'plan' ? <ClipboardList size={10} /> : <Zap size={10} />}
+            {mode === 'plan' ? 'PLAN' : 'ACT'}
+          </span>
+
           <button
             type="button"
             onClick={handleSend}
             disabled={!hasContent}
             className={`flex-shrink-0 p-2 rounded-lg transition-colors mb-0.5 ${
               hasContent
-                ? 'bg-accent text-white hover:opacity-90'
+                ? mode === 'plan'
+                  ? 'bg-accent text-white hover:opacity-90'
+                  : 'bg-success text-white hover:opacity-90'
                 : 'text-text-tertiary cursor-not-allowed'
             }`}
             aria-label="Send message"

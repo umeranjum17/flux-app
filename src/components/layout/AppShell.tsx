@@ -15,6 +15,7 @@ import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
+import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
@@ -58,8 +59,12 @@ export function AppShell() {
           if (config.defaultMode) {
             useUiStore.getState().setMode(config.defaultMode);
           }
-        } catch {
-          // config loading failed
+          if (typeof (config as any).autoApprove === 'boolean') {
+            useUiStore.getState().setAutoApprove((config as any).autoApprove);
+          }
+        } catch (err) {
+          toast.error('Failed to load configuration');
+          console.error('Config load failed:', err);
         }
 
         try {
@@ -84,19 +89,24 @@ export function AppShell() {
               }
             }
           }
-        } catch {
-          // agent detection failed
+        } catch (err) {
+          toast.error('Failed to detect agents');
+          console.error('Agent detection failed:', err);
         }
 
         try {
           const cwdResult = await window.api.invoke('cwd:get') as string;
           useUiStore.getState().setCwd(cwdResult);
-        } catch {}
+        } catch (err) {
+          console.error('CWD fetch failed:', err);
+        }
 
         try {
           const sessions = await window.api.invoke('sessions:list') as Session[];
           useSessionStore.getState().setSessions(sessions);
-        } catch {}
+        } catch (err) {
+          console.error('Sessions fetch failed:', err);
+        }
       } finally {
         useAgentStore.getState().setDetecting(false);
       }
@@ -153,13 +163,18 @@ export function AppShell() {
     return () => { clearTimeout(timeout); unsub(); };
   }, []);
 
-  // Auto-persist mode changes
+  // Auto-persist mode and autoApprove changes
   useEffect(() => {
     let prevMode = useUiStore.getState().mode;
+    let prevAutoApprove = useUiStore.getState().autoApprove;
     const unsub = useUiStore.subscribe((state) => {
       if (state.mode !== prevMode) {
         prevMode = state.mode;
         window.api.invoke('config:set', { defaultMode: state.mode }).catch(() => {});
+      }
+      if (state.autoApprove !== prevAutoApprove) {
+        prevAutoApprove = state.autoApprove;
+        window.api.invoke('config:set', { autoApprove: state.autoApprove }).catch(() => {});
       }
     });
     return unsub;
