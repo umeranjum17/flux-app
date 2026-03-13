@@ -32,9 +32,9 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
       <div
         className={[
           role === 'user'
-            ? 'bg-bg-elevated/80 rounded-lg px-4 py-3 w-full'
+            ? 'bg-bg-surface rounded-lg px-4 py-2.5 w-full'
             : 'w-full',
-          isPlanAssistant ? 'bg-accent/5 border border-accent/15 rounded-lg p-4' : '',
+          isPlanAssistant ? 'bg-accent/5 border border-accent/12 rounded-lg p-4' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (
@@ -73,7 +73,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             ))}
           </div>
         )}
-        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-sm leading-relaxed' : role === 'assistant' ? 'font-mono text-[13px] leading-relaxed' : ''}`}>
+        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-[13px] leading-relaxed' : role === 'assistant' ? 'font-mono text-[12.5px] leading-relaxed' : 'text-[13px]'}`}>
           <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
