@@ -1,27 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  /* Dark mode colors (default) */
-  --color-bg-primary: hsl(220 8% 8%);
-  --color-bg-secondary: hsl(220 6% 11%);
-  --color-bg-elevated: hsl(220 6% 14%);
-  --color-bg-hover: hsl(220 6% 17%);
+  /* Dark mode colors (default) — warm neutral palette inspired by Conductor */
+  --color-bg-primary: hsl(225 8% 7%);
+  --color-bg-secondary: hsl(225 6% 10%);
+  --color-bg-elevated: hsl(225 5% 13%);
+  --color-bg-hover: hsl(225 5% 16%);
+  --color-bg-surface: hsl(225 5% 11.5%);
 
-  --color-text-primary: hsl(0 0% 88%);
-  --color-text-secondary: hsl(0 0% 55%);
-  --color-text-tertiary: hsl(0 0% 38%);
+  --color-text-primary: hsl(220 10% 90%);
+  --color-text-secondary: hsl(220 6% 58%);
+  --color-text-tertiary: hsl(220 5% 40%);
 
-  --color-accent: hsl(220 50% 55%);
-  --color-accent-hover: hsl(220 50% 60%);
-  --color-accent-muted: hsl(220 30% 18%);
+  --color-accent: hsl(215 55% 52%);
+  --color-accent-hover: hsl(215 55% 58%);
+  --color-accent-muted: hsl(215 30% 16%);
 
-  --color-success: hsl(145 50% 42%);
-  --color-error: hsl(0 55% 50%);
-  --color-warning: hsl(40 60% 50%);
+  --color-success: hsl(152 48% 40%);
+  --color-error: hsl(0 52% 48%);
+  --color-warning: hsl(38 58% 48%);
   --color-info: hsl(210 50% 50%);
 
-  --color-border: hsl(220 6% 15%);
-  --color-border-focus: hsl(220 50% 55%);
+  --color-border: hsl(225 5% 14%);
+  --color-border-focus: hsl(215 55% 52%);
+  --color-border-subtle: hsl(225 4% 12%);
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -34,10 +36,12 @@
   --color-bg-secondary: hsl(40 15% 94%);
   --color-bg-elevated: hsl(0 0% 100%);
   --color-bg-hover: hsl(40 10% 91%);
+  --color-bg-surface: hsl(40 12% 95%);
   --color-text-primary: hsl(220 15% 15%);
   --color-text-secondary: hsl(220 10% 45%);
   --color-text-tertiary: hsl(220 10% 65%);
   --color-border: hsl(220 10% 88%);
+  --color-border-subtle: hsl(220 8% 91%);
 }
 
 html, body, #root {
@@ -49,24 +53,30 @@ body {
   margin: 0;
   overflow: hidden;
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 3px;
+  border-radius: 99px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-tertiary);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* File viewer shiki code */

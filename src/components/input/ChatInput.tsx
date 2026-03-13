@@ -383,7 +383,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="bg-bg-elevated/80 border border-border/40 rounded-lg p-3">
+      <div className="bg-bg-surface border border-border-subtle rounded-xl p-3">
         {showSubagentDialog && (
           <div className="mb-3 space-y-3 rounded-lg border border-border bg-bg-primary/80 p-3">
             <div className="flex items-center justify-between gap-3">
@@ -547,7 +547,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             placeholder={placeholder}
             rows={1}
             autoFocus
-            className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-sm leading-6"
+            className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-[13px] leading-[22px]"
             style={{ maxHeight: 192 }}
           />
 
@@ -562,7 +562,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             }`}
             aria-label="Send message"
           >
-            <SendHorizontal size={18} />
+            <SendHorizontal size={16} />
           </button>
         </div>
 

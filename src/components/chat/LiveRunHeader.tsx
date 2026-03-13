@@ -46,27 +46,27 @@ export function LiveRunHeader() {
         : phaseLabels[activeRun.phase];
 
   return (
-    <div className="mb-3 rounded-xl border border-border/60 bg-bg-secondary/80 px-4 py-3 backdrop-blur">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
-        <span className="inline-flex items-center gap-2 font-medium text-text-primary">
-          <Bot size={15} className="text-accent" />
+    <div className="mb-2.5 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2.5 text-[12px] text-text-secondary">
+        <span className="inline-flex items-center gap-1.5 font-medium text-text-primary">
+          <Bot size={13} className="text-accent" />
           {formatAgentLabel(task.agentId)}
         </span>
-        <span className="rounded-full border border-border/70 px-2 py-0.5 text-xs font-medium text-text-primary">
+        <span className="rounded-full border border-border-subtle px-2 py-[1px] text-[11px] font-medium text-text-primary">
           {phaseLabel}
         </span>
-        <span className="inline-flex items-center gap-1 text-xs">
-          <Clock3 size={13} />
+        <span className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
+          <Clock3 size={11} />
           {formatElapsed(now - activeRun.startedAt)}
         </span>
         {activeRun.activeToolName && (
-          <span className="inline-flex items-center gap-1 text-xs">
-            <Wrench size={13} />
+          <span className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
+            <Wrench size={11} />
             {activeRun.activeToolName}
           </span>
         )}
         {isStalled && (
-          <span className="text-xs text-warning">No updates for {Math.round(threshold / 1000)}s</span>
+          <span className="text-[11px] text-warning">No updates for {Math.round(threshold / 1000)}s</span>
         )}
       </div>
     </div>

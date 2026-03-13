@@ -55,7 +55,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex items-center gap-0 bg-bg-primary border-b border-border/30 shrink-0 px-1 overflow-x-auto">
+    <div className="flex items-center gap-0 bg-bg-secondary/40 border-b border-border-subtle shrink-0 px-1 overflow-x-auto">
       {tabOrder.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;
@@ -66,12 +66,12 @@ export function TabBar() {
           <div
             key={id}
             onClick={() => setActiveTask(id)}
-            className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-b-2 transition-colors min-w-0 max-w-[180px] ${
+            className={`group relative flex items-center gap-1.5 px-3 py-1 text-[11px] cursor-pointer border-b-[1.5px] transition-colors min-w-0 max-w-[180px] ${
               isActive
-                ? 'border-accent text-text-primary bg-bg-elevated/50'
+                ? 'border-accent text-text-primary bg-bg-elevated/40'
                 : needsAttention
-                  ? 'border-transparent text-warning hover:text-text-primary hover:bg-bg-hover/50'
-                  : 'border-transparent text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/50'
+                  ? 'border-transparent text-warning hover:text-text-secondary hover:bg-bg-hover/40'
+                  : 'border-transparent text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/40'
             }`}
           >
             <StatusDot status={task.status} />
