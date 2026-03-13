@@ -32,15 +32,17 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
       <div
         className={[
           role === 'user'
-            ? 'bg-bg-surface rounded-lg px-4 py-2.5 w-full'
+            ? 'bg-bg-surface rounded-xl px-4 py-3 w-full border border-border-subtle/50'
             : 'w-full',
-          isPlanAssistant ? 'bg-accent/5 border border-accent/12 rounded-lg p-4' : '',
+          isPlanAssistant ? 'bg-accent/[0.04] border border-accent/10 rounded-xl p-4' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (
-          <div className="flex items-center gap-1.5 mb-2">
-            <ClipboardList size={13} className="text-accent" />
-            <span className="text-xs text-accent font-medium">Plan</span>
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <div className="p-1 rounded bg-accent/10">
+              <ClipboardList size={11} className="text-accent" />
+            </div>
+            <span className="text-[11px] text-accent font-semibold uppercase tracking-wider">Plan</span>
           </div>
         )}
         {images && images.length > 0 && (

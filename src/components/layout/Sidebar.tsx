@@ -1,16 +1,15 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { MessageSquare, Files, Search, GitBranch, Plus, FolderOpen, Wifi, X, BarChart3 } from 'lucide-react';
+import { MessageSquare, Search, GitBranch, Plus, Wifi, X, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
-import { FileTree, type TreeNode } from '../explorer/FileTree';
 import { restoreSessionMessage } from '../../lib/session-messages';
 import type { TaskStatus } from '../../lib/types';
 import type { SessionMessage } from '../../lib/ipc-api';
 import { UsagePanel } from './UsagePanel';
 
-type SidebarTab = 'chat' | 'files' | 'search' | 'usage' | 'git';
+type SidebarTab = 'chat' | 'search' | 'usage' | 'git';
 
 const statusColors: Record<TaskStatus, string> = {
   running: 'bg-success',
@@ -35,7 +34,6 @@ export function Sidebar() {
       {/* Horizontal icon tabs */}
       <div className="flex items-center gap-0.5 px-1.5 py-1.5 border-b border-border-subtle">
         <TabButton icon={<MessageSquare size={14} />} label="Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
-        <TabButton icon={<Files size={14} />} label="Files" active={activeTab === 'files'} onClick={() => setActiveTab('files')} />
         <TabButton icon={<Search size={14} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
         <TabButton icon={<BarChart3 size={14} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
         <TabButton icon={<GitBranch size={14} />} label="Git" active={activeTab === 'git'} onClick={() => setActiveTab('git')} />
@@ -52,7 +50,6 @@ export function Sidebar() {
       {/* Tab content */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0">
         {activeTab === 'chat' && <ChatTab />}
-        {activeTab === 'files' && <FilesTab />}
         {activeTab === 'search' && <SearchTab />}
         {activeTab === 'usage' && <UsagePanel />}
         {activeTab === 'git' && <GitTab />}
@@ -197,88 +194,6 @@ function ChatTab() {
 
       <div className="px-3 py-2 border-t border-border">
         <span className="text-[11px] text-text-tertiary">Total cost: ${totalCost.toFixed(4)}</span>
-      </div>
-    </div>
-  );
-}
-
-/* ── Files Tab ────────────────────────────── */
-
-function FilesTab() {
-  const cwd = useUiStore((s) => s.cwd);
-  const projectName = useUiStore((s) => s.projectName);
-  const [tree, setTree] = useState<TreeNode[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const loadTree = useCallback(async () => {
-    if (!cwd) return;
-    setLoading(true);
-    try {
-      const result = await window.api.invoke('fs:readdir', { dirPath: cwd, depth: 2 }) as TreeNode[];
-      setTree(result);
-    } catch {
-      setTree([]);
-    }
-    setLoading(false);
-  }, [cwd]);
-
-  useEffect(() => {
-    loadTree();
-  }, [loadTree]);
-
-  const handleOpenFolder = async () => {
-    const sshConnected = useUiStore.getState().sshConnected;
-    if (sshConnected) {
-      useUiStore.getState().setOverlay('remote-folder-picker');
-      return;
-    }
-    const picked = await window.api.invoke('cwd:pick') as string | null;
-    if (picked) {
-      useUiStore.getState().setCwd(picked);
-      useUiStore.getState().setExplorerOpen(true);
-    }
-  };
-
-  const handleFileSelect = (filePath: string) => {
-    const name = filePath.split('/').pop() || filePath;
-    useUiStore.getState().setExplorerOpen(true);
-    useUiStore.getState().setActiveFile({ path: filePath, name });
-  };
-
-  const handleFileMention = (filePath: string) => {
-    useUiStore.getState().setPendingMention({
-      path: filePath,
-      name: filePath.split('/').pop() || filePath,
-    });
-  };
-
-  return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-between px-3 pt-2 pb-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary truncate">
-          {projectName || 'No folder open'}
-        </span>
-        <button onClick={handleOpenFolder} className="p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors" title="Open Folder">
-          <FolderOpen size={14} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto py-1">
-        {!cwd && (
-          <div className="px-3 py-6 text-center">
-            <button onClick={handleOpenFolder} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-primary border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors">
-              <FolderOpen size={14} />
-              Open Folder
-            </button>
-          </div>
-        )}
-        {cwd && tree.length === 0 && !loading && (
-          <p className="text-[11px] text-text-tertiary px-3 py-4 text-center">Empty directory</p>
-        )}
-        {loading && tree.length === 0 && (
-          <p className="text-[11px] text-text-tertiary px-3 py-4 text-center">Loading...</p>
-        )}
-        <FileTree nodes={tree} onFileSelect={handleFileSelect} onFileDoubleClick={handleFileMention} />
       </div>
     </div>
   );
