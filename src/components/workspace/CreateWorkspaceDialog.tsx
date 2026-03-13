@@ -33,9 +33,10 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
     if (!name.trim() || !branch.trim() || !prompt.trim()) return;
     setCreating(true);
     setError(null);
+    let workspace: Workspace | null = null;
 
     try {
-      const workspace = await window.api.invoke('workspace:create', {
+      workspace = await window.api.invoke('workspace:create', {
         name: name.trim(),
         parentRepo: cwd,
         branch: branch.trim(),
@@ -44,38 +45,54 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
       }) as Workspace;
 
       useWorkspaceStore.getState().addWorkspace(workspace);
+      useWorkspaceStore.getState().setDashboardOpen(true);
+      useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
+
+      useChatStore.getState().createTask({
+        id: workspace.id,
+        title: `[WS] ${workspace.name}`,
+        agentId: workspace.agentId as any,
+        model: workspace.model,
+        mode: 'act',
+        thinking: 'medium',
+        cwd: workspace.worktreePath,
+      });
+      useChatStore.getState().setTaskStatus(workspace.id, 'running');
+      useChatStore.getState().setActiveTask(workspace.id);
+      useWorkspaceStore.getState().updateWorkspace(workspace.id, {
+        status: 'running',
+      });
 
       // Spawn the agent
       const result = await window.api.invoke('workspace:spawn', {
         workspaceId: workspace.id,
         prompt: prompt.trim(),
         mode: 'act' as const,
-      }) as any;
+      }) as { session: { id: string } };
 
-      // Create a task in chat store so messages are rendered
-      useChatStore.getState().createTask({
-        id: workspace.id,
-        title: `[WS] ${name.trim()}`,
-        agentId: workspace.agentId as any,
-        model: workspace.model,
-        mode: 'act',
-        thinking: 'medium',
-        cwd: workspace.worktreePath,
-        sessionId: result.session.id,
-      });
-      useChatStore.getState().setTaskStatus(workspace.id, 'running');
-      useChatStore.getState().setActiveTask(workspace.id);
-
+      useChatStore.getState().setTaskSessionId(workspace.id, result.session.id);
       useWorkspaceStore.getState().updateWorkspace(workspace.id, {
         status: 'running',
         sessionId: result.session.id,
       });
-      useWorkspaceStore.getState().setDashboardOpen(true);
-      useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
 
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+
+      if (workspace) {
+        useWorkspaceStore.getState().updateWorkspace(workspace.id, {
+          status: 'error',
+        });
+        useChatStore.getState().addMessage(workspace.id, {
+          type: 'error',
+          role: 'system',
+          content: message,
+          timestamp: Date.now(),
+        });
+        useChatStore.getState().setTaskStatus(workspace.id, 'error');
+      }
     } finally {
       setCreating(false);
     }

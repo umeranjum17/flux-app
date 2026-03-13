@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 import { createMockApi, type MockApi } from '../../../test/mocks/window-api';
 import { useAgentStream } from '../useAgentStream';
 import { useChatStore } from '../../stores/chat';
@@ -65,11 +66,13 @@ describe('useAgentStream', () => {
     };
     mockApi._emit('agent:message', { taskId: 'task-1', message });
 
-    const task = useChatStore.getState().tasks.get('task-1');
-    expect(task).toBeDefined();
-    expect(task!.messages).toHaveLength(1);
-    expect(task!.messages[0].content).toBe('hi');
-    expect(task!.messages[0].role).toBe('assistant');
+    return waitFor(() => {
+      const task = useChatStore.getState().tasks.get('task-1');
+      expect(task).toBeDefined();
+      expect(task!.messages).toHaveLength(1);
+      expect(task!.messages[0].content).toBe('hi');
+      expect(task!.messages[0].role).toBe('assistant');
+    });
   });
 
   it('agent:message merges assistant stream chunks from the same run', () => {
@@ -95,9 +98,11 @@ describe('useAgentStream', () => {
       },
     });
 
-    const task = useChatStore.getState().tasks.get('task-1');
-    expect(task!.messages).toHaveLength(1);
-    expect(task!.messages[0].content).toBe('Hello');
+    return waitFor(() => {
+      const task = useChatStore.getState().tasks.get('task-1');
+      expect(task!.messages).toHaveLength(1);
+      expect(task!.messages[0].content).toBe('Hello');
+    });
   });
 
   it('agent:done sets task status to done', () => {
@@ -169,10 +174,12 @@ describe('useAgentStream', () => {
       },
     });
 
-    const task = useChatStore.getState().tasks.get('task-1');
-    expect(task?.status).toBe('waiting_input');
-    expect(task?.pendingQuestion?.requestId).toBe('q-1');
-    expect(task?.pendingQuestion?.prompt).toBe('Which direction should I take?');
+    return waitFor(() => {
+      const task = useChatStore.getState().tasks.get('task-1');
+      expect(task?.status).toBe('waiting_input');
+      expect(task?.pendingQuestion?.requestId).toBe('q-1');
+      expect(task?.pendingQuestion?.prompt).toBe('Which direction should I take?');
+    });
   });
 
   it('callbacks receive data as first arg (not old _event, data pattern)', () => {
@@ -194,8 +201,10 @@ describe('useAgentStream', () => {
       },
     });
 
-    const task = useChatStore.getState().tasks.get('task-1');
-    expect(task!.messages).toHaveLength(1);
-    expect(task!.messages[0].content).toBe('regression check');
+    return waitFor(() => {
+      const task = useChatStore.getState().tasks.get('task-1');
+      expect(task!.messages).toHaveLength(1);
+      expect(task!.messages[0].content).toBe('regression check');
+    });
   });
 });

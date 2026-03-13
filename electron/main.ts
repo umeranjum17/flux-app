@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
 import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers';
 import { runMigrations } from './core/db/migrations';
@@ -51,8 +51,17 @@ function createWindow(): void {
 
 app.on('ready', () => {
   console.info('[main] Electron app ready; starting initialization');
-  runMigrations();
-  createWindow();
+  try {
+    runMigrations();
+    createWindow();
+  } catch (error) {
+    console.error('[main] Failed to initialize application', error);
+    dialog.showErrorBox(
+      'Flux failed to start',
+      error instanceof Error ? error.message : String(error),
+    );
+    app.quit();
+  }
 });
 
 app.on('before-quit', () => {

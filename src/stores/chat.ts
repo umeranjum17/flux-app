@@ -165,6 +165,10 @@ export const useChatStore = create<ChatState>()(
           return;
         }
         appendMessage(task, message);
+        if (message.type === 'rate_limit') {
+          applyRateLimitMessage(task, message);
+        }
+        applyLiveMessage(task, message);
         promoteTaskStatus(task, message);
       });
     },
@@ -317,24 +321,13 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
 
   // Status messages (heartbeats) update a dedicated field instead of growing the array
   if (message.type === 'status') {
-    task.currentStatus = message.content;
-    task.currentStatusKind = message.statusKind;
-    applyLiveMessage(task, message);
+    applyStatusMessage(task, message);
     return;
   }
 
   // Rate limit messages update metadata without accumulating in the array
   if (message.type === 'rate_limit') {
-    task.rateLimitInfo = message.rateLimitInfo;
-    const info = message.rateLimitInfo as Record<string, any> | undefined;
-    const status = info?.status;
-    if (status === 'rejected') {
-      const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
-      task.rateLimitSuggestion = {
-        agents: allAgents.filter((a) => a !== task.agentId),
-      };
-    }
-    applyLiveMessage(task, message);
+    applyRateLimitMessage(task, message);
     return;
   }
 
@@ -362,6 +355,24 @@ function appendMessage(task: Task, message: AgentMessage): void {
       exitCode: message.exitCode ?? 0,
     };
   }
+}
+
+function applyStatusMessage(task: Task, message: AgentMessage): void {
+  task.currentStatus = message.content;
+  task.currentStatusKind = message.statusKind;
+  applyLiveMessage(task, message);
+}
+
+function applyRateLimitMessage(task: Task, message: AgentMessage): void {
+  task.rateLimitInfo = message.rateLimitInfo;
+  const info = message.rateLimitInfo as Record<string, any> | undefined;
+  if (info?.status === 'rejected') {
+    const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
+    task.rateLimitSuggestion = {
+      agents: allAgents.filter((a) => a !== task.agentId),
+    };
+  }
+  applyLiveMessage(task, message);
 }
 
 function appendSubagentMessage(task: Task, message: AgentMessage, mergeStream = false): void {

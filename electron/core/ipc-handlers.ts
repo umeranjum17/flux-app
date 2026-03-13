@@ -470,6 +470,24 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const usageTracker = new UsageTracker();
   const liveUsageService = new LiveUsageService();
   const workspaceStore = new WorkspaceStore();
+  const sendToRenderer = (channel: string, payload: unknown): boolean => {
+    const windowClosed = typeof (mainWindow as BrowserWindow & { isDestroyed?: () => boolean }).isDestroyed === 'function'
+      && (mainWindow as BrowserWindow & { isDestroyed: () => boolean }).isDestroyed();
+    const webContentsClosed = typeof (mainWindow.webContents as typeof mainWindow.webContents & { isDestroyed?: () => boolean }).isDestroyed === 'function'
+      && (mainWindow.webContents as typeof mainWindow.webContents & { isDestroyed: () => boolean }).isDestroyed();
+
+    if (windowClosed || webContentsClosed) {
+      return false;
+    }
+
+    try {
+      mainWindow.webContents.send(channel, payload);
+      return true;
+    } catch (error) {
+      console.warn(`[ipc-handlers] Failed to send ${channel}`, error);
+      return false;
+    }
+  };
   const registeredChannels = [
     'agents:detect',
     'agents:check-auth',
@@ -548,7 +566,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       status,
       ...(extra?.sessionId ? { sessionId: extra.sessionId } : {}),
     });
-    mainWindow.webContents.send('workspace:status', { workspaceId, status });
+    sendToRenderer('workspace:status', { workspaceId, status });
   };
 
   const resolveQualityGateCommands = async (cwd: string): Promise<string[]> => {
@@ -576,12 +594,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   const emitQualityGateMessage = (taskId: string, sessionId: string, message: AgentMessage) => {
     sessionStore.addMessage(sessionId, toStoredMessage(message));
-    mainWindow.webContents.send('agent:message', { taskId, message });
+    sendToRenderer('agent:message', { taskId, message });
   };
 
   const emitTaskMessage = (taskId: string, sessionId: string, message: AgentMessage) => {
     sessionStore.addMessage(sessionId, toStoredMessage(message));
-    mainWindow.webContents.send('agent:message', { taskId, message });
+    sendToRenderer('agent:message', { taskId, message });
   };
 
   const emitSubagentMessage = (
@@ -596,7 +614,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       subagentName,
       ...(message.subagentStatus ? {} : { subagentStatus: 'running' }),
     };
-    mainWindow.webContents.send('agent:message', { taskId: parentTaskId, message: payload });
+    sendToRenderer('agent:message', { taskId: parentTaskId, message: payload });
   };
 
   const persistAgentSessionId = (sessionId: string, agentId: AgentId, agentSessionId: string) => {
@@ -631,7 +649,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       listCheckpoints(workspaceId).length + 1,
       buildSessionTitle(prompt),
     );
-    mainWindow.webContents.send('workspace:checkpoint', { workspaceId, checkpoint });
+    sendToRenderer('workspace:checkpoint', { workspaceId, checkpoint });
   };
 
   const spawnTaskRun = async (options: SpawnOptions & { agentId?: string }) => {
@@ -840,7 +858,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         taskIdleHeartbeats.delete(options.taskId);
         return;
       }
-      mainWindow.webContents.send('agent:message', {
+      sendToRenderer('agent:message', {
         taskId: options.taskId,
         message: {
           type: 'status',
@@ -904,7 +922,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
 
       if (message.type === 'permission_request') {
-        mainWindow.webContents.send('agent:permission', {
+        sendToRenderer('agent:permission', {
           taskId: options.taskId,
           requestId: message.requestId,
           toolName: message.toolName ?? 'unknown',
@@ -913,12 +931,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           path: message.filePath,
         });
       }
-      mainWindow.webContents.send('agent:message', { taskId: options.taskId, message });
+      sendToRenderer('agent:message', { taskId: options.taskId, message });
 
       // Tool-execution heartbeats to prevent false "Stalled" detection
       if (message.type === 'tool_call' && message.toolCallId) {
         const heartbeatInterval = setInterval(() => {
-          mainWindow.webContents.send('agent:message', {
+          sendToRenderer('agent:message', {
             taskId: options.taskId,
             message: {
               type: 'status',
@@ -996,7 +1014,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
                   try { return sessionStore.getMessages(session.id).length; } catch { return 0; }
                 })());
                 const key = `0-${msgCount}`;
-                mainWindow.webContents.send('agent:diff', {
+                sendToRenderer('agent:diff', {
                   taskId: options.taskId,
                   key,
                   diff: diffData,
@@ -1007,7 +1025,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             }
           }
 
-          mainWindow.webContents.send('agent:done', { taskId: options.taskId, error: finalError });
+          sendToRenderer('agent:done', { taskId: options.taskId, error: finalError });
 
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
@@ -1060,7 +1078,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
     taskSessions.delete(taskId);
     cleaningUp.delete(taskId);
-    mainWindow.webContents.send('agent:done', { taskId, error: undefined });
+    sendToRenderer('agent:done', { taskId, error: undefined });
     const workspace = workspaceStore.get(taskId);
     if (workspace) {
       emitWorkspaceStatus(workspace.id, 'done');
@@ -1585,16 +1603,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     activeTerminals.set(id, proc);
 
     proc.stdout?.on('data', (data: Buffer) => {
-      mainWindow.webContents.send('terminal:data', { id, data: data.toString() });
+      sendToRenderer('terminal:data', { id, data: data.toString() });
     });
 
     proc.stderr?.on('data', (data: Buffer) => {
-      mainWindow.webContents.send('terminal:data', { id, data: data.toString() });
+      sendToRenderer('terminal:data', { id, data: data.toString() });
     });
 
     proc.on('exit', () => {
       activeTerminals.delete(id);
-      mainWindow.webContents.send('terminal:exit', { id });
+      sendToRenderer('terminal:exit', { id });
     });
 
     return { id };
@@ -1779,7 +1797,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
-    return getChangedFiles(workspace.worktreePath);
+    return getChangedFiles(workspace.worktreePath, workspace.parentRepo);
   });
 
   ipcMain.handle(
@@ -1789,7 +1807,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      return getFileDiff(workspace.worktreePath, filePath);
+      return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo);
     },
   );
 
@@ -1800,7 +1818,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      await discardFile(workspace.worktreePath, filePath);
+      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo);
     },
   );
 
@@ -1870,7 +1888,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // Push status updates to renderer
   repoMapService.onStatusChange((status) => {
-    mainWindow.webContents.send('repomap:status', status);
+    sendToRenderer('repomap:status', status);
   });
 }
 
