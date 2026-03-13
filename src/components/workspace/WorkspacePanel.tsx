@@ -11,32 +11,32 @@ export function WorkspacePanel() {
 
   if (!workspace) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-tertiary">
+      <div className="chrome-stage flex flex-1 items-center justify-center text-text-tertiary">
         <p>Select a workspace to view its chat</p>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-bg-secondary px-4 py-3">
+    <div className="chrome-stage flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-bg-primary/18 px-5 py-4">
         <button
           onClick={() => {
             useWorkspaceStore.getState().setActiveWorkspace(null);
             useChatStore.getState().setActiveTask(null);
           }}
-          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
           title="Back to dashboard"
         >
           <ArrowLeft size={14} />
         </button>
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-medium text-text-primary">{workspace.name}</span>
-          <span className="text-[10px] text-text-tertiary">{workspace.branch} · {workspace.agentId} · {workspace.model}</span>
+          <span className="block truncate text-sm font-medium text-text-primary">{workspace.name}</span>
+          <span className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{workspace.branch} · {workspace.agentId} · {workspace.model}</span>
         </div>
         <button
           onClick={() => useWorkspaceStore.getState().openReview(workspace.id)}
-          className="premium-toolbar-button inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-text-secondary"
+          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] text-text-secondary"
           title="Review changes"
         >
           <Eye size={14} />
@@ -46,7 +46,7 @@ export function WorkspacePanel() {
 
       <MessageList />
 
-      <div className="shrink-0 border-t border-border px-4 py-3">
+      <div className="shrink-0 border-t border-border/70 bg-bg-primary/28 px-5 py-4">
         <ChatInput focused />
       </div>
     </div>

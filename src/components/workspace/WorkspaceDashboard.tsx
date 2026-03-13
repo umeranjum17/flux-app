@@ -70,31 +70,31 @@ export function WorkspaceDashboard() {
   const mergingWorkspace = mergingWorkspaceId ? workspaces.get(mergingWorkspaceId) : null;
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-bg-primary">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
+    <div className="chrome-stage flex flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-6 py-5">
         <div className="min-w-0">
           <div className="classic-section-label">Workspaces</div>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <LayoutGrid size={16} className="text-accent" />
-            <h2 className="truncate text-sm font-semibold text-text-primary">{repositoryName}</h2>
-            <span className="rounded-md border border-border bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary">
+            <h2 className="truncate text-lg font-semibold tracking-[-0.02em] text-text-primary">{repositoryName}</h2>
+            <span className="premium-pill px-2 py-1 text-[10px] font-medium text-text-tertiary">
               {workspaceList.length}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-text-tertiary">
+          <p className="mt-1.5 text-[11px] text-text-tertiary">
             Isolated branches for parallel agent work.
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-muted/45 px-3 py-1.5 text-xs font-medium text-accent"
+          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
         >
           <Plus size={13} />
           New Workspace
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
         {workspaceList.length === 0 ? (
           <div className="premium-panel flex h-full flex-col items-center justify-center px-6 text-center">
             <LayoutGrid size={34} className="mb-3 text-text-tertiary/40" />
@@ -104,14 +104,14 @@ export function WorkspaceDashboard() {
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
+              className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
             >
               <Plus size={13} />
               Create First Workspace
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {workspaceList.map((ws) => (
               <WorkspaceCard
                 key={ws.id}

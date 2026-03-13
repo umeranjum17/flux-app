@@ -19,52 +19,54 @@ export function ActivityBar() {
   };
 
   return (
-    <div className="flex flex-col items-center w-12 min-w-[48px] h-full bg-bg-secondary border-r border-border py-2 gap-1">
-      {/* Explorer */}
-      <ActivityIcon
-        icon={<Files size={20} />}
-        label="Explorer"
-        shortcut="Cmd+E"
-        active={explorerOpen}
-        onClick={() => {
-          if (!cwd) {
-            handleOpenFolder();
-          } else {
-            useUiStore.getState().toggleExplorer();
-          }
-        }}
-      />
+    <div className="chrome-sidebar flex h-full w-[58px] min-w-[58px] flex-col items-center border-r border-border/70 px-2 py-3">
+      <div className="mb-3 flex flex-col items-center gap-2">
+        <div className="grid h-9 w-9 place-items-center rounded-2xl border border-border/80 bg-bg-primary/80 text-[11px] font-semibold tracking-[0.18em] text-text-primary">
+          FX
+        </div>
+      </div>
 
-      {/* Open Folder */}
-      <ActivityIcon
-        icon={<FolderOpen size={20} />}
-        label="Open Folder"
-        onClick={handleOpenFolder}
-      />
-
-      {/* Source Control */}
-      <div className="relative">
+      <div className="flex flex-col items-center gap-1.5">
         <ActivityIcon
-          icon={<GitBranch size={20} />}
-          label={gitBranch ? `${gitBranch}${gitDirty ? ' (modified)' : ''}` : 'Source Control'}
-          active={false}
-          badge={gitDirty}
+          icon={<Files size={20} />}
+          label="Explorer"
+          shortcut="Cmd+E"
+          active={explorerOpen}
+          onClick={() => {
+            if (!cwd) {
+              handleOpenFolder();
+            } else {
+              useUiStore.getState().toggleExplorer();
+            }
+          }}
+        />
+
+        <ActivityIcon
+          icon={<FolderOpen size={20} />}
+          label="Open Folder"
+          onClick={handleOpenFolder}
+        />
+
+        <div className="relative">
+          <ActivityIcon
+            icon={<GitBranch size={20} />}
+            label={gitBranch ? `${gitBranch}${gitDirty ? ' (modified)' : ''}` : 'Source Control'}
+            active={false}
+            badge={gitDirty}
+          />
+        </div>
+
+        <ActivityIcon
+          icon={sshConnected ? <Wifi size={20} /> : <WifiOff size={20} />}
+          label={sshConnected ? `SSH: ${sshHost}` : 'SSH Connect'}
+          active={sshConnected}
+          highlight={sshConnected}
+          onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
         />
       </div>
 
-      {/* SSH Remote */}
-      <ActivityIcon
-        icon={sshConnected ? <Wifi size={20} /> : <WifiOff size={20} />}
-        label={sshConnected ? `SSH: ${sshHost}` : 'SSH Connect'}
-        active={sshConnected}
-        highlight={sshConnected}
-        onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-      />
-
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Terminal */}
       <ActivityIcon
         icon={<TerminalSquare size={20} />}
         label="Terminal"
@@ -99,20 +101,14 @@ function ActivityIcon({
     <button
       onClick={onClick}
       title={title}
-      className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
-        active
-          ? 'text-text-primary bg-bg-hover'
-          : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
-      } ${highlight ? 'text-accent' : ''}`}
+      className={`chrome-rail-button ${active ? 'chrome-rail-button-active' : ''} ${highlight && !active ? 'text-accent' : ''}`}
     >
-      {/* Active indicator bar */}
       {active && (
-        <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-accent" />
+        <div className="absolute -left-2 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-accent" />
       )}
       {icon}
-      {/* Badge dot */}
       {badge && (
-        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-warning border border-bg-secondary" />
+        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-bg-secondary bg-warning" />
       )}
     </button>
   );

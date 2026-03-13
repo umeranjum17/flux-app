@@ -60,16 +60,16 @@ export function MessageList() {
 
   if (!task) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-tertiary">
-        <p className="text-sm">Ask Flux anything...</p>
+      <div className="flex flex-1 items-center justify-center text-text-tertiary">
+        <p className="text-sm tracking-[0.02em]">Ask Flux anything...</p>
       </div>
     );
   }
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-tertiary">
-        <p className="text-sm">Ask Flux anything...</p>
+      <div className="flex flex-1 items-center justify-center text-text-tertiary">
+        <p className="text-sm tracking-[0.02em]">Ask Flux anything...</p>
       </div>
     );
   }
@@ -102,9 +102,9 @@ export function MessageList() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-4 py-5"
+        className="h-full overflow-y-auto px-5 py-6"
       >
-        <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
           <AnimatePresence initial={false}>
             {(() => {
               const rendered: React.ReactNode[] = [];
@@ -223,7 +223,7 @@ export function MessageList() {
           )}
 
           {rateLimitSuggestion && taskId && (
-            <div className="premium-panel flex items-center justify-between gap-3 rounded-[20px] border border-warning/25 p-4 text-sm">
+            <div className="premium-panel flex items-center justify-between gap-3 rounded-[22px] border border-warning/25 p-4 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-warning font-medium">Rate limited.</span>
                 <span className="text-text-secondary">Switch to another agent?</span>
@@ -241,7 +241,7 @@ export function MessageList() {
                           switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
                           useAgentStore.getState().setSelectedAgent(agentId);
                         }}
-                        className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1 text-xs font-medium text-accent"
+                        className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1.5 text-xs font-medium text-accent"
                       >
                         {AGENT_LABELS[agentId] ?? agentId}
                       </button>
@@ -254,7 +254,7 @@ export function MessageList() {
                       if (t) t.rateLimitSuggestion = undefined;
                     });
                   }}
-                  className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
+                  className="premium-toolbar-button rounded-xl p-1.5 text-text-tertiary"
                 >
                   <X size={14} />
                 </button>
@@ -267,7 +267,7 @@ export function MessageList() {
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="premium-panel premium-toolbar-button absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full p-2.5"
+          className="premium-panel premium-toolbar-button absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full p-2.5"
           aria-label="Scroll to bottom"
         >
           <ArrowDown size={16} className="text-text-secondary" />

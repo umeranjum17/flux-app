@@ -1,4 +1,4 @@
-import { FolderOpen, Terminal, Keyboard, Zap, ArrowRight } from 'lucide-react';
+import { FolderOpen, Terminal, Zap, ArrowRight } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore, type RecentProject } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
@@ -48,41 +48,71 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
   };
 
   return (
-    <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-8">
-      <div className="w-full max-w-3xl space-y-5">
-        <div className="premium-panel-strong px-6 py-6">
-          <div className="classic-section-label">Workspace</div>
-          <h1 className="mt-2 text-2xl font-semibold text-text-primary">Flux</h1>
-          <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-            Open a repository, connect to a remote machine, or resume a recent project.
-          </p>
+    <div className="flex flex-1 overflow-y-auto px-6 py-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
+          <div className="premium-panel-strong px-7 py-7">
+            <div className="classic-section-label">Workspace</div>
+            <h1 className="mt-3 max-w-xl text-4xl font-semibold tracking-[-0.03em] text-text-primary">A calmer shell for coding with agents.</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
+              Open a repository, connect to a remote machine, or resume recent work. The layout is tuned for long-running sessions instead of noisy dashboard chrome.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <ShortcutHint keys="Cmd+K" label="Commands" />
+              <ShortcutHint keys="Cmd+B" label="Sidebar" />
+              <ShortcutHint keys="Cmd+E" label="Files" />
+              <ShortcutHint keys="Ctrl+`" label="Terminal" />
+            </div>
+          </div>
+
+          <div className="premium-panel flex flex-col justify-between px-6 py-6">
+            <div>
+              <div className="classic-section-label">Status</div>
+              <div className="mt-3 text-sm font-medium text-text-primary">{cwd ? 'Repository ready' : 'No folder open'}</div>
+              <p className="mt-2 text-xs leading-5 text-text-secondary">
+                {cwd
+                  ? 'Start a task, inspect files, or branch into isolated workspaces.'
+                  : 'Open a local directory or connect over SSH to begin.'}
+              </p>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 text-left">
+              <div className="premium-panel px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-text-tertiary">Agents</div>
+                <div className="mt-2 text-lg font-semibold text-text-primary">{agents.length}</div>
+              </div>
+              <div className="premium-panel px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-text-tertiary">Recent</div>
+                <div className="mt-2 text-lg font-semibold text-text-primary">{recentProjects.length}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <button
             onClick={() => onOpenProject()}
-            className="premium-toolbar-button premium-panel flex w-full items-start gap-3 p-4 text-left"
+            className="premium-toolbar-button premium-panel flex w-full items-start gap-4 p-5 text-left"
           >
-            <div className="rounded-md border border-accent/20 bg-accent-muted/40 p-3 text-accent">
-              <FolderOpen size={16} />
+            <div className="rounded-2xl border border-accent/20 bg-accent-muted/40 p-3 text-accent">
+              <FolderOpen size={18} />
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium text-text-primary">Open Folder</span>
-              <p className="mt-0.5 text-[11px] text-text-tertiary">Select a project directory</p>
+              <p className="mt-1 text-[11px] leading-5 text-text-tertiary">Select a local project directory and restore your last layout.</p>
             </div>
             <ArrowRight size={14} className="mt-1 text-text-tertiary" />
           </button>
 
           <button
             onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-            className="premium-toolbar-button premium-panel flex w-full items-start gap-3 p-4 text-left"
+            className="premium-toolbar-button premium-panel flex w-full items-start gap-4 p-5 text-left"
           >
-            <div className="rounded-md border border-plan/20 bg-plan-muted/40 p-3 text-plan">
-              <Terminal size={16} />
+            <div className="rounded-2xl border border-plan/20 bg-plan-muted/40 p-3 text-plan">
+              <Terminal size={18} />
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium text-text-primary">SSH Connect</span>
-              <p className="mt-0.5 text-[11px] text-text-tertiary">Connect to a remote machine</p>
+              <p className="mt-1 text-[11px] leading-5 text-text-tertiary">Connect to a remote machine and keep the same shell workflow.</p>
             </div>
             <ArrowRight size={14} className="mt-1 text-text-tertiary" />
           </button>
@@ -91,26 +121,26 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
         {cwd && (
           <div className="space-y-2">
             <div className="classic-section-label px-1">Quick Actions</div>
-            <div className="flex flex-wrap gap-2">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.label}
-                onClick={() => handleQuickAction(action.prompt)}
-                className="premium-toolbar-button premium-panel rounded-md px-4 py-2 text-[11px] text-text-secondary"
-              >
-                {action.label}
-              </button>
-            ))}
+            <div className="flex flex-wrap gap-2.5">
+              {QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  onClick={() => handleQuickAction(action.prompt)}
+                  className="premium-toolbar-button premium-panel rounded-2xl px-4 py-2.5 text-[11px] text-text-secondary"
+                >
+                  {action.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
         {recentProjects.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <h3 className="classic-section-label px-1">
               Recent Projects
             </h3>
-            <div className="space-y-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               {recentProjects.map((project) => (
                 <RecentProjectRow
                   key={project.path}
@@ -124,15 +154,15 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
 
         {/* Detected Agents */}
         {agents.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <h3 className="classic-section-label px-1">
               Agents
             </h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="premium-panel flex items-center gap-2 px-3 py-2 text-[11px]"
+                  className="premium-panel flex items-center gap-2.5 px-4 py-3 text-[11px]"
                 >
                   <span
                     className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -143,19 +173,12 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
                           : 'bg-text-tertiary'
                     }`}
                   />
-                  <span className="text-text-secondary truncate">{agent.name}</span>
+                  <span className="truncate text-text-secondary">{agent.name}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        <div className="flex items-center justify-center gap-5 pt-1">
-          <ShortcutHint keys="Cmd+K" label="Commands" />
-          <ShortcutHint keys="Cmd+B" label="Sidebar" />
-          <ShortcutHint keys="Cmd+E" label="Explorer" />
-          <ShortcutHint keys="Ctrl+`" label="Terminal" />
-        </div>
       </div>
     </div>
   );
@@ -166,16 +189,16 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
   return (
     <button
       onClick={onClick}
-      className="premium-toolbar-button premium-panel flex w-full items-center gap-3 px-3 py-3 text-left"
+      className="premium-toolbar-button premium-panel flex w-full items-center gap-3 px-4 py-4 text-left"
     >
       <Zap size={12} className="text-text-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
-        <span className="text-[12px] text-text-primary truncate block">{project.name}</span>
-        <span className="text-[10px] text-text-tertiary truncate block">{project.path}</span>
+        <span className="block truncate text-[13px] font-medium text-text-primary">{project.name}</span>
+        <span className="mt-1 block truncate text-[10px] text-text-tertiary">{project.path}</span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {project.isSSH && (
-          <span className="premium-pill rounded-md border border-accent/25 bg-accent-muted/40 px-2 py-0.5 text-[9px] text-accent">SSH</span>
+          <span className="premium-pill border border-accent/25 bg-accent-muted/40 px-2 py-1 text-[9px] text-accent">SSH</span>
         )}
         <span className="text-[10px] text-text-tertiary">{timeAgo}</span>
       </div>
@@ -185,11 +208,11 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
 
 function ShortcutHint({ keys, label }: { keys: string; label: string }) {
   return (
-    <div className="flex items-center gap-1">
-      <kbd className="premium-pill rounded-md px-1.5 py-0.5 text-[9px] font-mono text-text-tertiary">
+    <div className="flex items-center gap-1.5">
+      <kbd className="premium-pill px-2 py-1 text-[9px] font-mono text-text-tertiary">
         {keys}
       </kbd>
-      <span className="text-[9px] text-text-tertiary">{label}</span>
+      <span className="text-[9px] uppercase tracking-[0.12em] text-text-tertiary">{label}</span>
     </div>
   );
 }
