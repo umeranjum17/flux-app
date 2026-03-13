@@ -1,16 +1,17 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Paperclip, Users2, Plus, X, RotateCcw, Brain, Map, ClipboardList, Zap, Sparkles } from 'lucide-react';
+import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
+import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
-import type { AgentId, FileAttachment, ThinkingLevel } from '../../lib/types';
+import type { FileAttachment, ThinkingLevel } from '../../lib/types';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   low: 'Low',
@@ -40,8 +41,9 @@ export function ChatInput({ focused }: ChatInputProps) {
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
-  const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
+  const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
   const { mode, sendKey } = useUiStore();
+  const currentAgent = agents.find((agent) => agent.id === selectedAgentId);
   const pendingMention = useUiStore((s) => s.pendingMention);
 
   const isMac = window.api?.platform === 'darwin';
@@ -367,10 +369,14 @@ export function ChatInput({ focused }: ChatInputProps) {
   const isContinuing = activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
   const isModeSwitch = isContinuing && activeTask.mode !== mode;
 
-  // Display model name (shorten common prefixes)
-  const displayModel = selectedModel
-    .replace('claude-', '')
-    .replace('gpt-', 'GPT-');
+  const displayModel = (() => {
+    const model = dynamicModels.find((item) => item.id === selectedModel);
+    if (model) return model.name;
+    return selectedModel
+      .replace('claude-', '')
+      .replace('gpt-', 'GPT-');
+  })();
+  const supportsThinking = currentAgent?.supportsThinking ?? true;
 
   return (
     <div className="relative w-full">
@@ -529,8 +535,12 @@ export function ChatInput({ focused }: ChatInputProps) {
                 className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
                 title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
               >
-                <Sparkles size={12} className="text-text-tertiary" />
-                {displayModel}
+                <AgentIcon
+                  agentId={selectedAgentId}
+                  size={13}
+                  className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
+                />
+                <span className="max-w-[160px] truncate">{displayModel}</span>
               </button>
 
               <ModelSelectorDropdown
@@ -539,29 +549,17 @@ export function ChatInput({ focused }: ChatInputProps) {
               />
 
               {/* Thinking toggle */}
-              <button
-                type="button"
-                onClick={handleCycleThinking}
-                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
-                title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
-              >
-                <Brain size={12} className="text-accent" />
-                <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
-              </button>
-
-              {/* Plan mode icon */}
-              <button
-                type="button"
-                onClick={() => useUiStore.getState().toggleMode()}
-                className={`premium-toolbar-button rounded-full p-2 ${
-                  mode === 'plan'
-                    ? 'border border-plan/25 bg-plan/12 text-plan'
-                    : 'text-text-tertiary'
-                }`}
-                title={`${mode === 'plan' ? 'Disable' : 'Enable'} plan mode (Shift+Tab)`}
-              >
-                <Map size={14} />
-              </button>
+              {supportsThinking && (
+                <button
+                  type="button"
+                  onClick={handleCycleThinking}
+                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
+                  title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
+                >
+                  <Brain size={12} className="text-accent" />
+                  <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                </button>
+              )}
             </div>
 
             {/* Right controls */}

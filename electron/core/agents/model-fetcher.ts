@@ -23,9 +23,9 @@ export function clearModelCache(id?: AgentId): void {
 // --- Fallback defaults ---
 
 const CLAUDE_DEFAULTS: ModelInfo[] = [
-  { id: 'sonnet', name: 'Sonnet 4.6 (alias)' },
-  { id: 'opus', name: 'Opus 4.6 (alias)' },
-  { id: 'haiku', name: 'Haiku 4.5 (alias)' },
+  { id: 'sonnet', name: 'Claude Sonnet 4.6' },
+  { id: 'opus', name: 'Claude Opus 4.6' },
+  { id: 'haiku', name: 'Claude Haiku 4.5' },
 ];
 
 const CODEX_DEFAULTS: ModelInfo[] = [
