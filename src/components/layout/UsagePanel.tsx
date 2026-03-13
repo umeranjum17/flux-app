@@ -3,8 +3,8 @@ import { AlertCircle, BarChart3, RefreshCw, WifiOff } from 'lucide-react';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow, UsageInfo } from '../../lib/ipc-api';
 
 const PROVIDER_COLORS: Record<'claude-code' | 'codex', string> = {
-  'claude-code': '#D97706',
-  codex: '#10B981',
+  'claude-code': 'var(--color-info)',
+  codex: 'var(--color-accent)',
 };
 
 const STATUS_COLORS: Record<LiveUsageWindow['status'], string> = {
@@ -108,63 +108,27 @@ export function UsagePanel() {
   );
 }
 
-// --- SVG Gauge ---
-
-function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
-  const rad = ((angleDeg - 180) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-}
-
-function describeArc(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
-  const start = polarToCartesian(cx, cy, r, startDeg);
-  const end = polarToCartesian(cx, cy, r, endDeg);
-  const largeArc = endDeg - startDeg > 180 ? 1 : 0;
-  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
-}
-
-function SemiCircleGauge({ remainingPct, status }: { remainingPct: number; status: LiveUsageWindow['status'] }) {
-  const cx = 40;
-  const cy = 44;
-  const r = 32;
-  const fillDeg = Math.max(0, Math.min(1, remainingPct / 100)) * 180;
+function UsageWindowBar({ window: w }: { window: LiveUsageWindow }) {
+  const usedPct = Math.round(Math.max(0, Math.min(1, w.usedPercent)) * 100);
+  const remainingPct = Math.max(0, 100 - usedPct);
+  const barWidth = remainingPct === 0 ? 0 : Math.max(6, remainingPct);
 
   return (
-    <svg viewBox="0 0 80 48" className="w-full max-w-[80px] mx-auto">
-      <path
-        d={describeArc(cx, cy, r, 0, 180)}
-        fill="none"
-        stroke="var(--color-border)"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-      {fillDeg > 0.5 && (
-        <path
-          d={describeArc(cx, cy, r, 0, fillDeg)}
-          fill="none"
-          stroke={STATUS_COLORS[status]}
-          strokeWidth="6"
-          strokeLinecap="round"
+    <div className={`rounded-lg border border-border-subtle bg-bg-primary/55 px-2.5 py-2 ${w.isStale ? 'opacity-60' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-text-secondary">{w.windowLabel}</span>
+        <span className="text-sm font-semibold text-text-primary">{remainingPct}%</span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-hover">
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{ width: `${barWidth}%`, backgroundColor: STATUS_COLORS[w.status] }}
         />
-      )}
-    </svg>
-  );
-}
-
-// --- Window Gauge ---
-
-function WindowGauge({ window: w }: { window: LiveUsageWindow }) {
-  const remainingPct = Math.round((1 - w.usedPercent) * 100);
-
-  return (
-    <div className={`flex flex-col items-center gap-0.5 ${w.isStale ? 'opacity-60' : ''}`}>
-      <SemiCircleGauge remainingPct={remainingPct} status={w.status} />
-      <span className="text-lg font-bold text-text-primary leading-tight">{remainingPct}%</span>
-      <span className="text-[10px] text-text-tertiary">
-        {w.windowLabel}{w.isStale ? ' · stale' : ''}
-      </span>
-      {w.resetsAt && (
-        <span className="text-[10px] text-text-tertiary">resets in {formatTimeUntil(w.resetsAt)}</span>
-      )}
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
+        <span>{usedPct}% used{w.isStale ? ' · stale' : ''}</span>
+        {w.resetsAt ? <span>resets in {formatTimeUntil(w.resetsAt)}</span> : <span>no reset</span>}
+      </div>
     </div>
   );
 }
@@ -178,7 +142,7 @@ function ProviderCard({ provider }: { provider: LiveUsageProvider }) {
   const isError = provider.status === 'error';
 
   return (
-    <div className="rounded-xl border border-border bg-bg-elevated p-3">
+    <div className="rounded-xl border border-border bg-bg-elevated/80 p-3">
       {/* Provider header */}
       <div className="flex items-center gap-2 mb-2">
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
@@ -190,9 +154,9 @@ function ProviderCard({ provider }: { provider: LiveUsageProvider }) {
 
       {/* Connected with windows */}
       {hasWindows && (
-        <div className={`grid gap-3 ${provider.windows.length >= 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <div className="space-y-2.5">
           {provider.windows.map((w) => (
-            <WindowGauge key={`${w.providerId}-${w.windowKey}`} window={w} />
+            <UsageWindowBar key={`${w.providerId}-${w.windowKey}`} window={w} />
           ))}
         </div>
       )}

@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  /* Restrained desktop palette inspired by classic IDE shells. */
-  --color-bg-primary: hsl(24 8% 10%);
-  --color-bg-secondary: hsl(24 7% 13%);
-  --color-bg-elevated: hsl(24 7% 16%);
-  --color-bg-hover: hsl(24 7% 19%);
-  --color-bg-surface: hsl(24 8% 9%);
+  /* Minimal, neutral palette with restrained accents. */
+  --color-bg-primary: hsl(222 13% 10%);
+  --color-bg-secondary: hsl(222 12% 12.5%);
+  --color-bg-elevated: hsl(222 11% 15.5%);
+  --color-bg-hover: hsl(222 10% 19%);
+  --color-bg-surface: hsl(222 13% 8.5%);
 
-  --color-text-primary: hsl(38 18% 91%);
-  --color-text-secondary: hsl(34 10% 72%);
-  --color-text-tertiary: hsl(32 8% 54%);
+  --color-text-primary: hsl(210 20% 93%);
+  --color-text-secondary: hsl(215 13% 72%);
+  --color-text-tertiary: hsl(216 10% 56%);
 
-  --color-accent: hsl(41 64% 63%);
-  --color-accent-hover: hsl(42 70% 69%);
-  --color-accent-muted: hsl(34 18% 20%);
-  --color-plan: hsl(47 62% 65%);
-  --color-plan-hover: hsl(48 66% 71%);
-  --color-plan-muted: hsl(38 18% 21%);
+  --color-accent: hsl(160 70% 43%);
+  --color-accent-hover: hsl(160 64% 49%);
+  --color-accent-muted: hsl(160 25% 18%);
+  --color-plan: hsl(160 60% 52%);
+  --color-plan-hover: hsl(160 62% 58%);
+  --color-plan-muted: hsl(160 24% 19%);
 
-  --color-success: hsl(145 38% 48%);
-  --color-error: hsl(8 65% 59%);
-  --color-warning: hsl(37 72% 60%);
-  --color-info: hsl(188 38% 58%);
+  --color-success: hsl(142 52% 46%);
+  --color-error: hsl(2 73% 59%);
+  --color-warning: hsl(35 92% 58%);
+  --color-info: hsl(201 86% 60%);
 
-  --color-border: hsl(28 8% 23%);
-  --color-border-focus: hsl(40 52% 60%);
-  --color-border-subtle: hsl(28 8% 17%);
+  --color-border: hsl(220 9% 24%);
+  --color-border-focus: hsl(160 54% 50%);
+  --color-border-subtle: hsl(220 10% 18%);
 
   /* Typography */
   --font-sans: 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
@@ -34,48 +34,49 @@
 }
 
 :root {
-  --app-gradient: linear-gradient(180deg, hsl(24 8% 10.5%), hsl(24 9% 8%));
-  --panel-gradient: linear-gradient(180deg, hsl(24 7% 14%), hsl(24 7% 12.5%));
-  --panel-strong-gradient: linear-gradient(180deg, hsl(24 7% 15%), hsl(24 7% 13.25%));
-  --plan-gradient: linear-gradient(180deg, hsl(34 11% 17%), hsl(28 9% 13.75%));
-  --tool-gradient: linear-gradient(180deg, hsl(24 7% 15%), hsl(24 7% 12.75%));
+  --app-gradient: linear-gradient(180deg, hsl(222 14% 10.5%), hsl(222 14% 8.5%));
+  --panel-gradient: linear-gradient(180deg, hsl(222 12% 14%), hsl(222 12% 12.5%));
+  --panel-strong-gradient: linear-gradient(180deg, hsl(222 12% 14.75%), hsl(222 12% 13.25%));
+  --plan-gradient: linear-gradient(180deg, hsl(222 12% 14.75%), hsl(222 12% 13.25%));
+  --tool-gradient: linear-gradient(180deg, hsl(222 12% 14.5%), hsl(222 12% 12.75%));
   --panel-shadow:
-    0 12px 28px hsl(0 0% 0% / 0.18),
-    inset 0 1px 0 hsl(0 0% 100% / 0.03);
+    0 10px 24px hsl(0 0% 0% / 0.2),
+    inset 0 1px 0 hsl(0 0% 100% / 0.02);
   --panel-shadow-strong:
-    0 14px 34px hsl(0 0% 0% / 0.22),
-    inset 0 1px 0 hsl(0 0% 100% / 0.04);
+    0 14px 30px hsl(0 0% 0% / 0.26),
+    inset 0 1px 0 hsl(0 0% 100% / 0.03);
   --focus-ring:
-    0 0 0 1px hsl(40 54% 62% / 0.55),
-    0 0 0 4px hsl(40 54% 62% / 0.14);
+    0 0 0 1px hsl(160 60% 52% / 0.55),
+    0 0 0 4px hsl(160 60% 52% / 0.14);
 }
 
 /* Light theme override */
 .theme-light {
-  --color-bg-primary: hsl(36 20% 96%);
-  --color-bg-secondary: hsl(32 18% 92%);
+  --color-bg-primary: hsl(210 20% 97.5%);
+  --color-bg-secondary: hsl(210 16% 94.5%);
   --color-bg-elevated: hsl(0 0% 100%);
-  --color-bg-hover: hsl(30 16% 88%);
-  --color-bg-surface: hsl(35 18% 94%);
-  --color-text-primary: hsl(28 18% 17%);
-  --color-text-secondary: hsl(28 11% 38%);
-  --color-text-tertiary: hsl(28 10% 56%);
-  --color-border: hsl(28 10% 80%);
-  --color-border-subtle: hsl(28 12% 87%);
-  --app-gradient: linear-gradient(180deg, hsl(35 24% 97%), hsl(33 18% 93%));
-  --panel-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.96), hsl(35 22% 95% / 0.96));
-  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.99), hsl(33 20% 94% / 0.99));
-  --plan-gradient: linear-gradient(180deg, hsl(43 56% 95% / 0.96), hsl(34 40% 92.5% / 0.97));
-  --tool-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(34 20% 94.5% / 0.96));
+  --color-bg-hover: hsl(210 15% 90.5%);
+  --color-bg-surface: hsl(210 18% 96%);
+  --color-text-primary: hsl(222 22% 17%);
+  --color-text-secondary: hsl(220 13% 38%);
+  --color-text-tertiary: hsl(220 10% 53%);
+  --color-border: hsl(214 16% 82%);
+  --color-border-focus: hsl(160 56% 42%);
+  --color-border-subtle: hsl(214 18% 88%);
+  --app-gradient: linear-gradient(180deg, hsl(210 24% 98%), hsl(210 16% 95.5%));
+  --panel-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.96), hsl(210 20% 96% / 0.96));
+  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.99), hsl(210 18% 95% / 0.99));
+  --plan-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(210 18% 95% / 0.97));
+  --tool-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(210 18% 95.5% / 0.96));
   --panel-shadow:
-    0 10px 24px hsl(28 24% 42% / 0.08),
+    0 8px 18px hsl(220 30% 20% / 0.06),
     inset 0 1px 0 hsl(0 0% 100%);
   --panel-shadow-strong:
-    0 14px 30px hsl(28 24% 42% / 0.1),
+    0 12px 24px hsl(220 30% 20% / 0.08),
     inset 0 1px 0 hsl(0 0% 100%);
   --focus-ring:
-    0 0 0 1px hsl(40 54% 62% / 0.5),
-    0 0 0 4px hsl(40 54% 62% / 0.14);
+    0 0 0 1px hsl(160 56% 42% / 0.45),
+    0 0 0 4px hsl(160 56% 42% / 0.12);
 }
 
 html, body, #root {
@@ -101,7 +102,7 @@ body {
 }
 
 ::selection {
-  background: hsl(37 58% 60% / 0.25);
+  background: hsl(160 70% 43% / 0.24);
   color: var(--color-text-primary);
 }
 
@@ -122,7 +123,7 @@ button:focus-visible {
   height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(0 0% 0% / 0.04);
+  background: hsl(0 0% 0% / 0.08);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
@@ -151,11 +152,11 @@ button:focus-visible {
 }
 
 .premium-shell::before {
-  background: linear-gradient(180deg, hsl(0 0% 100% / 0.03), transparent 18%);
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.02), transparent 22%);
 }
 
 .premium-shell::after {
-  background: linear-gradient(180deg, transparent 84%, hsl(0 0% 0% / 0.08));
+  background: linear-gradient(180deg, transparent 88%, hsl(0 0% 0% / 0.05));
 }
 
 .premium-shell > * {
@@ -170,47 +171,47 @@ button:focus-visible {
 .premium-tool-card,
 .premium-message-user,
 .premium-message-assistant {
-  border: 1px solid hsl(28 8% 23% / 0.9);
+  border: 1px solid var(--color-border);
   box-shadow: var(--panel-shadow);
   backdrop-filter: none;
 }
 
 .premium-panel {
-  background: hsl(24 7% 13.5%);
-  border-radius: 6px;
+  background: var(--panel-gradient);
+  border-radius: 8px;
 }
 
 .premium-panel-strong {
-  background: hsl(24 7% 13.5%);
+  background: var(--panel-strong-gradient);
   box-shadow: none;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .premium-plan-card {
-  background: hsl(28 9% 14.5%);
-  border-color: hsl(40 20% 28% / 0.85);
+  background: var(--plan-gradient);
+  border-color: var(--color-border);
   box-shadow: none;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .premium-tool-card {
   position: relative;
   overflow: hidden;
-  background: hsl(24 7% 13.5%);
-  border-radius: 6px;
+  background: var(--tool-gradient);
+  border-radius: 8px;
 }
 
 .premium-tool-card::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, hsl(0 0% 100% / 0.02), transparent 20%);
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.015), transparent 24%);
   pointer-events: none;
 }
 
 .premium-message-user {
-  background: hsl(24 7% 15.5%);
-  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  border-radius: 8px;
 }
 
 .premium-message-assistant {
@@ -221,9 +222,9 @@ button:focus-visible {
 }
 
 .premium-input-shell {
-  background: hsl(24 7% 13.5%);
+  background: var(--panel-gradient);
   box-shadow: none;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .premium-toolbar-button {
@@ -239,13 +240,13 @@ button:focus-visible {
 
 .premium-toolbar-button:hover {
   color: var(--color-text-primary);
-  background: hsl(24 7% 18.5% / 0.92);
-  border-color: hsl(28 8% 25% / 0.95);
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.03);
+  background: var(--color-bg-hover);
+  border-color: var(--color-border);
+  box-shadow: none;
 }
 
 .premium-toolbar-button:active {
-  background: hsl(24 7% 17% / 0.96);
+  background: var(--color-bg-elevated);
 }
 
 .premium-toolbar-button:focus-visible,
@@ -256,15 +257,15 @@ button:focus-visible {
 
 .premium-pill {
   border-radius: 4px;
-  border: 1px solid hsl(28 8% 24% / 0.95);
-  background: hsl(24 7% 15% / 0.94);
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.03);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  box-shadow: none;
 }
 
 .premium-divider {
   height: 1px;
   width: 100%;
-  background: linear-gradient(90deg, transparent, hsl(28 8% 24% / 0.9), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-border), transparent);
 }
 
 .classic-section-label {
@@ -291,14 +292,14 @@ button:focus-visible {
 }
 
 .classic-nav-button:hover {
-  background: hsl(24 7% 17.75% / 0.96);
-  border-color: hsl(28 8% 24% / 0.9);
+  background: var(--color-bg-hover);
+  border-color: var(--color-border);
   color: var(--color-text-primary);
 }
 
 .classic-nav-button-active {
-  background: hsl(24 7% 18% / 0.98);
-  border-color: hsl(28 8% 25% / 0.95);
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
   color: var(--color-text-primary);
 }
 
@@ -318,13 +319,13 @@ button:focus-visible {
 }
 
 .classic-list-button:hover {
-  background: hsl(24 7% 17.75% / 0.94);
-  border-color: hsl(28 8% 24% / 0.88);
+  background: var(--color-bg-hover);
+  border-color: var(--color-border);
 }
 
 .classic-list-button-active {
-  background: hsl(24 7% 18.5% / 0.98);
-  border-color: hsl(28 8% 25% / 0.95);
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
 }
 
 .classic-tab-button {
@@ -339,13 +340,13 @@ button:focus-visible {
 
 .classic-tab-button:hover {
   color: var(--color-text-secondary);
-  background: hsl(24 7% 17.5% / 0.78);
+  background: var(--color-bg-hover);
 }
 
 .classic-tab-button-active {
   border-color: var(--color-accent);
   color: var(--color-text-primary);
-  background: linear-gradient(180deg, hsl(24 7% 17% / 0.82), transparent);
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.04), transparent);
 }
 
 /* File viewer shiki code */

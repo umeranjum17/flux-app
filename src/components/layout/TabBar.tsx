@@ -56,7 +56,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-border bg-bg-secondary px-2">
+    <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-border/75 bg-bg-primary/35 px-2 backdrop-blur-sm">
       {tabOrder.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;

@@ -29,7 +29,7 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 256, opacity: 1 }}
+      animate={{ width: 304, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.16, ease: 'easeOut' }}
       className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-bg-secondary"
