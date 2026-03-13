@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, ChevronDown, RefreshCw, Loader2 } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
+import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import type { ThinkingLevel } from '../../lib/types';
 
 const thinkingLevels: { value: ThinkingLevel; label: string; short: string }[] = [
@@ -103,6 +104,14 @@ export function AgentSelector() {
                         : 'text-text-tertiary opacity-50 cursor-not-allowed'
                   }`}
                 >
+                  <AgentIcon
+                    agentId={agent.id}
+                    size={16}
+                    className={agent.id === selectedAgentId
+                      ? (AGENT_COLORS[agent.id] ?? 'text-text-primary')
+                      : 'text-text-tertiary'
+                    }
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-[13px]">{agent.name}</span>

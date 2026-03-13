@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Paperclip, Users2, Plus, X, RotateCcw, Brain, Map, ClipboardList, Zap, Sparkles } from 'lucide-react';
+import { ArrowUp, Paperclip, Users2, Plus, X, RotateCcw, Brain, ClipboardList, Zap } from 'lucide-react';
+import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -40,8 +41,9 @@ export function ChatInput({ focused }: ChatInputProps) {
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
-  const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
+  const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
   const { mode, sendKey } = useUiStore();
+  const currentAgent = agents.find((a) => a.id === selectedAgentId);
   const pendingMention = useUiStore((s) => s.pendingMention);
 
   const isMac = window.api?.platform === 'darwin';
@@ -367,10 +369,17 @@ export function ChatInput({ focused }: ChatInputProps) {
   const isContinuing = activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
   const isModeSwitch = isContinuing && activeTask.mode !== mode;
 
-  // Display model name (shorten common prefixes)
-  const displayModel = selectedModel
-    .replace('claude-', '')
-    .replace('gpt-', 'GPT-');
+  // Display model name from dynamic models or fallback
+  const displayModel = (() => {
+    const found = dynamicModels.find((m) => m.id === selectedModel);
+    if (found) return found.name;
+    // Fallback: prettify the raw ID
+    return selectedModel
+      .replace('claude-', '')
+      .replace('gpt-', 'GPT-');
+  })();
+
+  const supportsThinking = currentAgent?.supportsThinking ?? true;
 
   return (
     <div className="relative w-full">
@@ -520,11 +529,15 @@ export function ChatInput({ focused }: ChatInputProps) {
             <button
               type="button"
               onClick={() => setShowModelSelector((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors"
               title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
             >
-              <Sparkles size={12} className="text-text-tertiary" />
-              {displayModel}
+              <AgentIcon
+                agentId={selectedAgentId}
+                size={13}
+                className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
+              />
+              <span className="max-w-[140px] truncate">{displayModel}</span>
             </button>
 
             <ModelSelectorDropdown
@@ -532,36 +545,33 @@ export function ChatInput({ focused }: ChatInputProps) {
               onClose={() => setShowModelSelector(false)}
             />
 
-            {/* Thinking toggle */}
-            <button
-              type="button"
-              onClick={handleCycleThinking}
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-text-secondary hover:bg-bg-hover transition-colors"
-              title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
-            >
-              <Brain size={12} className="text-accent" />
-              <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
-            </button>
-
-            {/* Plan mode icon */}
-            <button
-              type="button"
-              onClick={() => useUiStore.getState().toggleMode()}
-              className={`p-1.5 rounded-md transition-colors ${
-                mode === 'plan'
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
-              }`}
-              title={`${mode === 'plan' ? 'Disable' : 'Enable'} plan mode (Shift+Tab)`}
-            >
-              <Map size={14} />
-            </button>
+            {/* Thinking toggle — only shown for agents that support it */}
+            {supportsThinking && (
+              <button
+                type="button"
+                onClick={handleCycleThinking}
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+                title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
+              >
+                <Brain size={12} className="text-accent" />
+                <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
+              </button>
+            )}
           </div>
 
           {/* Right controls */}
           <div className="flex items-center gap-1">
             {/* Plan / Act segmented toggle */}
-            <div className="flex items-center rounded-lg bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle p-[2px]">
+            <div
+              className="relative flex items-center rounded-lg bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle p-[2px]"
+              title="Toggle plan/act mode (Shift+Tab)"
+            >
+              {/* Sliding background indicator */}
+              <div
+                className={`absolute top-[2px] bottom-[2px] w-[calc(50%-2px)] rounded-[6px] transition-all duration-200 ease-out ${
+                  mode === 'plan' ? 'left-[2px] bg-accent' : 'left-[calc(50%)] bg-success'
+                }`}
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -569,9 +579,9 @@ export function ChatInput({ focused }: ChatInputProps) {
                   const t = getActiveTask();
                   if (t) setTaskMode(t.id, 'plan');
                 }}
-                className={`flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-all duration-150 ${
+                className={`relative z-10 flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-colors duration-200 ${
                   mode === 'plan'
-                    ? 'bg-accent text-white shadow-sm'
+                    ? 'text-white'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
@@ -585,9 +595,9 @@ export function ChatInput({ focused }: ChatInputProps) {
                   const t = getActiveTask();
                   if (t) setTaskMode(t.id, 'act');
                 }}
-                className={`flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-all duration-150 ${
+                className={`relative z-10 flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-colors duration-200 ${
                   mode === 'act'
-                    ? 'bg-success text-white shadow-sm'
+                    ? 'text-white'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
