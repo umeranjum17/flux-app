@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Clock3, Wrench } from 'lucide-react';
+import { Bot, Clock3, Wrench, ClipboardList, Zap } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 
 const STALLED_THRESHOLDS: Record<string, number> = {
@@ -45,12 +45,27 @@ export function LiveRunHeader() {
         ? 'Stalled'
         : phaseLabels[activeRun.phase];
 
+  const isPlan = task.mode === 'plan';
+
   return (
-    <div className="mb-3 rounded-xl border border-border/60 bg-bg-secondary/80 px-4 py-3 backdrop-blur">
+    <div className={`mb-3 rounded-xl border px-4 py-3 backdrop-blur ${
+      isPlan
+        ? 'border-accent/30 bg-accent/5'
+        : 'border-border/60 bg-bg-secondary/80'
+    }`}>
       <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
         <span className="inline-flex items-center gap-2 font-medium text-text-primary">
-          <Bot size={15} className="text-accent" />
+          <Bot size={15} className={isPlan ? 'text-accent' : 'text-success'} />
           {formatAgentLabel(task.agentId)}
+        </span>
+        {/* Mode badge */}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+          isPlan
+            ? 'bg-accent/15 text-accent'
+            : 'bg-success/15 text-success'
+        }`}>
+          {isPlan ? <ClipboardList size={11} /> : <Zap size={11} />}
+          {isPlan ? 'Planning' : 'Executing'}
         </span>
         <span className="rounded-full border border-border/70 px-2 py-0.5 text-xs font-medium text-text-primary">
           {phaseLabel}

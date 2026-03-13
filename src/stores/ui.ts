@@ -51,6 +51,10 @@ interface UiState {
   // Recent projects
   recentProjects: RecentProject[];
 
+  // Auto-approve
+  autoApprove: boolean;
+  autoApproveTools: string[];
+
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
   toggleTheme(): void;
@@ -78,6 +82,9 @@ interface UiState {
   addRecentProject(project: RecentProject): void;
   connectSsh(host: string, cwd: string): void;
   disconnectSsh(localCwd: string): void;
+  setAutoApprove(enabled: boolean): void;
+  toggleAutoApprove(): void;
+  setAutoApproveTools(tools: string[]): void;
 }
 
 function basename(p: string): string {
@@ -105,6 +112,8 @@ export const useUiStore = create<UiState>()(
     activeFile: null,
     pendingMention: null,
     recentProjects: [],
+    autoApprove: false,
+    autoApproveTools: ['Read', 'Glob', 'Grep', 'Bash'],
 
     toggleSidebar() {
       set((state) => {
@@ -283,6 +292,24 @@ export const useUiStore = create<UiState>()(
         state.cwd = localCwd;
         state.projectName = basename(localCwd);
         state.activeFile = null;
+      });
+    },
+
+    setAutoApprove(enabled) {
+      set((state) => {
+        state.autoApprove = enabled;
+      });
+    },
+
+    toggleAutoApprove() {
+      set((state) => {
+        state.autoApprove = !state.autoApprove;
+      });
+    },
+
+    setAutoApproveTools(tools) {
+      set((state) => {
+        state.autoApproveTools = tools;
       });
     },
   })),

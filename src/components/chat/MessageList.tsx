@@ -25,6 +25,7 @@ import { StreamingCursor } from './StreamingCursor';
 import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
 import { DiffBlock } from './DiffBlock';
+import { PlanCard } from './PlanCard';
 
 const messageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -179,7 +180,7 @@ export function MessageList() {
                   exit="exit"
                   transition={{ duration: 0.15 }}
                 >
-                  {renderMessage(msg, idx, taskId!, taskStatus, mergedResult, task.mode)}
+                  {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode)}
                 </motion.div>,
               );
             }
@@ -203,8 +204,8 @@ export function MessageList() {
           </>
         )}
 
-        {task.mode === 'plan' && taskStatus === 'done' && taskId && (
-          <PlanActionBar task={task} />
+        {task.mode === 'plan' && taskId && (taskStatus === 'done' || isStreaming) && (
+          <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
         )}
 
         {rateLimitSuggestion && taskId && (

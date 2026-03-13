@@ -206,4 +206,5 @@ export interface Task {
   agentHistory: AgentHistoryEntry[];
   rateLimitSuggestion?: { agents: AgentId[] };
   diffs: Map<string, DiffData>;
+  planRevisions?: string[];
 }

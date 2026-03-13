@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
+import { useUiStore } from '../stores/ui';
 import type { AgentMessage, DiffData } from '../lib/types';
+
+function shouldAutoApprove(toolName: string): boolean {
+  const { autoApprove, autoApproveTools } = useUiStore.getState();
+  if (!autoApprove) return false;
+  return autoApproveTools.some((t) => toolName.toLowerCase().includes(t.toLowerCase()));
+}
 
 export function useAgentStream() {
   useEffect(() => {
@@ -24,6 +32,14 @@ export function useAgentStream() {
 
     const unsubPermission = window.api.on('agent:permission', (data: unknown) => {
       const { taskId, requestId, toolName, description, action, path } = data as any;
+
+      if (shouldAutoApprove(toolName)) {
+        toast(`Auto-approved: ${toolName}`, { duration: 2000 });
+        useChatStore.getState().setPendingApproval(taskId, null);
+        window.api.invoke('task:approve', { taskId, requestId });
+        return;
+      }
+
       useChatStore.getState().setPendingApproval(taskId, { requestId, toolName, description, action, path });
     });
 

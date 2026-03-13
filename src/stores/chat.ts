@@ -54,6 +54,8 @@ interface ChatState {
   getActiveTask(): Task | undefined;
 }
 
+const MAX_TASKS = 20;
+
 export const useChatStore = create<ChatState>()(
   immer((set, get) => ({
     tasks: new Map(),
@@ -62,6 +64,23 @@ export const useChatStore = create<ChatState>()(
 
     createTask(opts) {
       set((state) => {
+        // Auto-close oldest idle tabs when exceeding limit
+        if (state.tabOrder.length >= MAX_TASKS) {
+          const oldest = state.tabOrder.find((id) => {
+            const t = state.tasks.get(id);
+            return t && (t.status === 'idle' || t.status === 'done' || t.status === 'error') && id !== state.activeTaskId;
+          });
+          if (oldest) {
+            const task = state.tasks.get(oldest);
+            if (task) {
+              task.subagents.clear();
+              task.diffs.clear();
+            }
+            state.tasks.delete(oldest);
+            state.tabOrder = state.tabOrder.filter((id) => id !== oldest);
+          }
+        }
+
         state.tabOrder.push(opts.id);
         state.tasks.set(opts.id, {
           id: opts.id,
@@ -87,6 +106,11 @@ export const useChatStore = create<ChatState>()(
 
     removeTask(taskId) {
       set((state) => {
+        const task = state.tasks.get(taskId);
+        if (task) {
+          task.subagents.clear();
+          task.diffs.clear();
+        }
         state.tasks.delete(taskId);
         state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
         if (state.activeTaskId === taskId) {
@@ -102,6 +126,11 @@ export const useChatStore = create<ChatState>()(
       }
       set((state) => {
         const tabIdx = state.tabOrder.indexOf(taskId);
+        const task = state.tasks.get(taskId);
+        if (task) {
+          task.subagents.clear();
+          task.diffs.clear();
+        }
         state.tasks.delete(taskId);
         state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
         if (state.activeTaskId === taskId) {

@@ -1,4 +1,4 @@
-import { Menu, Settings, ChevronDown, LayoutGrid } from 'lucide-react';
+import { Menu, Settings, ChevronDown, LayoutGrid, ClipboardList, Zap, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -10,6 +10,8 @@ export function TopBar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setMode = useUiStore((s) => s.setMode);
   const setOverlay = useUiStore((s) => s.setOverlay);
+  const autoApprove = useUiStore((s) => s.autoApprove);
+  const toggleAutoApprove = useUiStore((s) => s.toggleAutoApprove);
   const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
   const setDashboardOpen = useWorkspaceStore((s) => s.setDashboardOpen);
 
@@ -53,30 +55,48 @@ export function TopBar() {
       </div>
 
       {/* Right: controls */}
-      <div className="no-drag flex items-center gap-2">
+      <div className="no-drag flex items-center gap-1.5">
         {/* Plan / Act toggle */}
-        <div className="flex items-center rounded-md bg-bg-elevated/50 text-xs font-medium overflow-hidden">
+        <div className="flex items-center rounded-lg bg-bg-elevated/60 text-xs font-medium overflow-hidden border border-border/20">
           <button
             onClick={() => setMode('plan')}
-            className={`px-2.5 py-1 transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 transition-all duration-150 ${
               mode === 'plan'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:text-text-primary'
+                ? 'bg-accent text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover/50'
             }`}
+            title="Plan mode (Cmd+Shift+P)"
           >
+            <ClipboardList size={12} />
             Plan
           </button>
           <button
             onClick={() => setMode('act')}
-            className={`px-2.5 py-1 transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 transition-all duration-150 ${
               mode === 'act'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:text-text-primary'
+                ? 'bg-success text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover/50'
             }`}
+            title="Act mode (Cmd+Shift+P)"
           >
+            <Zap size={12} />
             Act
           </button>
         </div>
+
+        {/* Auto-approve toggle */}
+        <button
+          onClick={toggleAutoApprove}
+          className={`p-1.5 rounded-md transition-colors ${
+            autoApprove
+              ? 'bg-success/15 text-success hover:bg-success/25'
+              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
+          }`}
+          aria-label={autoApprove ? 'Auto-approve on' : 'Auto-approve off'}
+          title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
+        >
+          {autoApprove ? <ShieldCheck size={15} /> : <ShieldOff size={15} />}
+        </button>
 
         {/* Agent selector */}
         <button
