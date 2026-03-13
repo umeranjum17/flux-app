@@ -413,7 +413,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="bg-bg-surface border border-border-subtle rounded-xl p-3">
+      <div className="bg-bg-surface border border-border rounded-xl p-3 shadow-sm">
         {showSubagentDialog && (
           <div className="mb-3 space-y-3 rounded-lg border border-border bg-bg-primary/80 p-3">
             <div className="flex items-center justify-between gap-3">
@@ -563,13 +563,13 @@ export function ChatInput({ focused }: ChatInputProps) {
           <div className="flex items-center gap-1">
             {/* Plan / Act segmented toggle */}
             <div
-              className="relative flex items-center rounded-lg bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle"
+              className="relative flex items-center rounded-lg bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle p-[2px]"
               title="Toggle plan/act mode (Shift+Tab)"
             >
               {/* Sliding background indicator */}
               <div
-                className={`absolute top-0 bottom-0 w-1/2 rounded-md transition-all duration-200 ease-out ${
-                  mode === 'plan' ? 'left-0 bg-accent' : 'left-1/2 bg-success'
+                className={`absolute top-[2px] bottom-[2px] w-[calc(50%-2px)] rounded-[6px] transition-all duration-200 ease-out ${
+                  mode === 'plan' ? 'left-[2px] bg-accent' : 'left-[calc(50%)] bg-success'
                 }`}
               />
               <button
@@ -579,7 +579,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   const t = getActiveTask();
                   if (t) setTaskMode(t.id, 'plan');
                 }}
-                className={`relative z-10 flex items-center gap-1 px-3 py-[4px] transition-colors duration-200 ${
+                className={`relative z-10 flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-colors duration-200 ${
                   mode === 'plan'
                     ? 'text-white'
                     : 'text-text-tertiary hover:text-text-secondary'
@@ -595,7 +595,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   const t = getActiveTask();
                   if (t) setTaskMode(t.id, 'act');
                 }}
-                className={`relative z-10 flex items-center gap-1 px-3 py-[4px] transition-colors duration-200 ${
+                className={`relative z-10 flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-colors duration-200 ${
                   mode === 'act'
                     ? 'text-white'
                     : 'text-text-tertiary hover:text-text-secondary'
@@ -634,12 +634,12 @@ export function ChatInput({ focused }: ChatInputProps) {
               type="button"
               onClick={handleSend}
               disabled={!hasContent}
-              className={`flex-shrink-0 p-1.5 rounded-full transition-colors ${
+              className={`flex-shrink-0 p-1.5 rounded-full transition-all duration-150 ${
                 hasContent
                   ? mode === 'plan'
-                    ? 'bg-accent text-white hover:opacity-90'
-                    : 'bg-text-primary text-bg-primary hover:opacity-90'
-                  : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
+                    ? 'bg-accent text-white hover:bg-accent-hover shadow-sm'
+                    : 'bg-text-primary text-bg-primary hover:opacity-90 shadow-sm'
+                  : 'bg-bg-hover/50 text-text-tertiary/40 cursor-not-allowed'
               }`}
               aria-label="Send message"
             >

@@ -49,20 +49,20 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
 
   return (
     <div className="flex-1 flex items-center justify-center overflow-y-auto p-6">
-      <div className="max-w-md w-full space-y-6">
+      <div className="max-w-md w-full space-y-7">
         {/* Header */}
-        <div className="text-center space-y-1.5">
+        <div className="text-center space-y-2">
           <h1 className="text-xl font-bold text-text-primary tracking-tight">Flux</h1>
-          <p className="text-xs text-text-tertiary">AI coding agent orchestrator</p>
+          <p className="text-[12px] text-text-tertiary">AI coding agent orchestrator</p>
         </div>
 
         {/* Open Folder + SSH */}
         <div className="space-y-2">
           <button
             onClick={() => onOpenProject()}
-            className="w-full flex items-center gap-3 p-3 rounded-lg border border-border-subtle bg-bg-surface hover:bg-bg-hover transition-colors text-left group"
+            className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-border-subtle bg-bg-surface hover:bg-bg-hover hover:border-border transition-all text-left group"
           >
-            <div className="p-2 rounded-md bg-accent/10 text-accent group-hover:bg-accent/15 transition-colors">
+            <div className="p-2 rounded-lg bg-accent/10 text-accent group-hover:bg-accent/15 transition-colors">
               <FolderOpen size={16} />
             </div>
             <div className="flex-1 min-w-0">
@@ -74,9 +74,9 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
 
           <button
             onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-            className="w-full flex items-center gap-3 p-3 rounded-lg border border-border-subtle bg-bg-surface hover:bg-bg-hover transition-colors text-left group"
+            className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-border-subtle bg-bg-surface hover:bg-bg-hover hover:border-border transition-all text-left group"
           >
-            <div className="p-2 rounded-md bg-accent/10 text-accent group-hover:bg-accent/15 transition-colors">
+            <div className="p-2 rounded-lg bg-accent/10 text-accent group-hover:bg-accent/15 transition-colors">
               <Terminal size={16} />
             </div>
             <div className="flex-1 min-w-0">
@@ -87,14 +87,14 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
           </button>
         </div>
 
-        {/* Quick Actions — only if a project is open */}
+        {/* Quick Actions */}
         {cwd && (
-          <div className="flex flex-wrap gap-1.5 justify-center">
+          <div className="flex flex-wrap gap-2 justify-center">
             {QUICK_ACTIONS.map((action) => (
               <button
                 key={action.label}
                 onClick={() => handleQuickAction(action.prompt)}
-                className="px-3 py-1.5 rounded-lg border border-border-subtle bg-bg-surface text-[11px] text-text-secondary hover:text-text-primary hover:bg-bg-hover hover:border-border transition-colors"
+                className="px-3 py-1.5 rounded-lg border border-border-subtle bg-bg-surface text-[11px] text-text-secondary hover:text-text-primary hover:bg-bg-hover hover:border-border transition-all"
               >
                 {action.label}
               </button>

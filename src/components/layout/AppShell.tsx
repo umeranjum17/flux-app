@@ -354,7 +354,7 @@ export function AppShell() {
                 <>
                   <TabBar />
                   {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                  <div className="px-4 py-2.5 border-t border-border-subtle shrink-0">
+                  <div className="px-4 py-3 border-t border-border shrink-0">
                     <LiveRunHeader />
                     <ChatInput focused />
                   </div>

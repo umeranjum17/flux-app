@@ -153,20 +153,22 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const isDone = task.status === 'done';
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${
+    <div className={`rounded-xl border overflow-hidden shadow-sm ${
       isStreaming
-        ? 'border-accent/40 animate-pulse'
-        : 'border-accent/20'
-    } bg-accent/[0.03]`}>
+        ? 'border-accent/30'
+        : 'border-accent/15'
+    } bg-accent/[0.02]`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-accent/10 bg-accent/5">
-        <div className="flex items-center gap-2">
-          <ClipboardList size={15} className="text-accent" />
-          <span className="text-sm font-semibold text-text-primary">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-accent/8 bg-accent/[0.04]">
+        <div className="flex items-center gap-2.5">
+          <div className={`p-1 rounded-md ${isStreaming ? 'bg-accent/15' : 'bg-accent/10'}`}>
+            <ClipboardList size={13} className="text-accent" />
+          </div>
+          <span className="text-[13px] font-semibold text-text-primary">
             {isStreaming ? 'Generating plan...' : 'Plan'}
           </span>
           {isStreaming && (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/15 text-accent text-[10px] font-medium">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
               streaming
             </span>
@@ -319,14 +321,14 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Action bar */}
       {isDone && !editing && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-accent/10 bg-accent/5">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-accent/8 bg-accent/[0.04]">
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+            <label className="flex items-center gap-2 text-[12px] text-text-secondary cursor-pointer hover:text-text-primary transition-colors">
               <input
                 type="checkbox"
                 checked={showCheckpoint}
                 onChange={(e) => setShowCheckpoint(e.target.checked)}
-                className="accent-accent"
+                className="accent-accent rounded"
               />
               <GitBranch size={11} />
               Checkpoint before implementing
@@ -334,9 +336,9 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           </div>
           <button
             onClick={handleImplement}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-success text-white hover:opacity-90 transition-opacity shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold bg-success text-white hover:opacity-90 transition-all shadow-sm"
           >
-            <Play size={13} />
+            <Play size={12} />
             Implement Plan
           </button>
         </div>
