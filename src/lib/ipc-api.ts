@@ -1,7 +1,18 @@
 import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment } from './types';
 
+export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
+
+export interface EnvironmentInfo {
+  runtime: RuntimeEnvironment;
+  platform: string;
+  wslDistro: string | null;
+  isSSHSession: boolean;
+  isWSL: boolean;
+}
+
 // Channels the renderer can invoke on main
 export interface IpcChannels {
+  'env:detect': { args: []; result: EnvironmentInfo };
   'agents:detect': { args: []; result: DetectedAgent[] };
   'agents:check-auth': { args: [{ agentId: string }]; result: AuthResult };
   'task:spawn': { args: [SpawnOptions & { agentId?: string }]; result: { taskId: string; session: Session } };

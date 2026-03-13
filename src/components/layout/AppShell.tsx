@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
-import type { FluxConfig, Session } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
@@ -99,6 +99,16 @@ export function AppShell() {
           useUiStore.getState().setCwd(cwdResult);
         } catch (err) {
           console.error('CWD fetch failed:', err);
+        }
+
+        // Detect runtime environment (WSL, SSH session, etc.)
+        try {
+          const envInfo = await window.api.invoke('env:detect') as EnvironmentInfo;
+          if (envInfo.runtime !== 'local') {
+            useUiStore.getState().setEnvironment(envInfo.runtime);
+          }
+        } catch (err) {
+          console.error('Environment detection failed:', err);
         }
 
         try {
