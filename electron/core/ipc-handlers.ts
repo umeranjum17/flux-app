@@ -20,7 +20,7 @@ import { createWorktree, mergeWorktree, removeWorktree } from './worktree/manage
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
 import type { WorkspaceStatus } from './worktree/types';
-import { extendedEnv, resolveSshCommand, classifySpawnError } from './process-utils';
+import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -471,6 +471,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const liveUsageService = new LiveUsageService();
   const workspaceStore = new WorkspaceStore();
   const registeredChannels = [
+    'env:detect',
     'agents:detect',
     'agents:check-auth',
     'agents:list-models',
@@ -528,6 +529,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
   }
+
+  // --- Environment detection ---
+
+  ipcMain.handle('env:detect', async () => {
+    return detectEnvironment();
+  });
 
   // --- Agent handlers ---
 

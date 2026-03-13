@@ -18,6 +18,7 @@ export function TopBar() {
   const projectName = useUiStore((s) => s.projectName);
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
+  const environment = useUiStore((s) => s.environment);
 
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const selectedModel = useAgentStore((s) => s.selectedModel);
@@ -43,6 +44,16 @@ export function TopBar() {
         <span className="text-[13px] font-semibold text-text-primary select-none">
           {titleText}
         </span>
+        {environment === 'wsl' && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-blue-600/15 text-blue-400 font-medium select-none">
+            WSL
+          </span>
+        )}
+        {environment === 'ssh' && !sshConnected && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-purple-600/15 text-purple-400 font-medium select-none">
+            SSH Session
+          </span>
+        )}
         {sshConnected && sshHost && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-accent/15 text-accent font-medium select-none">
             SSH:{sshHost}

@@ -40,7 +40,7 @@ interface UiState {
   // SSH
   sshHost: string | null;
   sshConnected: boolean;
-  environment: 'local' | 'ssh';
+  environment: 'local' | 'ssh' | 'wsl';
 
   // Active file preview
   activeFile: { path: string; name: string } | null;
@@ -73,7 +73,7 @@ interface UiState {
   setActiveTerminalId(id: string | null): void;
   setSshHost(host: string | null): void;
   setSshConnected(connected: boolean): void;
-  setEnvironment(env: 'local' | 'ssh'): void;
+  setEnvironment(env: 'local' | 'ssh' | 'wsl'): void;
   setBottomPanelMode(mode: 'agent' | 'terminal'): void;
   toggleBottomPanelMode(): void;
   setActiveFile(file: { path: string; name: string } | null): void;
