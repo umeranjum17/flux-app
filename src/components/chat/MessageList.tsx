@@ -28,9 +28,14 @@ import { DiffBlock } from './DiffBlock';
 import { PlanCard } from './PlanCard';
 
 const messageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
+  initial: { opacity: 0, y: 14, scale: 0.985 },
+  animate: { opacity: 1, y: 0, scale: 1 },
   exit: { opacity: 0 },
+};
+
+const messageTransition = {
+  duration: 0.22,
+  ease: [0.22, 1, 0.36, 1] as const,
 };
 
 function isSubagentMarker(msg: AgentMessage): boolean {
@@ -97,7 +102,7 @@ export function MessageList() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-5 py-4 space-y-3"
+        className="h-full overflow-y-auto px-6 py-5 space-y-4"
       >
         <AnimatePresence initial={false}>
           {(() => {
@@ -132,7 +137,7 @@ export function MessageList() {
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      transition={{ duration: 0.15 }}
+                      transition={messageTransition}
                     >
                       <SubagentBlock subagents={group} stage={stage} taskMode={task.mode} />
                     </motion.div>,
@@ -156,7 +161,7 @@ export function MessageList() {
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      transition={{ duration: 0.15 }}
+                      transition={messageTransition}
                     >
                       <div className="flex items-center gap-2 py-1 px-1">
                         <ArrowRightLeft size={12} className="text-text-tertiary" />
@@ -178,7 +183,7 @@ export function MessageList() {
                   initial="initial"
                   animate="animate"
                   exit="exit"
-                  transition={{ duration: 0.15 }}
+                  transition={messageTransition}
                 >
                   {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode)}
                 </motion.div>,
@@ -217,7 +222,7 @@ export function MessageList() {
         )}
 
         {rateLimitSuggestion && taskId && (
-          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm flex items-center justify-between gap-3">
+          <div className="premium-panel flex items-center justify-between gap-3 rounded-[20px] border border-warning/25 p-4 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-warning font-medium">Rate limited.</span>
               <span className="text-text-secondary">Switch to another agent?</span>
@@ -235,7 +240,7 @@ export function MessageList() {
                         switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
                         useAgentStore.getState().setSelectedAgent(agentId);
                       }}
-                      className="px-2 py-1 rounded-md text-xs font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors"
+                      className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1 text-xs font-medium text-accent"
                     >
                       {AGENT_LABELS[agentId] ?? agentId}
                     </button>
@@ -248,7 +253,7 @@ export function MessageList() {
                     if (t) t.rateLimitSuggestion = undefined;
                   });
                 }}
-                className="p-1 rounded text-text-tertiary hover:text-text-primary"
+                className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
               >
                 <X size={14} />
               </button>
@@ -260,7 +265,7 @@ export function MessageList() {
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg-elevated/90 rounded-full p-2 shadow-lg hover:bg-bg-hover transition-colors"
+          className="premium-panel premium-toolbar-button absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full p-2.5"
           aria-label="Scroll to bottom"
         >
           <ArrowDown size={16} className="text-text-secondary" />

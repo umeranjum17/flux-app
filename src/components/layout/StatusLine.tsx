@@ -75,13 +75,13 @@ export function StatusLine() {
   }, [sshConnected]);
 
   return (
-    <div className="flex items-center h-[26px] min-h-[26px] bg-bg-secondary border-t border-border-subtle select-none">
+    <div className="flex h-[28px] min-h-[28px] select-none items-center border-t border-border-subtle/80 bg-bg-secondary/75 backdrop-blur-xl">
       {/* Left side: Remote indicator + folder */}
       <div className="flex items-center gap-0 shrink-0">
         {/* VS Code-style remote indicator */}
         {environment === 'wsl' && (
           <span
-            className="flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium bg-blue-600 text-white"
+            className="flex h-[28px] items-center gap-1.5 border-r border-border-subtle/70 bg-warning/15 px-2 text-[10px] font-medium text-warning"
             title="Running inside WSL"
           >
             <Terminal size={11} />
@@ -90,7 +90,7 @@ export function StatusLine() {
         )}
         {environment === 'ssh' && !sshConnected && (
           <span
-            className="flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium bg-purple-600 text-white"
+            className="flex h-[28px] items-center gap-1.5 border-r border-border-subtle/70 bg-info/15 px-2 text-[10px] font-medium text-info"
             title="Running inside an SSH session"
           >
             <Monitor size={11} />
@@ -99,10 +99,10 @@ export function StatusLine() {
         )}
         <button
           onClick={handleSshClick}
-          className={`flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium transition-colors ${
+          className={`premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2 text-[10px] font-medium ${
             sshConnected
-              ? 'bg-accent text-white hover:opacity-90'
-              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-primary'
+              ? 'border-r border-accent/20 bg-accent text-bg-primary'
+              : 'border-r border-border-subtle/70 text-text-tertiary'
           }`}
           title={sshConnected ? `SSH: ${sshHost} (click to manage)` : 'Connect to SSH remote'}
         >
@@ -113,7 +113,7 @@ export function StatusLine() {
         {/* Open Folder button */}
         <button
           onClick={handleOpenFolder}
-          className="flex items-center gap-1.5 h-[26px] px-2 text-[10px] text-text-tertiary hover:bg-bg-hover hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border-subtle/70 px-2 text-[10px] text-text-tertiary"
           title="Open folder"
         >
           <FolderOpen size={11} />
@@ -121,7 +121,7 @@ export function StatusLine() {
         </button>
 
         {gitBranch && (
-          <span className="flex items-center gap-1 h-[26px] px-2 text-[10px] text-text-tertiary">
+          <span className="flex h-[28px] items-center gap-1 px-2 text-[10px] text-text-tertiary">
             <GitBranch size={11} />
             {gitBranch}
             {gitDirty && <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />}
@@ -131,10 +131,10 @@ export function StatusLine() {
         {/* Repo map indicator */}
         <button
           onClick={() => useUiStore.getState().setOverlay('context-settings')}
-          className={`flex items-center gap-1 h-7 px-2 text-[11px] transition-colors hover:bg-bg-hover ${
+          className={`premium-toolbar-button flex h-[28px] items-center gap-1 rounded-none border-y-0 border-l border-l-border-subtle/70 px-2 text-[11px] ${
             !repoMapConfig.enabled
               ? 'text-text-tertiary'
-              : repoMapStatus.state === 'ready'
+            : repoMapStatus.state === 'ready'
                 ? 'text-success'
                 : repoMapStatus.state === 'building'
                   ? 'text-warning'

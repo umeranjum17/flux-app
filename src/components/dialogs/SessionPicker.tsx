@@ -200,10 +200,10 @@ export function SessionPicker() {
 function ModeBadge({ mode }: { mode: string }) {
   const isPlan = mode === 'plan';
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
       isPlan
-        ? 'bg-blue-500/15 text-blue-400'
-        : 'bg-emerald-500/15 text-emerald-400'
+        ? 'border-plan/20 bg-plan/12 text-plan'
+        : 'border-success/20 bg-success/10 text-success'
     }`}>
       {isPlan ? 'Plan' : 'Act'}
     </span>

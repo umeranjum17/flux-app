@@ -77,7 +77,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1, 2, 3]));
   const [showCheckpoint, setShowCheckpoint] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
+  const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
 
   const setTaskStatus = useChatStore((s) => s.setTaskStatus);
   const setTaskMode = useChatStore((s) => s.setTaskMode);
@@ -153,21 +153,26 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const isDone = task.status === 'done';
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${
-      isStreaming
-        ? 'border-accent/40 animate-pulse'
-        : 'border-accent/20'
-    } bg-accent/[0.03]`}>
+    <div className={`premium-plan-card overflow-hidden rounded-[26px] ${
+      isStreaming ? 'border-plan/35 shadow-[0_28px_64px_hsl(24_45%_6%_/_0.42)]' : ''
+    }`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-accent/10 bg-accent/5">
-        <div className="flex items-center gap-2">
-          <ClipboardList size={15} className="text-accent" />
-          <span className="text-sm font-semibold text-text-primary">
-            {isStreaming ? 'Generating plan...' : 'Plan'}
-          </span>
+      <div className="flex items-center justify-between border-b border-plan/12 bg-plan/8 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-plan/20 bg-plan-muted/55 text-plan">
+            <ClipboardList size={16} className="text-plan" />
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-plan/90">
+              {isStreaming ? 'Live planning' : 'Strategy'}
+            </div>
+            <span className="text-sm font-semibold text-text-primary">
+              {isStreaming ? 'Generating plan...' : 'Plan'}
+            </span>
+          </div>
           {isStreaming && (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/15 text-accent text-[10px] font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="flex items-center gap-1.5 rounded-full border border-plan/20 bg-plan/12 px-2.5 py-1 text-[10px] font-medium text-plan">
+              <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
               streaming
             </span>
           )}
@@ -177,7 +182,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             {revisions.length > 0 && (
               <button
                 onClick={() => setShowHistory(!showHistory)}
-                className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
                 title={`${revisions.length} previous revision${revisions.length === 1 ? '' : 's'}`}
               >
                 <History size={13} />
@@ -185,14 +190,14 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             )}
             <button
               onClick={handleEdit}
-              className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+              className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
               title="Edit plan"
             >
               <Pencil size={13} />
             </button>
             <button
               onClick={handleCopyPlan}
-              className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+              className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
               title="Copy plan"
             >
               {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
@@ -203,20 +208,20 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Revision history dropdown */}
       {showHistory && revisions.length > 0 && (
-        <div className="border-b border-accent/10 bg-bg-primary/50 p-3">
+        <div className="border-b border-plan/12 bg-bg-primary/35 p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
             Previous Revisions
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {revisions.map((rev, i) => (
-              <div key={i} className="flex items-center justify-between rounded-md bg-bg-elevated px-3 py-2 text-xs">
+              <div key={i} className="premium-panel flex items-center justify-between rounded-[16px] px-3 py-2 text-xs">
                 <span className="text-text-secondary">Revision {i + 1}</span>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(rev);
                     toast.success(`Revision ${i + 1} copied`);
                   }}
-                  className="text-text-tertiary hover:text-text-primary"
+                  className="premium-toolbar-button rounded-lg p-1 text-text-tertiary"
                 >
                   <Copy size={11} />
                 </button>
@@ -228,23 +233,23 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Edit mode */}
       {editing && (
-        <div className="p-3 border-b border-accent/10">
+        <div className="border-b border-plan/12 p-4">
           <textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            className="w-full min-h-[200px] rounded-lg border border-border bg-bg-primary p-3 text-sm font-mono text-text-primary resize-y outline-none focus:border-accent"
+            className="premium-focus min-h-[220px] w-full resize-y rounded-[18px] border border-border bg-bg-primary/75 p-4 text-sm font-mono text-text-primary outline-none focus:border-plan"
           />
-          <div className="flex items-center justify-end gap-2 mt-2">
+          <div className="mt-3 flex items-center justify-end gap-2">
             <button
               onClick={() => setEditing(false)}
-              className="px-3 py-1.5 rounded-md text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+              className="premium-toolbar-button rounded-xl px-3 py-1.5 text-xs text-text-secondary"
             >
               <X size={12} className="inline mr-1" />
               Cancel
             </button>
             <button
               onClick={handleSaveEdit}
-              className="px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+              className="rounded-xl bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_hsl(40_60%_12%_/_0.24)] transition-transform hover:-translate-y-0.5"
             >
               <Save size={12} className="inline mr-1" />
               Save Revision
@@ -255,7 +260,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Plan sections */}
       {!editing && (
-        <div className="divide-y divide-accent/[0.07]">
+        <div className="divide-y divide-plan/[0.07]">
           {sections.map((section, idx) => {
             const isExpanded = expandedSections.has(idx);
             const steps = section.title.toLowerCase().includes('step')
@@ -266,7 +271,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
               <div key={idx}>
                 <button
                   onClick={() => toggleSection(idx)}
-                  className="flex items-center gap-2 w-full text-left px-4 py-2.5 hover:bg-accent/[0.03] transition-colors"
+                  className="premium-toolbar-button flex w-full items-center gap-2 rounded-none px-5 py-3 text-left"
                 >
                   {isExpanded
                     ? <ChevronDown size={13} className="text-text-tertiary shrink-0" />
@@ -275,32 +280,36 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                   <span className="text-sm font-medium text-text-primary">{section.title}</span>
                 </button>
                 {isExpanded && (
-                  <div className="px-4 pb-3 pl-9">
+                  <div className="px-5 pb-4 pl-10">
                     {steps.length > 0 ? (
                       <div className="space-y-2">
-                        {steps.map((step, stepIdx) => (
-                          <label
-                            key={stepIdx}
-                            className="flex items-start gap-2 text-sm cursor-pointer group"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checkedSteps.has(stepIdx)}
-                              onChange={() => {
-                                setCheckedSteps((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(stepIdx)) next.delete(stepIdx);
-                                  else next.add(stepIdx);
-                                  return next;
-                                });
-                              }}
-                              className="mt-1 shrink-0 accent-accent"
-                            />
-                            <span className={`${checkedSteps.has(stepIdx) ? 'text-text-tertiary line-through' : 'text-text-secondary'} transition-colors`}>
-                              {step}
-                            </span>
-                          </label>
-                        ))}
+                        {steps.map((step, stepIdx) => {
+                          const stepKey = `${idx}:${stepIdx}`;
+                          const checked = checkedSteps.has(stepKey);
+                          return (
+                            <label
+                              key={stepKey}
+                              className="flex items-start gap-2 text-sm cursor-pointer group"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setCheckedSteps((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(stepKey)) next.delete(stepKey);
+                                    else next.add(stepKey);
+                                    return next;
+                                  });
+                                }}
+                                className="mt-1 shrink-0 accent-plan"
+                              />
+                              <span className={`${checked ? 'text-text-tertiary line-through' : 'text-text-secondary'} transition-colors`}>
+                                {step}
+                              </span>
+                            </label>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="markdown-prose text-sm text-text-secondary">
@@ -319,14 +328,14 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Action bar */}
       {isDone && !editing && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-accent/10 bg-accent/5">
+        <div className="flex items-center justify-between border-t border-plan/12 bg-plan/8 px-5 py-4">
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
               <input
                 type="checkbox"
                 checked={showCheckpoint}
                 onChange={(e) => setShowCheckpoint(e.target.checked)}
-                className="accent-accent"
+                className="accent-plan"
               />
               <GitBranch size={11} />
               Checkpoint before implementing
@@ -334,7 +343,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           </div>
           <button
             onClick={handleImplement}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-success text-white hover:opacity-90 transition-opacity shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-bg-primary shadow-[0_16px_34px_hsl(24_45%_8%_/_0.28)] transition-transform hover:-translate-y-0.5"
           >
             <Play size={13} />
             Implement Plan

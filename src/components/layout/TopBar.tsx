@@ -22,32 +22,32 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] bg-bg-secondary border-b border-border-subtle px-3 ${isMac ? 'pl-[72px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
+      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] border-b border-border-subtle/80 bg-bg-secondary/70 px-3 backdrop-blur-xl ${isMac ? 'pl-[72px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
     >
       {/* Left: hamburger + title */}
       <div className="no-drag flex items-center gap-2.5">
         <button
           onClick={toggleSidebar}
-          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
           aria-label="Toggle sidebar"
         >
           <Menu size={15} />
         </button>
-        <span className="text-[13px] font-semibold text-text-primary select-none">
+        <span className="select-none text-[13px] font-semibold tracking-[0.01em] text-text-primary">
           {titleText}
         </span>
         {environment === 'wsl' && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-blue-600/15 text-blue-400 font-medium select-none">
+          <span className="premium-pill select-none rounded-full px-2 py-0.5 text-[10px] font-medium text-warning">
             WSL
           </span>
         )}
         {environment === 'ssh' && !sshConnected && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-purple-600/15 text-purple-400 font-medium select-none">
+          <span className="premium-pill select-none rounded-full px-2 py-0.5 text-[10px] font-medium text-info">
             SSH Session
           </span>
         )}
         {sshConnected && sshHost && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-accent/15 text-accent font-medium select-none">
+          <span className="premium-pill select-none rounded-full border border-accent/25 bg-accent-muted/40 px-2 py-0.5 text-[10px] font-medium text-accent">
             SSH:{sshHost}
           </span>
         )}
@@ -58,10 +58,10 @@ export function TopBar() {
         {/* Auto-approve toggle */}
         <button
           onClick={toggleAutoApprove}
-          className={`p-1.5 rounded-md transition-colors ${
+          className={`premium-toolbar-button rounded-lg p-1.5 ${
             autoApprove
-              ? 'bg-success/15 text-success hover:bg-success/25'
-              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
+              ? 'border-success/25 bg-success/12 text-success'
+              : 'text-text-tertiary'
           }`}
           aria-label={autoApprove ? 'Auto-approve on' : 'Auto-approve off'}
           title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
@@ -73,10 +73,10 @@ export function TopBar() {
 
         <button
           onClick={() => setDashboardOpen(!dashboardOpen)}
-          className={`p-1.5 rounded transition-colors ${
+          className={`premium-toolbar-button rounded-lg p-1.5 ${
             dashboardOpen
-              ? 'bg-accent/10 text-accent'
-              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
+              ? 'border-accent/25 bg-accent-muted/50 text-accent'
+              : 'text-text-tertiary'
           }`}
           aria-label="Toggle workspaces"
           title="Workspaces"
@@ -86,7 +86,7 @@ export function TopBar() {
 
         <button
           onClick={() => setOverlay('settings')}
-          className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
           aria-label="Settings"
         >
           <Settings size={14} />

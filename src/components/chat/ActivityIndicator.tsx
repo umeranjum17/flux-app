@@ -16,7 +16,7 @@ export function ActivityIndicator({
 
   return (
     <div
-      className="flex items-center gap-2 rounded-md bg-bg-secondary/40 px-3 py-1.5 text-xs text-text-tertiary"
+      className="premium-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-text-tertiary"
       data-status-kind={statusKind}
     >
       {showSpinner ? (

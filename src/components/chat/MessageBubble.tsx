@@ -26,21 +26,26 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
   }
 
   const isPlanAssistant = mode === 'plan' && role === 'assistant';
+  const isActAssistant = role === 'assistant' && !isPlanAssistant;
 
   return (
     <>
       <div
         className={[
           role === 'user'
-            ? 'bg-bg-surface rounded-lg px-4 py-2.5 w-full'
-            : 'w-full',
-          isPlanAssistant ? 'bg-accent/5 border border-accent/12 rounded-lg p-4' : '',
+            ? 'premium-message-user w-full rounded-[22px] px-4 py-3.5'
+            : isActAssistant
+              ? 'premium-message-assistant w-full rounded-[22px] px-4 py-3.5'
+              : 'w-full',
+          isPlanAssistant ? 'premium-plan-card rounded-[24px] p-[18px]' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (
-          <div className="flex items-center gap-1.5 mb-2">
-            <ClipboardList size={13} className="text-accent" />
-            <span className="text-xs text-accent font-medium">Plan</span>
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-plan/20 bg-plan/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-plan">
+              <ClipboardList size={12} className="text-plan" />
+              Plan
+            </span>
           </div>
         )}
         {images && images.length > 0 && (
@@ -49,12 +54,12 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
               <button
                 key={i}
                 onClick={() => setEnlargedImage(src)}
-                className="rounded-lg overflow-hidden border border-border hover:border-accent transition-colors"
+                className="premium-toolbar-button overflow-hidden rounded-2xl border border-border/70"
               >
                 <img
                   src={src}
                   alt={`Attached ${i + 1}`}
-                  className="max-h-24 max-w-40 object-cover"
+                  className="max-h-24 max-w-40 object-cover transition-transform duration-200 hover:scale-[1.03]"
                 />
               </button>
             ))}
@@ -65,7 +70,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             {attachments.map((attachment) => (
               <div
                 key={`${attachment.path}:${attachment.name}`}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-primary px-2 py-1 text-xs text-text-secondary"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/75 bg-bg-primary/70 px-2.5 py-1 text-xs text-text-secondary"
               >
                 <Paperclip size={12} />
                 <span className="truncate max-w-[220px]">{attachment.name}</span>
@@ -73,7 +78,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             ))}
           </div>
         )}
-        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-[13px] leading-relaxed' : role === 'assistant' ? 'font-mono text-[12.5px] leading-relaxed' : 'text-[13px]'}`}>
+        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-[13px] leading-6' : role === 'assistant' ? 'font-mono text-[12.5px] leading-6' : 'text-[13px] leading-6'}`}>
           <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -91,7 +96,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
 
               return (
                 <code
-                  className="bg-bg-hover rounded px-1.5 py-0.5 font-mono text-[13px]"
+                  className="rounded-md border border-border/70 bg-bg-hover/80 px-1.5 py-0.5 font-mono text-[13px]"
                   {...props}
                 >
                   {children}
@@ -172,11 +177,11 @@ function CodeBlock({ children, language }: { children: string; language?: string
     <div className="group relative my-2">
       {highlightedHtml ? (
         <div
-          className="shiki-wrapper rounded-lg overflow-x-auto [&>pre]:p-4 [&>pre]:!bg-bg-elevated [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
+          className="premium-panel shiki-wrapper overflow-x-auto rounded-[20px] [&>pre]:p-4 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
           dangerouslySetInnerHTML={{ __html: highlightedHtml }}
         />
       ) : (
-        <pre className="bg-bg-elevated rounded-lg p-4 font-mono text-[13px] overflow-x-auto">
+        <pre className="premium-panel overflow-x-auto rounded-[20px] p-4 font-mono text-[13px]">
           <code className={language ? `language-${language}` : undefined}>
             {children}
           </code>
@@ -189,7 +194,7 @@ function CodeBlock({ children, language }: { children: string; language?: string
       )}
       <button
         onClick={handleCopy}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-bg-hover text-text-secondary hover:text-text-primary"
+        className="premium-toolbar-button absolute top-2 right-2 rounded-lg p-1.5 text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
         aria-label="Copy code"
       >
         {copied ? <Check size={14} /> : <ClipboardCopy size={14} />}
