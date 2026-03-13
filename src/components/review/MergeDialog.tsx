@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, GitMerge, AlertTriangle } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
+import { useUiStore } from '../../stores/ui';
 import type { Workspace, MergeResult } from '../../lib/ipc-api';
 
 interface MergeDialogProps {
@@ -10,11 +11,17 @@ interface MergeDialogProps {
 }
 
 export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
-  const [targetBranch, setTargetBranch] = useState('main');
+  const gitBranch = useUiStore((s) => s.gitBranch);
+  const [targetBranch, setTargetBranch] = useState(() => gitBranch?.trim() ?? '');
   const [squash, setSquash] = useState(true);
   const [deleteAfterMerge, setDeleteAfterMerge] = useState(true);
   const [merging, setMerging] = useState(false);
   const [result, setResult] = useState<MergeResult | null>(null);
+
+  useEffect(() => {
+    if (!gitBranch?.trim()) return;
+    setTargetBranch((current) => current.trim() || gitBranch);
+  }, [gitBranch]);
 
   const handleMerge = async () => {
     setMerging(true);
@@ -72,6 +79,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             <input
               value={targetBranch}
               onChange={(e) => setTargetBranch(e.target.value)}
+              placeholder={gitBranch ?? 'Enter branch name'}
               className="input-field font-mono text-xs"
             />
           </div>
