@@ -157,7 +157,7 @@ export function StatusLine() {
       <div className="flex-1" />
 
       {/* Right side: agent, model, cost, tokens */}
-      <div className="flex items-center gap-2 px-3">
+      <div className="flex items-center gap-2 px-3 min-w-0 overflow-hidden">
         <button
           onClick={handleAgentClick}
           className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"

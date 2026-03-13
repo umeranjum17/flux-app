@@ -15,6 +15,7 @@ const defaultConfig: FluxConfig = {
   subagentModel: 'haiku',
   defaultThinking: 'medium',
   defaultMode: 'act' as const,
+  zoomLevel: 1.0,
   qualityGateCommands: [],
   customAgentPaths: {},
   recentProjects: [],
@@ -63,6 +64,9 @@ export function SettingsPanel() {
     await window.api.invoke('config:set', config);
     setTheme(config.theme);
     setSendKey(config.sendKey);
+    if (config.zoomLevel) {
+      window.api.invoke('zoom:set', { level: config.zoomLevel });
+    }
     useAgentStore.getState().setSelectedThinking(config.defaultThinking);
     if (AGENT_IDS.includes(config.defaultAgent as AgentId)) {
       useAgentStore.getState().setSelectedAgent(config.defaultAgent as AgentId);
@@ -157,6 +161,25 @@ export function SettingsPanel() {
                         max={18}
                         value={config.fontSize}
                         onChange={(e) => updateConfig({ fontSize: Number(e.target.value) })}
+                        className="w-32 accent-accent"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm text-text-primary">
+                        Zoom: {Math.round((config.zoomLevel ?? 1.0) * 100)}%
+                      </label>
+                      <input
+                        type="range"
+                        min={75}
+                        max={200}
+                        step={5}
+                        value={Math.round((config.zoomLevel ?? 1.0) * 100)}
+                        onChange={(e) => {
+                          const level = Number(e.target.value) / 100;
+                          updateConfig({ zoomLevel: level });
+                          window.api.invoke('zoom:set', { level });
+                        }}
                         className="w-32 accent-accent"
                       />
                     </div>

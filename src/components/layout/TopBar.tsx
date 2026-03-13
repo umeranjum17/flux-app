@@ -4,6 +4,7 @@ import { useAgentStore } from '../../stores/agent';
 import { useWorkspaceStore } from '../../stores/workspace';
 
 const isMac = window.api?.platform === 'darwin';
+const isWin = window.api?.platform === 'win32';
 
 export function TopBar() {
   const mode = useUiStore((s) => s.mode);
@@ -30,7 +31,7 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] bg-bg-secondary border-b border-border-subtle px-3 ${isMac ? 'pl-[72px]' : ''}`}
+      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] bg-bg-secondary border-b border-border-subtle px-3 ${isMac ? 'pl-[72px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
     >
       {/* Left: hamburger + title */}
       <div className="no-drag flex items-center gap-2.5">
@@ -62,7 +63,7 @@ export function TopBar() {
       </div>
 
       {/* Right: controls */}
-      <div className="no-drag flex items-center gap-1">
+      <div className="no-drag flex items-center gap-1 min-w-0 overflow-hidden">
         {/* Plan / Act toggle */}
         <div className="flex items-center rounded-md bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle">
           <button
