@@ -2,6 +2,7 @@ import { Plus, X } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
+import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import type { TaskStatus, AgentId } from '../../lib/types';
 
 const AGENT_LABELS: Record<string, string> = {
@@ -75,6 +76,11 @@ export function TabBar() {
             }`}
           >
             <StatusDot status={task.status} />
+            <AgentIcon
+              agentId={task.agentId}
+              size={11}
+              className={AGENT_COLORS[task.agentId] ?? 'text-text-tertiary'}
+            />
             <span className="truncate font-medium">
               {AGENT_LABELS[task.agentId] ?? task.agentId}
             </span>
