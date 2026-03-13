@@ -27,14 +27,14 @@ function createWindow(): void {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: '#181a20',
+    backgroundColor: '#151922',
     titleBarStyle: isMac ? 'hiddenInset' : isWin ? 'hidden' : 'default',
     frame: true,
     ...(isMac && { trafficLightPosition: { x: 12, y: 12 } }),
     ...(isWin && {
       titleBarOverlay: {
-        color: '#14161b',
-        symbolColor: '#8b8fa3',
+        color: '#151922',
+        symbolColor: '#9ca4b5',
         height: 38,
       },
     }),

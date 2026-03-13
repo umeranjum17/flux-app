@@ -438,7 +438,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="premium-input-shell p-3">
+      <div className="premium-input-shell rounded-2xl border border-border/90 bg-bg-primary/70 p-4 shadow-[0_18px_38px_rgba(0,0,0,0.24)] transition-colors focus-within:border-accent/35">
         {showSubagentDialog && (
           <div className="premium-panel mb-3 space-y-3 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -537,7 +537,7 @@ export function ChatInput({ focused }: ChatInputProps) {
           placeholder={placeholder}
           rows={1}
           autoFocus
-          className="w-full bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-[13px] leading-[22px]"
+          className="w-full resize-none bg-transparent text-[14px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none"
           style={{ maxHeight: 192 }}
         />
 

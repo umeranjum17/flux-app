@@ -102,164 +102,166 @@ export function MessageList() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-6 py-5 space-y-4"
+        className="h-full overflow-y-auto px-4 py-5"
       >
-        <AnimatePresence initial={false}>
-          {(() => {
-            const rendered: React.ReactNode[] = [];
-            for (let idx = 0; idx < messages.length; idx++) {
-              const msg = messages[idx];
-              if (mergedResultIndices.has(idx)) continue;
+        <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-4">
+          <AnimatePresence initial={false}>
+            {(() => {
+              const rendered: React.ReactNode[] = [];
+              for (let idx = 0; idx < messages.length; idx++) {
+                const msg = messages[idx];
+                if (mergedResultIndices.has(idx)) continue;
 
-              if (isSubagentMarker(msg)) {
-                const groupIds: string[] = [];
-                let cursor = idx;
-                while (cursor < messages.length && isSubagentMarker(messages[cursor])) {
-                  if (messages[cursor].subagentId) {
-                    groupIds.push(messages[cursor].subagentId!);
+                if (isSubagentMarker(msg)) {
+                  const groupIds: string[] = [];
+                  let cursor = idx;
+                  while (cursor < messages.length && isSubagentMarker(messages[cursor])) {
+                    if (messages[cursor].subagentId) {
+                      groupIds.push(messages[cursor].subagentId!);
+                    }
+                    cursor += 1;
                   }
-                  cursor += 1;
-                }
-                const uniqueIds = Array.from(new Set(groupIds));
-                const group = uniqueIds
-                  .map((id) => {
-                    const state = subagents.get(id);
-                    return state ? { id, state } : null;
-                  })
-                  .filter((entry): entry is { id: string; state: NonNullable<typeof entry>['state'] } => !!entry);
+                  const uniqueIds = Array.from(new Set(groupIds));
+                  const group = uniqueIds
+                    .map((id) => {
+                      const state = subagents.get(id);
+                      return state ? { id, state } : null;
+                    })
+                    .filter((entry): entry is { id: string; state: NonNullable<typeof entry>['state'] } => !!entry);
 
-                if (group.length > 0) {
-                  const stage = msg.subagentStatus === 'done' || msg.subagentStatus === 'error' ? 'finished' : 'running';
-                  rendered.push(
-                    <motion.div
-                      key={`subagent-group-${msg.timestamp}-${idx}`}
-                      variants={messageVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      transition={messageTransition}
-                    >
-                      <SubagentBlock subagents={group} stage={stage} taskMode={task.mode} />
-                    </motion.div>,
-                  );
+                  if (group.length > 0) {
+                    const stage = msg.subagentStatus === 'done' || msg.subagentStatus === 'error' ? 'finished' : 'running';
+                    rendered.push(
+                      <motion.div
+                        key={`subagent-group-${msg.timestamp}-${idx}`}
+                        variants={messageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={messageTransition}
+                      >
+                        <SubagentBlock subagents={group} stage={stage} taskMode={task.mode} />
+                      </motion.div>,
+                    );
+                  }
+                  idx = cursor - 1;
+                  continue;
                 }
-                idx = cursor - 1;
-                continue;
+
+                // Agent switch badge at boundary
+                if (agentHistory.length > 0 && agentSwitchIndices.has(idx)) {
+                  const switchEntry = agentHistory.find((h) => h.fromMessageIndex === idx);
+                  if (switchEntry) {
+                    const nextAgent = agentHistory.indexOf(switchEntry) < agentHistory.length - 1
+                      ? agentHistory[agentHistory.indexOf(switchEntry) + 1]
+                      : { agentId: task.agentId, model: task.model };
+                    rendered.push(
+                      <motion.div
+                        key={`agent-switch-${idx}`}
+                        variants={messageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={messageTransition}
+                      >
+                        <div className="flex items-center gap-2 py-1 px-1">
+                          <ArrowRightLeft size={12} className="text-text-tertiary" />
+                          <span className="text-[11px] text-text-tertiary">
+                            Switched from {AGENT_LABELS[switchEntry.agentId] ?? switchEntry.agentId} to {AGENT_LABELS[nextAgent.agentId] ?? nextAgent.agentId}
+                          </span>
+                        </div>
+                      </motion.div>,
+                    );
+                  }
+                }
+
+                const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
+
+                rendered.push(
+                  <motion.div
+                    key={`${msg.timestamp}-${idx}`}
+                    variants={messageVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={messageTransition}
+                  >
+                    {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode)}
+                  </motion.div>,
+                );
               }
+              return rendered;
+            })()}
+          </AnimatePresence>
 
-              // Agent switch badge at boundary
-              if (agentHistory.length > 0 && agentSwitchIndices.has(idx)) {
-                const switchEntry = agentHistory.find((h) => h.fromMessageIndex === idx);
-                if (switchEntry) {
-                  const nextAgent = agentHistory.indexOf(switchEntry) < agentHistory.length - 1
-                    ? agentHistory[agentHistory.indexOf(switchEntry) + 1]
-                    : { agentId: task.agentId, model: task.model };
-                  rendered.push(
-                    <motion.div
-                      key={`agent-switch-${idx}`}
-                      variants={messageVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      transition={messageTransition}
-                    >
-                      <div className="flex items-center gap-2 py-1 px-1">
-                        <ArrowRightLeft size={12} className="text-text-tertiary" />
-                        <span className="text-[11px] text-text-tertiary">
-                          Switched from {AGENT_LABELS[switchEntry.agentId] ?? switchEntry.agentId} to {AGENT_LABELS[nextAgent.agentId] ?? nextAgent.agentId}
-                        </span>
-                      </div>
-                    </motion.div>,
-                  );
-                }
-              }
+          {showCursor && (
+            <div className="pl-1">
+              <StreamingCursor />
+            </div>
+          )}
 
-              const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
+          {isActiveRun && task.currentStatus && (
+            <ActivityIndicator
+              label={task.currentStatus}
+              statusKind={task.currentStatusKind}
+              active
+            />
+          )}
 
-              rendered.push(
-                <motion.div
-                  key={`${msg.timestamp}-${idx}`}
-                  variants={messageVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  transition={messageTransition}
-                >
-                  {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode)}
-                </motion.div>,
-              );
-            }
-            return rendered;
-          })()}
-        </AnimatePresence>
+          {diffs.size > 0 && (taskStatus === 'done' || taskStatus === 'error') && (
+            <>
+              {Array.from(diffs.entries()).map(([key, diff]) => (
+                <div key={`diff-${key}`} className="mt-2">
+                  <DiffBlock diff={diff} />
+                </div>
+              ))}
+            </>
+          )}
 
-        {showCursor && (
-          <div className="pl-1">
-            <StreamingCursor />
-          </div>
-        )}
+          {task.mode === 'plan' && taskId && (taskStatus === 'done' || isStreaming) && (
+            <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
+          )}
 
-        {isActiveRun && task.currentStatus && (
-          <ActivityIndicator
-            label={task.currentStatus}
-            statusKind={task.currentStatusKind}
-            active
-          />
-        )}
-
-        {diffs.size > 0 && (taskStatus === 'done' || taskStatus === 'error') && (
-          <>
-            {Array.from(diffs.entries()).map(([key, diff]) => (
-              <div key={`diff-${key}`} className="mt-2">
-                <DiffBlock diff={diff} />
+          {rateLimitSuggestion && taskId && (
+            <div className="premium-panel flex items-center justify-between gap-3 rounded-[20px] border border-warning/25 p-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-warning font-medium">Rate limited.</span>
+                <span className="text-text-secondary">Switch to another agent?</span>
               </div>
-            ))}
-          </>
-        )}
-
-        {task.mode === 'plan' && taskId && (taskStatus === 'done' || isStreaming) && (
-          <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
-        )}
-
-        {rateLimitSuggestion && taskId && (
-          <div className="premium-panel flex items-center justify-between gap-3 rounded-[20px] border border-warning/25 p-4 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-warning font-medium">Rate limited.</span>
-              <span className="text-text-secondary">Switch to another agent?</span>
+              <div className="flex items-center gap-1.5">
+                {rateLimitSuggestion.agents
+                  .filter((agentId) => agents.some((a) => a.id === agentId && a.available))
+                  .slice(0, 3)
+                  .map((agentId) => {
+                    const agent = agents.find((a) => a.id === agentId);
+                    return (
+                      <button
+                        key={agentId}
+                        onClick={() => {
+                          switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
+                          useAgentStore.getState().setSelectedAgent(agentId);
+                        }}
+                        className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1 text-xs font-medium text-accent"
+                      >
+                        {AGENT_LABELS[agentId] ?? agentId}
+                      </button>
+                    );
+                  })}
+                <button
+                  onClick={() => {
+                    useChatStore.setState((state) => {
+                      const t = state.tasks.get(taskId);
+                      if (t) t.rateLimitSuggestion = undefined;
+                    });
+                  }}
+                  className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              {rateLimitSuggestion.agents
-                .filter((agentId) => agents.some((a) => a.id === agentId && a.available))
-                .slice(0, 3)
-                .map((agentId) => {
-                  const agent = agents.find((a) => a.id === agentId);
-                  return (
-                    <button
-                      key={agentId}
-                      onClick={() => {
-                        switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
-                        useAgentStore.getState().setSelectedAgent(agentId);
-                      }}
-                      className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1 text-xs font-medium text-accent"
-                    >
-                      {AGENT_LABELS[agentId] ?? agentId}
-                    </button>
-                  );
-                })}
-              <button
-                onClick={() => {
-                  useChatStore.setState((state) => {
-                    const t = state.tasks.get(taskId);
-                    if (t) t.rateLimitSuggestion = undefined;
-                  });
-                }}
-                className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!isAtBottom && (

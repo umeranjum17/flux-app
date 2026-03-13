@@ -126,7 +126,7 @@ export const useUiStore = create<UiState>()(
     bottomPanelMode: 'agent',
     rightSidebarOpen: true,
     rightSidebarTab: 'files',
-    bottomPanelOpen: true,
+    bottomPanelOpen: false,
     bottomPanelTab: 'terminal',
     sshHost: null,
     sshConnected: false,

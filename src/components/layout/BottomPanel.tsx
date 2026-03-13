@@ -9,7 +9,7 @@ type BottomPanelTab = 'setup' | 'run' | 'terminal';
 export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(_props, ref) {
   const tab = useUiStore((s) => s.bottomPanelTab);
   const setTab = useUiStore((s) => s.setBottomPanelTab);
-  const [height, setHeight] = useState(240);
+  const [height, setHeight] = useState(176);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
 
   const switchTab = useCallback((t: BottomPanelTab) => {
@@ -27,7 +27,7 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
     const onMove = (ev: MouseEvent) => {
       if (!dragRef.current) return;
       const delta = dragRef.current.startY - ev.clientY;
-      setHeight(Math.max(120, Math.min(600, dragRef.current.startH + delta)));
+      setHeight(Math.max(96, Math.min(420, dragRef.current.startH + delta)));
     };
     const onUp = () => {
       dragRef.current = null;
@@ -41,7 +41,7 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
   return (
     <div
       className="flex shrink-0 flex-col border-t border-border bg-bg-secondary"
-      style={{ height, minHeight: 120 }}
+      style={{ height, minHeight: 96 }}
     >
       <div
         className="group flex h-2 cursor-row-resize items-center justify-center transition-colors hover:bg-bg-hover"

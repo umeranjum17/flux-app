@@ -154,7 +154,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
   return (
     <div className={`premium-plan-card overflow-hidden rounded-[26px] ${
-      isStreaming ? 'border-plan/35 shadow-[0_28px_64px_hsl(24_45%_6%_/_0.42)]' : ''
+      isStreaming ? 'border-plan/35 shadow-[0_28px_64px_rgba(0,0,0,0.36)]' : ''
     }`}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-plan/12 bg-plan/8 px-5 py-4">
@@ -249,7 +249,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             </button>
             <button
               onClick={handleSaveEdit}
-              className="rounded-xl bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_hsl(40_60%_12%_/_0.24)] transition-transform hover:-translate-y-0.5"
+              className="rounded-xl bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5"
             >
               <Save size={12} className="inline mr-1" />
               Save Revision
@@ -343,7 +343,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           </div>
           <button
             onClick={handleImplement}
-            className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-bg-primary shadow-[0_16px_34px_hsl(24_45%_8%_/_0.28)] transition-transform hover:-translate-y-0.5"
+            className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-bg-primary shadow-[0_16px_34px_rgba(0,0,0,0.24)] transition-transform hover:-translate-y-0.5"
           >
             <Play size={13} />
             Implement Plan

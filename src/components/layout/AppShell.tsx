@@ -342,7 +342,7 @@ export function AppShell() {
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Chat area + right sidebar */}
             <div className="flex flex-1 overflow-hidden">
-              <div className="relative flex min-w-0 flex-1 flex-col">
+              <div className="relative flex min-w-0 flex-1 flex-col p-2">
                 {dashboardOpen ? (
                   reviewingWorkspaceId ? (
                     <WorkspaceDashboard />
@@ -352,14 +352,16 @@ export function AppShell() {
                     <WorkspaceDashboard />
                   )
                 ) : (
-                  <>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-bg-primary/55 shadow-[0_18px_42px_rgba(0,0,0,0.22)]">
                     <TabBar />
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                    <div className="shrink-0 border-t border-border bg-bg-secondary px-4 py-3">
-                      <LiveRunHeader />
-                      <ChatInput focused />
+                    <div className="shrink-0 border-t border-border/80 bg-bg-primary/45">
+                      <div className="mx-auto w-full max-w-[1040px] px-4 py-3">
+                        <LiveRunHeader />
+                        <ChatInput focused />
+                      </div>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* File viewer overlay */}
