@@ -36,18 +36,18 @@ export function WorkspaceCard({
   return (
     <button
       onClick={onSelect}
-      className={`w-full rounded-[4px] border px-4 py-3 text-left transition-colors ${
+      className={`w-full rounded-[22px] border px-5 py-4 text-left transition-colors ${
         isActive
-          ? 'border-accent/30 bg-accent-muted/35'
-          : 'border-border bg-bg-secondary hover:border-border-focus/40 hover:bg-bg-hover/70'
+          ? 'border-accent/30 bg-accent-muted/30 shadow-[0_18px_34px_rgba(0,0,0,0.2)]'
+          : 'border-border/80 bg-bg-secondary/88 hover:border-border-focus/40 hover:bg-bg-hover/60'
       }`}
     >
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-text-primary">{workspace.name}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
+            <div className="truncate text-sm font-medium tracking-[0.01em] text-text-primary">{workspace.name}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
               <span className="inline-flex items-center gap-1">
                 <Bot size={11} />
                 {workspace.agentId}
@@ -57,10 +57,10 @@ export function WorkspaceCard({
             </div>
           </div>
         </div>
-        <span className="shrink-0 rounded-md border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-text-tertiary">
+        <span className="premium-pill shrink-0 px-2.5 py-1 text-[10px] font-medium text-text-tertiary">
           {status.label}
         </span>
-        <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
         {isRunning && (
           <ActionButton icon={<Square size={12} />} label="Stop" onClick={onStop} variant="warning" />
         )}
@@ -90,7 +90,7 @@ function ActionButton({ icon, label, onClick, variant }: {
     <button
       onClick={onClick}
       title={label}
-      className={`premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors ${colors}`}
+      className={`premium-toolbar-button rounded-xl p-2 text-text-tertiary transition-colors ${colors}`}
     >
       {icon}
     </button>

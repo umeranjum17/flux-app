@@ -15,25 +15,25 @@ export function RightSidebar() {
   return (
     <motion.aside
       initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 280, opacity: 1 }}
+      animate={{ width: 292, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="flex h-full shrink-0 flex-col overflow-hidden border-l border-border bg-bg-secondary"
+      className="chrome-sidebar ml-2 flex h-full shrink-0 flex-col overflow-hidden rounded-[24px] border border-border/70"
     >
-      <div className="flex items-center gap-1 border-b border-border px-2 py-2">
+      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-3">
         <TabButton label="All files" active={activeTab === 'files'} onClick={() => setTab('files')} />
         <TabButton label="Changes" active={activeTab === 'changes'} onClick={() => setTab('changes')} />
         <TabButton label="Checks" active={activeTab === 'checks'} onClick={() => setTab('checks')} />
         <div className="flex-1" />
-        <button className="premium-toolbar-button rounded-md p-1 text-text-secondary" title="Filter">
+        <button className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary" title="Filter">
           <Filter size={13} />
         </button>
-        <button className="premium-toolbar-button rounded-md p-1 text-text-secondary" title="Search">
+        <button className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary" title="Search">
           <Search size={13} />
         </button>
         <button
           onClick={close}
-          className="premium-toolbar-button rounded-md p-1 text-text-secondary"
+          className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary"
         >
           <X size={13} />
         </button>
@@ -56,7 +56,7 @@ function TabButton({ label, active, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`classic-tab-button rounded-md px-2 py-1 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
+      className={`classic-tab-button px-3 py-1.5 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
     >
       {label}
     </button>
@@ -114,19 +114,19 @@ function FilesTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border/70 px-4 py-4">
         <span className="classic-section-label truncate">
           {projectName || 'No folder open'}
         </span>
-        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-md p-1 text-text-secondary" title="Open Folder">
+        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary" title="Open Folder">
           <FolderOpen size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-3">
         {!cwd && (
           <div className="px-4 py-6 text-center">
-            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-secondary">
+            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-secondary">
               <FolderOpen size={14} />
               Open Folder
             </button>
@@ -151,8 +151,8 @@ function ChangesTab() {
   const gitBranch = useUiStore((s) => s.gitBranch);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
+      <div className="mb-3 flex items-center gap-2">
         <GitCompareArrows size={14} className="text-text-tertiary" />
         <span className="text-xs text-text-secondary">{gitBranch || 'No branch'}</span>
         {gitDirty && (
@@ -179,7 +179,7 @@ function ChecksTab() {
   const qualityGate = activeTask?.lastQualityGate;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
       {qualityGate ? (
         <div className="flex items-center gap-2">
           <CheckCircle2 size={14} className={qualityGate.status === 'passed' ? 'text-success' : 'text-error'} />

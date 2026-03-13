@@ -58,7 +58,6 @@ export function LiveRunHeader() {
           <Bot size={13} className={isPlan ? 'text-plan' : 'text-accent'} />
           {formatAgentLabel(task.agentId)}
         </span>
-        {/* Mode badge */}
         <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
           isPlan
             ? 'border-plan/20 bg-plan/12 text-plan'

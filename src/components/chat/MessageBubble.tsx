@@ -33,11 +33,11 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
       <div
         className={[
           role === 'user'
-            ? 'premium-message-user w-full px-4 py-3.5'
+            ? 'premium-message-user w-full px-5 py-4'
             : isActAssistant
-              ? 'premium-message-assistant w-full px-4 py-3.5'
+              ? 'premium-message-assistant w-full px-5 py-4'
               : 'w-full',
-          isPlanAssistant ? 'premium-plan-card p-[18px]' : '',
+          isPlanAssistant ? 'premium-plan-card p-5' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (
@@ -96,7 +96,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
 
               return (
                 <code
-                  className="rounded-md border border-border/70 bg-bg-hover/80 px-1.5 py-0.5 font-mono text-[13px]"
+                  className="rounded-lg border border-border/70 bg-bg-hover/80 px-1.5 py-0.5 font-mono text-[13px]"
                   {...props}
                 >
                   {children}

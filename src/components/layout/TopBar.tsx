@@ -35,42 +35,42 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region flex h-[40px] min-h-[40px] items-center justify-between border-b border-border bg-bg-secondary px-3 ${isMac ? 'pl-[72px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
+      className={`drag-region chrome-topbar flex h-[46px] min-h-[46px] items-center justify-between border-b border-border/80 px-4 ${isMac ? 'pl-[78px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
     >
-      <div className="no-drag flex min-w-0 items-center gap-2">
+      <div className="no-drag flex min-w-0 items-center gap-3">
         <button
           onClick={toggleSidebar}
-          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
           aria-label="Toggle sidebar"
         >
           <Menu size={15} />
         </button>
-        <div className="h-4 w-px bg-border-subtle" />
+        <div className="h-5 w-px bg-border" />
         <div className="min-w-0 select-none">
-          <div className="truncate text-[12px] font-semibold text-text-primary">{titleText}</div>
-          <div className="truncate text-[10px] text-text-tertiary">{subtitle}</div>
+          <div className="truncate text-[12px] font-semibold tracking-[0.02em] text-text-primary">{titleText}</div>
+          <div className="truncate text-[10px] tracking-[0.14em] uppercase text-text-tertiary">{subtitle}</div>
         </div>
         {environment === 'wsl' && (
-          <span className="premium-pill select-none rounded-md px-1.5 py-0.5 text-[10px] font-medium text-warning">
+          <span className="premium-pill select-none px-2 py-1 text-[10px] font-medium text-warning">
             WSL
           </span>
         )}
         {environment === 'ssh' && !sshConnected && (
-          <span className="premium-pill select-none rounded-md px-1.5 py-0.5 text-[10px] font-medium text-info">
+          <span className="premium-pill select-none px-2 py-1 text-[10px] font-medium text-info">
             SSH Session
           </span>
         )}
         {sshConnected && sshHost && (
-          <span className="premium-pill select-none rounded-md border border-accent/20 bg-accent-muted/35 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+          <span className="premium-pill select-none border border-accent/20 bg-accent-muted/35 px-2 py-1 text-[10px] font-medium text-accent">
             SSH
           </span>
         )}
       </div>
 
-      <div className="no-drag flex min-w-0 items-center gap-1.5 overflow-hidden">
+      <div className="no-drag flex min-w-0 items-center gap-2 overflow-hidden">
         <button
           onClick={toggleAutoApprove}
-          className={`premium-toolbar-button inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] ${
+          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] ${
             autoApprove
               ? 'border-success/25 bg-success/12 text-success'
               : 'text-text-secondary'
@@ -84,7 +84,7 @@ export function TopBar() {
 
         <button
           onClick={() => setDashboardOpen(!dashboardOpen)}
-          className={`premium-toolbar-button inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] ${
+          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] ${
             dashboardOpen
               ? 'border-accent/20 bg-accent-muted/40 text-accent'
               : 'text-text-secondary'
@@ -98,7 +98,7 @@ export function TopBar() {
 
         <button
           onClick={() => setOverlay('settings')}
-          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
           aria-label="Settings"
         >
           <Settings size={14} />
