@@ -37,6 +37,14 @@ interface UiState {
   // Bottom panel mode (Warp-style)
   bottomPanelMode: 'agent' | 'terminal';
 
+  // Right sidebar (file explorer)
+  rightSidebarOpen: boolean;
+  rightSidebarTab: 'files' | 'changes' | 'checks';
+
+  // Bottom panel
+  bottomPanelOpen: boolean;
+  bottomPanelTab: 'setup' | 'run' | 'terminal';
+
   // SSH
   sshHost: string | null;
   sshConnected: boolean;
@@ -85,6 +93,16 @@ interface UiState {
   setAutoApprove(enabled: boolean): void;
   toggleAutoApprove(): void;
   setAutoApproveTools(tools: string[]): void;
+
+  // Right sidebar
+  toggleRightSidebar(): void;
+  setRightSidebarOpen(open: boolean): void;
+  setRightSidebarTab(tab: 'files' | 'changes' | 'checks'): void;
+
+  // Bottom panel
+  toggleBottomPanel(): void;
+  setBottomPanelOpen(open: boolean): void;
+  setBottomPanelTab(tab: 'setup' | 'run' | 'terminal'): void;
 }
 
 function basename(p: string): string {
@@ -106,6 +124,10 @@ export const useUiStore = create<UiState>()(
     terminalOpen: false,
     activeTerminalId: null,
     bottomPanelMode: 'agent',
+    rightSidebarOpen: true,
+    rightSidebarTab: 'files',
+    bottomPanelOpen: true,
+    bottomPanelTab: 'terminal',
     sshHost: null,
     sshConnected: false,
     environment: 'local',
@@ -310,6 +332,42 @@ export const useUiStore = create<UiState>()(
     setAutoApproveTools(tools) {
       set((state) => {
         state.autoApproveTools = tools;
+      });
+    },
+
+    toggleRightSidebar() {
+      set((state) => {
+        state.rightSidebarOpen = !state.rightSidebarOpen;
+      });
+    },
+
+    setRightSidebarOpen(open) {
+      set((state) => {
+        state.rightSidebarOpen = open;
+      });
+    },
+
+    setRightSidebarTab(tab) {
+      set((state) => {
+        state.rightSidebarTab = tab;
+      });
+    },
+
+    toggleBottomPanel() {
+      set((state) => {
+        state.bottomPanelOpen = !state.bottomPanelOpen;
+      });
+    },
+
+    setBottomPanelOpen(open) {
+      set((state) => {
+        state.bottomPanelOpen = open;
+      });
+    },
+
+    setBottomPanelTab(tab) {
+      set((state) => {
+        state.bottomPanelTab = tab;
       });
     },
   })),

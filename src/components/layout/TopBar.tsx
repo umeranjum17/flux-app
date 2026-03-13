@@ -1,15 +1,12 @@
-import { Menu, Settings, ChevronDown, LayoutGrid, ClipboardList, Zap, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Menu, Settings, LayoutGrid, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { useAgentStore } from '../../stores/agent';
 import { useWorkspaceStore } from '../../stores/workspace';
 
 const isMac = window.api?.platform === 'darwin';
 const isWin = window.api?.platform === 'win32';
 
 export function TopBar() {
-  const mode = useUiStore((s) => s.mode);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
-  const setMode = useUiStore((s) => s.setMode);
   const setOverlay = useUiStore((s) => s.setOverlay);
   const autoApprove = useUiStore((s) => s.autoApprove);
   const toggleAutoApprove = useUiStore((s) => s.toggleAutoApprove);
@@ -20,12 +17,6 @@ export function TopBar() {
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
   const environment = useUiStore((s) => s.environment);
-
-  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
-  const selectedModel = useAgentStore((s) => s.selectedModel);
-  const agents = useAgentStore((s) => s.agents);
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId);
-  const agentDisplayName = selectedAgent?.name ?? selectedAgentId;
 
   const titleText = projectName || 'Flux';
 
@@ -64,34 +55,6 @@ export function TopBar() {
 
       {/* Right: controls */}
       <div className="no-drag flex items-center gap-1 min-w-0 overflow-hidden">
-        {/* Plan / Act toggle */}
-        <div className="flex items-center rounded-md bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle">
-          <button
-            onClick={() => setMode('plan')}
-            className={`flex items-center gap-1.5 px-2.5 py-[3px] transition-all ${
-              mode === 'plan'
-                ? 'bg-accent text-white'
-                : 'text-text-tertiary hover:text-text-secondary'
-            }`}
-            title={`Plan mode (${isMac ? 'Cmd' : 'Ctrl'}+Shift+P)`}
-          >
-            <ClipboardList size={12} />
-            Plan
-          </button>
-          <button
-            onClick={() => setMode('act')}
-            className={`flex items-center gap-1.5 px-2.5 py-[3px] transition-all ${
-              mode === 'act'
-                ? 'bg-success text-white'
-                : 'text-text-tertiary hover:text-text-secondary'
-            }`}
-            title={`Act mode (${isMac ? 'Cmd' : 'Ctrl'}+Shift+P)`}
-          >
-            <Zap size={12} />
-            Act
-          </button>
-        </div>
-
         {/* Auto-approve toggle */}
         <button
           onClick={toggleAutoApprove}
@@ -104,18 +67,6 @@ export function TopBar() {
           title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
         >
           {autoApprove ? <ShieldCheck size={15} /> : <ShieldOff size={15} />}
-        </button>
-
-        {/* Agent selector */}
-        <button
-          onClick={() => setOverlay('agent-selector')}
-          className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
-        >
-          <span className="truncate max-w-[90px] font-medium">{agentDisplayName}</span>
-          {selectedModel && (
-            <span className="text-text-tertiary">{selectedModel}</span>
-          )}
-          <ChevronDown size={11} className="text-text-tertiary" />
         </button>
 
         <div className="w-px h-4 bg-border-subtle mx-0.5" />
