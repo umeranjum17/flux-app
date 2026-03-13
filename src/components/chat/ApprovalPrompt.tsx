@@ -49,36 +49,42 @@ export function ApprovalPrompt({
   }, [handleAllow, handleDeny]);
 
   return (
-    <div className="border border-warning/40 rounded-lg p-4 bg-bg-elevated">
+    <div className="border border-warning/30 rounded-xl p-4 bg-bg-elevated shadow-sm">
       <div className="flex items-start gap-3">
-        <ShieldAlert size={20} className="text-warning shrink-0 mt-0.5" />
+        <div className="p-1.5 rounded-lg bg-warning/10 shrink-0 mt-0.5">
+          <ShieldAlert size={16} className="text-warning" />
+        </div>
         <div className="flex-1 min-w-0">
-          <h4 className="text-text-primary font-medium text-sm">
+          <h4 className="text-text-primary font-semibold text-[13px]">
             Permission required
           </h4>
-          <p className="text-text-secondary text-sm mt-1">
-            <span className="font-mono text-warning">{toolName}</span>
-            {action && <span> wants to {action}</span>}
+          <p className="text-text-secondary text-[13px] mt-1">
+            <span className="font-mono text-[12px] text-warning bg-warning/8 px-1.5 py-0.5 rounded">{toolName}</span>
+            {action && <span className="ml-1.5">wants to {action}</span>}
           </p>
-          <p className="text-text-secondary text-sm mt-1">{description}</p>
+          {description && (
+            <p className="text-text-secondary text-[12px] mt-1.5 leading-relaxed">{description}</p>
+          )}
           {path && (
-            <p className="text-text-tertiary text-[13px] font-mono mt-1 truncate">
+            <p className="text-text-tertiary text-[11px] font-mono mt-1.5 truncate bg-bg-primary/50 rounded px-2 py-1">
               {path}
             </p>
           )}
 
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 mt-3.5">
             <button
               onClick={handleAllow}
-              className="bg-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-accent-hover transition-colors"
+              className="bg-accent text-white rounded-lg px-4 py-1.5 text-[12px] font-medium hover:bg-accent-hover transition-colors shadow-sm"
             >
-              Allow (y)
+              Allow
+              <kbd className="ml-1.5 text-[10px] opacity-70 font-mono">y</kbd>
             </button>
             <button
               onClick={handleDeny}
-              className="border border-border rounded-lg px-4 py-2 text-sm text-text-secondary hover:bg-bg-hover transition-colors"
+              className="border border-border rounded-lg px-4 py-1.5 text-[12px] font-medium text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
             >
-              Deny (n)
+              Deny
+              <kbd className="ml-1.5 text-[10px] opacity-50 font-mono">n</kbd>
             </button>
           </div>
         </div>

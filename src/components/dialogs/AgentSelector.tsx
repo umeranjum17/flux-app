@@ -5,11 +5,11 @@ import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import type { ThinkingLevel } from '../../lib/types';
 
-const thinkingLevels: { value: ThinkingLevel; label: string }[] = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'Extra High' },
+const thinkingLevels: { value: ThinkingLevel; label: string; short: string }[] = [
+  { value: 'low', label: 'Low', short: 'L' },
+  { value: 'medium', label: 'Medium', short: 'M' },
+  { value: 'high', label: 'High', short: 'H' },
+  { value: 'xhigh', label: 'Extra High', short: 'XH' },
 ];
 
 export function AgentSelector() {
@@ -41,7 +41,6 @@ export function AgentSelector() {
       })()
     : [];
 
-  // Fetch models when the dialog opens
   useEffect(() => {
     if (!open) {
       lastFetchedAgentRef.current = null;
@@ -79,37 +78,37 @@ export function AgentSelector() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-text-primary">Select Agent</h2>
+              <h2 className="text-[15px] font-semibold text-text-primary">Select Agent</h2>
               <button
                 type="button"
                 onClick={() => setOverlay(null)}
                 className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-1 mb-6 max-h-64 overflow-y-auto">
+            <div className="space-y-1 mb-5 max-h-64 overflow-y-auto">
               {agents.map((agent) => (
                 <button
                   key={agent.id}
                   type="button"
                   onClick={() => agent.available && setSelectedAgent(agent.id)}
                   disabled={!agent.available}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 ${
                     agent.id === selectedAgentId
-                      ? 'bg-accent-muted text-text-primary'
+                      ? 'bg-accent/10 text-text-primary ring-1 ring-accent/20'
                       : agent.available
                         ? 'text-text-secondary hover:bg-bg-hover'
-                        : 'text-text-tertiary opacity-60 cursor-not-allowed'
+                        : 'text-text-tertiary opacity-50 cursor-not-allowed'
                   }`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{agent.name}</span>
-                      <span className="text-xs text-text-tertiary">v{agent.version}</span>
+                      <span className="font-medium text-[13px]">{agent.name}</span>
+                      <span className="text-[11px] text-text-tertiary">v{agent.version}</span>
                       {!agent.available && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-primary border border-border">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-primary border border-border-subtle">
                           unavailable
                         </span>
                       )}
@@ -126,13 +125,13 @@ export function AgentSelector() {
                     title={agent.authStatus}
                   />
                   {agent.id === selectedAgentId && (
-                    <Check size={16} className="flex-shrink-0 text-accent" />
+                    <Check size={15} className="flex-shrink-0 text-accent" />
                   )}
                 </button>
               ))}
 
               {agents.length === 0 && (
-                <p className="text-sm text-text-tertiary text-center py-4">
+                <p className="text-[13px] text-text-tertiary text-center py-6">
                   No agents detected. Check your PATH configuration.
                 </p>
               )}
@@ -141,24 +140,24 @@ export function AgentSelector() {
             {selectedAgent && (
               <div className="space-y-4 border-t border-border pt-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-medium text-text-tertiary">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
                       Model
                     </label>
                     <button
                       type="button"
                       onClick={() => fetchModels(selectedAgentId)}
                       disabled={modelsLoading}
-                      className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-50"
+                      className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-50"
                       title="Refresh models"
                     >
                       <RefreshCw size={12} className={modelsLoading ? 'animate-spin' : ''} />
                     </button>
                   </div>
                   {modelsLoading && dynamicModels.length === 0 ? (
-                    <div className="flex items-center gap-2 px-3 py-2 text-sm text-text-tertiary bg-bg-primary border border-border rounded-lg">
-                      <Loader2 size={14} className="animate-spin" />
-                      Loading models…
+                    <div className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-tertiary bg-bg-primary border border-border rounded-xl">
+                      <Loader2 size={13} className="animate-spin" />
+                      Loading models...
                     </div>
                   ) : (
                     <div className="relative">
@@ -166,7 +165,7 @@ export function AgentSelector() {
                         value={selectedModel}
                         onChange={(e) => setSelectedModel(e.target.value)}
                         disabled={modelOptions.length === 0}
-                        className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary appearance-none outline-none focus:border-border-focus transition-colors"
+                        className="w-full bg-bg-primary border border-border rounded-xl px-3 py-2.5 text-[13px] text-text-primary appearance-none outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all"
                       >
                         {modelOptions.map((model) => (
                           <option key={model.id} value={model.id}>
@@ -175,7 +174,7 @@ export function AgentSelector() {
                         ))}
                       </select>
                       <ChevronDown
-                        size={14}
+                        size={13}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
                       />
                     </div>
@@ -184,19 +183,19 @@ export function AgentSelector() {
 
                 {selectedAgent.supportsThinking && (
                   <div>
-                    <label className="block text-xs font-medium text-text-tertiary mb-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
                       Thinking Level
                     </label>
-                    <div className="flex gap-1.5">
+                    <div className="flex rounded-xl bg-bg-primary border border-border p-[3px]">
                       {thinkingLevels.map((level) => (
                         <button
                           key={level.value}
                           type="button"
                           onClick={() => setSelectedThinking(level.value)}
-                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          className={`flex-1 px-2.5 py-2 rounded-[10px] text-[12px] font-medium transition-all duration-150 ${
                             selectedThinking === level.value
-                              ? 'bg-accent text-white'
-                              : 'bg-bg-primary text-text-secondary hover:bg-bg-hover border border-border'
+                              ? 'bg-accent text-white shadow-sm'
+                              : 'text-text-secondary hover:text-text-primary'
                           }`}
                         >
                           {level.label}
@@ -211,7 +210,7 @@ export function AgentSelector() {
             <button
               type="button"
               onClick={() => setOverlay(null)}
-              className="w-full mt-5 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              className="w-full mt-5 px-4 py-2.5 bg-accent text-white rounded-xl text-[13px] font-medium hover:bg-accent-hover transition-colors shadow-sm"
             >
               Done
             </button>

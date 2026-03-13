@@ -353,13 +353,13 @@ export function AppShell() {
         <div className="flex flex-col flex-1 min-w-0">
           <div className="relative flex flex-col flex-1 overflow-hidden">
             {/* Tab bar */}
-            <div className="flex items-center gap-0 bg-bg-secondary/50 border-b border-border-subtle shrink-0">
+            <div className="flex items-center gap-0 bg-bg-secondary/60 border-b border-border shrink-0">
               <button
                 onClick={switchToAgent}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
+                className={`flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium border-b-2 transition-colors ${
                   isAgent
-                    ? 'border-text-secondary text-text-primary'
-                    : 'border-transparent text-text-tertiary hover:text-text-secondary'
+                    ? 'border-accent text-text-primary'
+                    : 'border-transparent text-text-tertiary hover:text-text-secondary hover:border-border'
                 }`}
               >
                 <Bot size={12} />
@@ -367,10 +367,10 @@ export function AppShell() {
               </button>
               <button
                 onClick={switchToTerminal}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
+                className={`flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium border-b-2 transition-colors ${
                   !isAgent
-                    ? 'border-text-secondary text-text-primary'
-                    : 'border-transparent text-text-tertiary hover:text-text-secondary'
+                    ? 'border-accent text-text-primary'
+                    : 'border-transparent text-text-tertiary hover:text-text-secondary hover:border-border'
                 }`}
               >
                 <TerminalSquare size={12} />
@@ -394,7 +394,7 @@ export function AppShell() {
                   <>
                     <TabBar />
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                    <div className="px-4 py-2.5 border-t border-border-subtle shrink-0">
+                    <div className="px-4 py-3 border-t border-border shrink-0">
                       <LiveRunHeader />
                       <ChatInput focused={isAgent} />
                     </div>

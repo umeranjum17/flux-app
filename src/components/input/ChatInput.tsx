@@ -396,7 +396,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="bg-bg-surface border border-border-subtle rounded-xl p-3">
+      <div className="bg-bg-surface border border-border rounded-xl p-3 shadow-sm">
         {showSubagentDialog && (
           <div className="mb-3 space-y-3 rounded-lg border border-border bg-bg-primary/80 p-3">
             <div className="flex items-center justify-between gap-3">
@@ -530,26 +530,28 @@ export function ChatInput({ focused }: ChatInputProps) {
           </div>
         )}
 
-        <div className="flex items-end gap-3">
-          <button
-            type="button"
-            onClick={() => setShowSubagentDialog((current) => !current)}
-            className="flex-shrink-0 p-1.5 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors mb-0.5 disabled:opacity-40"
-            aria-label="Spawn subagents"
-            disabled={!canSpawnSubagents}
-            title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task to spawn subagents'}
-          >
-            <Users2 size={18} />
-          </button>
+        <div className="flex items-end gap-2">
+          <div className="flex items-center gap-0.5 shrink-0 mb-[3px]">
+            <button
+              type="button"
+              onClick={() => setShowSubagentDialog((current) => !current)}
+              className="flex-shrink-0 p-1.5 rounded-md text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-30"
+              aria-label="Spawn subagents"
+              disabled={!canSpawnSubagents}
+              title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task to spawn subagents'}
+            >
+              <Users2 size={16} />
+            </button>
 
-          <button
-            type="button"
-            onClick={handleFileSelect}
-            className="flex-shrink-0 p-1.5 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors mb-0.5"
-            aria-label="Attach image"
-          >
-            <Paperclip size={18} />
-          </button>
+            <button
+              type="button"
+              onClick={handleFileSelect}
+              className="flex-shrink-0 p-1.5 rounded-md text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
+              aria-label="Attach image"
+            >
+              <Paperclip size={16} />
+            </button>
+          </div>
 
           <textarea
             ref={textareaRef}
@@ -560,35 +562,37 @@ export function ChatInput({ focused }: ChatInputProps) {
             placeholder={placeholder}
             rows={1}
             autoFocus
-            className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary resize-none outline-none text-[13px] leading-[22px]"
+            className="flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary/60 resize-none outline-none text-[13px] leading-[22px]"
             style={{ maxHeight: 192 }}
           />
 
-          {/* Mode badge */}
-          <span className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold shrink-0 mb-0.5 select-none ${
-            mode === 'plan'
-              ? 'bg-accent/15 text-accent'
-              : 'bg-success/15 text-success'
-          }`}>
-            {mode === 'plan' ? <ClipboardList size={10} /> : <Zap size={10} />}
-            {mode === 'plan' ? 'PLAN' : 'ACT'}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0 mb-[3px]">
+            {/* Mode badge */}
+            <span className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold select-none ${
+              mode === 'plan'
+                ? 'bg-accent/10 text-accent'
+                : 'bg-success/10 text-success'
+            }`}>
+              {mode === 'plan' ? <ClipboardList size={10} /> : <Zap size={10} />}
+              {mode === 'plan' ? 'PLAN' : 'ACT'}
+            </span>
 
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!hasContent}
-            className={`flex-shrink-0 p-2 rounded-lg transition-colors mb-0.5 ${
-              hasContent
-                ? mode === 'plan'
-                  ? 'bg-accent text-white hover:opacity-90'
-                  : 'bg-success text-white hover:opacity-90'
-                : 'text-text-tertiary cursor-not-allowed'
-            }`}
-            aria-label="Send message"
-          >
-            <SendHorizontal size={16} />
-          </button>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!hasContent}
+              className={`flex-shrink-0 p-2 rounded-lg transition-all duration-150 ${
+                hasContent
+                  ? mode === 'plan'
+                    ? 'bg-accent text-white hover:bg-accent-hover shadow-sm'
+                    : 'bg-success text-white hover:opacity-90 shadow-sm'
+                  : 'bg-bg-hover/50 text-text-tertiary/40 cursor-not-allowed'
+              }`}
+              aria-label="Send message"
+            >
+              <SendHorizontal size={15} />
+            </button>
+          </div>
         </div>
 
         <ImageAttach

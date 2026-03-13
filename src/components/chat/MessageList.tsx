@@ -97,7 +97,7 @@ export function MessageList() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-5 py-4 space-y-3"
+        className="h-full overflow-y-auto px-5 py-4 space-y-3.5"
       >
         <AnimatePresence initial={false}>
           {(() => {
@@ -260,10 +260,10 @@ export function MessageList() {
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg-elevated/90 rounded-full p-2 shadow-lg hover:bg-bg-hover transition-colors"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-bg-elevated border border-border rounded-full p-2 shadow-lg hover:bg-bg-hover transition-all hover:shadow-xl"
           aria-label="Scroll to bottom"
         >
-          <ArrowDown size={16} className="text-text-secondary" />
+          <ArrowDown size={14} className="text-text-secondary" />
         </button>
       )}
     </div>

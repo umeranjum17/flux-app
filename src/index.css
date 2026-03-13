@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  /* Dark mode colors (default) — warm neutral palette inspired by Conductor */
-  --color-bg-primary: hsl(225 8% 7%);
-  --color-bg-secondary: hsl(225 6% 10%);
-  --color-bg-elevated: hsl(225 5% 13%);
-  --color-bg-hover: hsl(225 5% 16%);
-  --color-bg-surface: hsl(225 5% 11.5%);
+  /* Dark mode colors (default) — refined neutral palette */
+  --color-bg-primary: hsl(228 8% 7%);
+  --color-bg-secondary: hsl(228 6% 10%);
+  --color-bg-elevated: hsl(228 5% 13%);
+  --color-bg-hover: hsl(228 5% 16%);
+  --color-bg-surface: hsl(228 5% 11%);
 
-  --color-text-primary: hsl(220 10% 90%);
-  --color-text-secondary: hsl(220 6% 58%);
-  --color-text-tertiary: hsl(220 5% 40%);
+  --color-text-primary: hsl(220 12% 91%);
+  --color-text-secondary: hsl(220 6% 56%);
+  --color-text-tertiary: hsl(220 4% 38%);
 
-  --color-accent: hsl(215 55% 52%);
-  --color-accent-hover: hsl(215 55% 58%);
-  --color-accent-muted: hsl(215 30% 16%);
+  --color-accent: hsl(217 60% 50%);
+  --color-accent-hover: hsl(217 60% 56%);
+  --color-accent-muted: hsl(217 30% 15%);
 
-  --color-success: hsl(152 48% 40%);
-  --color-error: hsl(0 52% 48%);
-  --color-warning: hsl(38 58% 48%);
-  --color-info: hsl(210 50% 50%);
+  --color-success: hsl(152 50% 38%);
+  --color-error: hsl(0 55% 48%);
+  --color-warning: hsl(38 60% 48%);
+  --color-info: hsl(210 52% 50%);
 
-  --color-border: hsl(225 5% 14%);
-  --color-border-focus: hsl(215 55% 52%);
-  --color-border-subtle: hsl(225 4% 12%);
+  --color-border: hsl(228 5% 15%);
+  --color-border-focus: hsl(217 60% 50%);
+  --color-border-subtle: hsl(228 4% 12%);
 
   /* Typography */
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -60,10 +60,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Focus ring utility */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: inherit;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -193,4 +205,13 @@ body {
 }
 .markdown-prose p:last-child {
   margin-bottom: 0;
+}
+
+/* Inline code in markdown */
+.markdown-prose code:not(pre code) {
+  background: var(--color-bg-hover);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }

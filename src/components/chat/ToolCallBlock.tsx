@@ -316,10 +316,10 @@ export function ToolCallBlock({
   }, [isRunning, isComplete, resultIsError, Icon, color]);
 
   return (
-    <div className="bg-bg-surface rounded-lg border border-border-subtle">
+    <div className="bg-bg-surface/80 rounded-lg border border-border-subtle overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-left text-sm py-2 px-3"
+        className="flex items-center gap-2.5 w-full text-left py-2.5 px-3 hover:bg-bg-hover/30 transition-colors"
       >
         {statusIcon}
         <span className="text-text-secondary truncate flex-1 text-[12px]">
@@ -327,22 +327,21 @@ export function ToolCallBlock({
         </span>
         {diffStats && (
           <span className="flex items-center gap-1 shrink-0">
-            <span className="bg-success/15 text-success text-xs font-mono px-1.5 py-0.5 rounded">
+            <span className="bg-success/12 text-success text-[11px] font-mono px-1.5 py-0.5 rounded">
               +{diffStats.added}
             </span>
-            <span className="text-text-tertiary text-xs">&middot;</span>
-            <span className="bg-error/15 text-error text-xs font-mono px-1.5 py-0.5 rounded">
+            <span className="bg-error/12 text-error text-[11px] font-mono px-1.5 py-0.5 rounded">
               -{diffStats.removed}
             </span>
           </span>
         )}
         {resultContent && (
-          <Download size={13} className="text-text-tertiary shrink-0 hover:text-text-secondary" />
+          <Download size={12} className="text-text-tertiary/50 shrink-0" />
         )}
         {expanded ? (
-          <ChevronDown size={14} className="text-text-tertiary shrink-0" />
+          <ChevronDown size={13} className="text-text-tertiary shrink-0" />
         ) : (
-          <ChevronRight size={14} className="text-text-tertiary shrink-0" />
+          <ChevronRight size={13} className="text-text-tertiary shrink-0" />
         )}
       </button>
 
