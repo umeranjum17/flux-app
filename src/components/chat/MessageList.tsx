@@ -193,6 +193,14 @@ export function MessageList() {
           </div>
         )}
 
+        {isActiveRun && task.currentStatus && (
+          <ActivityIndicator
+            label={task.currentStatus}
+            statusKind={task.currentStatusKind}
+            active
+          />
+        )}
+
         {diffs.size > 0 && (taskStatus === 'done' || taskStatus === 'error') && (
           <>
             {Array.from(diffs.entries()).map(([key, diff]) => (

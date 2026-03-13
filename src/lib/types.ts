@@ -206,4 +206,6 @@ export interface Task {
   agentHistory: AgentHistoryEntry[];
   rateLimitSuggestion?: { agents: AgentId[] };
   diffs: Map<string, DiffData>;
+  currentStatus?: string;
+  currentStatusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
 }
