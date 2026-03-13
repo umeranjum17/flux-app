@@ -38,7 +38,7 @@ export function ReviewDiffViewer({ oldContent, newContent, fileName, onDiscard }
       },
       line: {
         fontSize: '13px',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Cascadia Code", monospace',
       },
     }),
     [],

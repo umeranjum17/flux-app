@@ -15,6 +15,14 @@ function listHomeBinDirectories(env: NodeJS.ProcessEnv): string[] {
 }
 
 function listExtraBinDirectories(env: NodeJS.ProcessEnv): string[] {
+  if (process.platform === 'win32') {
+    const sysRoot = env.SystemRoot ?? 'C:\\Windows';
+    return [
+      path.join(sysRoot, 'System32'),
+      path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0'),
+      ...listHomeBinDirectories(env),
+    ];
+  }
   return [
     '/usr/local/bin',
     '/usr/bin',
@@ -59,6 +67,10 @@ function isExecutable(candidate: string): boolean {
     const stat = fs.statSync(candidate);
     if (!stat.isFile()) {
       return false;
+    }
+    // On Windows, X_OK is not meaningful; check file exists and has a known extension
+    if (process.platform === 'win32') {
+      return true;
     }
     fs.accessSync(candidate, fs.constants.X_OK);
     return true;
@@ -134,7 +146,9 @@ export function classifySpawnError(
       return {
         code: 'SSH_NOT_FOUND',
         userMessage: 'SSH binary not found',
-        suggestion: 'Install OpenSSH or verify PATH includes /usr/bin',
+        suggestion: process.platform === 'win32'
+          ? 'Install OpenSSH (Settings > Apps > Optional Features > OpenSSH Client)'
+          : 'Install OpenSSH or verify PATH includes /usr/bin',
       };
     }
     return {
@@ -148,15 +162,20 @@ export function classifySpawnError(
     return {
       code: 'PERMISSION_DENIED',
       userMessage: `Permission denied running "${context.command}"`,
-      suggestion: 'Check file permissions (chmod +x)',
+      suggestion: process.platform === 'win32'
+        ? 'Try running as Administrator or check file permissions'
+        : 'Check file permissions (chmod +x)',
     };
   }
 
   if (/Host key verification failed/i.test(msg)) {
+    const host = context.sshHost ?? 'HOST';
     return {
       code: 'SSH_HOST_KEY',
       userMessage: 'SSH host key verification failed',
-      suggestion: `Run: ssh-keyscan ${context.sshHost ?? 'HOST'} >> ~/.ssh/known_hosts`,
+      suggestion: process.platform === 'win32'
+        ? `Run: ssh-keyscan ${host} >> %USERPROFILE%\\.ssh\\known_hosts`
+        : `Run: ssh-keyscan ${host} >> ~/.ssh/known_hosts`,
     };
   }
 

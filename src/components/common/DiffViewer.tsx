@@ -46,7 +46,7 @@ export function DiffViewer({ oldValue, newValue, fileName }: DiffViewerProps) {
       },
       line: {
         fontSize: '13px',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Cascadia Code", monospace',
       },
     }),
     [],
