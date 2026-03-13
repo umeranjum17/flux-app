@@ -1,17 +1,17 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Paperclip, Users2, Plus, X, RotateCcw, Brain, ClipboardList, Zap } from 'lucide-react';
-import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
+import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
+import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
-import type { AgentId, FileAttachment, ThinkingLevel } from '../../lib/types';
+import type { FileAttachment, ThinkingLevel } from '../../lib/types';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   low: 'Low',
@@ -43,7 +43,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
   const { mode, sendKey } = useUiStore();
-  const currentAgent = agents.find((a) => a.id === selectedAgentId);
+  const currentAgent = agents.find((agent) => agent.id === selectedAgentId);
   const pendingMention = useUiStore((s) => s.pendingMention);
 
   const isMac = window.api?.platform === 'darwin';
@@ -369,16 +369,13 @@ export function ChatInput({ focused }: ChatInputProps) {
   const isContinuing = activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
   const isModeSwitch = isContinuing && activeTask.mode !== mode;
 
-  // Display model name from dynamic models or fallback
   const displayModel = (() => {
-    const found = dynamicModels.find((m) => m.id === selectedModel);
-    if (found) return found.name;
-    // Fallback: prettify the raw ID
+    const model = dynamicModels.find((item) => item.id === selectedModel);
+    if (model) return model.name;
     return selectedModel
       .replace('claude-', '')
       .replace('gpt-', 'GPT-');
   })();
-
   const supportsThinking = currentAgent?.supportsThinking ?? true;
 
   return (
@@ -390,7 +387,11 @@ export function ChatInput({ focused }: ChatInputProps) {
             Continuing conversation
           </span>
           {isModeSwitch && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent/15 text-accent">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              mode === 'plan'
+                ? 'border border-plan/20 bg-plan/12 text-plan'
+                : 'border border-accent/20 bg-accent/12 text-accent'
+            }`}>
               switching to {mode} mode
             </span>
           )}
@@ -413,9 +414,9 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="bg-bg-surface border border-border rounded-xl p-3 shadow-sm">
+      <div className="premium-input-shell rounded-[24px] p-3.5">
         {showSubagentDialog && (
-          <div className="mb-3 space-y-3 rounded-lg border border-border bg-bg-primary/80 p-3">
+          <div className="premium-panel mb-3 space-y-3 rounded-[20px] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-text-primary">Spawn subagents</p>
@@ -424,7 +425,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setShowSubagentDialog(false)}
-                className="rounded-md p-1 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+                className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
               >
                 <X size={14} />
               </button>
@@ -436,25 +437,25 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="text"
                 value={subagentModel}
                 onChange={(e) => setSubagentModel(e.target.value)}
-                className="flex-1 rounded-md border border-border bg-bg-elevated px-2 py-1.5 text-sm text-text-primary outline-none"
+                className="premium-focus flex-1 rounded-xl border border-border bg-bg-elevated/75 px-3 py-2 text-sm text-text-primary outline-none"
                 placeholder="haiku"
               />
             </div>
 
             <div className="space-y-2">
               {subagentDrafts.map((draft, index) => (
-                <div key={index} className="space-y-2 rounded-md border border-border/70 bg-bg-elevated px-3 py-2">
+                <div key={index} className="premium-panel rounded-[18px] space-y-2 px-3 py-3">
                   <input
                     type="text"
                     value={draft.name}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                    className="w-full rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary outline-none"
+                    className="premium-focus w-full rounded-xl border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
                     placeholder="Agent name"
                   />
                   <textarea
                     value={draft.prompt}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: e.target.value } : item))}
-                    className="min-h-20 w-full resize-y rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary outline-none"
+                    className="premium-focus min-h-20 w-full resize-y rounded-xl border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
                     placeholder="What should this subagent explore?"
                   />
                 </div>
@@ -465,7 +466,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setSubagentDrafts((current) => current.length >= 5 ? current : [...current, { name: `Explore ${current.length + 1}`, prompt: '' }])}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+                className="premium-toolbar-button inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs text-text-tertiary"
               >
                 <Plus size={12} />
                 Add agent
@@ -473,7 +474,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => void handleSpawnSubagents()}
-                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_hsl(24_45%_8%_/_0.28)] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                 disabled={!canSpawnSubagents}
               >
                 Spawn
@@ -488,12 +489,12 @@ export function ChatInput({ focused }: ChatInputProps) {
             {attachedFiles.map((file) => (
               <span
                 key={file.path}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent text-xs"
+                className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent-muted/40 px-2.5 py-1 text-xs text-accent"
               >
                 @{file.name}
                 <button
                   onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
-                  className="p-0.5 rounded hover:bg-accent/20 transition-colors"
+                  className="premium-toolbar-button rounded-full p-0.5 text-accent"
                 >
                   <X size={10} />
                 </button>
@@ -522,129 +523,123 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
 
         {/* Toolbar below textarea */}
-        <div className="flex items-center justify-between pt-2 mt-1 border-t border-border-subtle/50">
-          {/* Left controls */}
-          <div className="relative flex items-center gap-1">
-            {/* Model selector button */}
-            <button
-              type="button"
-              onClick={() => setShowModelSelector((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors"
-              title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
-            >
-              <AgentIcon
-                agentId={selectedAgentId}
-                size={13}
-                className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
+        <div className="mt-2 pt-2">
+          <div className="premium-divider" />
+          <div className="mt-2 flex items-center justify-between">
+            {/* Left controls */}
+            <div className="relative flex items-center gap-1.5">
+              {/* Model selector button */}
+              <button
+                type="button"
+                onClick={() => setShowModelSelector((v) => !v)}
+                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
+                title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
+              >
+                <AgentIcon
+                  agentId={selectedAgentId}
+                  size={13}
+                  className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
+                />
+                <span className="max-w-[160px] truncate">{displayModel}</span>
+              </button>
+
+              <ModelSelectorDropdown
+                open={showModelSelector}
+                onClose={() => setShowModelSelector(false)}
               />
-              <span className="max-w-[140px] truncate">{displayModel}</span>
-            </button>
 
-            <ModelSelectorDropdown
-              open={showModelSelector}
-              onClose={() => setShowModelSelector(false)}
-            />
-
-            {/* Thinking toggle — only shown for agents that support it */}
-            {supportsThinking && (
-              <button
-                type="button"
-                onClick={handleCycleThinking}
-                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-text-secondary hover:bg-bg-hover transition-colors"
-                title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
-              >
-                <Brain size={12} className="text-accent" />
-                <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
-              </button>
-            )}
-          </div>
-
-          {/* Right controls */}
-          <div className="flex items-center gap-1">
-            {/* Plan / Act segmented toggle */}
-            <div
-              className="relative flex items-center rounded-lg bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle p-[2px]"
-              title="Toggle plan/act mode (Shift+Tab)"
-            >
-              {/* Sliding background indicator */}
-              <div
-                className={`absolute top-[2px] bottom-[2px] w-[calc(50%-2px)] rounded-[6px] transition-all duration-200 ease-out ${
-                  mode === 'plan' ? 'left-[2px] bg-accent' : 'left-[calc(50%)] bg-success'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  useUiStore.getState().setMode('plan');
-                  const t = getActiveTask();
-                  if (t) setTaskMode(t.id, 'plan');
-                }}
-                className={`relative z-10 flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-colors duration-200 ${
-                  mode === 'plan'
-                    ? 'text-white'
-                    : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-              >
-                <ClipboardList size={11} />
-                Plan
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  useUiStore.getState().setMode('act');
-                  const t = getActiveTask();
-                  if (t) setTaskMode(t.id, 'act');
-                }}
-                className={`relative z-10 flex items-center gap-1 px-2.5 py-[4px] rounded-[6px] transition-colors duration-200 ${
-                  mode === 'act'
-                    ? 'text-white'
-                    : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-              >
-                <Zap size={11} />
-                Act
-              </button>
+              {/* Thinking toggle */}
+              {supportsThinking && (
+                <button
+                  type="button"
+                  onClick={handleCycleThinking}
+                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
+                  title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
+                >
+                  <Brain size={12} className="text-accent" />
+                  <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                </button>
+              )}
             </div>
 
-            {/* Attach / subagent button */}
-            <button
-              type="button"
-              onClick={handleFileSelect}
-              className="p-1.5 rounded-md text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
-              aria-label="Attach file"
-              title="Attach image"
-            >
-              <Paperclip size={14} />
-            </button>
+            {/* Right controls */}
+            <div className="flex items-center gap-1.5">
+              {/* Plan / Act segmented toggle */}
+              <div className="premium-pill flex items-center overflow-hidden rounded-full text-[11px] font-medium">
+                <button
+                  type="button"
+                  onClick={() => {
+                    useUiStore.getState().setMode('plan');
+                    const t = getActiveTask();
+                    if (t) setTaskMode(t.id, 'plan');
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
+                    mode === 'plan'
+                      ? 'bg-plan text-bg-primary shadow-[0_10px_24px_hsl(40_60%_12%_/_0.22)]'
+                      : 'text-text-tertiary'
+                  }`}
+                >
+                  <ClipboardList size={11} />
+                  Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useUiStore.getState().setMode('act');
+                    const t = getActiveTask();
+                    if (t) setTaskMode(t.id, 'act');
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
+                    mode === 'act'
+                      ? 'bg-accent text-bg-primary shadow-[0_10px_24px_hsl(24_45%_8%_/_0.22)]'
+                      : 'text-text-tertiary'
+                  }`}
+                >
+                  <Zap size={11} />
+                  Act
+                </button>
+              </div>
 
-            {/* + button (subagents) */}
-            <button
-              type="button"
-              onClick={() => setShowSubagentDialog((v) => !v)}
-              className="p-1.5 rounded-md text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-40"
-              aria-label="More options"
-              disabled={!canSpawnSubagents}
-              title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
-            >
-              <Plus size={14} />
-            </button>
+              {/* Attach / subagent button */}
+              <button
+                type="button"
+                onClick={handleFileSelect}
+                className="premium-toolbar-button rounded-full p-2 text-text-tertiary"
+                aria-label="Attach file"
+                title="Attach image"
+              >
+                <Paperclip size={14} />
+              </button>
 
-            {/* Send button (circular) */}
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!hasContent}
-              className={`flex-shrink-0 p-1.5 rounded-full transition-all duration-150 ${
-                hasContent
-                  ? mode === 'plan'
-                    ? 'bg-accent text-white hover:bg-accent-hover shadow-sm'
-                    : 'bg-text-primary text-bg-primary hover:opacity-90 shadow-sm'
-                  : 'bg-bg-hover/50 text-text-tertiary/40 cursor-not-allowed'
-              }`}
-              aria-label="Send message"
-            >
-              <ArrowUp size={14} strokeWidth={2.5} />
-            </button>
+              {/* + button (subagents) */}
+              <button
+                type="button"
+                onClick={() => setShowSubagentDialog((v) => !v)}
+                className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
+                aria-label="More options"
+                disabled={!canSpawnSubagents}
+                title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
+              >
+                <Plus size={14} />
+              </button>
+
+              {/* Send button (circular) */}
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!hasContent}
+                className={`flex-shrink-0 rounded-full p-2 transition-all ${
+                  hasContent
+                    ? mode === 'plan'
+                      ? 'bg-plan text-bg-primary shadow-[0_16px_34px_hsl(40_60%_12%_/_0.28)] hover:-translate-y-0.5'
+                      : 'bg-accent text-bg-primary shadow-[0_16px_34px_hsl(24_45%_8%_/_0.28)] hover:-translate-y-0.5'
+                    : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
+                }`}
+                aria-label="Send message"
+              >
+                <ArrowUp size={14} strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
         </div>
       </div>

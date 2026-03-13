@@ -24,9 +24,9 @@ export function BashPanel({ toolInput, resultContent, resultIsError }: PanelProp
   }, [resultContent]);
 
   return (
-    <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/30 bg-black/20">
+    <div className="premium-panel mx-3 mb-3 overflow-hidden rounded-[18px]">
       {command && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-black/30 border-b border-border/20">
+        <div className="flex items-center gap-2 border-b border-border/60 bg-bg-primary/45 px-3 py-2">
           <span className="text-text-tertiary/60 text-xs select-none">$</span>
           <code className="text-[13px] font-mono text-text-primary flex-1 break-all leading-5">
             {command}
@@ -49,7 +49,7 @@ export function BashPanel({ toolInput, resultContent, resultIsError }: PanelProp
         <div className="max-h-80 overflow-auto">
           <pre
             className={`px-3 py-2 text-[13px] font-mono whitespace-pre-wrap leading-5 ${
-              resultIsError ? 'text-error/80' : 'text-text-secondary'
+              resultIsError ? 'text-error/85' : 'text-text-secondary'
             }`}
           >
             {resultContent}
@@ -89,9 +89,9 @@ export function ReadPanel({ toolInput, resultContent }: PanelProps) {
   const lineCount = resultContent ? resultContent.split('\n').length : 0;
 
   return (
-    <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/30">
+    <div className="premium-panel mx-3 mb-3 overflow-hidden rounded-[18px]">
       {filePath && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-bg-primary/50 border-b border-border/20 text-xs">
+        <div className="flex items-center justify-between border-b border-border/60 bg-bg-primary/45 px-3 py-2 text-xs">
           <span className="font-mono text-text-secondary truncate">{filePath}</span>
           <span className="text-text-tertiary shrink-0 ml-2">{lineCount} lines</span>
         </div>
@@ -99,11 +99,11 @@ export function ReadPanel({ toolInput, resultContent }: PanelProps) {
       <div className="max-h-96 overflow-auto">
         {highlightedHtml ? (
           <div
-            className="shiki-wrapper [&>pre]:px-3 [&>pre]:py-2 [&>pre]:!bg-bg-primary/40 [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
+            className="shiki-wrapper [&>pre]:px-3 [&>pre]:py-2 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}
           />
         ) : (
-          <pre className="px-3 py-2 bg-bg-primary/40 font-mono text-[13px] text-text-secondary leading-5 whitespace-pre-wrap">
+          <pre className="bg-transparent px-3 py-2 font-mono text-[13px] text-text-secondary leading-5 whitespace-pre-wrap">
             {resultContent}
           </pre>
         )}
@@ -118,8 +118,8 @@ export function EditDiffPanel({ diff, filePath }: { diff?: string; filePath?: st
 
   if (hunks.length === 0) {
     return diff ? (
-      <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/30">
-        <pre className="px-3 py-2 bg-bg-primary/40 font-mono text-[13px] text-text-secondary leading-5 whitespace-pre-wrap">
+      <div className="premium-panel mx-3 mb-3 overflow-hidden rounded-[18px]">
+        <pre className="bg-transparent px-3 py-2 font-mono text-[13px] text-text-secondary leading-5 whitespace-pre-wrap">
           {diff}
         </pre>
       </div>
@@ -131,7 +131,7 @@ export function EditDiffPanel({ diff, filePath }: { diff?: string; filePath?: st
   }
 
   return (
-    <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/30 bg-bg-primary/30">
+    <div className="premium-panel mx-3 mb-3 overflow-hidden rounded-[18px]">
       <DiffLines hunks={hunks} maxHeight="24rem" />
     </div>
   );
@@ -156,8 +156,8 @@ export function SearchPanel({ toolInput, resultContent }: PanelProps) {
 
   if (groups.size === 0) {
     return resultContent ? (
-      <div className="mx-3 mb-3 rounded-lg border border-border/30 overflow-hidden">
-        <pre className="px-3 py-2 bg-bg-primary/40 font-mono text-[13px] text-text-secondary whitespace-pre-wrap max-h-80 overflow-auto">
+      <div className="premium-panel mx-3 mb-3 overflow-hidden rounded-[18px]">
+        <pre className="bg-transparent px-3 py-2 font-mono text-[13px] text-text-secondary whitespace-pre-wrap max-h-80 overflow-auto">
           {resultContent}
         </pre>
       </div>
@@ -165,22 +165,22 @@ export function SearchPanel({ toolInput, resultContent }: PanelProps) {
   }
 
   return (
-    <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/30 max-h-96 overflow-auto">
+    <div className="premium-panel mx-3 mb-3 max-h-96 overflow-auto rounded-[18px]">
       {Array.from(groups.entries()).map(([file, lines]) => (
         <div key={file}>
-          <div className="px-3 py-1.5 bg-bg-primary/50 text-xs font-mono text-text-secondary border-b border-border/20 sticky top-0 z-10">
+          <div className="sticky top-0 z-10 border-b border-border/60 bg-bg-primary/55 px-3 py-2 text-xs font-mono text-text-secondary backdrop-blur-xl">
             {file}
             <span className="text-text-tertiary ml-2">({lines.length})</span>
           </div>
           {lines.slice(0, 20).map((line, i) => (
             <div
               key={i}
-              className="flex text-[13px] font-mono border-b border-border/10 last:border-b-0"
+              className="flex border-b border-border/10 text-[13px] font-mono last:border-b-0"
             >
-              <span className="px-2 py-0.5 text-text-tertiary/40 text-right min-w-[3rem] select-none bg-bg-primary/20 shrink-0">
+              <span className="min-w-[3rem] shrink-0 bg-bg-primary/20 px-2 py-0.5 text-right text-text-tertiary/40 select-none">
                 {line.lineNum}
               </span>
-              <span className="px-3 py-0.5 text-text-secondary whitespace-pre-wrap flex-1 min-w-0">
+              <span className="min-w-0 flex-1 whitespace-pre-wrap px-3 py-0.5 text-text-secondary">
                 {highlightPattern(line.content, pattern)}
               </span>
             </div>
@@ -215,11 +215,11 @@ export function GlobPanel({ toolInput, resultContent }: PanelProps) {
   if (paths.length === 0) return null;
 
   return (
-    <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/30 max-h-80 overflow-auto">
+    <div className="premium-panel mx-3 mb-3 max-h-80 overflow-auto rounded-[18px]">
       {paths.map((p) => (
         <div
           key={p}
-          className="flex items-center gap-2 px-3 py-1 text-[13px] font-mono text-text-secondary border-b border-border/10 last:border-b-0 hover:bg-bg-hover/30"
+          className="flex items-center gap-2 border-b border-border/10 px-3 py-1.5 text-[13px] font-mono text-text-secondary last:border-b-0"
         >
           {p.includes('.') ? (
             <FileText size={12} className="text-text-tertiary/50 shrink-0" />
@@ -238,24 +238,24 @@ export function GenericPanel({ toolInput, resultContent, resultIsError }: PanelP
   return (
     <div className="mx-3 mb-3 space-y-2">
       {toolInput && Object.keys(toolInput).length > 0 && (
-        <div className="rounded-lg border border-border/30 overflow-hidden">
-          <div className="px-3 py-1.5 bg-bg-primary/30 border-b border-border/20 text-[11px] text-text-tertiary uppercase tracking-wider">
+        <div className="premium-panel overflow-hidden rounded-[18px]">
+          <div className="border-b border-border/60 bg-bg-primary/35 px-3 py-2 text-[11px] text-text-tertiary uppercase tracking-wider">
             Input
           </div>
-          <pre className="px-3 py-2 bg-bg-primary/20 text-[13px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap">
+          <pre className="overflow-x-auto whitespace-pre-wrap bg-transparent px-3 py-2 text-[13px] font-mono text-text-secondary">
             {JSON.stringify(toolInput, null, 2)}
           </pre>
         </div>
       )}
       {resultContent && (
         <div
-          className={`rounded-lg border overflow-hidden ${
-            resultIsError ? 'border-error/30' : 'border-border/30'
+          className={`premium-panel overflow-hidden rounded-[18px] ${
+            resultIsError ? 'border-error/30' : ''
           }`}
         >
           <pre
-            className={`px-3 py-2 text-[13px] font-mono overflow-x-auto whitespace-pre-wrap max-h-80 overflow-auto ${
-              resultIsError ? 'bg-error/5 text-error/80' : 'bg-bg-primary/20 text-text-secondary'
+            className={`max-h-80 overflow-auto overflow-x-auto whitespace-pre-wrap px-3 py-2 text-[13px] font-mono ${
+              resultIsError ? 'bg-error/5 text-error/85' : 'bg-transparent text-text-secondary'
             }`}
           >
             {resultContent}

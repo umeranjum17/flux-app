@@ -16,15 +16,15 @@ export function ActivityIndicator({
 
   return (
     <div
-      className="flex items-center gap-2.5 rounded-lg bg-bg-surface/60 border border-border-subtle/50 px-3 py-2 text-[12px] text-text-tertiary"
+      className="premium-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-text-tertiary"
       data-status-kind={statusKind}
     >
       {showSpinner ? (
-        <Loader2 size={12} className="shrink-0 animate-spin text-accent" />
+        <Loader2 size={13} className="shrink-0 animate-spin text-accent" />
       ) : (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-tertiary/50" />
+        <span className="h-2 w-2 shrink-0 rounded-full bg-text-tertiary/60" />
       )}
-      <span className="truncate">{label}</span>
+      <span>{label}</span>
     </div>
   );
 }

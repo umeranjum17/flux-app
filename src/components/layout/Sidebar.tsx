@@ -28,11 +28,11 @@ export function Sidebar() {
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: 256, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="flex flex-col h-full shrink-0 bg-bg-secondary border-r border-border-subtle overflow-hidden"
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="premium-panel-strong flex h-full shrink-0 flex-col overflow-hidden rounded-r-[24px] border-r border-border/70"
     >
       {/* Horizontal icon tabs */}
-      <div className="flex items-center gap-0.5 px-1.5 py-1.5 border-b border-border-subtle">
+      <div className="flex items-center gap-1 border-b border-border-subtle/80 px-2 py-2">
         <TabButton icon={<MessageSquare size={14} />} label="Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
         <TabButton icon={<Search size={14} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
         <TabButton icon={<BarChart3 size={14} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
@@ -41,7 +41,7 @@ export function Sidebar() {
         <div className="flex-1" />
         <button
           onClick={() => useUiStore.getState().toggleSidebar()}
-          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
         >
           <X size={13} />
         </button>
@@ -68,10 +68,10 @@ function TabButton({ icon, label, active, onClick }: {
     <button
       onClick={onClick}
       title={label}
-      className={`p-1.5 rounded transition-colors ${
+      className={`premium-toolbar-button rounded-lg p-1.5 ${
         active
-          ? 'bg-bg-hover text-text-primary'
-          : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/60'
+          ? 'border-border bg-bg-hover/90 text-text-primary shadow-[0_12px_24px_hsl(20_30%_4%_/_0.12)]'
+          : 'text-text-tertiary'
       }`}
     >
       {icon}
@@ -126,11 +126,11 @@ function ChatTab() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {projectName && (
-        <div className="px-3 pt-2 pb-1.5">
+        <div className="px-3 pt-3 pb-1.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-text-primary truncate">{projectName}</span>
             {sshConnected && sshHost && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-medium">SSH</span>
+              <span className="premium-pill rounded-full border border-accent/25 bg-accent-muted/40 px-2 py-0.5 text-[10px] font-medium text-accent">SSH</span>
             )}
           </div>
         </div>
@@ -161,10 +161,10 @@ function ChatTab() {
           <button
             key={task.id}
             onClick={() => setActiveTask(task.id)}
-            className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+            className={`premium-toolbar-button w-full rounded-xl px-2.5 py-2 text-left text-xs ${
               task.id === activeTaskId
-                ? 'bg-bg-elevated text-text-primary'
-                : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                ? 'border-border bg-bg-elevated/85 text-text-primary shadow-[0_14px_30px_hsl(20_30%_4%_/_0.12)]'
+                : 'text-text-secondary'
             }`}
           >
             <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${statusColors[task.status]}`} />
@@ -185,7 +185,7 @@ function ChatTab() {
           <button
             key={session.id}
             onClick={() => handleLoadSession(session)}
-            className="w-full flex items-center rounded-md px-2 py-1.5 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
+            className="premium-toolbar-button w-full rounded-xl px-2.5 py-2 text-left text-xs text-text-secondary"
           >
             <span className="truncate">{session.title || 'Untitled'}</span>
           </button>
@@ -229,7 +229,7 @@ function SearchTab() {
           onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
           placeholder="Search in files..."
           autoFocus
-          className="w-full px-2.5 py-1.5 rounded-md bg-bg-primary border border-border text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors"
+          className="premium-focus w-full rounded-xl border border-border bg-bg-primary/80 px-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
         />
       </div>
       <div className="flex-1 overflow-y-auto px-1.5">
@@ -245,7 +245,7 @@ function SearchTab() {
               useUiStore.getState().setExplorerOpen(true);
               useUiStore.getState().setActiveFile({ path: r.file, name });
             }}
-            className="w-full text-left px-2 py-1 rounded-md hover:bg-bg-hover transition-colors"
+            className="premium-toolbar-button w-full rounded-xl px-2.5 py-2 text-left"
           >
             <div className="text-[11px] text-accent truncate">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
             <div className="text-[10px] text-text-tertiary truncate font-mono">{r.text}</div>
@@ -294,7 +294,7 @@ function GitTab() {
 
         <button
           onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-          className="w-full py-2 rounded-lg bg-bg-primary border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+          className="premium-toolbar-button w-full rounded-xl border border-border bg-bg-primary/70 py-2 text-xs text-text-secondary"
         >
           {sshConnected ? 'Manage SSH' : 'Connect SSH'}
         </button>

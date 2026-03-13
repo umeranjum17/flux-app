@@ -48,53 +48,58 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center overflow-y-auto p-6">
-      <div className="max-w-md w-full space-y-7">
+    <div className="flex flex-1 items-center justify-center overflow-y-auto p-6">
+      <div className="w-full max-w-3xl space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-xl font-bold text-text-primary tracking-tight">Flux</h1>
-          <p className="text-[12px] text-text-tertiary">AI coding agent orchestrator</p>
+        <div className="premium-panel-strong rounded-[28px] px-6 py-8 text-center">
+          <div className="mx-auto mb-3 inline-flex items-center rounded-full border border-plan/20 bg-plan/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-plan">
+            Premium workspace orchestration
+          </div>
+          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-text-primary">Flux</h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-text-secondary">
+            Coordinate coding agents in a workspace that feels intentional, warm, and fast to read.
+          </p>
         </div>
 
         {/* Open Folder + SSH */}
-        <div className="space-y-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <button
             onClick={() => onOpenProject()}
-            className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-border-subtle bg-bg-surface hover:bg-bg-hover hover:border-border transition-all text-left group"
+            className="premium-toolbar-button premium-panel w-full rounded-[24px] p-4 text-left group"
           >
-            <div className="p-2 rounded-lg bg-accent/10 text-accent group-hover:bg-accent/15 transition-colors">
+            <div className="rounded-2xl border border-accent/20 bg-accent-muted/45 p-3 text-accent transition-colors group-hover:border-accent/30">
               <FolderOpen size={16} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-[13px] font-medium text-text-primary">Open Folder</span>
-              <p className="text-[11px] text-text-tertiary mt-0.5">Select a project directory</p>
+              <span className="text-sm font-medium text-text-primary">Open Folder</span>
+              <p className="mt-0.5 text-[11px] text-text-tertiary">Select a project directory</p>
             </div>
-            <ArrowRight size={14} className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+            <ArrowRight size={14} className="text-text-tertiary opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
           </button>
 
           <button
             onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-            className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-border-subtle bg-bg-surface hover:bg-bg-hover hover:border-border transition-all text-left group"
+            className="premium-toolbar-button premium-panel w-full rounded-[24px] p-4 text-left group"
           >
-            <div className="p-2 rounded-lg bg-accent/10 text-accent group-hover:bg-accent/15 transition-colors">
+            <div className="rounded-2xl border border-plan/20 bg-plan-muted/50 p-3 text-plan transition-colors group-hover:border-plan/30">
               <Terminal size={16} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-[13px] font-medium text-text-primary">SSH Connect</span>
-              <p className="text-[11px] text-text-tertiary mt-0.5">Connect to a remote machine</p>
+              <span className="text-sm font-medium text-text-primary">SSH Connect</span>
+              <p className="mt-0.5 text-[11px] text-text-tertiary">Connect to a remote machine</p>
             </div>
-            <ArrowRight size={14} className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+            <ArrowRight size={14} className="text-text-tertiary opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
           </button>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions — only if a project is open */}
         {cwd && (
-          <div className="flex flex-wrap gap-2 justify-center">
+          <div className="flex flex-wrap gap-1.5 justify-center">
             {QUICK_ACTIONS.map((action) => (
               <button
                 key={action.label}
                 onClick={() => handleQuickAction(action.prompt)}
-                className="px-3 py-1.5 rounded-lg border border-border-subtle bg-bg-surface text-[11px] text-text-secondary hover:text-text-primary hover:bg-bg-hover hover:border-border transition-all"
+                className="premium-toolbar-button premium-panel rounded-full px-4 py-2 text-[11px] text-text-secondary"
               >
                 {action.label}
               </button>
@@ -108,7 +113,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-1">
               Recent Projects
             </h3>
-            <div className="space-y-0.5">
+            <div className="space-y-2">
               {recentProjects.map((project) => (
                 <RecentProjectRow
                   key={project.path}
@@ -126,11 +131,11 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary px-1">
               Agents
             </h3>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-bg-surface border border-border-subtle text-[11px]"
+                  className="premium-panel flex items-center gap-2 rounded-2xl px-3 py-2 text-[11px]"
                 >
                   <span
                     className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -165,7 +170,7 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-bg-hover transition-colors text-left group"
+      className="premium-toolbar-button premium-panel w-full rounded-2xl px-3 py-3 text-left group"
     >
       <Zap size={12} className="text-text-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
@@ -174,7 +179,7 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {project.isSSH && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-sm bg-accent/15 text-accent">SSH</span>
+          <span className="premium-pill rounded-full border border-accent/25 bg-accent-muted/40 px-2 py-0.5 text-[9px] text-accent">SSH</span>
         )}
         <span className="text-[10px] text-text-tertiary">{timeAgo}</span>
       </div>
@@ -185,7 +190,7 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
 function ShortcutHint({ keys, label }: { keys: string; label: string }) {
   return (
     <div className="flex items-center gap-1">
-      <kbd className="text-[9px] text-text-tertiary bg-bg-surface border border-border-subtle rounded px-1.5 py-0.5 font-mono">
+      <kbd className="premium-pill rounded-md px-1.5 py-0.5 text-[9px] font-mono text-text-tertiary">
         {keys}
       </kbd>
       <span className="text-[9px] text-text-tertiary">{label}</span>

@@ -334,7 +334,7 @@ export function AppShell() {
   }, [createNewTab, cycleModel, cycleThinking]);
 
   return (
-    <div className="flex flex-col h-screen bg-bg-primary text-text-primary min-w-[400px]">
+    <div className="premium-shell flex min-w-[400px] flex-col h-screen bg-bg-primary text-text-primary">
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
@@ -354,7 +354,7 @@ export function AppShell() {
                 <>
                   <TabBar />
                   {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                  <div className="px-4 py-3 border-t border-border shrink-0">
+                  <div className="shrink-0 border-t border-border-subtle/80 bg-bg-secondary/55 px-4 py-3 backdrop-blur-xl">
                     <LiveRunHeader />
                     <ChatInput focused />
                   </div>

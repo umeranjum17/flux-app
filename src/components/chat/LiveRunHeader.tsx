@@ -48,40 +48,42 @@ export function LiveRunHeader() {
   const isPlan = task.mode === 'plan';
 
   return (
-    <div className={`mb-2.5 rounded-lg border px-3 py-2 ${
+    <div className={`premium-panel mb-3 rounded-[20px] border px-3.5 py-3 ${
       isPlan
-        ? 'border-accent/30 bg-accent/5'
-        : 'border-border-subtle bg-bg-surface'
+        ? 'border-plan/25'
+        : 'border-accent/18'
     }`}>
       <div className="flex flex-wrap items-center gap-2.5 text-[12px] text-text-secondary">
         <span className="inline-flex items-center gap-1.5 font-medium text-text-primary">
-          <Bot size={13} className={isPlan ? 'text-accent' : 'text-success'} />
+          <Bot size={13} className={isPlan ? 'text-plan' : 'text-accent'} />
           {formatAgentLabel(task.agentId)}
         </span>
         {/* Mode badge */}
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-[1px] text-[11px] font-medium ${
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
           isPlan
-            ? 'bg-accent/15 text-accent'
-            : 'bg-success/15 text-success'
+            ? 'border-plan/20 bg-plan/12 text-plan'
+            : 'border-accent/20 bg-accent/12 text-accent'
         }`}>
           {isPlan ? <ClipboardList size={11} /> : <Zap size={11} />}
           {isPlan ? 'Planning' : 'Executing'}
         </span>
-        <span className="rounded-full border border-border-subtle px-2 py-[1px] text-[11px] font-medium text-text-primary">
+        <span className="premium-pill rounded-full px-2.5 py-1 text-[11px] font-medium text-text-primary">
           {phaseLabel}
         </span>
-        <span className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
+        <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-text-tertiary">
           <Clock3 size={11} />
           {formatElapsed(now - activeRun.startedAt)}
         </span>
         {activeRun.activeToolName && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
+          <span className="premium-pill inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-text-tertiary">
             <Wrench size={11} />
             {activeRun.activeToolName}
           </span>
         )}
         {isStalled && (
-          <span className="text-[11px] text-warning">No updates for {Math.round(threshold / 1000)}s</span>
+          <span className="rounded-full border border-warning/20 bg-warning/10 px-2.5 py-1 text-[11px] text-warning">
+            No updates for {Math.round(threshold / 1000)}s
+          </span>
         )}
       </div>
     </div>

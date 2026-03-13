@@ -75,12 +75,13 @@ export function StatusLine() {
   }, [sshConnected]);
 
   return (
-    <div className="flex items-center h-[28px] min-h-[28px] bg-bg-secondary border-t border-border select-none">
+    <div className="flex h-[28px] min-h-[28px] select-none items-center border-t border-border-subtle/80 bg-bg-secondary/75 backdrop-blur-xl">
       {/* Left side: Remote indicator + folder */}
       <div className="flex items-center gap-0 shrink-0">
+        {/* VS Code-style remote indicator */}
         {environment === 'wsl' && (
           <span
-            className="flex items-center gap-1.5 h-[28px] px-2.5 text-[10px] font-medium bg-blue-600 text-white"
+            className="flex h-[28px] items-center gap-1.5 border-r border-border-subtle/70 bg-warning/15 px-2 text-[10px] font-medium text-warning"
             title="Running inside WSL"
           >
             <Terminal size={11} />
@@ -89,7 +90,7 @@ export function StatusLine() {
         )}
         {environment === 'ssh' && !sshConnected && (
           <span
-            className="flex items-center gap-1.5 h-[28px] px-2.5 text-[10px] font-medium bg-purple-600 text-white"
+            className="flex h-[28px] items-center gap-1.5 border-r border-border-subtle/70 bg-info/15 px-2 text-[10px] font-medium text-info"
             title="Running inside an SSH session"
           >
             <Monitor size={11} />
@@ -98,10 +99,10 @@ export function StatusLine() {
         )}
         <button
           onClick={handleSshClick}
-          className={`flex items-center gap-1.5 h-[28px] px-2.5 text-[10px] font-medium transition-colors ${
+          className={`premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2 text-[10px] font-medium ${
             sshConnected
-              ? 'bg-accent text-white hover:opacity-90'
-              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-primary'
+              ? 'border-r border-accent/20 bg-accent text-bg-primary'
+              : 'border-r border-border-subtle/70 text-text-tertiary'
           }`}
           title={sshConnected ? `SSH: ${sshHost} (click to manage)` : 'Connect to SSH remote'}
         >
@@ -109,9 +110,10 @@ export function StatusLine() {
           {sshConnected ? `SSH: ${sshHost}` : 'SSH'}
         </button>
 
+        {/* Open Folder button */}
         <button
           onClick={handleOpenFolder}
-          className="flex items-center gap-1.5 h-[28px] px-2.5 text-[10px] text-text-tertiary hover:bg-bg-hover hover:text-text-secondary transition-colors"
+          className="premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border-subtle/70 px-2 text-[10px] text-text-tertiary"
           title="Open folder"
         >
           <FolderOpen size={11} />
@@ -119,19 +121,20 @@ export function StatusLine() {
         </button>
 
         {gitBranch && (
-          <span className="flex items-center gap-1.5 h-[28px] px-2.5 text-[10px] text-text-tertiary">
+          <span className="flex h-[28px] items-center gap-1 px-2 text-[10px] text-text-tertiary">
             <GitBranch size={11} />
             {gitBranch}
             {gitDirty && <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />}
           </span>
         )}
 
+        {/* Repo map indicator */}
         <button
           onClick={() => useUiStore.getState().setOverlay('context-settings')}
-          className={`flex items-center gap-1 h-[28px] px-2.5 text-[10px] transition-colors hover:bg-bg-hover ${
+          className={`premium-toolbar-button flex h-[28px] items-center gap-1 rounded-none border-y-0 border-l border-l-border-subtle/70 px-2 text-[11px] ${
             !repoMapConfig.enabled
               ? 'text-text-tertiary'
-              : repoMapStatus.state === 'ready'
+            : repoMapStatus.state === 'ready'
                 ? 'text-success'
                 : repoMapStatus.state === 'building'
                   ? 'text-warning'
@@ -150,25 +153,38 @@ export function StatusLine() {
         </button>
       </div>
 
+      {/* Spacer */}
       <div className="flex-1" />
 
       {/* Right side: agent, model, cost, tokens */}
-      <div className="flex items-center gap-0 px-1 min-w-0 overflow-hidden">
-        <StatusButton onClick={handleAgentClick} title="Switch agent (Ctrl+Shift+A)">
+      <div className="flex items-center gap-2 px-3 min-w-0 overflow-hidden">
+        <button
+          onClick={handleAgentClick}
+          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          title="Switch agent (Ctrl+Shift+A)"
+        >
           {agentName}
-        </StatusButton>
+        </button>
         <Dot />
-        <StatusButton onClick={handleCycleModel} title="Cycle model (Ctrl+Shift+M)">
+        <button
+          onClick={handleCycleModel}
+          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          title="Cycle model (Ctrl+Shift+M)"
+        >
           {model}
-        </StatusButton>
+        </button>
         <Dot />
-        <StatusButton onClick={handleCycleThinking} title="Cycle thinking level (Ctrl+Shift+T)">
-          think:{thinking}
-        </StatusButton>
+        <button
+          onClick={handleCycleThinking}
+          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          title="Cycle thinking level (Ctrl+Shift+T)"
+        >
+          think {thinking}
+        </button>
         {qualityGate && (
           <>
             <Dot />
-            <span className={`text-[10px] font-medium px-2 h-[28px] flex items-center ${
+            <span className={`text-[11px] font-medium ${
               qualityGate.status === 'passed' ? 'text-success' : 'text-error'
             }`}>
               checks {qualityGate.status}
@@ -178,38 +194,27 @@ export function StatusLine() {
         {rateLimit && Number.isFinite(rateLimit.utilization) && (
           <>
             <Dot />
-            <span className={`text-[10px] font-medium px-2 h-[28px] flex items-center ${rateLimitColor(rateLimit.utilization)}`}>
+            <span className={`text-[11px] font-medium ${rateLimitColor(rateLimit.utilization)}`}>
               rl {Math.round(rateLimit.utilization * 100)}%
             </span>
           </>
         )}
         <Dot />
-        <span className="text-[10px] text-text-tertiary tabular-nums px-2 h-[28px] flex items-center gap-1.5">
-          <span>${cost.toFixed(4)}</span>
-          <span className="text-text-tertiary/30">|</span>
-          <span>{formatTokens(tokens)} tok</span>
+        <span className="text-[10px] text-text-tertiary tabular-nums">
+          ${cost.toFixed(4)}
+        </span>
+        <span className="text-[10px] text-text-tertiary tabular-nums">
+          {formatTokens(tokens)} tokens
         </span>
       </div>
     </div>
   );
 }
 
-function StatusButton({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className="text-[10px] text-text-tertiary truncate hover:text-text-secondary hover:bg-bg-hover px-2 h-[28px] flex items-center cursor-pointer transition-colors"
-      title={title}
-    >
-      {children}
-    </button>
-  );
-}
-
 function Dot() {
   return (
-    <span className="text-text-tertiary/30 text-[8px] flex items-center h-[28px]" aria-hidden>
-      &bull;
+    <span className="text-[10px] text-text-tertiary" aria-hidden>
+      &middot;
     </span>
   );
 }
