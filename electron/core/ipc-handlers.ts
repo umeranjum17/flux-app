@@ -668,17 +668,18 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const workspace = workspaceStore.get(options.taskId);
     if (activeTasks.has(options.taskId)) {
       // Defensive cleanup: the renderer may have fired task:stop but it hasn't
-      // completed yet (race). Stop the stale handle instead of throwing.
+      // completed yet (race). Stop the stale handle and wait for process exit
+      // to avoid "Session ID already in use" collisions.
       for (const [subagentId, subagent] of activeSubagents.entries()) {
         if (subagent.parentTaskId !== options.taskId) continue;
-        subagent.handle.stop();
+        await subagent.handle.stop();
         subagent.handle.removeAllListeners();
         activeSubagents.delete(subagentId);
         activeTasks.delete(subagentId);
         taskSessions.delete(subagentId);
       }
       const staleHandle = activeTasks.get(options.taskId)!;
-      staleHandle.stop();
+      await staleHandle.stop();
       staleHandle.removeAllListeners();
       activeTasks.delete(options.taskId);
       taskSessions.delete(options.taskId);
@@ -1070,7 +1071,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     cleaningUp.add(taskId);
     for (const [subagentId, subagent] of activeSubagents.entries()) {
       if (subagent.parentTaskId !== taskId) continue;
-      subagent.handle.stop();
+      await subagent.handle.stop();
       subagent.handle.removeAllListeners();
       activeSubagents.delete(subagentId);
       activeTasks.delete(subagentId);
@@ -1078,7 +1079,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
     const handle = activeTasks.get(taskId);
     if (handle) {
-      handle.stop();
+      await handle.stop();
       handle.removeAllListeners();
       activeTasks.delete(taskId);
     }
@@ -1303,7 +1304,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('task:steer', async (_event, { taskId, prompt, images, attachments }: { taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }) => {
     const handle = activeTasks.get(taskId);
     if (!handle) {
-      throw new Error(`Task ${taskId} does not have an active run`);
+      // Task already finished — signal renderer to fall back to spawn
+      return { steerFailed: true, reason: 'task_finished' };
     }
 
     const effectivePrompt = await buildPromptWithAttachments(prompt, attachments);
@@ -1316,6 +1318,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         buildStoredUserMessage(prompt, images, attachments),
       );
     }
+    return { steerFailed: false };
   });
 
   // --- Session handlers ---

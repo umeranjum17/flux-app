@@ -25,7 +25,7 @@ export interface IpcChannels {
   'task:approve': { args: [{ taskId: string; requestId: string }]; result: void };
   'task:deny': { args: [{ taskId: string; requestId: string }]; result: void };
   'task:answer-question': { args: [{ taskId: string; requestId: string; response: string }]; result: void };
-  'task:steer': { args: [{ taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }]; result: void };
+  'task:steer': { args: [{ taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }]; result: { steerFailed?: boolean; reason?: string } };
   'sessions:list': { args: []; result: Session[] };
   'sessions:get': { args: [{ id: string }]; result: Session | null };
   'sessions:delete': { args: [{ id: string }]; result: void };

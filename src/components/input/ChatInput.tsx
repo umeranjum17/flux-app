@@ -151,12 +151,36 @@ export function ChatInput({ focused }: ChatInputProps) {
         }
       } else {
         setTaskStatus(task.id, 'running');
-        await window.api.invoke('task:steer', {
+        const steerResult = await window.api.invoke('task:steer', {
           taskId: task.id,
           prompt: text,
           images: images.length > 0 ? images : undefined,
           attachments,
-        });
+        }) as { steerFailed?: boolean };
+
+        if (steerResult?.steerFailed) {
+          // Task already finished between UI check and IPC call — fall back to spawn
+          const currentMode = useUiStore.getState().mode;
+          if (task.mode !== currentMode) {
+            setTaskMode(task.id, currentMode);
+          }
+          const spawnResult = await window.api.invoke('task:spawn', {
+            taskId: task.id,
+            prompt: text,
+            agentId: task.agentId,
+            model: task.model,
+            mode: currentMode,
+            thinking: task.thinking,
+            cwd: task.cwd,
+            sessionId: task.sessionId,
+            images: images.length > 0 ? images : undefined,
+            attachments,
+          }) as { session?: Session };
+          if (spawnResult?.session) {
+            setTaskSessionId(task.id, spawnResult.session.id);
+            upsertSession(spawnResult.session);
+          }
+        }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start task';

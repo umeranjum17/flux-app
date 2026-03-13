@@ -109,7 +109,7 @@ export interface SpawnOptions {
 export interface AgentHandle extends EventEmitter {
   taskId: string;
   agentId: AgentId;
-  stop(): void;
+  stop(): Promise<void>;
   approve(requestId: string): void;
   deny(requestId: string): void;
   steer(prompt: string, images?: string[]): void;

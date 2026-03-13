@@ -76,7 +76,7 @@ export function spawnOpenAI(options: SpawnOptions, resumeMessages?: SessionMessa
   loop.addUserMessage(options.prompt, options.images);
   void runLoop();
 
-  emitter.stop = () => {
+  emitter.stop = async () => {
     stopped = true;
     loop.stop();
     emitter.emit('done', { code: 0, aborted: true });

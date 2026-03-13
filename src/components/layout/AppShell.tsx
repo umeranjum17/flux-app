@@ -40,6 +40,9 @@ export function AppShell() {
 
   const hasTasks = tasks.size > 0;
   const isAgent = bottomPanelMode === 'agent';
+  const hasAttentionNeeded = Array.from(tasks.values()).some(
+    (t) => t.status === 'waiting_approval' || t.status === 'waiting_input',
+  );
 
   useAgentStream();
 
@@ -356,7 +359,7 @@ export function AppShell() {
             <div className="flex items-center gap-0 bg-bg-secondary/50 border-b border-border-subtle shrink-0">
               <button
                 onClick={switchToAgent}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium border-b-[1.5px] transition-colors ${
                   isAgent
                     ? 'border-text-secondary text-text-primary'
                     : 'border-transparent text-text-tertiary hover:text-text-secondary'
@@ -364,6 +367,9 @@ export function AppShell() {
               >
                 <Bot size={12} />
                 Agent
+                {!isAgent && hasAttentionNeeded && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-warning animate-pulse" />
+                )}
               </button>
               <button
                 onClick={switchToTerminal}

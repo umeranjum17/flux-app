@@ -210,6 +210,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     }
   });
 
+  let lastStderrError = '';
   proc.stderr?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8').trim();
     if (!text) return;
@@ -217,6 +218,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     const actionable = filterStderrNoise(text);
     if (!actionable) return;
 
+    lastStderrError = actionable;
     emitMessage({
       type: 'error',
       role: 'system',
@@ -235,12 +237,13 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
 
     const exitError = stopped || code === 0 || code === null
       ? undefined
-      : `Claude exited with code ${code}`;
-    const noResponseError = undefined;
+      : lastStderrError
+        ? `Claude exited with code ${code}: ${lastStderrError}`
+        : `Claude exited with code ${code}`;
 
     finish({
       code,
-      ...(exitError ?? noResponseError ? { error: exitError ?? noResponseError } : {}),
+      ...(exitError ? { error: exitError } : {}),
     });
   });
 
@@ -257,10 +260,22 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     finish({ code: 1, error: content });
   });
 
+  let exitPromise: Promise<void> | null = null;
   emitter.stop = () => {
+    if (exitPromise) return exitPromise;
     stopped = true;
     watchdog.clear();
-    proc.kill('SIGTERM');
+    exitPromise = new Promise<void>((resolve) => {
+      if (finished) { resolve(); return; }
+      proc.once('close', () => resolve());
+      try { proc.kill('SIGTERM'); } catch {}
+      const forceKillTimer = setTimeout(() => {
+        try { proc.kill('SIGKILL'); } catch {}
+        resolve();
+      }, 5000);
+      proc.once('close', () => clearTimeout(forceKillTimer));
+    });
+    return exitPromise;
   };
 
   emitter.approve = (requestId: string) => {

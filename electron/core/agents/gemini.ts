@@ -173,10 +173,22 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
     finish({ code: 1, error: content });
   });
 
+  let exitPromise: Promise<void> | null = null;
   emitter.stop = () => {
+    if (exitPromise) return exitPromise;
     stopped = true;
     watchdog.clear();
-    proc.kill('SIGTERM');
+    exitPromise = new Promise<void>((resolve) => {
+      if (finished) { resolve(); return; }
+      proc.once('close', () => resolve());
+      try { proc.kill('SIGTERM'); } catch {}
+      const forceKillTimer = setTimeout(() => {
+        try { proc.kill('SIGKILL'); } catch {}
+        resolve();
+      }, 5000);
+      proc.once('close', () => clearTimeout(forceKillTimer));
+    });
+    return exitPromise;
   };
 
   emitter.approve = (requestId: string) => {

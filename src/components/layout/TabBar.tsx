@@ -39,7 +39,7 @@ export function TabBar() {
   const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
   const { mode } = useUiStore();
 
-  if (tabOrder.length <= 1) return null;
+  if (tabOrder.length === 0) return null;
 
   const handleNewTab = () => {
     const taskId = crypto.randomUUID();

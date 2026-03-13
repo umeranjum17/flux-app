@@ -33,6 +33,16 @@ export function useAgentStream() {
     });
 
     const unsubDone = window.api.on('agent:done', (data: unknown) => {
+      // Flush any pending buffered messages before marking task as done
+      // to prevent UI showing stale "running" state
+      if (messageBuffer.length > 0) {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        flushMessages();
+      }
+
       const { taskId, error } = data as { taskId: string; error?: string };
       if (error) {
         useChatStore.getState().addMessage(taskId, {
