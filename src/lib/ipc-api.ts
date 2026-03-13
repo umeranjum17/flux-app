@@ -21,6 +21,9 @@ export interface IpcChannels {
   'sessions:messages': { args: [{ id: string }]; result: SessionMessage[] };
   'config:get': { args: []; result: FluxConfig };
   'config:set': { args: [Partial<FluxConfig>]; result: void };
+  'theme:update-titlebar': { args: [{ theme: 'dark' | 'light' }]; result: void };
+  'zoom:set': { args: [{ level: number }]; result: void };
+  'zoom:get': { args: []; result: number };
   'usage:get': { args: []; result: UsageInfo };
   'usage:rate-limits': { args: []; result: RateLimitInfo[] };
   'usage:live': { args: []; result: LiveUsageOverview };
@@ -146,6 +149,7 @@ export interface FluxConfig {
   defaultMode: TaskMode;
   qualityGateCommands: string[];
   customAgentPaths: Record<string, string>;
+  zoomLevel?: number;
   recentProjects: Array<{
     path: string;
     name: string;

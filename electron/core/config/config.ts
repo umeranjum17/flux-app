@@ -23,6 +23,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   defaultMode: 'act',
   qualityGateCommands: [],
   customAgentPaths: {},
+  zoomLevel: 1.0,
   recentProjects: [],
   recentSshHosts: [],
   repoMap: DEFAULT_REPOMAP_CONFIG,
@@ -61,6 +62,9 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     recentSshHosts: Array.isArray(raw.recentSshHosts)
       ? raw.recentSshHosts as FluxConfig['recentSshHosts']
       : DEFAULT_CONFIG.recentSshHosts,
+    zoomLevel: typeof raw.zoomLevel === 'number'
+      ? Math.max(0.5, Math.min(2.5, raw.zoomLevel))
+      : DEFAULT_CONFIG.zoomLevel,
     repoMap: raw.repoMap && typeof raw.repoMap === 'object' && !Array.isArray(raw.repoMap)
       ? { ...DEFAULT_REPOMAP_CONFIG, ...(raw.repoMap as Record<string, unknown>) } as FluxConfig['repoMap']
       : DEFAULT_REPOMAP_CONFIG,

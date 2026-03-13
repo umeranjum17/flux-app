@@ -5,4 +5,6 @@ export function applyTheme(theme: 'dark' | 'light') {
   } else {
     root.classList.remove('theme-light');
   }
+  // Update Windows title bar overlay colors to match theme
+  window.api?.invoke?.('theme:update-titlebar', { theme }).catch(() => {});
 }

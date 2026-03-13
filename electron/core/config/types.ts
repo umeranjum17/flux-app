@@ -36,5 +36,6 @@ export interface FluxConfig {
   customAgentPaths: Record<string, string>;
   recentProjects: RecentProject[];
   recentSshHosts: RecentSshHost[];
+  zoomLevel?: number;
   repoMap: RepoMapConfig;
 }

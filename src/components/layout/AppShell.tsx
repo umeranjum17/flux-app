@@ -309,13 +309,34 @@ export function AppShell() {
         e.preventDefault();
         useUiStore.getState().setOverlay('agent-selector');
       }
+      // Zoom in: Cmd/Ctrl + =
+      if (meta && !e.shiftKey && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        window.api.invoke('zoom:get').then((current) => {
+          const next = Math.min(2.5, (current as number) + 0.1);
+          window.api.invoke('zoom:set', { level: next });
+        });
+      }
+      // Zoom out: Cmd/Ctrl + -
+      if (meta && !e.shiftKey && e.key === '-') {
+        e.preventDefault();
+        window.api.invoke('zoom:get').then((current) => {
+          const next = Math.max(0.5, (current as number) - 0.1);
+          window.api.invoke('zoom:set', { level: next });
+        });
+      }
+      // Reset zoom: Cmd/Ctrl + 0
+      if (meta && !e.shiftKey && e.key === '0') {
+        e.preventDefault();
+        window.api.invoke('zoom:set', { level: 1.0 });
+      }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [createNewTab]);
 
   return (
-    <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
+    <div className="flex flex-col h-screen bg-bg-primary text-text-primary min-w-[400px]">
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>

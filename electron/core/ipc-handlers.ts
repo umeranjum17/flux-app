@@ -488,6 +488,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'sessions:messages',
     'config:get',
     'config:set',
+    'theme:update-titlebar',
+    'zoom:set',
+    'zoom:get',
     'usage:get',
     'usage:rate-limits',
     'usage:live',
@@ -1316,6 +1319,30 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('config:set', async (_event, partial: Record<string, unknown>) => {
     return configManager.set(partial);
+  });
+
+  // --- Theme / Window handlers ---
+
+  ipcMain.handle('theme:update-titlebar', async (_event, { theme }: { theme: 'dark' | 'light' }) => {
+    if (process.platform !== 'win32' || !mainWindow) return;
+    mainWindow.setTitleBarOverlay({
+      color: theme === 'dark' ? '#14161b' : '#f0ece6',
+      symbolColor: theme === 'dark' ? '#8b8fa3' : '#3d3d4a',
+    });
+  });
+
+  // --- Zoom handlers ---
+
+  ipcMain.handle('zoom:set', async (_event, { level }: { level: number }) => {
+    const clamped = Math.max(0.5, Math.min(2.5, level));
+    if (mainWindow) {
+      mainWindow.webContents.setZoomFactor(clamped);
+    }
+    configManager.set({ zoomLevel: clamped } as any);
+  });
+
+  ipcMain.handle('zoom:get', async () => {
+    return mainWindow?.webContents.getZoomFactor() ?? 1.0;
   });
 
   // --- Usage handlers ---
