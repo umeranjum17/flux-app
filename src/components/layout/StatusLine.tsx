@@ -75,13 +75,11 @@ export function StatusLine() {
   }, [sshConnected]);
 
   return (
-    <div className="flex h-[28px] min-h-[28px] select-none items-center border-t border-border-subtle/80 bg-bg-secondary/75 backdrop-blur-xl">
-      {/* Left side: Remote indicator + folder */}
+    <div className="flex h-[28px] min-h-[28px] select-none items-center border-t border-border bg-bg-secondary">
       <div className="flex items-center gap-0 shrink-0">
-        {/* VS Code-style remote indicator */}
         {environment === 'wsl' && (
           <span
-            className="flex h-[28px] items-center gap-1.5 border-r border-border-subtle/70 bg-warning/15 px-2 text-[10px] font-medium text-warning"
+            className="flex h-[28px] items-center gap-1.5 border-r border-border bg-warning/12 px-2 text-[10px] font-medium text-warning"
             title="Running inside WSL"
           >
             <Terminal size={11} />
@@ -90,7 +88,7 @@ export function StatusLine() {
         )}
         {environment === 'ssh' && !sshConnected && (
           <span
-            className="flex h-[28px] items-center gap-1.5 border-r border-border-subtle/70 bg-info/15 px-2 text-[10px] font-medium text-info"
+            className="flex h-[28px] items-center gap-1.5 border-r border-border bg-info/12 px-2 text-[10px] font-medium text-info"
             title="Running inside an SSH session"
           >
             <Monitor size={11} />
@@ -101,8 +99,8 @@ export function StatusLine() {
           onClick={handleSshClick}
           className={`premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2 text-[10px] font-medium ${
             sshConnected
-              ? 'border-r border-accent/20 bg-accent text-bg-primary'
-              : 'border-r border-border-subtle/70 text-text-tertiary'
+              ? 'border-r border-accent/20 bg-accent-muted/45 text-accent'
+              : 'border-r border-border text-text-tertiary'
           }`}
           title={sshConnected ? `SSH: ${sshHost} (click to manage)` : 'Connect to SSH remote'}
         >
@@ -110,10 +108,9 @@ export function StatusLine() {
           {sshConnected ? `SSH: ${sshHost}` : 'SSH'}
         </button>
 
-        {/* Open Folder button */}
         <button
           onClick={handleOpenFolder}
-          className="premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border-subtle/70 px-2 text-[10px] text-text-tertiary"
+          className="premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2 text-[10px] text-text-tertiary"
           title="Open folder"
         >
           <FolderOpen size={11} />
@@ -128,10 +125,9 @@ export function StatusLine() {
           </span>
         )}
 
-        {/* Repo map indicator */}
         <button
           onClick={() => useUiStore.getState().setOverlay('context-settings')}
-          className={`premium-toolbar-button flex h-[28px] items-center gap-1 rounded-none border-y-0 border-l border-l-border-subtle/70 px-2 text-[11px] ${
+          className={`premium-toolbar-button flex h-[28px] items-center gap-1 rounded-none border-y-0 border-l border-l-border px-2 text-[11px] ${
             !repoMapConfig.enabled
               ? 'text-text-tertiary'
             : repoMapStatus.state === 'ready'
@@ -153,10 +149,8 @@ export function StatusLine() {
         </button>
       </div>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right side: agent, model, cost, tokens */}
       <div className="flex items-center gap-2 px-3 min-w-0 overflow-hidden">
         <button
           onClick={handleAgentClick}

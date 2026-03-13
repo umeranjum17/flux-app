@@ -56,7 +56,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex items-center gap-0 bg-bg-secondary/50 border-b border-border shrink-0 px-1.5 overflow-x-auto">
+    <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-border bg-bg-secondary px-2">
       {tabOrder.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;
@@ -67,12 +67,12 @@ export function TabBar() {
           <div
             key={id}
             onClick={() => setActiveTask(id)}
-            className={`group relative flex items-center gap-2 px-3 py-1.5 text-[11px] cursor-pointer border-b-2 transition-all min-w-0 max-w-[200px] ${
+            className={`group classic-tab-button relative flex min-w-0 max-w-[220px] cursor-pointer items-center gap-2 rounded-t-md px-3 py-2 text-[11px] ${
               isActive
-                ? 'border-accent text-text-primary bg-bg-elevated/30'
+                ? 'classic-tab-button-active'
                 : needsAttention
-                  ? 'border-transparent text-warning hover:text-text-secondary hover:bg-bg-hover/30'
-                  : 'border-transparent text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/30'
+                  ? 'text-warning'
+                  : ''
             }`}
           >
             <StatusDot status={task.status} />
@@ -84,7 +84,7 @@ export function TabBar() {
             <span className="truncate font-medium">
               {AGENT_LABELS[task.agentId] ?? task.agentId}
             </span>
-            <span className="truncate text-text-tertiary hidden sm:inline text-[10px]">
+            <span className="hidden truncate text-[10px] text-text-tertiary sm:inline">
               {task.title.slice(0, 24)}
             </span>
             <button
@@ -92,7 +92,7 @@ export function TabBar() {
                 e.stopPropagation();
                 closeTab(id);
               }}
-              className="ml-auto flex-shrink-0 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-all"
+              className="premium-toolbar-button ml-auto flex-shrink-0 rounded-sm p-0.5 text-text-tertiary opacity-0 transition-all group-hover:opacity-100"
             >
               <X size={11} />
             </button>
@@ -101,7 +101,7 @@ export function TabBar() {
       })}
       <button
         onClick={handleNewTab}
-        className="flex-shrink-0 p-1.5 rounded-md text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors ml-0.5"
+        className="premium-toolbar-button ml-1 flex-shrink-0 rounded-md p-1.5 text-text-secondary"
         aria-label="New tab"
       >
         <Plus size={13} />

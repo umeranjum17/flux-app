@@ -411,7 +411,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             Continuing conversation
           </span>
           {isModeSwitch && (
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium ${
               mode === 'plan'
                 ? 'border border-plan/20 bg-plan/12 text-plan'
                 : 'border border-accent/20 bg-accent/12 text-accent'
@@ -438,9 +438,9 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="premium-input-shell rounded-[24px] p-3.5">
+      <div className="premium-input-shell p-3">
         {showSubagentDialog && (
-          <div className="premium-panel mb-3 space-y-3 rounded-[20px] p-4">
+          <div className="premium-panel mb-3 space-y-3 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-text-primary">Spawn subagents</p>
@@ -449,7 +449,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setShowSubagentDialog(false)}
-                className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
+                className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
               >
                 <X size={14} />
               </button>
@@ -461,25 +461,25 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="text"
                 value={subagentModel}
                 onChange={(e) => setSubagentModel(e.target.value)}
-                className="premium-focus flex-1 rounded-xl border border-border bg-bg-elevated/75 px-3 py-2 text-sm text-text-primary outline-none"
+                className="premium-focus flex-1 rounded-md border border-border bg-bg-elevated/75 px-3 py-2 text-sm text-text-primary outline-none"
                 placeholder="haiku"
               />
             </div>
 
             <div className="space-y-2">
               {subagentDrafts.map((draft, index) => (
-                <div key={index} className="premium-panel rounded-[18px] space-y-2 px-3 py-3">
+                <div key={index} className="premium-panel space-y-2 px-3 py-3">
                   <input
                     type="text"
                     value={draft.name}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                    className="premium-focus w-full rounded-xl border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
+                    className="premium-focus w-full rounded-md border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
                     placeholder="Agent name"
                   />
                   <textarea
                     value={draft.prompt}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: e.target.value } : item))}
-                    className="premium-focus min-h-20 w-full resize-y rounded-xl border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
+                    className="premium-focus min-h-20 w-full resize-y rounded-md border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
                     placeholder="What should this subagent explore?"
                   />
                 </div>
@@ -490,7 +490,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setSubagentDrafts((current) => current.length >= 5 ? current : [...current, { name: `Explore ${current.length + 1}`, prompt: '' }])}
-                className="premium-toolbar-button inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs text-text-tertiary"
+                className="premium-toolbar-button inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-text-tertiary"
               >
                 <Plus size={12} />
                 Add agent
@@ -498,7 +498,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => void handleSpawnSubagents()}
-                className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_hsl(24_45%_8%_/_0.28)] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                className="rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary disabled:opacity-50"
                 disabled={!canSpawnSubagents}
               >
                 Spawn
@@ -513,12 +513,12 @@ export function ChatInput({ focused }: ChatInputProps) {
             {attachedFiles.map((file) => (
               <span
                 key={file.path}
-                className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent-muted/40 px-2.5 py-1 text-xs text-accent"
+                className="inline-flex items-center gap-1 rounded-md border border-accent/20 bg-accent-muted/40 px-2.5 py-1 text-xs text-accent"
               >
                 @{file.name}
                 <button
                   onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
-                  className="premium-toolbar-button rounded-full p-0.5 text-accent"
+                  className="premium-toolbar-button rounded-sm p-0.5 text-accent"
                 >
                   <X size={10} />
                 </button>
@@ -556,7 +556,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setShowModelSelector((v) => !v)}
-                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
+                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-secondary"
                 title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
               >
                 <AgentIcon
@@ -577,7 +577,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 <button
                   type="button"
                   onClick={handleCycleThinking}
-                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
+                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
                   title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
                 >
                   <Brain size={12} className="text-accent" />
@@ -589,7 +589,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             {/* Right controls */}
             <div className="flex items-center gap-1.5">
               {/* Plan / Act segmented toggle */}
-              <div className="premium-pill flex items-center overflow-hidden rounded-full text-[11px] font-medium">
+              <div className="premium-pill flex items-center overflow-hidden rounded-md text-[11px] font-medium">
                 <button
                   type="button"
                   onClick={() => {
@@ -599,7 +599,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   }}
                   className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
                     mode === 'plan'
-                      ? 'bg-plan text-bg-primary shadow-[0_10px_24px_hsl(40_60%_12%_/_0.22)]'
+                      ? 'bg-plan text-bg-primary'
                       : 'text-text-tertiary'
                   }`}
                 >
@@ -615,7 +615,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   }}
                   className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
                     mode === 'act'
-                      ? 'bg-accent text-bg-primary shadow-[0_10px_24px_hsl(24_45%_8%_/_0.22)]'
+                      ? 'bg-accent text-bg-primary'
                       : 'text-text-tertiary'
                   }`}
                 >
@@ -628,7 +628,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={handleFileSelect}
-                className="premium-toolbar-button rounded-full p-2 text-text-tertiary"
+                className="premium-toolbar-button rounded-md p-2 text-text-tertiary"
                 aria-label="Attach file"
                 title="Attach image"
               >
@@ -639,7 +639,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setShowSubagentDialog((v) => !v)}
-                className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
+                className="premium-toolbar-button rounded-md p-2 text-text-tertiary disabled:opacity-40"
                 aria-label="More options"
                 disabled={!canSpawnSubagents}
                 title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
@@ -652,11 +652,11 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="button"
                 onClick={handleSend}
                 disabled={!hasContent}
-                className={`flex-shrink-0 rounded-full p-2 transition-all ${
+                className={`flex-shrink-0 rounded-md p-2 transition-colors ${
                   hasContent
                     ? mode === 'plan'
-                      ? 'bg-plan text-bg-primary shadow-[0_16px_34px_hsl(40_60%_12%_/_0.28)] hover:-translate-y-0.5'
-                      : 'bg-accent text-bg-primary shadow-[0_16px_34px_hsl(24_45%_8%_/_0.28)] hover:-translate-y-0.5'
+                      ? 'bg-plan text-bg-primary'
+                      : 'bg-accent text-bg-primary'
                     : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
                 }`}
                 aria-label="Send message"

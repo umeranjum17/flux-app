@@ -22,33 +22,45 @@ const statusColors: Record<TaskStatus, string> = {
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<SidebarTab>('chat');
+  const projectName = useUiStore((s) => s.projectName);
+  const sshConnected = useUiStore((s) => s.sshConnected);
+  const sshHost = useUiStore((s) => s.sshHost);
 
   return (
     <motion.aside
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: 256, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="premium-panel-strong flex h-full shrink-0 flex-col overflow-hidden rounded-r-[24px] border-r border-border/70"
+      transition={{ duration: 0.16, ease: 'easeOut' }}
+      className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-bg-secondary"
     >
-      {/* Horizontal icon tabs */}
-      <div className="flex items-center gap-1 border-b border-border-subtle/80 px-2 py-2">
-        <TabButton icon={<MessageSquare size={14} />} label="Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
-        <TabButton icon={<Search size={14} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
-        <TabButton icon={<BarChart3 size={14} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
-        <TabButton icon={<GitBranch size={14} />} label="Git" active={activeTab === 'git'} onClick={() => setActiveTab('git')} />
-
-        <div className="flex-1" />
+      <div className="flex items-start justify-between border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="classic-section-label">Activity</div>
+          <div className="mt-1 truncate text-[12px] font-medium text-text-primary">{projectName || 'Flux'}</div>
+          <div className="mt-0.5 truncate text-[10px] text-text-tertiary">
+            {sshConnected && sshHost ? `SSH · ${sshHost}` : 'Local workspace'}
+          </div>
+        </div>
         <button
           onClick={() => useUiStore.getState().toggleSidebar()}
-          className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary"
+          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
         >
           <X size={13} />
         </button>
       </div>
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+      <div className="border-b border-border px-2 py-2">
+        <div className="classic-section-label px-2 pb-1">Views</div>
+        <div className="space-y-1">
+          <TabButton icon={<MessageSquare size={14} />} label="Conversations" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
+          <TabButton icon={<Search size={14} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
+          <TabButton icon={<BarChart3 size={14} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
+          <TabButton icon={<GitBranch size={14} />} label="Repository" active={activeTab === 'git'} onClick={() => setActiveTab('git')} />
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {activeTab === 'chat' && <ChatTab />}
         {activeTab === 'search' && <SearchTab />}
         {activeTab === 'usage' && <UsagePanel />}
@@ -68,13 +80,10 @@ function TabButton({ icon, label, active, onClick }: {
     <button
       onClick={onClick}
       title={label}
-      className={`premium-toolbar-button rounded-lg p-1.5 ${
-        active
-          ? 'border-border bg-bg-hover/90 text-text-primary shadow-[0_12px_24px_hsl(20_30%_4%_/_0.12)]'
-          : 'text-text-tertiary'
-      }`}
+      className={`classic-nav-button ${active ? 'classic-nav-button-active' : ''}`}
     >
-      {icon}
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate text-[12px] font-medium">{label}</span>
     </button>
   );
 }
@@ -86,9 +95,6 @@ function ChatTab() {
   const activeTaskId = useChatStore((s) => s.activeTaskId);
   const setActiveTask = useChatStore((s) => s.setActiveTask);
   const sessions = useSessionStore((s) => s.sessions);
-  const projectName = useUiStore((s) => s.projectName);
-  const sshConnected = useUiStore((s) => s.sshConnected);
-  const sshHost = useUiStore((s) => s.sshHost);
 
   const handleLoadSession = useCallback(async (session: { id: string; title: string; agentId: string; model: string; mode: string; cwd: string }) => {
     const taskId = crypto.randomUUID();
@@ -124,76 +130,68 @@ function ChatTab() {
   const totalCost = useMemo(() => taskList.reduce((sum, t) => sum + t.costUsd, 0), [taskList]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {projectName && (
-        <div className="px-3 pt-3 pb-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-text-primary truncate">{projectName}</span>
-            {sshConnected && sshHost && (
-              <span className="premium-pill rounded-full border border-accent/25 bg-accent-muted/40 px-2 py-0.5 text-[10px] font-medium text-accent">SSH</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tasks */}
-      <div className="flex items-center justify-between px-3 pt-2 pb-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Active</span>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <span className="classic-section-label">Conversations</span>
         <button
           onClick={() => {
             useChatStore.getState().setActiveTask(null);
             useUiStore.getState().setBottomPanelMode('agent');
           }}
-          className="p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+          className="premium-toolbar-button rounded-md p-1 text-text-secondary"
         >
           <Plus size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-1.5 space-y-0.5">
+      <div className="flex-1 overflow-y-auto px-2">
         {taskList.length === 0 && (
-          <div className="px-2 py-4 text-center">
-            <p className="text-[11px] text-text-tertiary">No active tasks</p>
-            <p className="text-[10px] text-text-tertiary mt-1">Start a conversation to create one</p>
+          <div className="px-3 py-6 text-center">
+            <p className="text-[12px] text-text-secondary">No active conversations</p>
+            <p className="mt-1 text-[10px] text-text-tertiary">Start a conversation to create one.</p>
           </div>
         )}
         {taskList.map((task) => (
           <button
             key={task.id}
             onClick={() => setActiveTask(task.id)}
-            className={`premium-toolbar-button w-full rounded-xl px-2.5 py-2 text-left text-xs ${
-              task.id === activeTaskId
-                ? 'border-border bg-bg-elevated/85 text-text-primary shadow-[0_14px_30px_hsl(20_30%_4%_/_0.12)]'
-                : 'text-text-secondary'
-            }`}
+            className={`classic-list-button ${task.id === activeTaskId ? 'classic-list-button-active' : ''}`}
           >
-            <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${statusColors[task.status]}`} />
-            <span className="truncate">{task.title || 'Untitled'}</span>
+            <span className={`mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusColors[task.status]}`} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-medium text-text-primary">{task.title || 'Untitled'}</div>
+              <div className="mt-0.5 text-[10px] text-text-tertiary">
+                {task.status.replace('_', ' ')}
+              </div>
+            </div>
           </button>
         ))}
       </div>
 
-      <div className="mx-3 border-t border-border" />
-      <div className="px-3 pt-2 pb-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Sessions</span>
+      <div className="mx-4 mt-3 border-t border-border" />
+      <div className="px-4 pt-3 pb-2">
+        <span className="classic-section-label">Sessions</span>
       </div>
-      <div className="flex-1 overflow-y-auto px-1.5 space-y-0.5 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2">
         {sessions.length === 0 && (
-          <p className="text-[11px] text-text-tertiary px-2 py-3">No saved sessions</p>
+          <p className="px-3 py-4 text-[11px] text-text-tertiary">No saved sessions</p>
         )}
         {sessions.map((session) => (
           <button
             key={session.id}
             onClick={() => handleLoadSession(session)}
-            className="premium-toolbar-button w-full rounded-xl px-2.5 py-2 text-left text-xs text-text-secondary"
+            className="classic-list-button"
           >
-            <span className="truncate">{session.title || 'Untitled'}</span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-medium text-text-primary">{session.title || 'Untitled'}</div>
+              <div className="mt-0.5 text-[10px] text-text-tertiary">{session.agentId} · {session.model}</div>
+            </div>
           </button>
         ))}
       </div>
 
-      <div className="px-3 py-2 border-t border-border">
-        <span className="text-[11px] text-text-tertiary">Total cost: ${totalCost.toFixed(4)}</span>
+      <div className="border-t border-border px-4 py-2">
+        <span className="text-[11px] text-text-tertiary">Total cost ${totalCost.toFixed(4)}</span>
       </div>
     </div>
   );
@@ -220,22 +218,23 @@ function SearchTab() {
   }, [query, cwd]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-2 pt-2 pb-1">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-border px-4 py-3">
+        <div className="classic-section-label pb-2">Search</div>
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-          placeholder="Search in files..."
+          placeholder="Search in files"
           autoFocus
-          className="premium-focus w-full rounded-xl border border-border bg-bg-primary/80 px-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
+          className="premium-focus w-full rounded-md border border-border bg-bg-surface px-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
         />
       </div>
-      <div className="flex-1 overflow-y-auto px-1.5">
-        {searching && <p className="text-[11px] text-text-tertiary px-2 py-3 text-center">Searching...</p>}
+      <div className="flex-1 overflow-y-auto px-2 py-2">
+        {searching && <p className="px-3 py-4 text-center text-[11px] text-text-tertiary">Searching...</p>}
         {!searching && results.length === 0 && query && (
-          <p className="text-[11px] text-text-tertiary px-2 py-3 text-center">No results</p>
+          <p className="px-3 py-4 text-center text-[11px] text-text-tertiary">No results</p>
         )}
         {results.map((r, i) => (
           <button
@@ -245,10 +244,12 @@ function SearchTab() {
               useUiStore.getState().setExplorerOpen(true);
               useUiStore.getState().setActiveFile({ path: r.file, name });
             }}
-            className="premium-toolbar-button w-full rounded-xl px-2.5 py-2 text-left"
+            className="classic-list-button"
           >
-            <div className="text-[11px] text-accent truncate">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
-            <div className="text-[10px] text-text-tertiary truncate font-mono">{r.text}</div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[11px] text-accent">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
+              <div className="truncate font-mono text-[10px] text-text-tertiary">{r.text}</div>
+            </div>
           </button>
         ))}
       </div>
@@ -265,21 +266,21 @@ function GitTab() {
   const sshHost = useUiStore((s) => s.sshHost);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-3 pt-2">
-      <div className="space-y-3">
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
+      <div className="space-y-4">
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Branch</span>
+          <span className="classic-section-label">Branch</span>
           <div className="flex items-center gap-2 mt-1.5">
             <GitBranch size={14} className="text-text-tertiary" />
             <span className="text-xs text-text-primary font-medium">{gitBranch || 'Not a git repo'}</span>
             {gitDirty && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning font-medium">modified</span>
+              <span className="rounded-md border border-warning/20 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning">modified</span>
             )}
           </div>
         </div>
 
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">Environment</span>
+          <span className="classic-section-label">Environment</span>
           <div className="flex items-center gap-2 mt-1.5">
             {sshConnected ? (
               <>
@@ -294,7 +295,7 @@ function GitTab() {
 
         <button
           onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-          className="premium-toolbar-button w-full rounded-xl border border-border bg-bg-primary/70 py-2 text-xs text-text-secondary"
+          className="premium-toolbar-button w-full rounded-md border border-border bg-bg-surface py-2 text-xs text-text-secondary"
         >
           {sshConnected ? 'Manage SSH' : 'Connect SSH'}
         </button>

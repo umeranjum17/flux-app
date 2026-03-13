@@ -19,6 +19,7 @@ export function WorkspaceDashboard() {
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
 
   const workspaceList = Array.from(workspaces.values());
+  const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
 
   // Load workspaces on mount
   useEffect(() => {
@@ -69,44 +70,48 @@ export function WorkspaceDashboard() {
   const mergingWorkspace = mergingWorkspaceId ? workspaces.get(mergingWorkspaceId) : null;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <div className="flex items-center gap-2">
-          <LayoutGrid size={16} className="text-accent" />
-          <h2 className="text-sm font-semibold text-text-primary">Workspaces</h2>
-          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-bg-elevated text-text-tertiary font-medium">
-            {workspaceList.length}
-          </span>
+    <div className="flex flex-1 flex-col overflow-hidden bg-bg-primary">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
+        <div className="min-w-0">
+          <div className="classic-section-label">Workspaces</div>
+          <div className="mt-1 flex items-center gap-2">
+            <LayoutGrid size={16} className="text-accent" />
+            <h2 className="truncate text-sm font-semibold text-text-primary">{repositoryName}</h2>
+            <span className="rounded-md border border-border bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary">
+              {workspaceList.length}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-text-tertiary">
+            Isolated branches for parallel agent work.
+          </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors"
+          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-muted/45 px-3 py-1.5 text-xs font-medium text-accent"
         >
           <Plus size={13} />
           New Workspace
         </button>
       </div>
 
-      {/* Grid */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         {workspaceList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <LayoutGrid size={40} className="text-text-tertiary/30 mb-3" />
-            <p className="text-sm text-text-secondary mb-1">No workspaces yet</p>
-            <p className="text-xs text-text-tertiary mb-4">
-              Create a workspace to run agents in parallel on isolated branches
+          <div className="premium-panel flex h-full flex-col items-center justify-center px-6 text-center">
+            <LayoutGrid size={34} className="mb-3 text-text-tertiary/40" />
+            <p className="text-sm text-text-secondary">No workspaces yet</p>
+            <p className="mt-1 text-xs text-text-tertiary">
+              Create a workspace to run agents on isolated branches.
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors"
+              className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
             >
               <Plus size={13} />
               Create First Workspace
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="space-y-2">
             {workspaceList.map((ws) => (
               <WorkspaceCard
                 key={ws.id}
