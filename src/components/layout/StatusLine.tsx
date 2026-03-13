@@ -3,7 +3,7 @@ import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
-import { GitBranch, Wifi, WifiOff, FolderOpen, Brain } from 'lucide-react';
+import { GitBranch, Wifi, WifiOff, FolderOpen, Brain, Monitor, Terminal } from 'lucide-react';
 import type { ThinkingLevel } from '../../lib/types';
 
 export function StatusLine() {
@@ -21,6 +21,7 @@ export function StatusLine() {
   const gitDirty = useUiStore((s) => s.gitDirty);
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
+  const environment = useUiStore((s) => s.environment);
 
   const repoMapConfig = useIntelligenceStore((s) => s.config);
   const repoMapStatus = useIntelligenceStore((s) => s.status);
@@ -78,6 +79,24 @@ export function StatusLine() {
       {/* Left side: Remote indicator + folder */}
       <div className="flex items-center gap-0 shrink-0">
         {/* VS Code-style remote indicator */}
+        {environment === 'wsl' && (
+          <span
+            className="flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium bg-blue-600 text-white"
+            title="Running inside WSL"
+          >
+            <Terminal size={11} />
+            WSL
+          </span>
+        )}
+        {environment === 'ssh' && !sshConnected && (
+          <span
+            className="flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium bg-purple-600 text-white"
+            title="Running inside an SSH session"
+          >
+            <Monitor size={11} />
+            SSH Session
+          </span>
+        )}
         <button
           onClick={handleSshClick}
           className={`flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium transition-colors ${
@@ -138,7 +157,7 @@ export function StatusLine() {
       <div className="flex-1" />
 
       {/* Right side: agent, model, cost, tokens */}
-      <div className="flex items-center gap-2 px-3">
+      <div className="flex items-center gap-2 px-3 min-w-0 overflow-hidden">
         <button
           onClick={handleAgentClick}
           className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"

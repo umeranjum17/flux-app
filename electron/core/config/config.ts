@@ -23,6 +23,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   defaultMode: 'act',
   qualityGateCommands: [],
   customAgentPaths: {},
+  zoomLevel: 1.0,
   recentProjects: [],
   recentSshHosts: [],
   repoMap: DEFAULT_REPOMAP_CONFIG,
@@ -61,6 +62,9 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     recentSshHosts: Array.isArray(raw.recentSshHosts)
       ? raw.recentSshHosts as FluxConfig['recentSshHosts']
       : DEFAULT_CONFIG.recentSshHosts,
+    zoomLevel: typeof raw.zoomLevel === 'number'
+      ? Math.max(0.5, Math.min(2.5, raw.zoomLevel))
+      : DEFAULT_CONFIG.zoomLevel,
     repoMap: raw.repoMap && typeof raw.repoMap === 'object' && !Array.isArray(raw.repoMap)
       ? { ...DEFAULT_REPOMAP_CONFIG, ...(raw.repoMap as Record<string, unknown>) } as FluxConfig['repoMap']
       : DEFAULT_REPOMAP_CONFIG,
@@ -70,6 +74,29 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
 function getConfigPath(): string {
   const homeDir = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '';
   return path.join(homeDir, '.flux', 'config.json');
+}
+
+function mergeConfig(current: FluxConfig, partial: Partial<FluxConfig>): FluxConfig {
+  const merged = {
+    ...current,
+    ...partial,
+    customAgentPaths:
+      partial.customAgentPaths && typeof partial.customAgentPaths === 'object' && !Array.isArray(partial.customAgentPaths)
+        ? {
+            ...current.customAgentPaths,
+            ...partial.customAgentPaths,
+          }
+        : current.customAgentPaths,
+    repoMap:
+      partial.repoMap && typeof partial.repoMap === 'object' && !Array.isArray(partial.repoMap)
+        ? {
+            ...current.repoMap,
+            ...partial.repoMap,
+          }
+        : current.repoMap,
+  } satisfies Record<string, unknown>;
+
+  return normalizeConfig(merged);
 }
 
 export class ConfigManager {
@@ -88,13 +115,27 @@ export class ConfigManager {
   set(partial: Partial<FluxConfig>): void {
     const configPath = getConfigPath();
     const current = this.get();
-    const merged = { ...current, ...partial };
+    const merged = mergeConfig(current, partial);
 
     const dir = path.dirname(configPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), 'utf-8');
+    const tempPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+
+    try {
+      fs.writeFileSync(tempPath, JSON.stringify(merged, null, 2), 'utf-8');
+      fs.renameSync(tempPath, configPath);
+    } catch (error) {
+      try {
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+        }
+      } catch {
+        // Best-effort cleanup only.
+      }
+      throw error;
+    }
   }
 }

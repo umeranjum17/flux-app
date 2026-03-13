@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
-import type { FluxConfig, Session } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
@@ -100,6 +100,16 @@ export function AppShell() {
           useUiStore.getState().setCwd(cwdResult);
         } catch (err) {
           console.error('CWD fetch failed:', err);
+        }
+
+        // Detect runtime environment (WSL, SSH session, etc.)
+        try {
+          const envInfo = await window.api.invoke('env:detect') as EnvironmentInfo;
+          if (envInfo.runtime !== 'local') {
+            useUiStore.getState().setEnvironment(envInfo.runtime);
+          }
+        } catch (err) {
+          console.error('Environment detection failed:', err);
         }
 
         try {
@@ -297,13 +307,34 @@ export function AppShell() {
         e.preventDefault();
         useUiStore.getState().setOverlay('agent-selector');
       }
+      // Zoom in: Cmd/Ctrl + =
+      if (meta && !e.shiftKey && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        window.api.invoke('zoom:get').then((current) => {
+          const next = Math.min(2.5, (current as number) + 0.1);
+          window.api.invoke('zoom:set', { level: next });
+        });
+      }
+      // Zoom out: Cmd/Ctrl + -
+      if (meta && !e.shiftKey && e.key === '-') {
+        e.preventDefault();
+        window.api.invoke('zoom:get').then((current) => {
+          const next = Math.max(0.5, (current as number) - 0.1);
+          window.api.invoke('zoom:set', { level: next });
+        });
+      }
+      // Reset zoom: Cmd/Ctrl + 0
+      if (meta && !e.shiftKey && e.key === '0') {
+        e.preventDefault();
+        window.api.invoke('zoom:set', { level: 1.0 });
+      }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [createNewTab, cycleModel, cycleThinking]);
 
   return (
-    <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
+    <div className="flex flex-col h-screen bg-bg-primary text-text-primary min-w-[400px]">
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>

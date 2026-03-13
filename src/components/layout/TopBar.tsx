@@ -3,6 +3,7 @@ import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 
 const isMac = window.api?.platform === 'darwin';
+const isWin = window.api?.platform === 'win32';
 
 export function TopBar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -15,12 +16,13 @@ export function TopBar() {
   const projectName = useUiStore((s) => s.projectName);
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
+  const environment = useUiStore((s) => s.environment);
 
   const titleText = projectName || 'Flux';
 
   return (
     <div
-      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] bg-bg-secondary border-b border-border-subtle px-3 ${isMac ? 'pl-[72px]' : ''}`}
+      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] bg-bg-secondary border-b border-border-subtle px-3 ${isMac ? 'pl-[72px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
     >
       {/* Left: hamburger + title */}
       <div className="no-drag flex items-center gap-2.5">
@@ -34,6 +36,16 @@ export function TopBar() {
         <span className="text-[13px] font-semibold text-text-primary select-none">
           {titleText}
         </span>
+        {environment === 'wsl' && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-blue-600/15 text-blue-400 font-medium select-none">
+            WSL
+          </span>
+        )}
+        {environment === 'ssh' && !sshConnected && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-purple-600/15 text-purple-400 font-medium select-none">
+            SSH Session
+          </span>
+        )}
         {sshConnected && sshHost && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-accent/15 text-accent font-medium select-none">
             SSH:{sshHost}
@@ -42,7 +54,7 @@ export function TopBar() {
       </div>
 
       {/* Right: controls */}
-      <div className="no-drag flex items-center gap-1">
+      <div className="no-drag flex items-center gap-1 min-w-0 overflow-hidden">
         {/* Auto-approve toggle */}
         <button
           onClick={toggleAutoApprove}

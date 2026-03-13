@@ -1,6 +1,74 @@
 import fs from 'fs';
 import path from 'path';
 
+export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
+
+export interface EnvironmentInfo {
+  /** The detected runtime environment */
+  runtime: RuntimeEnvironment;
+  /** The OS platform (darwin, linux, win32) */
+  platform: NodeJS.Platform;
+  /** WSL distro name if running inside WSL */
+  wslDistro: string | null;
+  /** True when the process was launched inside an SSH session */
+  isSSHSession: boolean;
+  /** True when running inside WSL */
+  isWSL: boolean;
+}
+
+let cachedEnvInfo: EnvironmentInfo | null = null;
+
+function detectWSL(): { isWSL: boolean; distro: string | null } {
+  // WSL sets WSL_DISTRO_NAME in the environment
+  if (process.env.WSL_DISTRO_NAME) {
+    return { isWSL: true, distro: process.env.WSL_DISTRO_NAME };
+  }
+  // Also check WSL_INTEROP (WSL2) and WSLENV
+  if (process.env.WSL_INTEROP || process.env.WSLENV) {
+    return { isWSL: true, distro: process.env.WSL_DISTRO_NAME ?? null };
+  }
+  // Fallback: check /proc/version for "microsoft" or "WSL" (Linux only)
+  if (process.platform === 'linux') {
+    try {
+      const version = fs.readFileSync('/proc/version', 'utf-8');
+      if (/microsoft|wsl/i.test(version)) {
+        return { isWSL: true, distro: process.env.WSL_DISTRO_NAME ?? null };
+      }
+    } catch {
+      // Not available — not WSL
+    }
+  }
+  return { isWSL: false, distro: null };
+}
+
+function detectSSHSession(): boolean {
+  // Standard env vars set by OpenSSH when you connect into a host
+  return !!(process.env.SSH_CONNECTION || process.env.SSH_CLIENT || process.env.SSH_TTY);
+}
+
+export function detectEnvironment(): EnvironmentInfo {
+  if (cachedEnvInfo) return cachedEnvInfo;
+
+  const wsl = detectWSL();
+  const isSSHSession = detectSSHSession();
+
+  let runtime: RuntimeEnvironment = 'local';
+  if (wsl.isWSL) {
+    runtime = 'wsl';
+  } else if (isSSHSession) {
+    runtime = 'ssh';
+  }
+
+  cachedEnvInfo = {
+    runtime,
+    platform: process.platform,
+    wslDistro: wsl.distro,
+    isSSHSession,
+    isWSL: wsl.isWSL,
+  };
+  return cachedEnvInfo;
+}
+
 function listHomeBinDirectories(env: NodeJS.ProcessEnv): string[] {
   const home = env.HOME ?? env.USERPROFILE;
   if (!home) {

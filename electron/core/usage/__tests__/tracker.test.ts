@@ -6,9 +6,18 @@ beforeEach(() => {
 
 describe('UsageTracker', () => {
   it('aggregates totals and provider breakdown from stored result rows', async () => {
+    const sampleDate = new Date();
+    sampleDate.setHours(0, 0, 0, 0);
+    sampleDate.setDate(sampleDate.getDate() - 1);
+    const usageDate = [
+      sampleDate.getFullYear(),
+      String(sampleDate.getMonth() + 1).padStart(2, '0'),
+      String(sampleDate.getDate()).padStart(2, '0'),
+    ].join('-');
+
     const dailyRows = [
       {
-        usage_date: '2026-03-06',
+        usage_date: usageDate,
         cost_usd: 1.25,
         input_tokens: 1500,
         output_tokens: 575,

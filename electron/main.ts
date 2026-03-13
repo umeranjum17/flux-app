@@ -1,7 +1,8 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
 import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers';
 import { runMigrations } from './core/db/migrations';
+import { ConfigManager } from './core/config/config';
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason);
@@ -17,6 +18,9 @@ let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
   const isMac = process.platform === 'darwin';
+  const isWin = process.platform === 'win32';
+  const configManager = new ConfigManager();
+  const config = configManager.get();
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -24,9 +28,16 @@ function createWindow(): void {
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#181a20',
-    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    titleBarStyle: isMac ? 'hiddenInset' : isWin ? 'hidden' : 'default',
     frame: true,
     ...(isMac && { trafficLightPosition: { x: 12, y: 12 } }),
+    ...(isWin && {
+      titleBarOverlay: {
+        color: '#14161b',
+        symbolColor: '#8b8fa3',
+        height: 38,
+      },
+    }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -42,6 +53,14 @@ function createWindow(): void {
     );
   }
 
+  // Apply persisted zoom level
+  const zoomLevel = config.zoomLevel ?? 1.0;
+  if (zoomLevel !== 1.0) {
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow?.webContents.setZoomFactor(zoomLevel);
+    });
+  }
+
   registerIpcHandlers(mainWindow);
 
   mainWindow.on('closed', () => {
@@ -51,8 +70,17 @@ function createWindow(): void {
 
 app.on('ready', () => {
   console.info('[main] Electron app ready; starting initialization');
-  runMigrations();
-  createWindow();
+  try {
+    runMigrations();
+    createWindow();
+  } catch (error) {
+    console.error('[main] Failed to initialize application', error);
+    dialog.showErrorBox(
+      'Flux failed to start',
+      error instanceof Error ? error.message : String(error),
+    );
+    app.quit();
+  }
 });
 
 app.on('before-quit', () => {

@@ -36,6 +36,9 @@ interface WorkspaceState {
   addCheckpoint(workspaceId: string, checkpoint: Checkpoint): void;
 }
 
+let reviewRequestVersion = 0;
+let fileDiffRequestVersion = 0;
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   immer((set, get) => ({
     workspaces: new Map(),
@@ -103,6 +106,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     },
 
     async openReview(workspaceId) {
+      const requestVersion = ++reviewRequestVersion;
       set((state) => {
         state.reviewingWorkspaceId = workspaceId;
         state.diffFiles = [];
@@ -113,6 +117,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       try {
         const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
         set((state) => {
+          if (requestVersion !== reviewRequestVersion || state.reviewingWorkspaceId !== workspaceId) {
+            return;
+          }
           state.diffFiles = files;
         });
       } catch {
@@ -121,6 +128,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     },
 
     closeReview() {
+      reviewRequestVersion += 1;
+      fileDiffRequestVersion += 1;
       set((state) => {
         state.reviewingWorkspaceId = null;
         state.diffFiles = [];
@@ -132,6 +141,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     async selectFile(filePath) {
       const workspaceId = get().reviewingWorkspaceId;
       if (!workspaceId) return;
+      const requestVersion = ++fileDiffRequestVersion;
 
       set((state) => {
         state.selectedFile = filePath;
@@ -145,6 +155,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           unified: string;
         };
         set((state) => {
+          if (
+            requestVersion !== fileDiffRequestVersion ||
+            state.reviewingWorkspaceId !== workspaceId ||
+            state.selectedFile !== filePath
+          ) {
+            return;
+          }
           state.fileDiff = diff;
         });
       } catch {
@@ -155,10 +172,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     async refreshDiffFiles() {
       const workspaceId = get().reviewingWorkspaceId;
       if (!workspaceId) return;
+      const requestVersion = ++reviewRequestVersion;
 
       try {
         const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
         set((state) => {
+          if (requestVersion !== reviewRequestVersion || state.reviewingWorkspaceId !== workspaceId) {
+            return;
+          }
           state.diffFiles = files;
         });
       } catch {

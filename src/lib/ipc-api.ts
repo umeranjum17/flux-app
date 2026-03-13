@@ -1,7 +1,18 @@
 import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment } from './types';
 
+export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
+
+export interface EnvironmentInfo {
+  runtime: RuntimeEnvironment;
+  platform: string;
+  wslDistro: string | null;
+  isSSHSession: boolean;
+  isWSL: boolean;
+}
+
 // Channels the renderer can invoke on main
 export interface IpcChannels {
+  'env:detect': { args: []; result: EnvironmentInfo };
   'agents:detect': { args: []; result: DetectedAgent[] };
   'agents:check-auth': { args: [{ agentId: string }]; result: AuthResult };
   'task:spawn': { args: [SpawnOptions & { agentId?: string }]; result: { taskId: string; session: Session } };
@@ -21,6 +32,9 @@ export interface IpcChannels {
   'sessions:messages': { args: [{ id: string }]; result: SessionMessage[] };
   'config:get': { args: []; result: FluxConfig };
   'config:set': { args: [Partial<FluxConfig>]; result: void };
+  'theme:update-titlebar': { args: [{ theme: 'dark' | 'light' }]; result: void };
+  'zoom:set': { args: [{ level: number }]; result: void };
+  'zoom:get': { args: []; result: number };
   'usage:get': { args: []; result: UsageInfo };
   'usage:rate-limits': { args: []; result: RateLimitInfo[] };
   'usage:live': { args: []; result: LiveUsageOverview };
@@ -146,6 +160,7 @@ export interface FluxConfig {
   defaultMode: TaskMode;
   qualityGateCommands: string[];
   customAgentPaths: Record<string, string>;
+  zoomLevel?: number;
   recentProjects: Array<{
     path: string;
     name: string;
