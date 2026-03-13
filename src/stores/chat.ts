@@ -35,6 +35,7 @@ interface ChatState {
   reorderTabs(fromIndex: number, toIndex: number): void;
   addMessage(taskId: string, message: AgentMessage): void;
   ingestStreamMessage(taskId: string, message: AgentMessage): void;
+  ingestStreamBatch(batch: Array<{ taskId: string; message: AgentMessage }>): void;
   setTaskStatus(taskId: string, status: TaskStatus): void;
   setTaskSessionId(taskId: string, sessionId: string): void;
   setPendingApproval(
@@ -170,24 +171,16 @@ export const useChatStore = create<ChatState>()(
 
     ingestStreamMessage(taskId, message) {
       set((state) => {
-        const task = state.tasks.get(taskId);
-        if (!task) return;
-        if (message.subagentId) {
-          appendSubagentMessage(task, message, true);
-          if (message.subagentStatus === 'spawning' || (!message.subagentStatus && message.type !== 'rate_limit')) {
-            task.status = 'running';
-          }
-          return;
-        }
-        const last = task.messages[task.messages.length - 1];
+        ingestOne(state, taskId, message);
+      });
+    },
 
-        if (shouldMergeStreamChunk(last, message)) {
-          last.content += message.content;
-          last.timestamp = message.timestamp;
-        } else {
-          appendMessage(task, message);
+    ingestStreamBatch(batch) {
+      if (batch.length === 0) return;
+      set((state) => {
+        for (const { taskId, message } of batch) {
+          ingestOne(state, taskId, message);
         }
-        applyLiveMessage(task, message);
       });
     },
 
@@ -311,19 +304,56 @@ export const useChatStore = create<ChatState>()(
   })),
 );
 
+function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message: AgentMessage): void {
+  const task = state.tasks.get(taskId);
+  if (!task) return;
+  if (message.subagentId) {
+    appendSubagentMessage(task, message, true);
+    if (message.subagentStatus === 'spawning' || (!message.subagentStatus && message.type !== 'rate_limit')) {
+      task.status = 'running';
+    }
+    return;
+  }
+
+  // Status messages (heartbeats) update a dedicated field instead of growing the array
+  if (message.type === 'status') {
+    task.currentStatus = message.content;
+    task.currentStatusKind = message.statusKind;
+    applyLiveMessage(task, message);
+    return;
+  }
+
+  // Rate limit messages update metadata without accumulating in the array
+  if (message.type === 'rate_limit') {
+    task.rateLimitInfo = message.rateLimitInfo;
+    const info = message.rateLimitInfo as Record<string, any> | undefined;
+    const status = info?.status;
+    if (status === 'rejected') {
+      const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
+      task.rateLimitSuggestion = {
+        agents: allAgents.filter((a) => a !== task.agentId),
+      };
+    }
+    applyLiveMessage(task, message);
+    return;
+  }
+
+  const last = task.messages[task.messages.length - 1];
+  if (shouldMergeStreamChunk(last, message)) {
+    last.content += message.content;
+    last.timestamp = message.timestamp;
+  } else {
+    appendMessage(task, message);
+  }
+  applyLiveMessage(task, message);
+}
+
 function appendMessage(task: Task, message: AgentMessage): void {
   task.messages.push(message);
   if (message.type === 'result') {
     task.costUsd += message.costUsd ?? 0;
     task.inputTokens += message.inputTokens ?? 0;
     task.outputTokens += message.outputTokens ?? 0;
-  }
-  if (message.type === 'rate_limit') {
-    task.rateLimitInfo = message.rateLimitInfo;
-    const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
-    task.rateLimitSuggestion = {
-      agents: allAgents.filter((a) => a !== task.agentId),
-    };
   }
   if (message.type === 'quality_gate' && message.command) {
     task.lastQualityGate = {

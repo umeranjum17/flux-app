@@ -74,13 +74,13 @@ export function StatusLine() {
   }, [sshConnected]);
 
   return (
-    <div className="flex items-center h-7 min-h-[28px] bg-bg-secondary border-t border-border/20 select-none">
+    <div className="flex items-center h-[26px] min-h-[26px] bg-bg-secondary border-t border-border-subtle select-none">
       {/* Left side: Remote indicator + folder */}
       <div className="flex items-center gap-0 shrink-0">
         {/* VS Code-style remote indicator */}
         <button
           onClick={handleSshClick}
-          className={`flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-medium transition-colors ${
+          className={`flex items-center gap-1.5 h-[26px] px-2 text-[10px] font-medium transition-colors ${
             sshConnected
               ? 'bg-accent text-white hover:opacity-90'
               : 'text-text-tertiary hover:bg-bg-hover hover:text-text-primary'
@@ -94,7 +94,7 @@ export function StatusLine() {
         {/* Open Folder button */}
         <button
           onClick={handleOpenFolder}
-          className="flex items-center gap-1.5 h-7 px-2.5 text-[11px] text-text-tertiary hover:bg-bg-hover hover:text-text-primary transition-colors"
+          className="flex items-center gap-1.5 h-[26px] px-2 text-[10px] text-text-tertiary hover:bg-bg-hover hover:text-text-secondary transition-colors"
           title="Open folder"
         >
           <FolderOpen size={11} />
@@ -102,7 +102,7 @@ export function StatusLine() {
         </button>
 
         {gitBranch && (
-          <span className="flex items-center gap-1 h-7 px-2 text-[11px] text-text-tertiary">
+          <span className="flex items-center gap-1 h-[26px] px-2 text-[10px] text-text-tertiary">
             <GitBranch size={11} />
             {gitBranch}
             {gitDirty && <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />}
@@ -141,7 +141,7 @@ export function StatusLine() {
       <div className="flex items-center gap-2 px-3">
         <button
           onClick={handleAgentClick}
-          className="text-[11px] text-text-tertiary truncate hover:text-text-primary cursor-pointer transition-colors"
+          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Switch agent (Ctrl+Shift+A)"
         >
           {agentName}
@@ -149,7 +149,7 @@ export function StatusLine() {
         <Dot />
         <button
           onClick={handleCycleModel}
-          className="text-[11px] text-text-tertiary truncate hover:text-text-primary cursor-pointer transition-colors"
+          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Cycle model (Ctrl+Shift+M)"
         >
           {model}
@@ -157,7 +157,7 @@ export function StatusLine() {
         <Dot />
         <button
           onClick={handleCycleThinking}
-          className="text-[11px] text-text-tertiary truncate hover:text-text-primary cursor-pointer transition-colors"
+          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Cycle thinking level (Ctrl+Shift+T)"
         >
           think {thinking}
@@ -181,10 +181,10 @@ export function StatusLine() {
           </>
         )}
         <Dot />
-        <span className="text-[11px] text-text-tertiary tabular-nums">
+        <span className="text-[10px] text-text-tertiary tabular-nums">
           ${cost.toFixed(4)}
         </span>
-        <span className="text-[11px] text-text-tertiary tabular-nums">
+        <span className="text-[10px] text-text-tertiary tabular-nums">
           {formatTokens(tokens)} tokens
         </span>
       </div>
@@ -194,7 +194,7 @@ export function StatusLine() {
 
 function Dot() {
   return (
-    <span className="text-[11px] text-text-tertiary" aria-hidden>
+    <span className="text-[10px] text-text-tertiary" aria-hidden>
       &middot;
     </span>
   );

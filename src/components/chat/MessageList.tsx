@@ -56,7 +56,7 @@ export function MessageList() {
   if (!task) {
     return (
       <div className="flex-1 flex items-center justify-center text-text-tertiary">
-        <p className="text-lg">Ask Flux anything...</p>
+        <p className="text-sm">Ask Flux anything...</p>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export function MessageList() {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-text-tertiary">
-        <p className="text-lg">Ask Flux anything...</p>
+        <p className="text-sm">Ask Flux anything...</p>
       </div>
     );
   }
@@ -97,7 +97,7 @@ export function MessageList() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-5 py-5 space-y-4"
+        className="h-full overflow-y-auto px-5 py-4 space-y-3"
       >
         <AnimatePresence initial={false}>
           {(() => {
@@ -192,6 +192,14 @@ export function MessageList() {
           <div className="pl-1">
             <StreamingCursor />
           </div>
+        )}
+
+        {isActiveRun && task.currentStatus && (
+          <ActivityIndicator
+            label={task.currentStatus}
+            statusKind={task.currentStatusKind}
+            active
+          />
         )}
 
         {diffs.size > 0 && (taskStatus === 'done' || taskStatus === 'error') && (

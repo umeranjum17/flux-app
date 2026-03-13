@@ -29,41 +29,37 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region flex items-center justify-between h-10 min-h-[40px] bg-bg-secondary border-b border-border/30 px-3 ${isMac ? 'pl-[70px]' : ''}`}
+      className={`drag-region flex items-center justify-between h-[38px] min-h-[38px] bg-bg-secondary border-b border-border-subtle px-3 ${isMac ? 'pl-[72px]' : ''}`}
     >
-      {/* Left: hamburger */}
-      <div className="no-drag flex items-center gap-2">
+      {/* Left: hamburger + title */}
+      <div className="no-drag flex items-center gap-2.5">
         <button
           onClick={toggleSidebar}
-          className="p-1.5 rounded-md hover:bg-bg-hover text-text-secondary transition-colors"
+          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
           aria-label="Toggle sidebar"
         >
-          <Menu size={16} />
+          <Menu size={15} />
         </button>
-      </div>
-
-      {/* Center: title + environment */}
-      <div className="flex items-center gap-2 select-none">
-        <span className="text-sm font-semibold text-text-primary">
+        <span className="text-[13px] font-semibold text-text-primary select-none">
           {titleText}
         </span>
         {sshConnected && sshHost && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-medium">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-accent/15 text-accent font-medium select-none">
             SSH:{sshHost}
           </span>
         )}
       </div>
 
       {/* Right: controls */}
-      <div className="no-drag flex items-center gap-1.5">
+      <div className="no-drag flex items-center gap-1">
         {/* Plan / Act toggle */}
-        <div className="flex items-center rounded-lg bg-bg-elevated/60 text-xs font-medium overflow-hidden border border-border/20">
+        <div className="flex items-center rounded-md bg-bg-primary/60 text-[11px] font-medium overflow-hidden border border-border-subtle">
           <button
             onClick={() => setMode('plan')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 transition-all duration-150 ${
+            className={`flex items-center gap-1.5 px-2.5 py-[3px] transition-all ${
               mode === 'plan'
-                ? 'bg-accent text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover/50'
+                ? 'bg-accent text-white'
+                : 'text-text-tertiary hover:text-text-secondary'
             }`}
             title="Plan mode (Cmd+Shift+P)"
           >
@@ -72,10 +68,10 @@ export function TopBar() {
           </button>
           <button
             onClick={() => setMode('act')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 transition-all duration-150 ${
+            className={`flex items-center gap-1.5 px-2.5 py-[3px] transition-all ${
               mode === 'act'
-                ? 'bg-success text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover/50'
+                ? 'bg-success text-white'
+                : 'text-text-tertiary hover:text-text-secondary'
             }`}
             title="Act mode (Cmd+Shift+P)"
           >
@@ -101,35 +97,36 @@ export function TopBar() {
         {/* Agent selector */}
         <button
           onClick={() => setOverlay('agent-selector')}
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
         >
-          <span className="truncate max-w-[100px]">{agentDisplayName}</span>
+          <span className="truncate max-w-[90px] font-medium">{agentDisplayName}</span>
           {selectedModel && (
-            <span className="text-text-tertiary font-normal">{selectedModel}</span>
+            <span className="text-text-tertiary">{selectedModel}</span>
           )}
-          <ChevronDown size={12} />
+          <ChevronDown size={11} className="text-text-tertiary" />
         </button>
+
+        <div className="w-px h-4 bg-border-subtle mx-0.5" />
 
         <button
           onClick={() => setDashboardOpen(!dashboardOpen)}
-          className={`p-1.5 rounded-md transition-colors ${
+          className={`p-1.5 rounded transition-colors ${
             dashboardOpen
               ? 'bg-accent/10 text-accent'
-              : 'text-text-secondary hover:bg-bg-hover'
+              : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
           }`}
           aria-label="Toggle workspaces"
           title="Workspaces"
         >
-          <LayoutGrid size={16} />
+          <LayoutGrid size={14} />
         </button>
 
-        {/* Settings */}
         <button
           onClick={() => setOverlay('settings')}
-          className="p-1.5 rounded-md hover:bg-bg-hover text-text-secondary transition-colors"
+          className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
           aria-label="Settings"
         >
-          <Settings size={16} />
+          <Settings size={14} />
         </button>
       </div>
     </div>

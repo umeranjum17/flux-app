@@ -207,4 +207,6 @@ export interface Task {
   rateLimitSuggestion?: { agents: AgentId[] };
   diffs: Map<string, DiffData>;
   planRevisions?: string[];
+  currentStatus?: string;
+  currentStatusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
 }

@@ -27,25 +27,25 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 260, opacity: 1 }}
+      animate={{ width: 256, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="flex flex-col h-full shrink-0 bg-bg-secondary border-r border-border overflow-hidden"
+      className="flex flex-col h-full shrink-0 bg-bg-secondary border-r border-border-subtle overflow-hidden"
     >
       {/* Horizontal icon tabs */}
-      <div className="flex items-center gap-1 px-2 pt-2 pb-1 border-b border-border">
-        <TabButton icon={<MessageSquare size={15} />} label="Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
-        <TabButton icon={<Files size={15} />} label="Files" active={activeTab === 'files'} onClick={() => setActiveTab('files')} />
-        <TabButton icon={<Search size={15} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
-        <TabButton icon={<BarChart3 size={15} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
-        <TabButton icon={<GitBranch size={15} />} label="Git" active={activeTab === 'git'} onClick={() => setActiveTab('git')} />
+      <div className="flex items-center gap-0.5 px-1.5 py-1.5 border-b border-border-subtle">
+        <TabButton icon={<MessageSquare size={14} />} label="Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
+        <TabButton icon={<Files size={14} />} label="Files" active={activeTab === 'files'} onClick={() => setActiveTab('files')} />
+        <TabButton icon={<Search size={14} />} label="Search" active={activeTab === 'search'} onClick={() => setActiveTab('search')} />
+        <TabButton icon={<BarChart3 size={14} />} label="Usage" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
+        <TabButton icon={<GitBranch size={14} />} label="Git" active={activeTab === 'git'} onClick={() => setActiveTab('git')} />
 
         <div className="flex-1" />
         <button
           onClick={() => useUiStore.getState().toggleSidebar()}
-          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-secondary transition-colors"
         >
-          <X size={14} />
+          <X size={13} />
         </button>
       </div>
 
@@ -71,10 +71,10 @@ function TabButton({ icon, label, active, onClick }: {
     <button
       onClick={onClick}
       title={label}
-      className={`p-1.5 rounded-md transition-colors ${
+      className={`p-1.5 rounded transition-colors ${
         active
           ? 'bg-bg-hover text-text-primary'
-          : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+          : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover/60'
       }`}
     >
       {icon}

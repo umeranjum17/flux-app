@@ -316,13 +316,13 @@ export function ToolCallBlock({
   }, [isRunning, isComplete, resultIsError, Icon, color]);
 
   return (
-    <div className="bg-bg-elevated rounded-lg">
+    <div className="bg-bg-surface rounded-lg border border-border-subtle">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-left text-sm py-2.5 px-3"
+        className="flex items-center gap-2 w-full text-left text-sm py-2 px-3"
       >
         {statusIcon}
-        <span className="text-text-secondary truncate flex-1 text-[13px]">
+        <span className="text-text-secondary truncate flex-1 text-[12px]">
           {description}
         </span>
         {diffStats && (

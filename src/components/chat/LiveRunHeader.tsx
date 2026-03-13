@@ -48,18 +48,18 @@ export function LiveRunHeader() {
   const isPlan = task.mode === 'plan';
 
   return (
-    <div className={`mb-3 rounded-xl border px-4 py-3 backdrop-blur ${
+    <div className={`mb-2.5 rounded-lg border px-3 py-2 ${
       isPlan
         ? 'border-accent/30 bg-accent/5'
-        : 'border-border/60 bg-bg-secondary/80'
+        : 'border-border-subtle bg-bg-surface'
     }`}>
-      <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary">
-        <span className="inline-flex items-center gap-2 font-medium text-text-primary">
-          <Bot size={15} className={isPlan ? 'text-accent' : 'text-success'} />
+      <div className="flex flex-wrap items-center gap-2.5 text-[12px] text-text-secondary">
+        <span className="inline-flex items-center gap-1.5 font-medium text-text-primary">
+          <Bot size={13} className={isPlan ? 'text-accent' : 'text-success'} />
           {formatAgentLabel(task.agentId)}
         </span>
         {/* Mode badge */}
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-[1px] text-[11px] font-medium ${
           isPlan
             ? 'bg-accent/15 text-accent'
             : 'bg-success/15 text-success'
@@ -67,21 +67,21 @@ export function LiveRunHeader() {
           {isPlan ? <ClipboardList size={11} /> : <Zap size={11} />}
           {isPlan ? 'Planning' : 'Executing'}
         </span>
-        <span className="rounded-full border border-border/70 px-2 py-0.5 text-xs font-medium text-text-primary">
+        <span className="rounded-full border border-border-subtle px-2 py-[1px] text-[11px] font-medium text-text-primary">
           {phaseLabel}
         </span>
-        <span className="inline-flex items-center gap-1 text-xs">
-          <Clock3 size={13} />
+        <span className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
+          <Clock3 size={11} />
           {formatElapsed(now - activeRun.startedAt)}
         </span>
         {activeRun.activeToolName && (
-          <span className="inline-flex items-center gap-1 text-xs">
-            <Wrench size={13} />
+          <span className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
+            <Wrench size={11} />
             {activeRun.activeToolName}
           </span>
         )}
         {isStalled && (
-          <span className="text-xs text-warning">No updates for {Math.round(threshold / 1000)}s</span>
+          <span className="text-[11px] text-warning">No updates for {Math.round(threshold / 1000)}s</span>
         )}
       </div>
     </div>
