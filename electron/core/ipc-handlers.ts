@@ -1075,6 +1075,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
         }
       }
+
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
       const autoApprovePermission = Boolean(
@@ -1212,6 +1213,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         cleaningUp.add(options.taskId);
         try {
           let finalError = result?.error;
+
+          for (const interval of toolHeartbeats.values()) clearInterval(interval);
+          toolHeartbeats.clear();
+          if (taskIdleHeartbeats.has(options.taskId)) {
+            clearInterval(taskIdleHeartbeats.get(options.taskId)!);
+            taskIdleHeartbeats.delete(options.taskId);
+          }
 
           if (agentId === 'codex' && !detectedCodexSessionId) {
             const detectedSession = findLatestCodexSession(options.cwd, startedAt);
@@ -2488,6 +2496,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:set-outcome',
     async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
       emitWorkspaceOutcome(workspaceId, outcome as WorkspaceOutcome);
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:update',
+    async (_event, { workspaceId, agentId, model }: { workspaceId: string; agentId?: string; model?: string }) => {
+      workspaceStore.update(workspaceId, {
+        ...(agentId ? { agentId: agentId as AgentId } : {}),
+        ...(model ? { model } : {}),
+      });
     },
   );
 

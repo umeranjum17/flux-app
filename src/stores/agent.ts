@@ -18,6 +18,8 @@ interface AgentState {
   setDetecting(detecting: boolean): void;
   getSelectedAgent(): DetectedAgent | undefined;
   fetchModels(agentId: AgentId): Promise<void>;
+  /** Sync the selector to match a workspace's stored agent and model. */
+  syncToWorkspace(agentId: AgentId, model: string): void;
 }
 
 let modelsRequestSequence = 0;
@@ -114,6 +116,21 @@ export const useAgentStore = create<AgentState>()(
     getSelectedAgent() {
       const { agents, selectedAgentId } = get();
       return agents.find((a) => a.id === selectedAgentId);
+    },
+
+    syncToWorkspace(agentId, model) {
+      const current = get();
+      if (current.selectedAgentId === agentId && current.selectedModel === model) return;
+      const agentChanged = current.selectedAgentId !== agentId;
+      set((state) => {
+        state.selectedAgentId = agentId;
+        state.selectedModel = model;
+        if (agentChanged) {
+          state.dynamicModels = [];
+        }
+      });
+      // Fetch available models; fetchModels will keep selectedModel if it's valid
+      void get().fetchModels(agentId);
     },
   })),
 );
