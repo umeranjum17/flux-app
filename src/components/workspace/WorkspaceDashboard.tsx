@@ -66,6 +66,10 @@ export function WorkspaceDashboard() {
     }
   }, []);
 
+  const handleOpenIde = useCallback(async (ws: Workspace) => {
+    await window.api.invoke('workspace:open-ide', { workspaceId: ws.id });
+  }, []);
+
   const handleSelect = useCallback((ws: Workspace) => {
     useWorkspaceStore.getState().setActiveWorkspace(ws.id);
     const latestTask = Array.from(useChatStore.getState().tasks.values())
@@ -135,6 +139,7 @@ export function WorkspaceDashboard() {
                 onReview={() => useWorkspaceStore.getState().openReview(ws.id)}
                 onMerge={() => setMergingWorkspaceId(ws.id)}
                 onDelete={() => handleDelete(ws)}
+                onOpenIde={() => handleOpenIde(ws)}
               />
             ))}
           </div>

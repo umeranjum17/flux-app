@@ -27,6 +27,7 @@ export interface FluxConfig {
   theme: 'light' | 'dark';
   fontSize: number;
   sendKey: 'enter' | 'cmd+enter';
+  preferredIde?: 'code' | 'cursor' | 'zed';
   defaultAgent: string;
   defaultModel: string;
   subagentModel?: string;

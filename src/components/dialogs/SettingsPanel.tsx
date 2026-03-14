@@ -10,6 +10,7 @@ const defaultConfig: FluxConfig = {
   theme: 'dark',
   fontSize: 14,
   sendKey: 'cmd+enter',
+  preferredIde: 'code',
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
   subagentModel: 'haiku',
@@ -39,6 +40,11 @@ const thinkingOptions: { value: ThinkingLevel; label: string }[] = [
 ];
 
 const AGENT_IDS: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
+const IDE_OPTIONS = [
+  { value: 'code' as const, label: 'VS Code' },
+  { value: 'cursor' as const, label: 'Cursor' },
+  { value: 'zed' as const, label: 'Zed' },
+];
 
 export function SettingsPanel() {
   const { activeOverlay, setOverlay, setTheme, setSendKey } = useUiStore();
@@ -226,6 +232,26 @@ export function SettingsPanel() {
                         onChange={(e) => updateConfig({ defaultAgent: e.target.value })}
                         className="w-40 bg-bg-primary border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary outline-none focus:border-border-focus transition-colors"
                       />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm text-text-primary">Preferred IDE</label>
+                      <div className="flex gap-1.5">
+                        {IDE_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => updateConfig({ preferredIde: opt.value })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              (config.preferredIde ?? 'code') === opt.value
+                                ? 'bg-accent text-white'
+                                : 'bg-bg-primary text-text-secondary border border-border hover:bg-bg-hover'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between">
