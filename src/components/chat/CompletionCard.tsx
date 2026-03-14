@@ -70,11 +70,11 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   };
 
   return (
-    <div className="mt-2 flex flex-col gap-2">
+    <div className="mt-2 rounded-xl border border-border/55 bg-bg-surface/35 px-3 py-2.5">
       {/* File list */}
       {diff && diff.files.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-0.5 gap-y-1 text-[12px]">
-          <span className="text-text-tertiary mr-1">
+          <span className="mr-1 text-text-tertiary">
             {diff.files.length} file{diff.files.length !== 1 ? 's' : ''}
           </span>
           {diff.files.map((file) => (
@@ -86,7 +86,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
           ))}
           {durationMs != null && durationMs > 0 && (
             <>
-              <span className="text-text-tertiary mx-1">·</span>
+              <span className="mx-1 text-text-tertiary">·</span>
               <span className="text-text-tertiary text-[11px]">{formatDuration(durationMs)}</span>
             </>
           )}
@@ -94,10 +94,19 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
       )}
 
       {/* Action buttons */}
-      <div className="flex items-center gap-1.5">
+      <div className={`mt-2 flex flex-wrap items-center gap-1.5 ${diff && diff.files.length > 0 ? 'border-t border-border/45 pt-2' : ''}`}>
+        {onContinue && !isReadyToArchive && (
+          <button
+            onClick={onContinue}
+            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
+          >
+            <MessageSquare size={11} />
+            Continue
+          </button>
+        )}
         <button
           onClick={handleReview}
-          className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
         >
           <Eye size={11} />
           Review
@@ -105,7 +114,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
         {isReadyToArchive ? (
           <button
             onClick={handleArchive}
-            className="flex items-center gap-1.5 rounded-lg bg-warning px-3 py-1.5 text-[12px] font-medium text-white hover:bg-warning/85 transition-colors"
+            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-warning/35 bg-warning/12 px-2.5 py-1.5 text-[12px] font-medium text-warning hover:bg-warning/16"
           >
             <Archive size={11} />
             Archive
@@ -114,20 +123,11 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
           <>
             <button
               onClick={handleMerge}
-              className="flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-[12px] font-medium text-white hover:bg-success/85 transition-colors"
+              className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-success/35 bg-success/12 px-2.5 py-1.5 text-[12px] font-medium text-success hover:bg-success/16"
             >
               <GitMerge size={11} />
               Merge to {mergeTarget}
             </button>
-            {onContinue && (
-              <button
-                onClick={onContinue}
-                className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
-              >
-                <MessageSquare size={11} />
-                Continue
-              </button>
-            )}
           </>
         )}
       </div>

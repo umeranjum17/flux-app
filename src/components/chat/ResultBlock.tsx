@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 interface ResultBlockProps {
   costUsd?: number;
@@ -42,13 +42,13 @@ export function ResultBlock({
   }
 
   return (
-    <div className="border-t border-border/40 mt-2 pt-2.5">
-      <div className="flex items-center gap-2 text-text-secondary text-[12px]">
-        <CheckCircle size={14} className="text-success shrink-0" />
+    <div className="mt-2 border-t border-border/35 pt-2">
+      <div className="flex items-center gap-2 text-[12px] text-text-secondary">
+        <CheckCircle2 size={14} className="shrink-0 text-success/85" />
         <span>{parts.join(' \u00b7 ')}</span>
       </div>
       {content && (
-        <p className="text-text-secondary text-sm mt-1">{content}</p>
+        <p className="mt-1 text-sm text-text-secondary">{content}</p>
       )}
     </div>
   );
