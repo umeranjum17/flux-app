@@ -25,7 +25,7 @@ export function useWorkspaceHasChanges(
       try {
         const files = await window.api.invoke('workspace:diff-files', { workspaceId });
         if (!cancelled) {
-          setHasChanges(files.length > 0);
+          setHasChanges(Array.isArray(files) && files.length > 0);
         }
       } catch {
         if (!cancelled) {

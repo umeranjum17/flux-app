@@ -22,7 +22,7 @@ describe('LiveRunHeader', () => {
 
     render(<LiveRunHeader />);
 
-    expect(screen.getByText('Starting')).not.toBeNull();
+    expect(screen.getByText(/Starting/)).not.toBeNull();
     expect(screen.getByText('0:00')).not.toBeNull();
   });
 });

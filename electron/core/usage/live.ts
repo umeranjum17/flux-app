@@ -369,10 +369,10 @@ export class LiveUsageService {
   }
 
   private async fetchClaudeUsage(now: number): Promise<ProviderFetchResult> {
-    const credentialSource = readClaudeCredentialSource();
+    const hasClaudeAccount = hasClaudeAccountState();
+    const credentialSource = readClaudeCredentialSource({ includeKeychain: !hasClaudeAccount });
     const oauth = credentialSource?.oauth;
     if (!oauth || typeof oauth.accessToken !== 'string') {
-      const hasClaudeAccount = hasClaudeAccountState();
       return {
         providerId: 'claude-code',
         label: PROVIDER_LABELS['claude-code'],
@@ -768,7 +768,8 @@ interface ClaudeCredentialSource {
   oauth: ClaudeOauthTokens | null;
 }
 
-function readClaudeCredentialSource(): ClaudeCredentialSource | null {
+function readClaudeCredentialSource(options?: { includeKeychain?: boolean }): ClaudeCredentialSource | null {
+  const includeKeychain = options?.includeKeychain ?? true;
   const candidates = [
     CLAUDE_CREDENTIALS_PATH,
     CLAUDE_STATE_PATH,
@@ -786,13 +787,15 @@ function readClaudeCredentialSource(): ClaudeCredentialSource | null {
     return { path: filePath, data: credentials as Record<string, unknown>, oauth: parsed };
   }
 
-  const keychainOauth = readClaudeOauthFromKeychain();
-  if (keychainOauth) {
-    return {
-      path: 'macos-keychain',
-      data: {},
-      oauth: keychainOauth,
-    };
+  if (includeKeychain) {
+    const keychainOauth = readClaudeOauthFromKeychain();
+    if (keychainOauth) {
+      return {
+        path: 'macos-keychain',
+        data: {},
+        oauth: keychainOauth,
+      };
+    }
   }
 
   return null;

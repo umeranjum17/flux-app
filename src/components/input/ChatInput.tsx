@@ -690,7 +690,6 @@ export function ChatInput({ focused }: ChatInputProps) {
     useUiStore.getState().toggleInputMode();
   }, []);
 
-  const activeTask = getActiveTask();
   const hasActiveRun = !!activeTask && (
     activeTask.status === 'running' ||
     activeTask.status === 'waiting_approval' ||
