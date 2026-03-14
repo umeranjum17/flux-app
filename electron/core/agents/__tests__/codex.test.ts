@@ -228,6 +228,44 @@ describe('spawnCodex', () => {
     }));
   });
 
+  it('keeps resume flags before session id and prompt in plan mode', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'plan',
+      cwd: '/workspace',
+      resumeSessionId: 'session-123',
+    });
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+    expect(args[0]).toBe('exec');
+    expect(args[1]).toBe('resume');
+    expect(args).not.toContain('--sandbox');
+    expect(args.indexOf('--json')).toBeGreaterThan(-1);
+    expect(args.indexOf('--json')).toBeLessThan(args.indexOf('session-123'));
+    expect(args.indexOf('session-123')).toBeLessThan(args.length - 1);
+  });
+
+  it('preserves read-only sandbox for fresh plan sessions', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'plan',
+      cwd: '/workspace',
+    });
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+    const sandboxIndex = args.indexOf('--sandbox');
+    expect(sandboxIndex).toBeGreaterThan(-1);
+    expect(args[sandboxIndex + 1]).toBe('read-only');
+  });
+
   it('skips local image temp files when Codex runs over SSH and emits a warning', () => {
     vi.useFakeTimers();
     try {
