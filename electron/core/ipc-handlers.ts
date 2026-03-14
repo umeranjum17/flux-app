@@ -24,6 +24,7 @@ import type { WorkspaceStatus, WorkspaceOutcome } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
 import { executeBash } from './tools/bash';
 import { suggestCompletion, availableCompletionProviders } from './completion/service';
+import { StallMonitor } from './agents/stall-monitor';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -46,6 +47,10 @@ const taskWorkspaceStatusMap = new Map<string, WorkspaceStatus>();
 const cleaningUp = new Set<string>();
 const taskIdleHeartbeats = new Map<string, NodeJS.Timeout>();
 const activeTerminals = new Map<string, ChildProcess>();
+const taskStallMonitors = new Map<string, StallMonitor>();
+const taskRetryCounts = new Map<string, number>();
+const MAX_AUTO_RETRIES = 2;
+const RECOVERY_DELAY_MS = 200;
 const activeSubagents = new Map<string, {
   parentTaskId: string;
   handle: AgentHandle;
@@ -979,6 +984,49 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }, 10_000);
     taskIdleHeartbeats.set(options.taskId, idleHeartbeat);
 
+    // Stall monitor: detect stuck tools and idle sessions on the main process side.
+    // Disposes previous monitor if this is a retry.
+    taskStallMonitors.get(options.taskId)?.dispose();
+    const stallMonitor = new StallMonitor({
+      taskId: options.taskId,
+      maxAutoRestarts: MAX_AUTO_RETRIES,
+      onStallDetected: (info) => {
+        const label = info.type === 'tool_timeout'
+          ? `${info.toolName ?? 'Tool'} timed out after ${Math.round(info.durationMs / 1000)}s`
+          : `No activity for ${Math.round(info.durationMs / 1000)}s`;
+        emitTaskMessage(options.taskId, session.id, {
+          type: 'status',
+          role: 'system',
+          statusKind: 'diagnostic',
+          content: `Stall detected: ${label}`,
+          timestamp: Date.now(),
+        });
+        sendToRenderer('agent:stall', {
+          taskId: options.taskId,
+          stallInfo: info,
+        });
+        if (info.autoRestartsRemaining > 0) {
+          void triggerAutoRecovery(options.taskId, session.id, agentId, options);
+        }
+      },
+      onProcessDead: () => {
+        if (!cleaningUp.has(options.taskId) && activeTasks.has(options.taskId)) {
+          emitTaskMessage(options.taskId, session.id, {
+            type: 'error',
+            role: 'system',
+            content: 'Agent process died unexpectedly',
+            timestamp: Date.now(),
+          });
+          sendToRenderer('agent:done', { taskId: options.taskId, error: 'Agent process died unexpectedly' });
+          cleanupTask(options.taskId);
+        }
+      },
+    });
+    taskStallMonitors.set(options.taskId, stallMonitor);
+
+    // Start process health monitoring using the handle's isAlive method
+    stallMonitor.startHealthCheck(() => handle.isAlive());
+
     emitTaskMessage(options.taskId, session.id, {
       type: 'status',
       role: 'system',
@@ -1006,6 +1054,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const toolHeartbeats = new Map<string, NodeJS.Timeout>();
 
     handle.on('message', (message) => {
+      // Feed the stall monitor so it can track tool durations and idle time.
+      if (message.type === 'tool_call' && message.toolCallId) {
+        stallMonitor.trackToolCall(message.toolCallId, message.toolName);
+      } else if (message.type === 'tool_result' && message.toolCallId) {
+        stallMonitor.trackToolResult(message.toolCallId);
+      }
+      if (message.type !== 'status' && message.type !== 'rate_limit') {
+        stallMonitor.markActivity();
+      }
+
       if (message.type === 'rate_limit') {
         const normalized = (agentId === 'claude-code' || agentId === 'codex')
           ? normalizeRateLimitInfo(
@@ -1103,16 +1161,57 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     handle.on('done', (result) => {
       void (async () => {
         if (cleaningUp.has(options.taskId)) return;
+
+        // Dispose the stall monitor for this run.
+        stallMonitor.dispose();
+        taskStallMonitors.delete(options.taskId);
+
+        for (const interval of toolHeartbeats.values()) clearInterval(interval);
+        toolHeartbeats.clear();
+        if (taskIdleHeartbeats.has(options.taskId)) {
+          clearInterval(taskIdleHeartbeats.get(options.taskId)!);
+          taskIdleHeartbeats.delete(options.taskId);
+        }
+
+        // Auto-retry on unexpected crash (not user-stopped, not auth/rate-limit).
+        const retryCount = taskRetryCounts.get(options.taskId) ?? 0;
+        const shouldAutoRetry = result?.error
+          && !cleaningUp.has(options.taskId)
+          && retryCount < MAX_AUTO_RETRIES
+          && !result.error.includes('authentication')
+          && !result.error.includes('rate limit')
+          && !result.error.includes('timed out');
+        if (shouldAutoRetry) {
+          taskRetryCounts.set(options.taskId, retryCount + 1);
+          emitTaskMessage(options.taskId, session.id, {
+            type: 'status',
+            role: 'system',
+            statusKind: 'progress',
+            content: `Agent crashed — auto-retrying (attempt ${retryCount + 1}/${MAX_AUTO_RETRIES})...`,
+            timestamp: Date.now(),
+          });
+          // Clean up current handle before respawn
+          handle.removeAllListeners();
+          activeTasks.delete(options.taskId);
+          taskSessions.delete(options.taskId);
+          await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
+          try {
+            const context = buildConversationContext(session.id, sessionStore);
+            await spawnTaskRun({
+              ...options,
+              sessionId: session.id,
+              fallbackContext: context || undefined,
+              prompt: '[Resuming previous session]',
+            });
+            return; // Don't emit agent:done — the retry takes over
+          } catch {
+            // Retry failed — fall through to normal done handling
+          }
+        }
+
         cleaningUp.add(options.taskId);
         try {
           let finalError = result?.error;
-
-          for (const interval of toolHeartbeats.values()) clearInterval(interval);
-          toolHeartbeats.clear();
-          if (taskIdleHeartbeats.has(options.taskId)) {
-            clearInterval(taskIdleHeartbeats.get(options.taskId)!);
-            taskIdleHeartbeats.delete(options.taskId);
-          }
 
           if (agentId === 'codex' && !detectedCodexSessionId) {
             const detectedSession = findLatestCodexSession(options.cwd, startedAt);
@@ -1284,11 +1383,91 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           taskWorkspaceStatusMap.delete(options.taskId);
           taskWorkspaceMap.delete(options.taskId);
           cleaningUp.delete(options.taskId);
+          taskRetryCounts.delete(options.taskId);
+          taskStallMonitors.get(options.taskId)?.dispose();
+          taskStallMonitors.delete(options.taskId);
         }
       })();
     });
 
     return { taskId: options.taskId, session: sessionStore.get(session.id) ?? session };
+  };
+
+  /** Clean up a task's resources without emitting agent:done (used by stall monitor). */
+  const cleanupTask = (taskId: string) => {
+    const handle = activeTasks.get(taskId);
+    if (handle) {
+      handle.removeAllListeners();
+      void handle.stop();
+    }
+    activeTasks.delete(taskId);
+    taskSessions.delete(taskId);
+    taskWorkspaceStatusMap.delete(taskId);
+    taskWorkspaceMap.delete(taskId);
+    taskRetryCounts.delete(taskId);
+    taskStallMonitors.get(taskId)?.dispose();
+    taskStallMonitors.delete(taskId);
+    if (taskIdleHeartbeats.has(taskId)) {
+      clearInterval(taskIdleHeartbeats.get(taskId)!);
+      taskIdleHeartbeats.delete(taskId);
+    }
+    cleaningUp.delete(taskId);
+  };
+
+  /** Stop the current agent and respawn with conversation context. */
+  const triggerAutoRecovery = async (
+    taskId: string,
+    sessionId: string,
+    agentId: AgentId,
+    originalOptions: SpawnOptions & { agentId?: string; autoApprovePermissions?: boolean; workspaceAction?: 'merge' },
+  ) => {
+    const retryCount = taskRetryCounts.get(taskId) ?? 0;
+    taskRetryCounts.set(taskId, retryCount + 1);
+
+    const monitor = taskStallMonitors.get(taskId);
+    if (monitor) {
+      monitor.recordRestart();
+      monitor.dispose();
+    }
+
+    emitTaskMessage(taskId, sessionId, {
+      type: 'status',
+      role: 'system',
+      statusKind: 'progress',
+      content: `Auto-recovering stalled session (attempt ${retryCount + 1}/${MAX_AUTO_RETRIES})...`,
+      timestamp: Date.now(),
+    });
+
+    // Stop and clean up the current handle
+    const handle = activeTasks.get(taskId);
+    if (handle) {
+      await handle.stop();
+      handle.removeAllListeners();
+    }
+    activeTasks.delete(taskId);
+    taskSessions.delete(taskId);
+    if (taskIdleHeartbeats.has(taskId)) {
+      clearInterval(taskIdleHeartbeats.get(taskId)!);
+      taskIdleHeartbeats.delete(taskId);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
+
+    try {
+      const context = buildConversationContext(sessionId, sessionStore);
+      await spawnTaskRun({
+        ...originalOptions,
+        sessionId,
+        fallbackContext: context || undefined,
+        prompt: '[Resuming previous session]',
+      });
+    } catch (err) {
+      sendToRenderer('agent:done', {
+        taskId,
+        error: `Recovery failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      cleanupTask(taskId);
+    }
   };
 
   // --- Task handlers ---
@@ -1325,10 +1504,51 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       clearInterval(taskIdleHeartbeats.get(taskId)!);
       taskIdleHeartbeats.delete(taskId);
     }
+    taskStallMonitors.get(taskId)?.dispose();
+    taskStallMonitors.delete(taskId);
+    taskRetryCounts.delete(taskId);
     taskSessions.delete(taskId);
     cleaningUp.delete(taskId);
     sendToRenderer('agent:done', { taskId, error: undefined });
     releaseWorkspaceTask(taskId, 'done');
+  });
+
+  ipcMain.handle('task:restart', async (_event, { taskId }: { taskId: string }) => {
+    requireFields({ taskId }, 'taskId');
+    const sessionId = taskSessions.get(taskId);
+    if (!sessionId) throw new Error('No session for task');
+    const session = sessionStore.get(sessionId);
+    if (!session) throw new Error('Session not found');
+
+    // Stop the current agent
+    taskStallMonitors.get(taskId)?.dispose();
+    taskStallMonitors.delete(taskId);
+    const handle = activeTasks.get(taskId);
+    if (handle) {
+      await handle.stop();
+      handle.removeAllListeners();
+    }
+    activeTasks.delete(taskId);
+    if (taskIdleHeartbeats.has(taskId)) {
+      clearInterval(taskIdleHeartbeats.get(taskId)!);
+      taskIdleHeartbeats.delete(taskId);
+    }
+    taskSessions.delete(taskId);
+    taskRetryCounts.delete(taskId);
+
+    await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
+
+    const context = buildConversationContext(sessionId, sessionStore);
+    return spawnTaskRun({
+      taskId,
+      sessionId,
+      prompt: '[Resuming previous session]',
+      cwd: session.cwd,
+      mode: session.mode as 'plan' | 'act',
+      model: session.model,
+      agentId: session.agentId,
+      fallbackContext: context || undefined,
+    });
   });
 
   ipcMain.handle('subagent:spawn', async (_event, options: {

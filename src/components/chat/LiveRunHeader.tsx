@@ -68,7 +68,14 @@ export function LiveRunHeader() {
         {formatElapsed(now - activeRun.startedAt)}
       </span>
       {isStalled && (
-        <span className="text-warning">stalled</span>
+        <button
+          className="text-warning hover:text-warning-bright cursor-pointer underline"
+          onClick={() => {
+            window.api?.invoke('task:restart', { taskId: task.id }).catch(() => {});
+          }}
+        >
+          Stalled — restart
+        </button>
       )}
     </div>
   );

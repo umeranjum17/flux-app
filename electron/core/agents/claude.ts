@@ -16,6 +16,35 @@ import { classifySpawnError } from '../process-utils';
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
 
 /**
+ * Map a Claude CLI exit code + stderr into a user-friendly error message.
+ */
+function classifyClaudeExit(code: number | null, stderr: string): string {
+  const s = stderr.toLowerCase();
+  if (s.includes('rate limit') || s.includes('rate_limit')) {
+    return 'Rate limited by Anthropic API. Wait a few minutes or switch to a different model.';
+  }
+  if (s.includes('authentication') || s.includes('unauthorized') || s.includes('api key')) {
+    return 'Authentication failed. Run "claude login" in your terminal.';
+  }
+  if (s.includes('context window') || s.includes('context length') || s.includes('too many tokens')) {
+    return 'Context window exceeded. Start a new session or use a model with larger context.';
+  }
+  if (s.includes('econnrefused') || s.includes('enotfound') || s.includes('network')) {
+    return 'Network connectivity issue. Check your internet connection.';
+  }
+  if (code === 137 || code === 9) {
+    return 'Process was killed (likely out of memory). Try reducing the scope of your request.';
+  }
+  if (code === 143 || code === 15) {
+    return 'Process was terminated.';
+  }
+  // Show last meaningful stderr lines for unknown errors
+  const lines = stderr.split('\n').filter(l => l.trim()).slice(-3);
+  const hint = lines.length > 0 ? `: ${lines.join(' | ')}` : '';
+  return `Claude exited with code ${code}${hint}`;
+}
+
+/**
  * Find all JSONL files for a given session ID across all project directories.
  * The session may have been created from a different CWD (e.g., a worktree),
  * so we search globally rather than only in the current project's directory.
@@ -542,9 +571,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
 
     const exitError = timeoutError ?? (stopped || code === 0 || code === null
       ? undefined
-      : lastStderrError
-        ? `Claude exited with code ${code}: ${lastStderrError}`
-        : `Claude exited with code ${code}`);
+      : classifyClaudeExit(code, lastStderrError));
 
     finish({
       code,
