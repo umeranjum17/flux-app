@@ -15,18 +15,6 @@ function worktreeBaseDir(parentRepo: string): string {
   return path.join(os.homedir(), '.flux', 'worktrees', `${slug}-${hash}`);
 }
 
-function worktreeDirName(branchName: string, id: string): string {
-  const branchSlug = branchName
-    .trim()
-    .toLowerCase()
-    .replace(/^refs\/heads\//, '')
-    .replace(/^flux\//, '')
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'workspace';
-  return `${branchSlug}-${id.slice(0, 8)}`;
-}
-
 function ensureBaseDir(baseDir: string): string {
   if (fs.existsSync(baseDir)) return baseDir;
 
@@ -55,11 +43,31 @@ function ensureBaseDir(baseDir: string): string {
 export async function createWorktree(
   parentRepo: string,
   branchName: string,
+  worktreeName?: string,
 ): Promise<WorktreeInfo> {
   const id = crypto.randomUUID();
   const baseDir = ensureBaseDir(worktreeBaseDir(parentRepo));
+  const requestedName = (worktreeName || branchName)
+    .trim()
+    .toLowerCase()
+    .replace(/^refs\/heads\//, '')
+    .replace(/[^a-z0-9._/-]+/g, '-')
+    .replace(/[\\/]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64) || 'workspace';
 
-  const worktreePath = path.join(baseDir, worktreeDirName(branchName, id));
+  let worktreePath = path.join(baseDir, requestedName);
+  if (fs.existsSync(worktreePath)) {
+    for (let i = 2; i <= 999; i += 1) {
+      const suffix = `-${i}`;
+      const trimmedBase = requestedName.slice(0, Math.max(1, 64 - suffix.length));
+      const candidate = path.join(baseDir, `${trimmedBase}${suffix}`);
+      if (!fs.existsSync(candidate)) {
+        worktreePath = candidate;
+        break;
+      }
+    }
+  }
 
   await execFileAsync('git', ['worktree', 'add', worktreePath, '-b', branchName], {
     cwd: parentRepo,

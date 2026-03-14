@@ -1978,7 +1978,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         );
       }
 
-      const worktree = await createWorktree(parentRepo, branch);
+      const worktree = await createWorktree(parentRepo, branch, branch);
       return workspaceStore.create({
         id: worktree.id,
         name,
@@ -2013,7 +2013,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
       const workspaceName = generateWorkspaceName();
       const branch = `flux/${workspaceName}`;
-      const worktree = await createWorktree(parentRepo, branch);
+      const worktree = await createWorktree(parentRepo, branch, workspaceName);
       return workspaceStore.create({
         id: worktree.id,
         name: workspaceName,
@@ -2052,7 +2052,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
       let nextWorktreePath = workspace.worktreePath;
       if (trimmedWorktreeName) {
-        const candidatePath = path.join(path.dirname(workspace.worktreePath), trimmedWorktreeName);
+        const worktreeDir = path.dirname(workspace.worktreePath);
+        let candidatePath = path.join(worktreeDir, trimmedWorktreeName);
+        if (candidatePath !== workspace.worktreePath && fs.existsSync(candidatePath)) {
+          for (let i = 2; i <= 999; i += 1) {
+            const suffix = `-${i}`;
+            const base = trimmedWorktreeName.slice(0, Math.max(1, 64 - suffix.length));
+            const candidate = path.join(worktreeDir, `${base}${suffix}`);
+            if (!fs.existsSync(candidate)) {
+              candidatePath = candidate;
+              break;
+            }
+          }
+        }
         if (candidatePath !== workspace.worktreePath) {
           try {
             await execFileAsync('git', ['worktree', 'move', workspace.worktreePath, candidatePath], {
