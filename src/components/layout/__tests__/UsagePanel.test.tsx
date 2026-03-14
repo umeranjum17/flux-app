@@ -171,8 +171,8 @@ describe('UsagePanel', () => {
     });
 
     expect(screen.getByText('snapshot')).not.toBeNull();
-    expect(screen.getByText(/stale/i)).not.toBeNull();
-    expect(screen.getByText('collecting points...')).not.toBeNull();
+    expect(screen.getByText('stale 10m')).not.toBeNull();
+    expect(screen.getAllByText('collecting points...').length).toBeGreaterThan(0);
   });
 
   it('renders timestamp-bucketed trend strip range labels', async () => {
@@ -220,7 +220,7 @@ describe('UsagePanel', () => {
       expect(screen.getByText('last 5h')).not.toBeNull();
     });
 
-    expect(screen.getByText('last 7d')).not.toBeNull();
+    expect(screen.getAllByText('last 7d').length).toBeGreaterThan(0);
   });
 
   it('shows empty state when no data', async () => {
