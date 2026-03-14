@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, LayoutGrid } from 'lucide-react';
+import { Plus, LayoutGrid, Archive, ChevronDown, ChevronRight } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
@@ -11,14 +11,17 @@ import type { Workspace } from '../../lib/ipc-api';
 
 export function WorkspaceDashboard() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const archivedWorkspaces = useWorkspaceStore((s) => s.archivedWorkspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
+  const showArchived = useWorkspaceStore((s) => s.showArchived);
   const cwd = useUiStore((s) => s.cwd);
 
   const [showCreate, setShowCreate] = useState(false);
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
 
   const workspaceList = Array.from(workspaces.values());
+  const archivedList = Array.from(archivedWorkspaces.values());
   const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
 
   // Load workspaces on mount
@@ -27,6 +30,13 @@ export function WorkspaceDashboard() {
     window.api.invoke('workspace:list', { parentRepo: cwd })
       .then((result: unknown) => {
         useWorkspaceStore.getState().setWorkspaces(result as Workspace[]);
+      })
+      .catch(() => {});
+    // Also load archived workspaces
+    window.api.invoke('workspace:list', { parentRepo: cwd, includeArchived: true })
+      .then((result: unknown) => {
+        const all = result as Workspace[];
+        useWorkspaceStore.getState().setArchivedWorkspaces(all.filter((ws) => ws.archivedAt));
       })
       .catch(() => {});
   }, [cwd]);
@@ -65,6 +75,29 @@ export function WorkspaceDashboard() {
       }
     }
   }, []);
+
+  const handleArchive = useCallback(async (ws: Workspace) => {
+    await window.api.invoke('workspace:archive', { workspaceId: ws.id });
+    useWorkspaceStore.getState().archiveWorkspace(ws.id);
+    const chatStore = useChatStore.getState();
+    for (const task of chatStore.tasks.values()) {
+      if (task.workspaceId === ws.id) {
+        chatStore.setTaskStatus(task.id, 'done');
+      }
+    }
+  }, []);
+
+  const handleUnarchive = useCallback(async (ws: Workspace) => {
+    const restored = await window.api.invoke('workspace:unarchive', { workspaceId: ws.id }) as Workspace;
+    useWorkspaceStore.getState().unarchiveWorkspace(ws.id, restored);
+  }, []);
+
+  const handleDeleteArchived = useCallback(async (ws: Workspace) => {
+    await window.api.invoke('workspace:delete', { workspaceId: ws.id });
+    useWorkspaceStore.getState().setArchivedWorkspaces(
+      archivedList.filter((a) => a.id !== ws.id),
+    );
+  }, [archivedList]);
 
   const handleOpenIde = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:open-ide', { workspaceId: ws.id });
@@ -112,7 +145,7 @@ export function WorkspaceDashboard() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        {workspaceList.length === 0 ? (
+        {workspaceList.length === 0 && archivedList.length === 0 ? (
           <div className="premium-panel flex h-full flex-col items-center justify-center px-6 text-center">
             <LayoutGrid size={34} className="mb-3 text-text-tertiary/40" />
             <p className="text-sm text-text-secondary">No workspaces yet</p>
@@ -140,8 +173,41 @@ export function WorkspaceDashboard() {
                 onMerge={() => setMergingWorkspaceId(ws.id)}
                 onDelete={() => handleDelete(ws)}
                 onOpenIde={() => handleOpenIde(ws)}
+                onArchive={() => handleArchive(ws)}
               />
             ))}
+
+            {archivedList.length > 0 && (
+              <div className="pt-3">
+                <button
+                  onClick={() => useWorkspaceStore.getState().setShowArchived(!showArchived)}
+                  className="flex w-full items-center gap-2 py-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                >
+                  {showArchived ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  <Archive size={13} />
+                  <span>Archived ({archivedList.length})</span>
+                </button>
+                {showArchived && (
+                  <div className="mt-2 space-y-3">
+                    {archivedList.map((ws) => (
+                      <WorkspaceCard
+                        key={ws.id}
+                        workspace={ws}
+                        isActive={false}
+                        isArchived
+                        onSelect={() => {}}
+                        onStop={() => {}}
+                        onReview={() => {}}
+                        onMerge={() => {}}
+                        onDelete={() => handleDeleteArchived(ws)}
+                        onOpenIde={() => {}}
+                        onUnarchive={() => handleUnarchive(ws)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

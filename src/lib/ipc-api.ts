@@ -55,7 +55,7 @@ export interface IpcChannels {
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
-  'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
+  'workspace:list': { args: [{ parentRepo: string; includeArchived?: boolean }]; result: Workspace[] };
   'workspace:create': {
     args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string }];
     result: Workspace;
@@ -76,6 +76,8 @@ export interface IpcChannels {
   'workspace:list-chats': { args: [{ workspaceId: string }]; result: WorkspaceSession[] };
   'workspace:stop': { args: [{ workspaceId: string }]; result: void };
   'workspace:delete': { args: [{ workspaceId: string }]; result: void };
+  'workspace:archive': { args: [{ workspaceId: string }]; result: void };
+  'workspace:unarchive': { args: [{ workspaceId: string }]; result: Workspace };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:merge': {
     args: [{ workspaceId: string; targetBranch: string; squash?: boolean }];
@@ -231,6 +233,7 @@ export interface Workspace {
   model: string;
   worktreePath: string;
   sessionId?: string;
+  archivedAt?: number;
 }
 
 export interface WorkspaceSession {

@@ -552,6 +552,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:list-chats',
     'workspace:stop',
     'workspace:delete',
+    'workspace:archive',
+    'workspace:unarchive',
     'workspace:open-ide',
     'workspace:merge',
     'workspace:diff-files',
@@ -1893,9 +1895,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // --- Workspace handlers ---
 
-  ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
+  ipcMain.handle('workspace:list', async (_event, { parentRepo, includeArchived }: { parentRepo: string; includeArchived?: boolean }) => {
     if (sshHost) return [];
-    return workspaceStore.list(parentRepo);
+    return workspaceStore.list(parentRepo, includeArchived);
   });
 
   ipcMain.handle(
@@ -2096,6 +2098,56 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
     await removeWorktree(workspace.parentRepo, workspace.worktreePath);
     workspaceStore.delete(workspaceId);
+  });
+
+  ipcMain.handle('workspace:archive', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) return;
+
+    // Stop any running tasks
+    const taskIds = [...taskWorkspaceMap.entries()]
+      .filter(([, wsId]) => wsId === workspaceId)
+      .map(([taskId]) => taskId);
+
+    for (const taskId of taskIds) {
+      const handle = activeTasks.get(taskId);
+      if (handle) {
+        handle.stop();
+        handle.removeAllListeners();
+        activeTasks.delete(taskId);
+      }
+      taskSessions.delete(taskId);
+      taskWorkspaceStatusMap.delete(taskId);
+      taskWorkspaceMap.delete(taskId);
+    }
+
+    // Remove the worktree to free disk space, but keep the branch
+    try {
+      await execFileAsync('git', ['worktree', 'remove', workspace.worktreePath, '--force'], {
+        cwd: workspace.parentRepo,
+        timeout: 30000,
+      });
+    } catch {
+      // Worktree may already be gone
+    }
+
+    workspaceStore.archive(workspaceId);
+    emitWorkspaceStatus(workspaceId, 'idle');
+  });
+
+  ipcMain.handle('workspace:unarchive', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+    // Re-create the worktree from the preserved branch
+    await execFileAsync('git', ['worktree', 'add', workspace.worktreePath, workspace.branch], {
+      cwd: workspace.parentRepo,
+      timeout: 30000,
+    });
+
+    const restored = workspaceStore.unarchive(workspaceId);
+    if (!restored) throw new Error('Failed to unarchive workspace');
+    return restored;
   });
 
   ipcMain.handle(

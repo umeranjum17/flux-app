@@ -4,7 +4,9 @@ import type { Workspace, WorkspaceStatus, DiffFile, Checkpoint, WorkspaceSession
 
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
+  archivedWorkspaces: Map<string, Workspace>;
   activeWorkspaceId: string | null;
+  showArchived: boolean;
 
   // Multi-chat sessions per workspace
   workspaceSessions: Map<string, WorkspaceSession[]>; // workspaceId → sessions
@@ -29,6 +31,12 @@ interface WorkspaceState {
   setActiveWorkspace(id: string | null): void;
   openMerge(workspaceId: string): void;
   closeMerge(): void;
+  setShowArchived(show: boolean): void;
+
+  // Archive actions
+  setArchivedWorkspaces(workspaces: Workspace[]): void;
+  archiveWorkspace(id: string): void;
+  unarchiveWorkspace(id: string, restored: Workspace): void;
 
   // Review actions
   openReview(workspaceId: string): Promise<void>;
@@ -52,7 +60,9 @@ let fileDiffRequestVersion = 0;
 export const useWorkspaceStore = create<WorkspaceState>()(
   immer((set, get) => ({
     workspaces: new Map(),
+    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
+    showArchived: false,
     reviewingWorkspaceId: null,
     diffFiles: [],
     selectedFile: null,
@@ -114,6 +124,47 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     closeMerge() {
       set((state) => {
         state.mergingWorkspaceId = null;
+      });
+    },
+
+    setShowArchived(show) {
+      set((state) => {
+        state.showArchived = show;
+      });
+    },
+
+    setArchivedWorkspaces(workspaces) {
+      set((state) => {
+        state.archivedWorkspaces = new Map(workspaces.map((ws) => [ws.id, ws]));
+      });
+    },
+
+    archiveWorkspace(id) {
+      set((state) => {
+        const ws = state.workspaces.get(id);
+        if (ws) {
+          const archived = { ...ws, archivedAt: Date.now(), status: 'idle' as WorkspaceStatus };
+          state.archivedWorkspaces.set(id, archived);
+          state.workspaces.delete(id);
+          state.checkpoints.delete(id);
+          state.workspaceSessions.delete(id);
+          if (state.activeWorkspaceId === id) {
+            state.activeWorkspaceId = null;
+          }
+          if (state.reviewingWorkspaceId === id) {
+            state.reviewingWorkspaceId = null;
+            state.diffFiles = [];
+            state.selectedFile = null;
+            state.fileDiff = null;
+          }
+        }
+      });
+    },
+
+    unarchiveWorkspace(id, restored) {
+      set((state) => {
+        state.archivedWorkspaces.delete(id);
+        state.workspaces.set(id, restored);
       });
     },
 
