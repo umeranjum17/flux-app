@@ -1031,8 +1031,36 @@ function mapClaudeEvent(event: Record<string, any>): AgentMessage | AgentMessage
   return null;
 }
 
+/**
+ * Strip the `mcp__<server>__` prefix from an MCP tool name to get the base
+ * tool name.  Non-MCP names pass through unchanged.
+ */
+function extractMcpToolBaseName(name: string): string {
+  if (name.startsWith('mcp__')) {
+    const lastSep = name.lastIndexOf('__');
+    if (lastSep > 4) return name.slice(lastSep + 2);
+  }
+  return name;
+}
+
 function isQuestionToolName(name: unknown): boolean {
-  return name === 'AskUserQuestion' || name === 'request_user_input';
+  if (typeof name !== 'string') return false;
+  const baseName = extractMcpToolBaseName(name);
+  return baseName === 'AskUserQuestion' || baseName === 'request_user_input';
+}
+
+const INTERACTIVE_TOOL_NAMES = new Set([
+  'AskUserQuestion',
+  'request_user_input',
+  'ExitPlanMode',
+  'EnterPlanMode',
+  'DiffComment',
+]);
+
+/** Tools that require user interaction and should pause stall detection. */
+export function isInteractiveToolName(name: unknown): boolean {
+  if (typeof name !== 'string') return false;
+  return INTERACTIVE_TOOL_NAMES.has(extractMcpToolBaseName(name));
 }
 
 function mapClaudeQuestionRequest(tool: Record<string, any>, timestamp: number): AgentMessage | null {

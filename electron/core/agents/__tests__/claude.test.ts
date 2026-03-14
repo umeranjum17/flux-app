@@ -295,6 +295,51 @@ describe('spawnClaude', () => {
     });
   });
 
+  it('maps mcp__conductor__AskUserQuestion into a question_request', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'assistant',
+      message: {
+        content: [{
+          type: 'tool_use',
+          id: 'toolu_mcp_q',
+          name: 'mcp__conductor__AskUserQuestion',
+          input: {
+            question: 'Which approach do you prefer?',
+            options: [
+              { label: 'Option A', value: 'a' },
+              { label: 'Option B', value: 'b' },
+            ],
+          },
+        }],
+      },
+    });
+
+    const questionMessages = messages.filter((m) => m.type === 'question_request');
+    expect(questionMessages).toHaveLength(1);
+    expect(questionMessages[0]).toMatchObject({
+      type: 'question_request',
+      requestId: 'toolu_mcp_q',
+      content: 'Which approach do you prefer?',
+    });
+
+    // Should NOT emit as tool_call
+    const toolCalls = messages.filter((m) => m.type === 'tool_call' && m.toolName?.includes('AskUserQuestion'));
+    expect(toolCalls).toHaveLength(0);
+  });
+
   it('maps user events with tool_result content blocks', () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);
