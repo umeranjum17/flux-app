@@ -102,9 +102,9 @@ export function MessageList() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-5 py-6"
+        className="h-full overflow-y-auto px-4 py-5"
       >
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[980px] flex-col gap-4 font-mono">
           <AnimatePresence initial={false}>
             {(() => {
               const rendered: React.ReactNode[] = [];

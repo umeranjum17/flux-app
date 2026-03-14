@@ -33,11 +33,11 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
       <div
         className={[
           role === 'user'
-            ? 'premium-message-user w-full px-5 py-4'
+            ? 'premium-message-user w-full px-4 py-3.5'
             : isActAssistant
-              ? 'premium-message-assistant w-full px-5 py-4'
+              ? 'premium-message-assistant w-full px-1 py-1'
               : 'w-full',
-          isPlanAssistant ? 'premium-plan-card p-5' : '',
+          isPlanAssistant ? 'premium-plan-card p-4' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (
@@ -54,7 +54,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
               <button
                 key={i}
                 onClick={() => setEnlargedImage(src)}
-                className="premium-toolbar-button overflow-hidden rounded-md border border-border/70"
+                className="premium-toolbar-button overflow-hidden rounded-[10px] border border-white/8"
               >
                 <img
                   src={src}
@@ -70,7 +70,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
             {attachments.map((attachment) => (
               <div
                 key={`${attachment.path}:${attachment.name}`}
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border/75 bg-bg-primary/70 px-2.5 py-1 text-xs text-text-secondary"
+                className="inline-flex items-center gap-1.5 rounded-[8px] border border-white/8 bg-black/45 px-2.5 py-1 text-xs text-text-secondary"
               >
                 <Paperclip size={12} />
                 <span className="truncate max-w-[220px]">{attachment.name}</span>
@@ -177,11 +177,11 @@ function CodeBlock({ children, language }: { children: string; language?: string
     <div className="group relative my-2">
       {highlightedHtml ? (
         <div
-          className="premium-panel shiki-wrapper overflow-x-auto rounded-[20px] [&>pre]:p-4 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
+          className="premium-panel shiki-wrapper overflow-x-auto rounded-[12px] [&>pre]:p-4 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
           dangerouslySetInnerHTML={{ __html: highlightedHtml }}
         />
       ) : (
-        <pre className="premium-panel overflow-x-auto rounded-[20px] p-4 font-mono text-[13px]">
+        <pre className="premium-panel overflow-x-auto rounded-[12px] p-4 font-mono text-[13px]">
           <code className={language ? `language-${language}` : undefined}>
             {children}
           </code>

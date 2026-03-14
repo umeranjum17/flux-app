@@ -3,7 +3,7 @@ import { useUiStore } from '../ui';
 
 beforeEach(() => {
   useUiStore.setState({
-    sidebarOpen: true, theme: 'dark', sendKey: 'cmd+enter', mode: 'act', activeOverlay: null,
+    sidebarOpen: true, theme: 'dark', sendKey: 'enter', mode: 'act', activeOverlay: null,
     cwd: '', projectName: '', gitBranch: null, gitDirty: false,
     explorerOpen: false, terminalOpen: false, activeTerminalId: null,
     bottomPanelMode: 'agent', sshHost: null, sshConnected: false,

@@ -9,7 +9,7 @@ import type { AgentId, ThinkingLevel } from '../../lib/types';
 const defaultConfig: FluxConfig = {
   theme: 'dark',
   fontSize: 14,
-  sendKey: 'cmd+enter',
+  sendKey: 'enter',
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
   subagentModel: 'haiku',

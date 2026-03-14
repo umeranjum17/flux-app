@@ -113,7 +113,7 @@ export const useUiStore = create<UiState>()(
   immer((set) => ({
     sidebarOpen: true,
     theme: 'dark',
-    sendKey: 'cmd+enter',
+    sendKey: 'enter',
     mode: 'act',
     activeOverlay: null,
     cwd: '',

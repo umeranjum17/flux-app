@@ -74,14 +74,14 @@ describe('CreateWorkspaceDialog', () => {
       worktreePath: '/repo/.flux-worktrees/ws-1',
     };
 
-    let resolveSpawn: ((value: { session: { id: string } }) => void) | null = null;
+    let resolveSpawn: ((value: { session: { id: string } }) => void) | undefined;
     mockApi.invoke.mockImplementation((channel: string) => {
       if (channel === 'workspace:create') {
         return Promise.resolve(workspace);
       }
       if (channel === 'workspace:spawn') {
         return new Promise((resolve) => {
-          resolveSpawn = resolve as typeof resolveSpawn;
+          resolveSpawn = resolve as (value: { session: { id: string } }) => void;
         });
       }
       return Promise.resolve(undefined);

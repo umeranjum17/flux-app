@@ -35,20 +35,20 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region chrome-topbar flex h-[46px] min-h-[46px] items-center justify-between border-b border-border/80 px-4 ${isMac ? 'pl-[78px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
+      className={`drag-region chrome-topbar flex h-[42px] min-h-[42px] items-center justify-between border-b border-white/6 px-3.5 ${isMac ? 'pl-[78px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
     >
-      <div className="no-drag flex min-w-0 items-center gap-3">
+      <div className="no-drag flex min-w-0 items-center gap-2.5">
         <button
           onClick={toggleSidebar}
-          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-[10px] border border-white/6 bg-white/[0.02] p-1.5 text-text-secondary"
           aria-label="Toggle sidebar"
         >
-          <Menu size={15} />
+          <Menu size={14} />
         </button>
-        <div className="h-5 w-px bg-border" />
+        <div className="h-4 w-px bg-white/7" />
         <div className="min-w-0 select-none">
-          <div className="truncate text-[12px] font-semibold tracking-[0.02em] text-text-primary">{titleText}</div>
-          <div className="truncate text-[10px] tracking-[0.14em] uppercase text-text-tertiary">{subtitle}</div>
+          <div className="truncate text-[12px] font-medium text-text-primary">{titleText}</div>
+          <div className="truncate text-[10px] text-text-tertiary">{subtitle}</div>
         </div>
         {environment === 'wsl' && (
           <span className="premium-pill select-none px-2 py-1 text-[10px] font-medium text-warning">
@@ -67,13 +67,13 @@ export function TopBar() {
         )}
       </div>
 
-      <div className="no-drag flex min-w-0 items-center gap-2 overflow-hidden">
+      <div className="no-drag flex min-w-0 items-center gap-1.5 overflow-hidden">
         <button
           onClick={toggleAutoApprove}
-          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] ${
+          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-[11px] ${
             autoApprove
-              ? 'border-success/25 bg-success/12 text-success'
-              : 'text-text-secondary'
+              ? 'border-success/18 bg-success/10 text-success'
+              : 'border-white/6 bg-white/[0.02] text-text-secondary'
           }`}
           aria-label={autoApprove ? 'Auto-approve on' : 'Auto-approve off'}
           title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
@@ -84,10 +84,10 @@ export function TopBar() {
 
         <button
           onClick={() => setDashboardOpen(!dashboardOpen)}
-          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] ${
+          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-[11px] ${
             dashboardOpen
-              ? 'border-accent/20 bg-accent-muted/40 text-accent'
-              : 'text-text-secondary'
+              ? 'border-white/8 bg-white/[0.06] text-text-primary'
+              : 'border-white/6 bg-white/[0.02] text-text-secondary'
           }`}
           aria-label="Toggle workspaces"
           title="Workspaces"
@@ -98,10 +98,10 @@ export function TopBar() {
 
         <button
           onClick={() => setOverlay('settings')}
-          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-[10px] border border-white/6 bg-white/[0.02] p-1.5 text-text-secondary"
           aria-label="Settings"
         >
-          <Settings size={14} />
+          <Settings size={13} />
         </button>
       </div>
     </div>

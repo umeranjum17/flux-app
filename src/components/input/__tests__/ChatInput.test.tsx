@@ -23,7 +23,7 @@ beforeEach(() => {
   useUiStore.setState({
     sidebarOpen: true,
     theme: 'dark',
-    sendKey: 'cmd+enter',
+    sendKey: 'enter',
     mode: 'act',
     activeOverlay: null,
     cwd: '/workspace',
@@ -65,6 +65,24 @@ beforeEach(() => {
 });
 
 describe('ChatInput', () => {
+  it('sends on Enter even when the stored sendKey preference is cmd+enter', async () => {
+    const user = userEvent.setup();
+    useUiStore.setState({ sendKey: 'cmd+enter' });
+
+    render(<ChatInput />);
+
+    await user.type(screen.getByPlaceholderText('Ask Flux anything... (@ to mention files)'), 'Send with Enter{enter}');
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:spawn',
+        expect.objectContaining({
+          prompt: 'Send with Enter',
+        }),
+      );
+    });
+  });
+
   it('spawns new tasks with the selected agent instead of the default fallback', async () => {
     const user = userEvent.setup();
     render(<ChatInput />);

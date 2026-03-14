@@ -42,7 +42,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
-  const { mode, sendKey } = useUiStore();
+  const { mode } = useUiStore();
   const currentAgent = agents.find((agent) => agent.id === selectedAgentId);
   const pendingMention = useUiStore((s) => s.pendingMention);
 
@@ -199,13 +199,12 @@ export function ChatInput({ focused }: ChatInputProps) {
       return;
     }
 
-    const shouldSend =
-      sendKey === 'enter'
-        ? e.key === 'Enter' && !e.shiftKey
-        : (e.metaKey || e.ctrlKey) && e.key === 'Enter';
-    if (shouldSend) {
+    const shouldSend = e.key === 'Enter' && !e.shiftKey;
+    const chordSend = (e.metaKey || e.ctrlKey) && e.key === 'Enter';
+
+    if (shouldSend || chordSend) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -438,7 +437,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="premium-input-shell border border-border/80 bg-bg-primary/76 p-4 transition-colors focus-within:border-accent/35">
+      <div className="premium-input-shell border border-white/8 bg-black/55 p-3.5 transition-colors focus-within:border-white/12">
         {showSubagentDialog && (
           <div className="premium-panel mb-3 space-y-3 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -461,7 +460,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="text"
                 value={subagentModel}
                 onChange={(e) => setSubagentModel(e.target.value)}
-                className="premium-focus flex-1 rounded-xl border border-border bg-bg-elevated/75 px-3 py-2.5 text-sm text-text-primary outline-none"
+                className="premium-focus flex-1 rounded-[10px] border border-white/8 bg-black/45 px-3 py-2.5 text-sm text-text-primary outline-none"
                 placeholder="haiku"
               />
             </div>
@@ -473,13 +472,13 @@ export function ChatInput({ focused }: ChatInputProps) {
                     type="text"
                     value={draft.name}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                    className="premium-focus w-full rounded-xl border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
+                    className="premium-focus w-full rounded-[10px] border border-white/8 bg-black/45 px-3 py-2.5 text-sm text-text-primary outline-none"
                     placeholder="Agent name"
                   />
                   <textarea
                     value={draft.prompt}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: e.target.value } : item))}
-                    className="premium-focus min-h-20 w-full resize-y rounded-xl border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
+                    className="premium-focus min-h-20 w-full resize-y rounded-[10px] border border-white/8 bg-black/45 px-3 py-2.5 text-sm text-text-primary outline-none"
                     placeholder="What should this subagent explore?"
                   />
                 </div>
@@ -490,7 +489,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setSubagentDrafts((current) => current.length >= 5 ? current : [...current, { name: `Explore ${current.length + 1}`, prompt: '' }])}
-                className="premium-toolbar-button inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs text-text-tertiary"
+                className="premium-toolbar-button inline-flex items-center gap-1 rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-1.5 text-xs text-text-tertiary"
               >
                 <Plus size={12} />
                 Add agent
@@ -498,7 +497,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => void handleSpawnSubagents()}
-                className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary disabled:opacity-50"
+                className="rounded-[10px] bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary disabled:opacity-50"
                 disabled={!canSpawnSubagents}
               >
                 Spawn
@@ -509,16 +508,16 @@ export function ChatInput({ focused }: ChatInputProps) {
 
         {/* Attached files chips */}
         {attachedFiles.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
             {attachedFiles.map((file) => (
               <span
                 key={file.path}
-                className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent-muted/40 px-2.5 py-1 text-xs text-accent"
+                className="inline-flex items-center gap-1 rounded-[8px] border border-white/8 bg-white/[0.03] px-2.5 py-1 text-xs text-text-secondary"
               >
                 @{file.name}
                 <button
                   onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
-                  className="premium-toolbar-button rounded-sm p-0.5 text-accent"
+                  className="premium-toolbar-button rounded-[6px] p-0.5 text-text-tertiary"
                 >
                   <X size={10} />
                 </button>
@@ -527,36 +526,50 @@ export function ChatInput({ focused }: ChatInputProps) {
           </div>
         )}
 
-        {/* Textarea */}
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={placeholder}
-          rows={1}
-          autoFocus
-          className="w-full resize-none bg-transparent text-[14px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none"
-          style={{ maxHeight: 192 }}
-        />
+        <div className="flex items-start gap-3">
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={placeholder}
+            rows={1}
+            autoFocus
+            className="min-h-[28px] flex-1 resize-none bg-transparent font-mono text-[14px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none"
+            style={{ maxHeight: 192 }}
+          />
+
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={!hasContent}
+            className={`mt-0.5 flex-shrink-0 rounded-[10px] border p-2 transition-colors ${
+              hasContent
+                ? mode === 'plan'
+                  ? 'border-plan/35 bg-plan text-bg-primary'
+                  : 'border-accent/35 bg-accent text-bg-primary'
+                : 'border-white/8 bg-white/[0.03] text-text-tertiary cursor-not-allowed'
+            }`}
+            aria-label="Send message"
+          >
+            <ArrowUp size={14} strokeWidth={2.4} />
+          </button>
+        </div>
 
         <ImageAttach
           images={images}
           onRemove={(index) => setImages((prev) => prev.filter((_, i) => i !== index))}
         />
 
-        {/* Toolbar below textarea */}
         <div className="mt-3 pt-2">
           <div className="premium-divider" />
-          <div className="mt-3 flex items-center justify-between gap-3">
-            {/* Left controls */}
-            <div className="relative flex items-center gap-1.5">
-              {/* Model selector button */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="relative flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setShowModelSelector((v) => !v)}
-                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
+                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-[10px] border border-white/8 bg-white/[0.02] px-2.5 py-1.5 text-xs font-medium text-text-secondary"
                 title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
               >
                 <AgentIcon
@@ -572,24 +585,42 @@ export function ChatInput({ focused }: ChatInputProps) {
                 onClose={() => setShowModelSelector(false)}
               />
 
-              {/* Thinking toggle */}
               {supportsThinking && (
                 <button
                   type="button"
                   onClick={handleCycleThinking}
-                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
+                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-[10px] border border-white/8 bg-white/[0.02] px-2.5 py-1.5 text-xs text-text-secondary"
                   title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
                 >
-                  <Brain size={12} className="text-accent" />
-                  <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                  <Brain size={12} className="text-text-secondary" />
+                  <span className="font-medium text-text-secondary">{THINKING_LABELS[selectedThinking]}</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleFileSelect}
+                className="premium-toolbar-button rounded-[10px] border border-white/8 bg-white/[0.02] p-2 text-text-tertiary"
+                aria-label="Attach file"
+                title="Attach image"
+              >
+                <Paperclip size={14} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSubagentDialog((v) => !v)}
+                className="premium-toolbar-button rounded-[10px] border border-white/8 bg-white/[0.02] p-2 text-text-tertiary disabled:opacity-40"
+                aria-label="More options"
+                disabled={!canSpawnSubagents}
+                title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
+              >
+                <Plus size={14} />
+              </button>
             </div>
 
-            {/* Right controls */}
-            <div className="flex items-center gap-1.5">
-              {/* Plan / Act segmented toggle */}
-              <div className="premium-pill flex items-center overflow-hidden text-[11px] font-medium">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="premium-pill flex items-center overflow-hidden rounded-[10px] border border-white/8 bg-white/[0.02] text-[11px] font-medium">
                 <button
                   type="button"
                   onClick={() => {
@@ -623,46 +654,9 @@ export function ChatInput({ focused }: ChatInputProps) {
                   Act
                 </button>
               </div>
-
-              {/* Attach / subagent button */}
-              <button
-                type="button"
-                onClick={handleFileSelect}
-                className="premium-toolbar-button rounded-full p-2 text-text-tertiary"
-                aria-label="Attach file"
-                title="Attach image"
-              >
-                <Paperclip size={14} />
-              </button>
-
-              {/* + button (subagents) */}
-              <button
-                type="button"
-                onClick={() => setShowSubagentDialog((v) => !v)}
-                className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
-                aria-label="More options"
-                disabled={!canSpawnSubagents}
-                title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
-              >
-                <Plus size={14} />
-              </button>
-
-              {/* Send button (circular) */}
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!hasContent}
-                className={`flex-shrink-0 rounded-full p-2.5 transition-colors ${
-                  hasContent
-                    ? mode === 'plan'
-                      ? 'bg-plan text-bg-primary'
-                      : 'bg-accent text-bg-primary'
-                    : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
-                }`}
-                aria-label="Send message"
-              >
-                <ArrowUp size={14} strokeWidth={2.5} />
-              </button>
+              <span className="px-1 text-[10px] uppercase tracking-[0.1em] text-text-tertiary">
+                Enter sends
+              </span>
             </div>
           </div>
         </div>
