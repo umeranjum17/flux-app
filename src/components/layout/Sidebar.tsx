@@ -29,7 +29,7 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={{ width: 0, opacity: 0 }}
-      animate={{ width: 296, opacity: 1 }}
+      animate={{ width: 260, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.16, ease: 'easeOut' }}
       className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-border/70"
@@ -44,7 +44,7 @@ export function Sidebar() {
         </div>
         <button
           onClick={() => useUiStore.getState().toggleSidebar()}
-          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
         >
           <X size={13} />
         </button>
@@ -138,7 +138,7 @@ function ChatTab() {
             useChatStore.getState().setActiveTask(null);
             useUiStore.getState().setBottomPanelMode('agent');
           }}
-          className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary"
+          className="premium-toolbar-button rounded-lg p-1.5 text-text-secondary"
         >
           <Plus size={14} />
         </button>
@@ -228,7 +228,7 @@ function SearchTab() {
           onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
           placeholder="Search in files"
           autoFocus
-          className="premium-focus w-full rounded-2xl border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
+          className="premium-focus w-full rounded-lg border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
         />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3">
@@ -295,7 +295,7 @@ function GitTab() {
 
         <button
           onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
-          className="premium-toolbar-button w-full rounded-2xl border border-border/80 bg-bg-surface py-2.5 text-xs text-text-secondary"
+          className="premium-toolbar-button w-full rounded-lg border border-border/80 bg-bg-surface py-2.5 text-xs text-text-secondary"
         >
           {sshConnected ? 'Manage SSH' : 'Connect SSH'}
         </button>

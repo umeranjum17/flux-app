@@ -48,7 +48,7 @@ export function LiveRunHeader() {
   const isPlan = task.mode === 'plan';
 
   return (
-    <div className={`premium-panel mb-3 rounded-[20px] border px-3.5 py-3 ${
+    <div className={`premium-panel mb-3 rounded-lg border px-3.5 py-3 ${
       isPlan
         ? 'border-plan/25'
         : 'border-accent/18'

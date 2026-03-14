@@ -40,12 +40,11 @@ export function TopBar() {
       <div className="no-drag flex min-w-0 items-center gap-3">
         <button
           onClick={toggleSidebar}
-          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
           aria-label="Toggle sidebar"
         >
           <Menu size={15} />
         </button>
-        <div className="h-5 w-px bg-border" />
         <div className="min-w-0 select-none">
           <div className="truncate text-[12px] font-semibold tracking-[0.02em] text-text-primary">{titleText}</div>
           <div className="truncate text-[10px] tracking-[0.14em] uppercase text-text-tertiary">{subtitle}</div>
@@ -70,7 +69,7 @@ export function TopBar() {
       <div className="no-drag flex min-w-0 items-center gap-2 overflow-hidden">
         <button
           onClick={toggleAutoApprove}
-          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] ${
+          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] ${
             autoApprove
               ? 'border-success/25 bg-success/12 text-success'
               : 'text-text-secondary'
@@ -84,7 +83,7 @@ export function TopBar() {
 
         <button
           onClick={() => setDashboardOpen(!dashboardOpen)}
-          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] ${
+          className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] ${
             dashboardOpen
               ? 'border-accent/20 bg-accent-muted/40 text-accent'
               : 'text-text-secondary'
@@ -98,7 +97,7 @@ export function TopBar() {
 
         <button
           onClick={() => setOverlay('settings')}
-          className="premium-toolbar-button rounded-xl p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
           aria-label="Settings"
         >
           <Settings size={14} />

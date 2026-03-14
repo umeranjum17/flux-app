@@ -93,7 +93,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
             onClick={() => onOpenProject()}
             className="premium-toolbar-button premium-panel flex w-full items-start gap-4 p-5 text-left"
           >
-            <div className="rounded-2xl border border-accent/20 bg-accent-muted/40 p-3 text-accent">
+            <div className="rounded-lg border border-accent/20 bg-accent-muted/40 p-3 text-accent">
               <FolderOpen size={18} />
             </div>
             <div className="flex-1 min-w-0">
@@ -107,7 +107,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
             onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
             className="premium-toolbar-button premium-panel flex w-full items-start gap-4 p-5 text-left"
           >
-            <div className="rounded-2xl border border-plan/20 bg-plan-muted/40 p-3 text-plan">
+            <div className="rounded-lg border border-plan/20 bg-plan-muted/40 p-3 text-plan">
               <Terminal size={18} />
             </div>
             <div className="flex-1 min-w-0">
@@ -126,7 +126,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
                 <button
                   key={action.label}
                   onClick={() => handleQuickAction(action.prompt)}
-                  className="premium-toolbar-button premium-panel rounded-2xl px-4 py-2.5 text-[11px] text-text-secondary"
+                  className="premium-toolbar-button premium-panel rounded-lg px-4 py-2.5 text-[11px] text-text-secondary"
                 >
                   {action.label}
                 </button>

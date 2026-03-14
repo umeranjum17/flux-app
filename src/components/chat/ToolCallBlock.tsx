@@ -35,7 +35,7 @@ class ToolContentErrorBoundary extends Component<
     if (this.state.error) {
       return (
         <div className="px-3 pb-3">
-          <div className="premium-panel rounded-[18px] border border-error/20 bg-error/5 p-3">
+          <div className="premium-panel rounded-lg border border-error/20 bg-error/5 p-3">
             <div className="flex items-center gap-2 text-xs text-error font-medium mb-1">
               <AlertTriangle size={12} />
               Failed to render tool output
@@ -231,7 +231,7 @@ function ToolResultPreview({
     const remaining = Math.max(0, lines.length - MAX_RESULT_LINES);
     return (
       <div className="px-3 pb-2">
-        <div className="premium-panel max-h-28 overflow-hidden rounded-[16px] px-3 py-2">
+        <div className="premium-panel max-h-28 overflow-hidden rounded-lg px-3 py-2">
           <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{preview}</pre>
         </div>
         {remaining > 0 && (
@@ -246,7 +246,7 @@ function ToolResultPreview({
     if (matches.length === 0) return null;
     return (
       <div className="px-3 pb-2">
-        <div className="premium-panel space-y-1 rounded-[16px] px-3 py-2">
+        <div className="premium-panel space-y-1 rounded-lg px-3 py-2">
           {matches.map((match) => (
             <div key={match.file} className="flex items-center justify-between gap-3 text-xs font-mono text-text-secondary">
               <span className="truncate">{match.file}</span>
@@ -263,7 +263,7 @@ function ToolResultPreview({
     if (paths.length === 0) return null;
     return (
       <div className="px-3 pb-2">
-        <div className="premium-panel space-y-1 rounded-[16px] px-3 py-2">
+        <div className="premium-panel space-y-1 rounded-lg px-3 py-2">
           {paths.map((filePath) => (
             <div key={filePath} className="truncate text-xs font-mono text-text-secondary">{filePath}</div>
           ))}
@@ -277,7 +277,7 @@ function ToolResultPreview({
     if (lines.length === 0) return null;
     return (
       <div className="px-3 pb-2">
-        <div className="premium-panel max-h-24 overflow-hidden rounded-[16px] px-3 py-2">
+        <div className="premium-panel max-h-24 overflow-hidden rounded-lg px-3 py-2">
           <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{lines.join('\n')}</pre>
         </div>
       </div>
@@ -315,14 +315,14 @@ export function ToolCallBlock({
       ? resultIsError
         ? 'border-error/20 bg-error/10 text-error'
         : 'border-success/20 bg-success/10 text-success'
-      : 'border-border/80 bg-bg-primary/50 text-text-tertiary';
+      : 'border-border/80 bg-bg-elevated text-text-tertiary';
   const iconShellClass = isRunning && !isComplete
     ? 'border-accent/20 bg-accent-muted/35'
     : isComplete
       ? resultIsError
         ? 'border-error/20 bg-error/10'
         : 'border-success/20 bg-success/10'
-      : 'border-border/80 bg-bg-primary/55';
+      : 'border-border/80 bg-bg-elevated';
 
   const diffStats = useMemo(() => {
     if (!isFileEditTool(toolName)) return null;
@@ -349,17 +349,17 @@ export function ToolCallBlock({
   const hasBody = shouldShowSemanticBody || shouldShowPreview || shouldShowExpanded;
 
   return (
-    <div className="premium-tool-card rounded-[22px]">
+    <div className="premium-tool-card">
       <button
         onClick={() => setExpanded(!expanded)}
         className="group flex w-full items-start gap-3 px-3.5 py-3.5 text-left"
       >
-        <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${iconShellClass}`}>
+        <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${iconShellClass}`}>
           {statusIcon}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
               {formatToolLabel(toolName)}
             </span>
             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass}`}>
@@ -387,11 +387,11 @@ export function ToolCallBlock({
             </span>
           )}
           {resultContent && !shouldShowSemanticBody && (
-            <span className="rounded-full border border-border/70 bg-bg-primary/50 p-1 text-text-tertiary transition-colors group-hover:text-text-primary">
+            <span className="p-1 text-text-tertiary transition-colors group-hover:text-text-primary">
               <Download size={12} />
             </span>
           )}
-          <span className="rounded-full border border-border/70 bg-bg-primary/50 p-1 text-text-tertiary transition-colors group-hover:text-text-primary">
+          <span className="p-1 text-text-tertiary transition-colors group-hover:text-text-primary">
             {expanded ? (
               <ChevronDown size={14} className="shrink-0" />
             ) : (
@@ -489,7 +489,7 @@ function TodoPreview({ items, expanded }: { items: TodoItem[]; expanded: boolean
   return (
     <div className="space-y-2">
       {visibleItems.map((item, index) => (
-        <div key={`${item.content}-${index}`} className="premium-panel flex items-start gap-3 rounded-[16px] px-3 py-2 text-sm">
+        <div key={`${item.content}-${index}`} className="premium-panel flex items-start gap-3 rounded-lg px-3 py-2 text-sm">
           <span className="mt-0.5 shrink-0 text-text-tertiary">
             {item.status === 'completed' ? '✓' : item.status === 'in_progress' ? '◌' : '○'}
           </span>
@@ -526,7 +526,7 @@ function QuestionPreview({ questions }: { questions: QuestionItem[] }) {
           {question.options.length > 0 && (
             <div className="space-y-1.5">
               {question.options.map((option) => (
-                <div key={option.label} className="premium-panel rounded-[16px] px-3 py-2">
+                <div key={option.label} className="premium-panel rounded-lg px-3 py-2">
                   <div className="text-sm text-text-primary">{option.label}</div>
                   {option.description && (
                     <div className="mt-1 text-xs text-text-tertiary">{option.description}</div>
