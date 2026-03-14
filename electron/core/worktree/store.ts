@@ -31,8 +31,7 @@ export class WorkspaceStore {
   }
 
   get(id: string): Workspace | null {
-    const db = getDb();
-    const row = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as any;
+    const row = getWorkspaceRow(id);
     if (!row) return null;
 
     const workspace = rowToWorkspace(row);
@@ -80,8 +79,10 @@ export class WorkspaceStore {
   }
 
   update(id: string, updates: Partial<Workspace>): Workspace | null {
-    const current = this.get(id);
-    if (!current) return null;
+    const row = getWorkspaceRow(id);
+    if (!row) return null;
+
+    const current = rowToWorkspace(row);
 
     const db = getDb();
     const next: Workspace = {
@@ -178,4 +179,9 @@ function rowToWorkspace(row: any): Workspace {
     sessionId: row.session_id ?? undefined,
     archivedAt: row.archived_at ?? undefined,
   };
+}
+
+function getWorkspaceRow(id: string): any | null {
+  const db = getDb();
+  return (db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as any) ?? null;
 }
