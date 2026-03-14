@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap, Terminal } from 'lucide-react';
+import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap, Terminal, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -38,6 +38,8 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [subagentModel, setSubagentModel] = useState('haiku');
   const [subagentDrafts, setSubagentDrafts] = useState([{ name: 'Explore', prompt: '' }]);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showCompletionPicker, setShowCompletionPicker] = useState(false);
+  const [completionProviders, setCompletionProviders] = useState<string[]>([]);
 
   // Terminal / ghost text state
   const [ghostText, setGhostText] = useState('');
@@ -56,6 +58,14 @@ export function ChatInput({ focused }: ChatInputProps) {
   const cwd = useUiStore((s) => s.cwd);
 
   const isTerminal = inputMode === 'terminal';
+
+  // Fetch available completion providers once
+  useEffect(() => {
+    window.api.invoke('completion:providers').then((res) => {
+      const typed = res as { providers: string[] };
+      setCompletionProviders(typed.providers);
+    }).catch(() => {});
+  }, []);
 
   const isMac = window.api?.platform === 'darwin';
 
@@ -794,17 +804,96 @@ export function ChatInput({ focused }: ChatInputProps) {
 
               {isTerminal && (
                 /* Completion model picker in terminal mode */
-                <div className="flex items-center gap-1.5">
+                <div className="relative flex items-center gap-1.5">
                   <span className="text-[10px] text-text-tertiary">AI complete:</span>
-                  <select
-                    value={completionModel}
-                    onChange={(e) => useUiStore.getState().setCompletionModel(e.target.value)}
-                    className="rounded-md border border-border/60 bg-bg-elevated/60 px-2 py-1 text-[11px] text-text-secondary outline-none"
+                  <button
+                    type="button"
+                    onClick={() => setShowCompletionPicker((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-bg-elevated/60 px-2 py-1 text-[11px] text-text-secondary outline-none hover:bg-bg-elevated/90 transition-colors"
                   >
-                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                    <option value="o4-mini">o4-mini</option>
-                  </select>
+                    <span>{completionModel}</span>
+                    <ChevronDown size={10} className="text-text-tertiary" />
+                  </button>
+
+                  {showCompletionPicker && (
+                    <>
+                      {/* backdrop */}
+                      <div className="fixed inset-0 z-40" onClick={() => setShowCompletionPicker(false)} />
+                      <div className="absolute bottom-full left-0 z-50 mb-1 min-w-[200px] rounded-lg border border-border/80 bg-bg-elevated shadow-xl">
+                        <div className="p-1.5">
+                          {completionProviders.includes('anthropic') && (
+                            <div>
+                              <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-text-tertiary/60">Claude</div>
+                              {[
+                                { id: 'haiku', label: 'Haiku 4.5', desc: 'Fastest' },
+                                { id: 'sonnet', label: 'Sonnet 4.6', desc: 'Balanced' },
+                              ].map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => { useUiStore.getState().setCompletionModel(m.id); setShowCompletionPicker(false); }}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[11px] transition-colors ${
+                                    completionModel === m.id ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-bg-hover'
+                                  }`}
+                                >
+                                  <span>{m.label}</span>
+                                  <span className="text-[9px] text-text-tertiary">{m.desc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {completionProviders.includes('openai') && (
+                            <div>
+                              <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-text-tertiary/60 mt-1">OpenAI</div>
+                              {[
+                                { id: 'gpt-4o-mini', label: 'GPT-4o Mini', desc: 'Fast' },
+                                { id: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', desc: 'Fast' },
+                                { id: 'o4-mini', label: 'o4-mini', desc: 'Reasoning' },
+                              ].map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => { useUiStore.getState().setCompletionModel(m.id); setShowCompletionPicker(false); }}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[11px] transition-colors ${
+                                    completionModel === m.id ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-bg-hover'
+                                  }`}
+                                >
+                                  <span>{m.label}</span>
+                                  <span className="text-[9px] text-text-tertiary">{m.desc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {completionProviders.includes('google') && (
+                            <div>
+                              <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-text-tertiary/60 mt-1">Gemini</div>
+                              {[
+                                { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Fast' },
+                                { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', desc: 'Fast' },
+                              ].map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => { useUiStore.getState().setCompletionModel(m.id); setShowCompletionPicker(false); }}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[11px] transition-colors ${
+                                    completionModel === m.id ? 'bg-accent/15 text-accent' : 'text-text-secondary hover:bg-bg-hover'
+                                  }`}
+                                >
+                                  <span>{m.label}</span>
+                                  <span className="text-[9px] text-text-tertiary">{m.desc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {completionProviders.length === 0 && (
+                            <div className="px-2 py-2 text-[11px] text-text-tertiary">
+                              No API keys configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

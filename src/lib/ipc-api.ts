@@ -83,6 +83,7 @@ export interface IpcChannels {
   'diff:get': { args: [{ taskId: string; sessionId: string }]; result: DiffData | null };
   'shell:exec': { args: [{ command: string; cwd: string; timeout?: number }]; result: { stdout: string; stderr: string; exitCode: number; durationMs: number } };
   'completion:suggest': { args: [{ prefix: string; cwd: string; recentCommands: string[]; model?: string }]; result: { suggestion: string } };
+  'completion:providers': { args: []; result: { providers: string[] } };
 }
 
 // Events main sends to renderer
