@@ -12,6 +12,13 @@ import {
   terminateAgentProcess,
 } from './spawn-utils';
 import { classifySpawnError } from '../process-utils';
+import {
+  extractMcpToolBaseName as _extractMcpToolBaseName,
+  isQuestionToolName as _isQuestionToolName,
+  isInteractiveToolName as _isInteractiveToolName,
+  normalizeClaudeQuestions as _normalizeClaudeQuestions,
+  mapClaudeEffort as _mapClaudeEffort,
+} from './claude-utils';
 
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
 
@@ -724,10 +731,7 @@ function toClaudeImageBlock(image: string): Record<string, unknown> | null {
   };
 }
 
-function mapClaudeEffort(thinking: NonNullable<SpawnOptions['thinking']>): 'low' | 'medium' | 'high' {
-  if (thinking === 'xhigh') return 'high';
-  return thinking;
-}
+const mapClaudeEffort = _mapClaudeEffort;
 
 /**
  * Normalize tool result content from Claude's structured format to a plain string.
@@ -1031,37 +1035,11 @@ function mapClaudeEvent(event: Record<string, any>): AgentMessage | AgentMessage
   return null;
 }
 
-/**
- * Strip the `mcp__<server>__` prefix from an MCP tool name to get the base
- * tool name.  Non-MCP names pass through unchanged.
- */
-function extractMcpToolBaseName(name: string): string {
-  if (name.startsWith('mcp__')) {
-    const lastSep = name.lastIndexOf('__');
-    if (lastSep > 4) return name.slice(lastSep + 2);
-  }
-  return name;
-}
-
-function isQuestionToolName(name: unknown): boolean {
-  if (typeof name !== 'string') return false;
-  const baseName = extractMcpToolBaseName(name);
-  return baseName === 'AskUserQuestion' || baseName === 'request_user_input';
-}
-
-const INTERACTIVE_TOOL_NAMES = new Set([
-  'AskUserQuestion',
-  'request_user_input',
-  'ExitPlanMode',
-  'EnterPlanMode',
-  'DiffComment',
-]);
-
-/** Tools that require user interaction and should pause stall detection. */
-export function isInteractiveToolName(name: unknown): boolean {
-  if (typeof name !== 'string') return false;
-  return INTERACTIVE_TOOL_NAMES.has(extractMcpToolBaseName(name));
-}
+// Re-export shared utilities for backward compatibility
+const extractMcpToolBaseName = _extractMcpToolBaseName;
+const isQuestionToolName = _isQuestionToolName;
+const normalizeClaudeQuestions = _normalizeClaudeQuestions;
+export const isInteractiveToolName = _isInteractiveToolName;
 
 function mapClaudeQuestionRequest(tool: Record<string, any>, timestamp: number): AgentMessage | null {
   const input = tool.input && typeof tool.input === 'object' ? tool.input : {};
@@ -1088,43 +1066,7 @@ function mapClaudeQuestionRequest(tool: Record<string, any>, timestamp: number):
   };
 }
 
-function normalizeClaudeQuestions(input: Record<string, any>): QuestionField[] {
-  const rawQuestions = Array.isArray(input.questions)
-    ? input.questions
-    : typeof input.question === 'string'
-      ? [input]
-      : [];
-
-  return rawQuestions
-    .filter((question): question is Record<string, any> => !!question && typeof question === 'object' && !Array.isArray(question))
-    .map((question) => {
-      const options = Array.isArray(question.options)
-        ? question.options
-          .filter((option): option is Record<string, any> => !!option && typeof option === 'object' && !Array.isArray(option))
-          .map((option) => ({
-            label: typeof option.label === 'string' ? option.label : String(option.value ?? ''),
-            ...(typeof option.description === 'string' ? { description: option.description } : {}),
-            ...(typeof option.value === 'string' ? { value: option.value } : {}),
-          }))
-          .filter((option) => option.label.trim().length > 0)
-        : undefined;
-      const allowFreeform = typeof question.allowFreeform === 'boolean'
-        ? question.allowFreeform
-        : typeof question.allow_freeform === 'boolean'
-          ? question.allow_freeform
-          : !options || options.length === 0;
-
-      return {
-        ...(typeof question.header === 'string' ? { header: question.header } : {}),
-        question: typeof question.question === 'string' ? question.question : String(question.prompt ?? ''),
-        ...(options?.length ? { options } : {}),
-        allowFreeform,
-        ...(typeof question.placeholder === 'string' ? { placeholder: question.placeholder } : {}),
-        ...(typeof question.multiSelect === 'boolean' ? { multiSelect: question.multiSelect } : {}),
-      };
-    })
-    .filter((question) => question.question.trim().length > 0);
-}
+// normalizeClaudeQuestions is now in claude-utils.ts
 
 function mapClaudeSystemEvent(event: Record<string, any>, timestamp: number): AgentMessage | null {
   if (event.subtype === 'hook_started') {
