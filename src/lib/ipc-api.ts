@@ -68,6 +68,7 @@ export interface IpcChannels {
   'workspace:list-chats': { args: [{ workspaceId: string }]; result: WorkspaceSession[] };
   'workspace:stop': { args: [{ workspaceId: string }]; result: void };
   'workspace:delete': { args: [{ workspaceId: string }]; result: void };
+  'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:merge': {
     args: [{ workspaceId: string; targetBranch: string; squash?: boolean }];
     result: MergeResult;
@@ -162,6 +163,7 @@ export interface FluxConfig {
   theme: 'dark' | 'light';
   fontSize: number;
   sendKey: 'cmd+enter' | 'enter';
+  preferredIde?: 'code' | 'cursor' | 'zed';
   defaultAgent: string;
   defaultModel: string;
   subagentModel?: string;

@@ -156,6 +156,16 @@ function serializePayload(payload: unknown): string | null {
   }
 }
 
+async function commandExists(command: string): Promise<boolean> {
+  const probe = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    await execFileAsync(probe, [command], { timeout: 5000, env: extendedEnv() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function toStoredMessage(message: AgentMessage) {
   return {
     role: message.role,
@@ -541,6 +551,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:list-chats',
     'workspace:stop',
     'workspace:delete',
+    'workspace:open-ide',
     'workspace:merge',
     'workspace:diff-files',
     'workspace:file-diff',
@@ -1944,6 +1955,51 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     await removeWorktree(workspace.parentRepo, workspace.worktreePath);
     workspaceStore.delete(workspaceId);
   });
+
+  ipcMain.handle(
+    'workspace:open-ide',
+    async (
+      _event,
+      {
+        workspaceId,
+        ide,
+      }: {
+        workspaceId: string;
+        ide?: 'code' | 'cursor' | 'zed';
+      },
+    ) => {
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) {
+        throw new Error(`Workspace ${workspaceId} not found`);
+      }
+
+      const configured = configManager.get().preferredIde;
+      const preferred = ide ?? configured ?? 'code';
+      const ordered: Array<'code' | 'cursor' | 'zed'> = [
+        preferred,
+        ...(['code', 'cursor', 'zed'] as const).filter((candidate) => candidate !== preferred),
+      ];
+
+      let selected: 'code' | 'cursor' | 'zed' | null = null;
+      for (const candidate of ordered) {
+        if (await commandExists(candidate)) {
+          selected = candidate;
+          break;
+        }
+      }
+
+      if (!selected) {
+        throw new Error('No supported IDE command found on PATH (code, cursor, zed)');
+      }
+
+      await execFileAsync(selected, ['--new-window', workspace.worktreePath], {
+        cwd: workspace.worktreePath,
+        timeout: 10000,
+        env: extendedEnv(),
+      });
+      return { ide: selected };
+    },
+  );
 
   ipcMain.handle(
     'workspace:merge',

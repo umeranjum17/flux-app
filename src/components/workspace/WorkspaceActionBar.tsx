@@ -1,4 +1,4 @@
-import { Eye, GitMerge, Square, Trash2, GitBranch } from 'lucide-react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { workspaceStatusConfig } from '../../lib/workspace-status';
@@ -35,6 +35,10 @@ export function WorkspaceActionBar() {
     }
   };
 
+  const handleOpenIde = async () => {
+    await window.api.invoke('workspace:open-ide', { workspaceId: workspace.id });
+  };
+
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/40 px-4 py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -50,6 +54,7 @@ export function WorkspaceActionBar() {
         {isRunning && (
           <ActionBtn icon={<Square size={12} />} label="Stop" onClick={handleStop} />
         )}
+        <ActionBtn icon={<ExternalLink size={12} />} label="Open IDE" onClick={handleOpenIde} />
         <ActionBtn icon={<Eye size={12} />} label="Review" onClick={() => useWorkspaceStore.getState().openReview(workspace.id)} />
         <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
         <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />

@@ -16,6 +16,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   theme: 'dark',
   fontSize: 14,
   sendKey: 'cmd+enter',
+  preferredIde: 'code',
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
   subagentModel: 'haiku',
@@ -32,6 +33,9 @@ const DEFAULT_CONFIG: FluxConfig = {
 function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
   const theme = raw.theme === 'light' ? 'light' : 'dark';
   const sendKey = raw.sendKey === 'enter' ? 'enter' : 'cmd+enter';
+  const preferredIde = raw.preferredIde === 'cursor' || raw.preferredIde === 'zed' || raw.preferredIde === 'code'
+    ? raw.preferredIde
+    : DEFAULT_CONFIG.preferredIde;
   const defaultThinking =
     raw.defaultThinking === 'low' ||
     raw.defaultThinking === 'medium' ||
@@ -49,6 +53,7 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     ...raw,
     theme,
     sendKey,
+    preferredIde,
     defaultThinking,
     defaultMode,
     subagentModel: typeof raw.subagentModel === 'string' ? raw.subagentModel : DEFAULT_CONFIG.subagentModel,

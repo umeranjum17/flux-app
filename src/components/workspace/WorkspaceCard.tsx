@@ -1,4 +1,4 @@
-import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare } from 'lucide-react';
+import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink } from 'lucide-react';
 import type { Workspace, WorkspaceStatus } from '../../lib/ipc-api';
 
 const statusConfig: Record<WorkspaceStatus, { color: string; label: string; pulse?: boolean }> = {
@@ -19,6 +19,7 @@ interface WorkspaceCardProps {
   onReview: () => void;
   onMerge: () => void;
   onDelete: () => void;
+  onOpenIde: () => void;
 }
 
 export function WorkspaceCard({
@@ -29,6 +30,7 @@ export function WorkspaceCard({
   onReview,
   onMerge,
   onDelete,
+  onOpenIde,
 }: WorkspaceCardProps) {
   const status = statusConfig[workspace.status] ?? statusConfig.idle;
   const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
@@ -65,6 +67,7 @@ export function WorkspaceCard({
           <ActionButton icon={<Square size={12} />} label="Stop" onClick={onStop} variant="warning" />
         )}
         <ActionButton icon={<MessageSquare size={12} />} label="Chat" onClick={onSelect} />
+        <ActionButton icon={<ExternalLink size={12} />} label="Open IDE" onClick={onOpenIde} />
         <ActionButton icon={<Eye size={12} />} label="Review" onClick={onReview} />
         <ActionButton icon={<GitMerge size={12} />} label="Merge" onClick={onMerge} />
         <ActionButton icon={<Trash2 size={12} />} label="Delete" onClick={onDelete} variant="danger" />
