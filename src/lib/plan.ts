@@ -1,4 +1,4 @@
-import type { AgentMessage } from './types';
+import type { AgentMessage, TodoItem } from './types';
 
 const PLAN_SECTION_PATTERN = /^(#{2,3})\s+(summary|analysis|steps|trade-offs|tradeoffs)\b/im;
 const GENERIC_SECTION_PATTERN = /^#{2,3}\s+\S+/gm;
@@ -47,6 +47,23 @@ export function isPlanMessage(message: AgentMessage, taskMode?: 'plan' | 'act'):
     && message.role === 'assistant'
     && message.type === 'text'
     && isLikelyPlanText(message.content);
+}
+
+/**
+ * Extract numbered steps from plan text into TodoItem entries.
+ * Looks for the "Steps" section first; falls back to all numbered lines.
+ */
+export function extractPlanSteps(planText: string): TodoItem[] {
+  const stepsSection = planText.match(/^#{2,3}\s+Steps?\b[^\n]*\n([\s\S]*?)(?=^#{2,3}\s|\z)/im);
+  const source = stepsSection ? stepsSection[1] : planText;
+  const items: TodoItem[] = [];
+  for (const line of source.split('\n')) {
+    const match = line.match(/^\d+\.\s+(.+)/);
+    if (match) {
+      items.push({ id: items.length + 1, label: match[1].trim(), status: 'pending' });
+    }
+  }
+  return items;
 }
 
 function countMatches(text: string, pattern: RegExp): number {

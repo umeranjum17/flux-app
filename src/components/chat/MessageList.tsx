@@ -26,6 +26,7 @@ import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
 import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
+import { TodoPanel } from './TodoPanel';
 import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -263,6 +264,10 @@ export function MessageList() {
 
           {task.mode === 'plan' && taskId && planText && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
+          )}
+
+          {task.mode === 'act' && task.todoItems && task.todoItems.length > 0 && (
+            <TodoPanel items={task.todoItems} />
           )}
 
           {rateLimitSuggestion && taskId && (

@@ -12,6 +12,7 @@ import type {
   TaskMode,
   TaskStatus,
   ThinkingLevel,
+  TodoItem,
 } from '../lib/types';
 import { useWorkspaceStore } from './workspace';
 
@@ -54,6 +55,8 @@ interface ChatState {
   setTaskMode(taskId: string, mode: TaskMode): void;
   switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string): void;
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
+  setTodoItems(taskId: string, items: TodoItem[]): void;
+  updateTodoItem(taskId: string, stepId: number, status: TodoItem['status']): void;
   getActiveTask(): Task | undefined;
 }
 
@@ -313,6 +316,22 @@ export const useChatStore = create<ChatState>()(
           ...(images?.length ? { images } : {}),
           ...(attachments?.length ? { attachments } : {}),
         });
+      });
+    },
+
+    setTodoItems(taskId, items) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (task) task.todoItems = items;
+      });
+    },
+
+    updateTodoItem(taskId, stepId, status) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task?.todoItems) return;
+        const item = task.todoItems.find((t) => t.id === stepId);
+        if (item) item.status = status;
       });
     },
 

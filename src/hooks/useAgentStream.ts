@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
-import type { AgentMessage, DiffData } from '../lib/types';
+import type { AgentMessage, DiffData, TodoItem } from '../lib/types';
 
 function shouldAutoApprove(toolName: string): boolean {
   const { autoApprove, autoApproveTools } = useUiStore.getState();
@@ -78,6 +78,16 @@ export function useAgentStream() {
       });
     });
 
+    const unsubTodo = window.api.on('agent:todo', (data: unknown) => {
+      const { taskId, todoItems } = data as { taskId: string; todoItems: TodoItem[] };
+      useChatStore.getState().setTodoItems(taskId, todoItems);
+    });
+
+    const unsubTodoUpdate = window.api.on('agent:todo-update', (data: unknown) => {
+      const { taskId, stepId, status } = data as { taskId: string; stepId: number; status: TodoItem['status'] };
+      useChatStore.getState().updateTodoItem(taskId, stepId, status);
+    });
+
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       flushMessages(); // flush any remaining
@@ -85,6 +95,8 @@ export function useAgentStream() {
       unsubDone();
       unsubPermission();
       unsubDiff();
+      unsubTodo();
+      unsubTodoUpdate();
     };
   }, []);
 }

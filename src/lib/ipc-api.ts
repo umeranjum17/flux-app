@@ -1,4 +1,4 @@
-import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment } from './types';
+import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment, TodoItem } from './types';
 
 export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
 
@@ -123,6 +123,8 @@ export interface IpcEvents {
   'agent:diff': { taskId: string; key: string; diff: DiffData };
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
   'agent:stall': { taskId: string; stallInfo: { type: string; toolName?: string; durationMs: number; autoRestartsRemaining: number } };
+  'agent:todo': { taskId: string; todoItems: TodoItem[] };
+  'agent:todo-update': { taskId: string; stepId: number; status: TodoItem['status'] };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
