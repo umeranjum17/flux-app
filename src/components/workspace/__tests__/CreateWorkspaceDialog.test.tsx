@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe('CreateWorkspaceDialog', () => {
-  it('creates the local task before the workspace spawn promise resolves', async () => {
+  it('creates a workspace chat once the workspace spawn resolves', async () => {
     const user = userEvent.setup();
     const workspace = {
       id: 'ws-1',
@@ -74,12 +74,12 @@ describe('CreateWorkspaceDialog', () => {
       worktreePath: '/repo/.flux-worktrees/ws-1',
     };
 
-    let resolveSpawn: ((value: { session: { id: string } }) => void) | null = null;
+    let resolveSpawn: ((value: { taskId: string; session: { id: string } }) => void) | null = null;
     mockApi.invoke.mockImplementation((channel: string) => {
       if (channel === 'workspace:create') {
         return Promise.resolve(workspace);
       }
-      if (channel === 'workspace:spawn') {
+      if (channel === 'workspace:spawn-chat') {
         return new Promise((resolve) => {
           resolveSpawn = resolve as typeof resolveSpawn;
         });
@@ -94,23 +94,29 @@ describe('CreateWorkspaceDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Create & Start' }));
 
     await waitFor(() => {
-      expect(mockApi.invoke).toHaveBeenCalledWith('workspace:spawn', {
+      expect(mockApi.invoke).toHaveBeenCalledWith('workspace:spawn-chat', {
         workspaceId: 'ws-1',
         prompt: 'Fix the brittle flows',
+        agentId: 'codex',
+        model: 'gpt-5-codex',
         mode: 'act',
       });
     });
 
-    const task = useChatStore.getState().tasks.get('ws-1');
-    expect(task).toBeDefined();
-    expect(task?.status).toBe('running');
-    expect(task?.sessionId).toBeUndefined();
-    expect(useWorkspaceStore.getState().workspaces.get('ws-1')?.status).toBe('running');
+    expect(useChatStore.getState().tasks.size).toBe(0);
 
-    resolveSpawn?.({ session: { id: 'session-1' } });
+    expect(resolveSpawn).not.toBeNull();
+    resolveSpawn!({ taskId: 'task-1', session: { id: 'session-1' } });
 
     await waitFor(() => {
-      expect(useChatStore.getState().tasks.get('ws-1')?.sessionId).toBe('session-1');
+      expect(useChatStore.getState().tasks.get('task-1')?.sessionId).toBe('session-1');
     });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task).toBeDefined();
+    expect(task?.status).toBe('running');
+    expect(task?.workspaceId).toBe('ws-1');
+    expect(task?.messages[0]?.content).toBe('Fix the brittle flows');
+    expect(useWorkspaceStore.getState().workspaces.get('ws-1')?.status).toBe('running');
   });
 });

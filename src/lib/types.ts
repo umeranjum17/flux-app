@@ -124,6 +124,7 @@ export interface AuthResult {
 
 export interface SpawnOptions {
   taskId: string;
+  workspaceId?: string; // If set, agent runs inside this workspace's worktree
   prompt: string;
   model?: string;
   mode: TaskMode;
@@ -187,6 +188,7 @@ export interface Task {
   outputTokens: number;
   cwd: string;
   sessionId?: string;
+  workspaceId?: string; // Set when this task runs inside a workspace worktree
   rateLimitInfo?: AgentMessage['rateLimitInfo'];
   lastQualityGate?: {
     status: 'passed' | 'failed';

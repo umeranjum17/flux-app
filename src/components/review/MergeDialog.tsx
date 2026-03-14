@@ -40,7 +40,12 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
         if (deleteAfterMerge) {
           await window.api.invoke('workspace:delete', { workspaceId: workspace.id });
           useWorkspaceStore.getState().removeWorkspace(workspace.id);
-          useChatStore.getState().removeTask(workspace.id);
+          const chatStore = useChatStore.getState();
+          for (const task of [...chatStore.tasks.values()]) {
+            if (task.workspaceId === workspace.id) {
+              chatStore.removeTask(task.id);
+            }
+          }
         }
       }
     } catch (err) {

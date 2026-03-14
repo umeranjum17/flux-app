@@ -22,7 +22,7 @@ export function ActivityBar() {
   };
 
   const handleChats = () => {
-    useUiStore.getState().setSidebarTab('chat');
+    useUiStore.getState().setSidebarTab('workspaces');
     useUiStore.getState().setSidebarOpen(true);
   };
 
@@ -32,7 +32,7 @@ export function ActivityBar() {
         <ActivityIcon
           icon={<MessageSquare size={20} strokeWidth={1.8} />}
           label="Chats"
-          active={sidebarOpen && sidebarTab === 'chat'}
+          active={sidebarOpen && sidebarTab === 'workspaces'}
           onClick={handleChats}
         />
 

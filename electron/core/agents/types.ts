@@ -89,6 +89,7 @@ export interface AgentMessage {
 
 export interface SpawnOptions {
   taskId: string;
+  workspaceId?: string; // If set, agent runs inside this workspace's worktree
   prompt: string;
   model?: string;
   mode: TaskMode;

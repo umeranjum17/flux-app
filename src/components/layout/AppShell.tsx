@@ -21,12 +21,13 @@ import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
-import type { FluxConfig, Session, EnvironmentInfo, Workspace } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { MergeDialog } from '../review/MergeDialog';
 import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { restoreSessionMessage } from '../../lib/session-messages';
 
 
 export function AppShell() {
@@ -132,11 +133,70 @@ export function AppShell() {
   // Load workspaces when CWD changes and listen for status updates
   useEffect(() => {
     if (!cwd) return;
-    window.api.invoke('workspace:list', { parentRepo: cwd })
-      .then((result: unknown) => {
-        useWorkspaceStore.getState().setWorkspaces(result as Workspace[]);
-      })
-      .catch(() => {});
+    let cancelled = false;
+
+    const restoreWorkspaceChats = async (workspace: Workspace, sessions: WorkspaceSession[]) => {
+      const chatStore = useChatStore.getState();
+      const thinking = useAgentStore.getState().selectedThinking;
+
+      for (const workspaceSession of sessions) {
+        const existingTask = Array.from(chatStore.tasks.values()).find(
+          (task) => task.workspaceId === workspace.id && task.sessionId === workspaceSession.sessionId,
+        );
+        if (existingTask) continue;
+
+        const session = await window.api.invoke('sessions:get', { id: workspaceSession.sessionId }) as Session | null;
+        if (!session || cancelled) continue;
+
+        const messages = await window.api.invoke('sessions:messages', { id: workspaceSession.sessionId }) as SessionMessage[];
+        if (cancelled) return;
+
+        const taskId = workspaceSession.taskId ?? crypto.randomUUID();
+        chatStore.createTask({
+          id: taskId,
+          title: workspaceSession.label || session.title || workspace.name,
+          agentId: (session.agentId || workspace.agentId) as any,
+          model: session.model || workspace.model,
+          mode: session.mode,
+          thinking,
+          cwd: workspace.worktreePath,
+          sessionId: session.id,
+          workspaceId: workspace.id,
+        });
+
+        for (const message of messages) {
+          const restored = restoreSessionMessage(message);
+          if (restored) {
+            chatStore.addMessage(taskId, restored);
+          }
+        }
+
+        chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
+      }
+    };
+
+    (async () => {
+      try {
+        const result = await window.api.invoke('workspace:list', { parentRepo: cwd }) as Workspace[];
+        if (cancelled) return;
+
+        useWorkspaceStore.getState().setWorkspaces(result);
+
+        for (const workspace of result) {
+          const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
+          if (cancelled) return;
+
+          useWorkspaceStore.getState().setWorkspaceSessions(workspace.id, sessions);
+          await restoreWorkspaceChats(workspace, sessions);
+        }
+      } catch {
+        // Workspace restore is best-effort.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [cwd]);
 
   useEffect(() => {
@@ -270,15 +330,20 @@ export function AppShell() {
   // New tab helper
   const createNewTab = useCallback(() => {
     const { selectedAgentId: agent, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
+    const workspaceStore = useWorkspaceStore.getState();
+    const activeWorkspace = workspaceStore.activeWorkspaceId
+      ? workspaceStore.workspaces.get(workspaceStore.activeWorkspaceId)
+      : null;
     const taskId = crypto.randomUUID();
     useChatStore.getState().createTask({
       id: taskId,
       title: 'New task',
-      agentId: agent,
-      model,
+      agentId: (activeWorkspace?.agentId as any) ?? agent,
+      model: activeWorkspace?.model ?? model,
       mode: useUiStore.getState().mode,
       thinking,
-      cwd: useUiStore.getState().cwd || '.',
+      cwd: activeWorkspace?.worktreePath ?? (useUiStore.getState().cwd || '.'),
+      workspaceId: activeWorkspace?.id,
     });
   }, []);
 
@@ -301,13 +366,17 @@ export function AppShell() {
         const wsStore = useWorkspaceStore.getState();
         const chatStore = useChatStore.getState();
         const wsList = Array.from(wsStore.workspaces.values()).sort((a, b) => b.updatedAt - a.updatedAt);
-        const standaloneTasks = Array.from(chatStore.tasks.values()).filter((t) => !wsStore.workspaces.has(t.id));
+        const standaloneTasks = Array.from(chatStore.tasks.values()).filter((t) => !t.workspaceId);
         const unified = [...wsList.map((ws) => ({ type: 'ws' as const, id: ws.id })), ...standaloneTasks.map((t) => ({ type: 'chat' as const, id: t.id }))];
         if (idx < unified.length) {
           const item = unified[idx];
           if (item.type === 'ws') {
             wsStore.setActiveWorkspace(item.id);
-            chatStore.setActiveTask(item.id);
+            // Select the most recent task for this workspace
+            const wsTask = Array.from(chatStore.tasks.values())
+              .filter((t) => t.workspaceId === item.id)
+              .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
+            if (wsTask) chatStore.setActiveTask(wsTask.id);
           } else {
             wsStore.setActiveWorkspace(null);
             chatStore.setActiveTask(item.id);

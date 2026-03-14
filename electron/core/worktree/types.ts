@@ -26,6 +26,16 @@ export interface MergeResult {
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
+export interface WorkspaceSession {
+  id: number;
+  workspaceId: string;
+  sessionId: string;
+  taskId?: string;
+  label?: string;
+  position: number;
+  createdAt: number;
+}
+
 export interface Workspace {
   id: string;
   name: string;

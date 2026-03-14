@@ -16,13 +16,23 @@ export function WorkspaceActionBar() {
   const handleStop = async () => {
     await window.api.invoke('workspace:stop', { workspaceId: workspace.id });
     useWorkspaceStore.getState().updateWorkspace(workspace.id, { status: 'done' });
-    useChatStore.getState().setTaskStatus(workspace.id, 'done');
+    const chatStore = useChatStore.getState();
+    for (const task of chatStore.tasks.values()) {
+      if (task.workspaceId === workspace.id) {
+        chatStore.setTaskStatus(task.id, 'done');
+      }
+    }
   };
 
   const handleDelete = async () => {
     await window.api.invoke('workspace:delete', { workspaceId: workspace.id });
     useWorkspaceStore.getState().removeWorkspace(workspace.id);
-    useChatStore.getState().removeTask(workspace.id);
+    const chatStore = useChatStore.getState();
+    for (const task of [...chatStore.tasks.values()]) {
+      if (task.workspaceId === workspace.id) {
+        chatStore.removeTask(task.id);
+      }
+    }
   };
 
   return (

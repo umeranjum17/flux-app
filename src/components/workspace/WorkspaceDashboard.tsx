@@ -47,18 +47,31 @@ export function WorkspaceDashboard() {
   const handleStop = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:stop', { workspaceId: ws.id });
     useWorkspaceStore.getState().updateWorkspace(ws.id, { status: 'done' });
-    useChatStore.getState().setTaskStatus(ws.id, 'done');
+    const chatStore = useChatStore.getState();
+    for (const task of chatStore.tasks.values()) {
+      if (task.workspaceId === ws.id) {
+        chatStore.setTaskStatus(task.id, 'done');
+      }
+    }
   }, []);
 
   const handleDelete = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:delete', { workspaceId: ws.id });
     useWorkspaceStore.getState().removeWorkspace(ws.id);
-    useChatStore.getState().removeTask(ws.id);
+    const chatStore = useChatStore.getState();
+    for (const task of [...chatStore.tasks.values()]) {
+      if (task.workspaceId === ws.id) {
+        chatStore.removeTask(task.id);
+      }
+    }
   }, []);
 
   const handleSelect = useCallback((ws: Workspace) => {
     useWorkspaceStore.getState().setActiveWorkspace(ws.id);
-    useChatStore.getState().setActiveTask(ws.id);
+    const latestTask = Array.from(useChatStore.getState().tasks.values())
+      .filter((task) => task.workspaceId === ws.id)
+      .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
+    useChatStore.getState().setActiveTask(latestTask?.id ?? null);
   }, []);
 
   // If reviewing, show code review panel

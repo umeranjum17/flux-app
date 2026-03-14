@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { useChatStore } from '../../stores/chat';
 import type { Workspace } from '../../lib/ipc-api';
+import { startWorkspaceChat } from '../../lib/workspace-state';
 
 interface CreateWorkspaceDialogProps {
   onClose: () => void;
@@ -47,34 +47,14 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
       useWorkspaceStore.getState().addWorkspace(workspace);
       useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
 
-      useChatStore.getState().createTask({
-        id: workspace.id,
-        title: `[WS] ${workspace.name}`,
-        agentId: workspace.agentId as any,
-        model: workspace.model,
+      await startWorkspaceChat({
+        workspace,
+        prompt: prompt.trim(),
+        agentId: agentId as any,
+        model,
         mode: 'act',
         thinking: 'medium',
-        cwd: workspace.worktreePath,
       });
-      useChatStore.getState().setTaskStatus(workspace.id, 'running');
-      useChatStore.getState().setActiveTask(workspace.id);
-      useWorkspaceStore.getState().updateWorkspace(workspace.id, {
-        status: 'running',
-      });
-
-      // Spawn the agent
-      const result = await window.api.invoke('workspace:spawn', {
-        workspaceId: workspace.id,
-        prompt: prompt.trim(),
-        mode: 'act' as const,
-      }) as { session: { id: string } };
-
-      useChatStore.getState().setTaskSessionId(workspace.id, result.session.id);
-      useWorkspaceStore.getState().updateWorkspace(workspace.id, {
-        status: 'running',
-        sessionId: result.session.id,
-      });
-
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -84,13 +64,6 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
         useWorkspaceStore.getState().updateWorkspace(workspace.id, {
           status: 'error',
         });
-        useChatStore.getState().addMessage(workspace.id, {
-          type: 'error',
-          role: 'system',
-          content: message,
-          timestamp: Date.now(),
-        });
-        useChatStore.getState().setTaskStatus(workspace.id, 'error');
       }
     } finally {
       setCreating(false);

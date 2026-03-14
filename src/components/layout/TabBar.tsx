@@ -37,14 +37,17 @@ export function TabBar() {
 
   const handleNewTab = () => {
     const taskId = crypto.randomUUID();
+    const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+    const activeWorkspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
     createTask({
       id: taskId,
       title: 'New task',
-      agentId: selectedAgentId,
-      model: selectedModel,
+      agentId: (activeWorkspace?.agentId as any) ?? selectedAgentId,
+      model: activeWorkspace?.model ?? selectedModel,
       mode,
       thinking: selectedThinking,
-      cwd: useUiStore.getState().cwd || '.',
+      cwd: activeWorkspace?.worktreePath ?? (useUiStore.getState().cwd || '.'),
+      workspaceId: activeWorkspace?.id,
     });
   };
 
@@ -55,14 +58,14 @@ export function TabBar() {
         if (!task) return null;
         const isActive = id === activeTaskId;
         const needsAttention = task.status === 'waiting_approval' || task.status === 'waiting_input';
-        const ws = workspaces.get(id);
+        const ws = task.workspaceId ? workspaces.get(task.workspaceId) : null;
 
         return (
           <div
             key={id}
             onClick={() => {
               setActiveTask(id);
-              useWorkspaceStore.getState().setActiveWorkspace(ws ? id : null);
+              useWorkspaceStore.getState().setActiveWorkspace(ws ? task.workspaceId! : null);
             }}
             className={`group chrome-tab relative flex min-w-0 max-w-[240px] cursor-pointer items-center gap-2 px-3.5 py-2.5 text-[11px] ${
               isActive

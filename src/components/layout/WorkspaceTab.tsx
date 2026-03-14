@@ -1,10 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, ChevronDown, ChevronRight, Eye, GitMerge, Square, Trash2 } from 'lucide-react';
+import { Plus, GitBranch, ChevronDown, ChevronRight, Eye, GitMerge, Square, Trash2, MessageSquare } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { useAgentStore } from '../../stores/agent';
 import { workspaceStatusConfig } from '../../lib/workspace-status';
+import { createWorkspaceAndChat } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
+import { toast } from 'sonner';
 
 export function WorkspaceTab() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
@@ -13,6 +16,7 @@ export function WorkspaceTab() {
   const activeTaskId = useChatStore((s) => s.activeTaskId);
   const [showCreate, setShowCreate] = useState(false);
   const [chatsCollapsed, setChatsCollapsed] = useState(false);
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
   const workspaceList = useMemo(
@@ -21,20 +25,57 @@ export function WorkspaceTab() {
   );
 
   const standaloneTasks = useMemo(
-    () => Array.from(tasks.values()).filter((t) => !workspaces.has(t.id)),
-    [tasks, workspaces],
+    () => Array.from(tasks.values()).filter((t) => !t.workspaceId),
+    [tasks],
   );
 
-  const handleSelectWorkspace = useCallback((ws: Workspace) => {
-    useWorkspaceStore.getState().setActiveWorkspace(ws.id);
-    useChatStore.getState().setActiveTask(ws.id);
+  const workspaceTasksMap = useMemo(() => {
+    const map = new Map<string, typeof tasks extends Map<string, infer T> ? T[] : never>();
+    for (const task of tasks.values()) {
+      if (task.workspaceId) {
+        const existing = map.get(task.workspaceId) ?? [];
+        existing.push(task);
+        map.set(task.workspaceId, existing);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  const toggleExpanded = useCallback((wsId: string) => {
+    setExpandedWorkspaces((prev) => {
+      const next = new Set(prev);
+      if (next.has(wsId)) {
+        next.delete(wsId);
+      } else {
+        next.add(wsId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectChat = useCallback((wsId: string | null, taskId: string) => {
+    useWorkspaceStore.getState().setActiveWorkspace(wsId);
+    useChatStore.getState().setActiveTask(taskId);
     useUiStore.getState().setBottomPanelMode('agent');
   }, []);
 
-  const handleSelectChat = useCallback((taskId: string) => {
-    useWorkspaceStore.getState().setActiveWorkspace(null);
+  const handleAddChatToWorkspace = useCallback((ws: Workspace) => {
+    const taskId = crypto.randomUUID();
+    const { selectedThinking } = useAgentStore.getState();
+    useChatStore.getState().createTask({
+      id: taskId,
+      title: 'New chat',
+      agentId: ws.agentId as any,
+      model: ws.model,
+      mode: 'act',
+      thinking: selectedThinking,
+      cwd: ws.worktreePath,
+      workspaceId: ws.id,
+    });
+    useWorkspaceStore.getState().setActiveWorkspace(ws.id);
     useChatStore.getState().setActiveTask(taskId);
     useUiStore.getState().setBottomPanelMode('agent');
+    setExpandedWorkspaces((prev) => new Set([...prev, ws.id]));
   }, []);
 
   const handleContextAction = useCallback((action: string, ws: Workspace) => {
@@ -49,13 +90,19 @@ export function WorkspaceTab() {
       case 'stop':
         window.api.invoke('workspace:stop', { workspaceId: ws.id }).then(() => {
           useWorkspaceStore.getState().updateWorkspace(ws.id, { status: 'done' });
-          useChatStore.getState().setTaskStatus(ws.id, 'done');
+          // agent:done events update individual task statuses
         });
         break;
       case 'delete':
         window.api.invoke('workspace:delete', { workspaceId: ws.id }).then(() => {
           useWorkspaceStore.getState().removeWorkspace(ws.id);
-          useChatStore.getState().removeTask(ws.id);
+          // Remove all tasks for this workspace
+          const chatStore = useChatStore.getState();
+          for (const task of chatStore.tasks.values()) {
+            if (task.workspaceId === ws.id) {
+              chatStore.removeTask(task.id);
+            }
+          }
         });
         break;
     }
@@ -84,39 +131,71 @@ export function WorkspaceTab() {
         {workspaceList.length === 0 && !showCreate && (
           <div className="px-3 py-6 text-center">
             <p className="text-[12px] text-text-secondary">No workspaces</p>
-            <p className="mt-1 text-[10px] text-text-tertiary">Create one to run agents on isolated branches.</p>
+            <p className="mt-1 text-[10px] text-text-tertiary">Send a message to auto-create one.</p>
           </div>
         )}
         {workspaceList.map((ws, idx) => {
           const status = workspaceStatusConfig[ws.status] ?? workspaceStatusConfig.idle;
-          const isActive = ws.id === activeWorkspaceId && ws.id === activeTaskId;
+          const isActive = ws.id === activeWorkspaceId;
+          const isExpanded = expandedWorkspaces.has(ws.id);
+          const wsTasks = workspaceTasksMap.get(ws.id) ?? [];
 
           return (
-            <button
-              key={ws.id}
-              onClick={() => handleSelectWorkspace(ws)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setContextMenu({ x: e.clientX, y: e.clientY, ws });
-              }}
-              className={`classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
-            >
-              <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[12px] font-medium text-text-primary">{ws.name}</div>
-                <div className="mt-0.5 flex items-center gap-1 text-[10px] text-text-tertiary">
-                  <GitBranch size={9} />
-                  <span className="truncate font-mono">{ws.branch}</span>
+            <div key={ws.id}>
+              <button
+                onClick={() => toggleExpanded(ws.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY, ws });
+                }}
+                className={`classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
+              >
+                {isExpanded ? <ChevronDown size={10} className="shrink-0 text-text-tertiary" /> : <ChevronRight size={10} className="shrink-0 text-text-tertiary" />}
+                <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-medium text-text-primary">{ws.name}</div>
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-text-tertiary">
+                    <GitBranch size={9} />
+                    <span className="truncate font-mono">{ws.branch}</span>
+                  </div>
                 </div>
-              </div>
-              {idx < 9 && (
-                <span className="shrink-0 text-[9px] text-text-tertiary/50 font-mono">{'\u2318'}{idx + 1}</span>
+                {idx < 9 && (
+                  <span className="shrink-0 text-[9px] text-text-tertiary/50 font-mono">{'\u2318'}{idx + 1}</span>
+                )}
+              </button>
+
+              {/* Nested chats */}
+              {isExpanded && (
+                <div className="ml-4 mb-1 border-l border-border/40 pl-2">
+                  {wsTasks.map((task) => {
+                    const isChatActive = task.id === activeTaskId;
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => handleSelectChat(ws.id, task.id)}
+                        className={`classic-list-button py-1 ${isChatActive ? 'classic-list-button-active' : ''}`}
+                      >
+                        <span className={`mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusColor(task.status)}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[11px] text-text-primary">{task.title || 'Untitled'}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => handleAddChatToWorkspace(ws)}
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"
+                  >
+                    <Plus size={10} />
+                    New chat
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
 
-        {/* Chats section */}
+        {/* Quick Chats section */}
         {standaloneTasks.length > 0 && (
           <>
             <button
@@ -124,16 +203,16 @@ export function WorkspaceTab() {
               className="mt-4 mb-1 flex w-full items-center gap-1 px-1 text-[10px] font-medium uppercase tracking-[0.1em] text-text-tertiary hover:text-text-secondary"
             >
               {chatsCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-              Chats
+              Quick Chats
               <span className="ml-auto text-[9px]">{standaloneTasks.length}</span>
             </button>
             {!chatsCollapsed && standaloneTasks.map((task) => {
-              const isActive = task.id === activeTaskId && !activeWorkspaceId;
+              const isChatActive = task.id === activeTaskId && !activeWorkspaceId;
               return (
                 <button
                   key={task.id}
-                  onClick={() => handleSelectChat(task.id)}
-                  className={`classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
+                  onClick={() => handleSelectChat(null, task.id)}
+                  className={`classic-list-button ${isChatActive ? 'classic-list-button-active' : ''}`}
                 >
                   <span className={`mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusColor(task.status)}`} />
                   <div className="min-w-0 flex-1">
@@ -157,6 +236,7 @@ export function WorkspaceTab() {
           >
             <ContextItem icon={<Eye size={12} />} label="Review Changes" onClick={() => handleContextAction('review', contextMenu.ws)} />
             <ContextItem icon={<GitMerge size={12} />} label="Merge" onClick={() => handleContextAction('merge', contextMenu.ws)} />
+            <ContextItem icon={<MessageSquare size={12} />} label="New Chat" onClick={() => { setContextMenu(null); handleAddChatToWorkspace(contextMenu.ws); }} />
             {isRunning(contextMenu.ws) && (
               <ContextItem icon={<Square size={12} />} label="Stop" onClick={() => handleContextAction('stop', contextMenu.ws)} />
             )}
@@ -207,59 +287,22 @@ function QuickCreate({ onClose }: { onClose: () => void }) {
     setCreating(true);
     setError(null);
 
-    const name = prompt.trim().slice(0, 40);
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20);
-    const hash = Math.random().toString(36).slice(2, 6);
-    const branch = `flux/${slug}-${hash}`;
+    const { selectedAgentId: agentId, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
+    const { mode } = useUiStore.getState();
 
-    const { selectedAgentId: agentId, selectedModel: model } = await import('../../stores/agent').then((m) => m.useAgentStore.getState());
-
-    let workspace: Workspace | null = null;
     try {
-      workspace = await window.api.invoke('workspace:create', {
-        name,
-        parentRepo: cwd,
-        branch,
+      await createWorkspaceAndChat(prompt.trim(), {
         agentId,
         model,
-      }) as Workspace;
-
-      useWorkspaceStore.getState().addWorkspace(workspace);
-      useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
-
-      useChatStore.getState().createTask({
-        id: workspace.id,
-        title: `[WS] ${workspace.name}`,
-        agentId: workspace.agentId as any,
-        model: workspace.model,
-        mode: 'act',
-        thinking: 'medium',
-        cwd: workspace.worktreePath,
+        mode,
+        thinking,
+        cwd,
       });
-      useChatStore.getState().setTaskStatus(workspace.id, 'running');
-      useChatStore.getState().setActiveTask(workspace.id);
-      useWorkspaceStore.getState().updateWorkspace(workspace.id, { status: 'running' });
-
-      const result = await window.api.invoke('workspace:spawn', {
-        workspaceId: workspace.id,
-        prompt: prompt.trim(),
-        mode: 'act' as const,
-      }) as { session: { id: string } };
-
-      useChatStore.getState().setTaskSessionId(workspace.id, result.session.id);
-      useWorkspaceStore.getState().updateWorkspace(workspace.id, {
-        status: 'running',
-        sessionId: result.session.id,
-      });
-
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
-      if (workspace) {
-        useWorkspaceStore.getState().updateWorkspace(workspace.id, { status: 'error' });
-        useChatStore.getState().setTaskStatus(workspace.id, 'error');
-      }
+      toast.error(message);
     } finally {
       setCreating(false);
     }

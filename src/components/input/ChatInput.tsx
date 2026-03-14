@@ -5,6 +5,7 @@ import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useSessionStore } from '../../stores/session';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
@@ -12,6 +13,7 @@ import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, ThinkingLevel } from '../../lib/types';
+import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   low: 'Low',
@@ -218,6 +220,44 @@ export function ChatInput({ focused }: ChatInputProps) {
     const attachments = attachedFiles.length > 0 ? attachedFiles : undefined;
 
     if (!task) {
+      const sshConnected = useUiStore.getState().sshConnected;
+      if (!sshConnected) {
+        const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+        const activeWorkspace = activeWorkspaceId
+          ? useWorkspaceStore.getState().workspaces.get(activeWorkspaceId)
+          : undefined;
+        try {
+          if (activeWorkspace) {
+            await startWorkspaceChat({
+              workspace: activeWorkspace,
+              prompt: text,
+              agentId: selectedAgentId,
+              model: selectedModel,
+              mode,
+              thinking: selectedThinking,
+              images: images.length > 0 ? images : undefined,
+              attachments,
+            });
+          } else {
+            await createWorkspaceAndChat(text, {
+              agentId: selectedAgentId,
+              model: selectedModel,
+              mode,
+              thinking: selectedThinking,
+              cwd: cwd || '.',
+              images: images.length > 0 ? images : undefined,
+              attachments,
+            });
+          }
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to create workspace');
+        }
+        setValue('');
+        setImages([]);
+        setAttachedFiles([]);
+        return;
+      }
+      // SSH fallback: standalone task (no worktree support over SSH)
       const taskId = crypto.randomUUID();
       createTask({
         id: taskId,
@@ -256,6 +296,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         setTaskStatus(task.id, 'running');
         const result = await window.api.invoke('task:spawn', {
           taskId: task.id,
+          workspaceId: task.workspaceId,
           prompt: text,
           agentId: task.agentId,
           model: task.model,
@@ -287,6 +328,7 @@ export function ChatInput({ focused }: ChatInputProps) {
           }
           const spawnResult = await window.api.invoke('task:spawn', {
             taskId: task.id,
+            workspaceId: task.workspaceId,
             prompt: text,
             agentId: task.agentId,
             model: task.model,
