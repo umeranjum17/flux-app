@@ -1,4 +1,5 @@
-import { Plus, X, GitBranch } from 'lucide-react';
+import { useMemo } from 'react';
+import { Plus, X } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
@@ -28,16 +29,29 @@ export function TabBar() {
   const setActiveTask = useChatStore((s) => s.setActiveTask);
   const closeTab = useChatStore((s) => s.closeTab);
   const createTask = useChatStore((s) => s.createTask);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
 
   const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
   const { mode } = useUiStore();
 
-  if (tabOrder.length === 0) return null;
+  // Filter tabs: show only chats belonging to the active workspace,
+  // or standalone chats when no workspace is selected
+  const visibleTabs = useMemo(() => {
+    return tabOrder.filter((id) => {
+      const task = tasks.get(id);
+      if (!task) return false;
+      if (activeWorkspaceId) {
+        return task.workspaceId === activeWorkspaceId;
+      }
+      return !task.workspaceId;
+    });
+  }, [tabOrder, tasks, activeWorkspaceId]);
+
+  if (visibleTabs.length === 0 && !activeWorkspaceId) return null;
 
   const handleNewTab = () => {
     const taskId = crypto.randomUUID();
-    const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
     const activeWorkspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
     createTask({
       id: taskId,
@@ -53,19 +67,20 @@ export function TabBar() {
 
   return (
     <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-3 pt-2">
-      {tabOrder.map((id) => {
+      {visibleTabs.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;
         const isActive = id === activeTaskId;
         const needsAttention = task.status === 'waiting_approval' || task.status === 'waiting_input';
-        const ws = task.workspaceId ? workspaces.get(task.workspaceId) : null;
 
         return (
           <div
             key={id}
             onClick={() => {
               setActiveTask(id);
-              useWorkspaceStore.getState().setActiveWorkspace(ws ? task.workspaceId! : null);
+              if (task.workspaceId) {
+                useWorkspaceStore.getState().setActiveWorkspace(task.workspaceId);
+              }
             }}
             className={`group chrome-tab relative flex min-w-0 max-w-[240px] cursor-pointer items-center gap-2 px-3.5 py-2.5 text-[11px] ${
               isActive
@@ -79,11 +94,6 @@ export function TabBar() {
             <span className="truncate font-medium">
               {task.title.slice(0, 30) || 'Untitled'}
             </span>
-            {ws && (
-              <span className="flex shrink-0 items-center gap-0.5 text-[9px] text-accent/60">
-                <GitBranch size={8} />
-              </span>
-            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
