@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Workspace, WorkspaceStatus, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
+import type { Workspace, WorkspaceStatus, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
 
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
@@ -32,6 +32,9 @@ interface WorkspaceState {
   openMerge(workspaceId: string): void;
   closeMerge(): void;
   setShowArchived(show: boolean): void;
+
+  // Outcome actions
+  setOutcome(id: string, outcome: WorkspaceOutcome): Promise<void>;
 
   // Archive actions
   setArchivedWorkspaces(workspaces: Workspace[]): void;
@@ -130,6 +133,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     setShowArchived(show) {
       set((state) => {
         state.showArchived = show;
+      });
+    },
+
+    async setOutcome(id, outcome) {
+      await window.api.invoke('workspace:set-outcome', { workspaceId: id, outcome });
+      set((state) => {
+        const ws = state.workspaces.get(id);
+        if (ws) {
+          ws.outcome = outcome;
+        }
       });
     },
 

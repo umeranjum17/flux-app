@@ -1185,6 +1185,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
                 // Checkpoints are best-effort
               });
 
+              // Auto-advance outcome to ready_for_pr if still in_progress
+              const currentWs = workspaceStore.get(workspace.id);
+              if (currentWs && currentWs.outcome === 'in_progress') {
+                workspaceStore.update(workspace.id, { outcome: 'ready_for_pr' });
+              }
+
               // Emit completion event so renderer can show merge prompts
               try {
                 const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: workspace.parentRepo });
@@ -2112,6 +2118,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     workspaceStore.delete(workspaceId);
   });
 
+  ipcMain.handle(
+    'workspace:set-outcome',
+    async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
+      workspaceStore.update(workspaceId, { outcome: outcome as any });
+    },
+  );
+
   ipcMain.handle('workspace:archive', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) return;
@@ -2225,6 +2238,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       emitWorkspaceStatus(workspaceId, 'merging');
       const result = await mergeWorktree(workspace.worktreePath, workspace.parentRepo, targetBranch, squash);
       emitWorkspaceStatus(workspaceId, result.success ? 'done' : 'error');
+      if (result.success) {
+        workspaceStore.update(workspaceId, { outcome: 'merged' });
+      }
       return result;
     },
   );

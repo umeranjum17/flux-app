@@ -25,6 +25,7 @@ describe('MergeDialog', () => {
           parentRepo: '/repo',
           branch: 'flux-hardening',
           status: 'done',
+          outcome: 'in_progress',
           createdAt: 1,
           updatedAt: 1,
           agentId: 'codex',
