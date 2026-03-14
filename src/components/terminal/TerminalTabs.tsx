@@ -39,6 +39,7 @@ export function TerminalTabs({ tabs, activeId, onSelect, onClose, onCreate }: Te
         onClick={onCreate}
         className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
         aria-label="New terminal"
+        title="New terminal"
       >
         <Plus size={12} />
       </button>

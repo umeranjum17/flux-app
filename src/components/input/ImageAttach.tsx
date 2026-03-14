@@ -22,6 +22,7 @@ export function ImageAttach({ images, onRemove }: ImageAttachProps) {
             onClick={() => onRemove(index)}
             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-bg-elevated border border-border flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors opacity-0 group-hover:opacity-100"
             aria-label={`Remove image ${index + 1}`}
+            title="Remove image"
           >
             <X size={12} />
           </button>
