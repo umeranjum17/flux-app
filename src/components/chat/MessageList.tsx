@@ -177,7 +177,10 @@ export function MessageList() {
                         <div className="flex items-center gap-2 py-1 px-1">
                           <ArrowRightLeft size={12} className="text-text-tertiary" />
                           <span className="text-[11px] text-text-tertiary">
-                            Switched from {AGENT_LABELS[switchEntry.agentId] ?? switchEntry.agentId} to {AGENT_LABELS[nextAgent.agentId] ?? nextAgent.agentId}
+                            {switchEntry.agentId === nextAgent.agentId
+                              ? <>Set model to <span className="font-medium text-text-secondary">{nextAgent.model}</span></>
+                              : <>Switched to {AGENT_LABELS[nextAgent.agentId] ?? nextAgent.agentId}{nextAgent.model ? <> <span className="font-medium text-text-secondary">({nextAgent.model})</span></> : null}</>
+                            }
                           </span>
                         </div>
                       </motion.div>,
