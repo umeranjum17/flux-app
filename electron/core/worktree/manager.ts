@@ -15,6 +15,18 @@ function worktreeBaseDir(parentRepo: string): string {
   return path.join(os.homedir(), '.flux', 'worktrees', `${slug}-${hash}`);
 }
 
+function worktreeDirName(branchName: string, id: string): string {
+  const branchSlug = branchName
+    .trim()
+    .toLowerCase()
+    .replace(/^refs\/heads\//, '')
+    .replace(/^flux\//, '')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'workspace';
+  return `${branchSlug}-${id.slice(0, 8)}`;
+}
+
 function ensureBaseDir(baseDir: string): string {
   if (fs.existsSync(baseDir)) return baseDir;
 
@@ -47,7 +59,7 @@ export async function createWorktree(
   const id = crypto.randomUUID();
   const baseDir = ensureBaseDir(worktreeBaseDir(parentRepo));
 
-  const worktreePath = path.join(baseDir, id);
+  const worktreePath = path.join(baseDir, worktreeDirName(branchName, id));
 
   await execFileAsync('git', ['worktree', 'add', worktreePath, '-b', branchName], {
     cwd: parentRepo,

@@ -4,10 +4,15 @@ import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import type { Workspace } from '../../lib/ipc-api';
-import { startWorkspaceChat } from '../../lib/workspace-state';
+import { createFluxBranchName, startWorkspaceChat } from '../../lib/workspace-state';
 
 interface CreateWorkspaceDialogProps {
   onClose: () => void;
+}
+
+function createDefaultBranchName(): string {
+  const dateCode = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  return createFluxBranchName(`workspace-${dateCode}`);
 }
 
 export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
@@ -18,7 +23,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   const cwd = useUiStore((s) => s.cwd);
 
   const [name, setName] = useState('');
-  const [branch, setBranch] = useState(`flux-workspace-${Date.now()}`);
+  const [branch, setBranch] = useState(() => createDefaultBranchName());
   const [agentId, setAgentId] = useState(selectedAgentId);
   const [model, setModel] = useState(selectedModel);
   const [prompt, setPrompt] = useState('');

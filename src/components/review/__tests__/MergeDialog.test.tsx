@@ -115,7 +115,7 @@ describe('MergeDialog', () => {
     });
 
     const mergePrompt = mockApi.invoke.mock.calls.find(([channel]) => channel === 'task:spawn')?.[1]?.prompt;
-    expect(mergePrompt).toContain("create one with `git commit -m \"Merge branch 'flux-hardening' into 'master'\"`");
+    expect(mergePrompt).toContain('create one with `git commit -m "merge(master): flux-hardening"`');
     expect(mergePrompt).toContain('Push the updated `master` branch');
     expect(mergePrompt).toContain('`git push origin master`');
 

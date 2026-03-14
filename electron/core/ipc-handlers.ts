@@ -2011,12 +2011,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         );
       }
 
-      const funName = generateWorkspaceName();
-      const branch = `flux/${funName}`;
+      const workspaceName = generateWorkspaceName();
+      const branch = `flux/${workspaceName}`;
       const worktree = await createWorktree(parentRepo, branch);
       return workspaceStore.create({
         id: worktree.id,
-        name: funName,
+        name: workspaceName,
         parentRepo,
         worktreePath: worktree.path,
         branch: worktree.branch,
