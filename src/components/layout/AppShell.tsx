@@ -136,6 +136,10 @@ export function AppShell() {
         if (!cancelled) useUiStore.getState().setGitBranch(branch);
       } catch { if (!cancelled) useUiStore.getState().setGitBranch(null); }
       try {
+        const upstream = await window.api.invoke('git:upstream') as string | null;
+        if (!cancelled) useUiStore.getState().setGitUpstream(upstream);
+      } catch { if (!cancelled) useUiStore.getState().setGitUpstream(null); }
+      try {
         const status = await window.api.invoke('git:status') as { dirty: boolean };
         if (!cancelled) useUiStore.getState().setGitDirty(status.dirty);
       } catch { if (!cancelled) useUiStore.getState().setGitDirty(false); }

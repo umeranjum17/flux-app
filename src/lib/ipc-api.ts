@@ -42,6 +42,7 @@ export interface IpcChannels {
   'cwd:set': { args: [{ cwd: string }]; result: string };
   'cwd:pick': { args: []; result: string | null };
   'git:branch': { args: []; result: string | null };
+  'git:upstream': { args: []; result: string | null };
   'git:status': { args: []; result: { dirty: boolean; files: string } };
   'fs:readdir': { args: [{ dirPath?: string; depth?: number }]; result: Array<{ name: string; path: string; isDirectory: boolean; children?: unknown[] }> };
   'fs:read': { args: [{ filePath: string }]; result: { content: string | null; error: string | null } };
