@@ -42,8 +42,8 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
       >
         {isPlanAssistant && (
           <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-sm border border-plan/20 bg-plan/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-plan">
-              <ClipboardList size={12} className="text-plan" />
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-plan/15 bg-plan/8 px-2 py-0.5 text-[11px] font-medium text-plan">
+              <ClipboardList size={11} />
               Plan
             </span>
           </div>
