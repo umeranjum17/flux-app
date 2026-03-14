@@ -1,7 +1,8 @@
-import { Plus, X } from 'lucide-react';
+import { Plus, X, GitBranch } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 import type { TaskStatus } from '../../lib/types';
 
 function StatusDot({ status }: { status: TaskStatus }) {
@@ -27,6 +28,7 @@ export function TabBar() {
   const setActiveTask = useChatStore((s) => s.setActiveTask);
   const closeTab = useChatStore((s) => s.closeTab);
   const createTask = useChatStore((s) => s.createTask);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
 
   const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
   const { mode } = useUiStore();
@@ -53,11 +55,15 @@ export function TabBar() {
         if (!task) return null;
         const isActive = id === activeTaskId;
         const needsAttention = task.status === 'waiting_approval' || task.status === 'waiting_input';
+        const ws = workspaces.get(id);
 
         return (
           <div
             key={id}
-            onClick={() => setActiveTask(id)}
+            onClick={() => {
+              setActiveTask(id);
+              useWorkspaceStore.getState().setActiveWorkspace(ws ? id : null);
+            }}
             className={`group chrome-tab relative flex min-w-0 max-w-[240px] cursor-pointer items-center gap-2 px-3.5 py-2.5 text-[11px] ${
               isActive
                 ? 'chrome-tab-active'
@@ -70,6 +76,11 @@ export function TabBar() {
             <span className="truncate font-medium">
               {task.title.slice(0, 30) || 'Untitled'}
             </span>
+            {ws && (
+              <span className="flex shrink-0 items-center gap-0.5 text-[9px] text-accent/60">
+                <GitBranch size={8} />
+              </span>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();

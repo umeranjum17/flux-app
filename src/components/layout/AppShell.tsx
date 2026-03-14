@@ -21,10 +21,11 @@ import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
-import type { FluxConfig, Session, EnvironmentInfo } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo, Workspace } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
-import { WorkspacePanel } from '../workspace/WorkspacePanel';
+import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
+import { CodeReviewPanel } from '../review/CodeReviewPanel';
+import { MergeDialog } from '../review/MergeDialog';
 import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 
 
@@ -36,12 +37,14 @@ export function AppShell() {
   const cwd = useUiStore((s) => s.cwd);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const tasks = useChatStore((s) => s.tasks);
-  const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
+  const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const termRef = useRef<TerminalPanelHandle>(null);
 
   const hasTasks = tasks.size > 0;
+  const mergingWorkspace = mergingWorkspaceId ? workspaces.get(mergingWorkspaceId) : null;
 
   useAgentStream();
 
@@ -124,6 +127,28 @@ export function AppShell() {
       }
     }
     init().catch(console.error);
+  }, []);
+
+  // Load workspaces when CWD changes and listen for status updates
+  useEffect(() => {
+    if (!cwd) return;
+    window.api.invoke('workspace:list', { parentRepo: cwd })
+      .then((result: unknown) => {
+        useWorkspaceStore.getState().setWorkspaces(result as Workspace[]);
+      })
+      .catch(() => {});
+  }, [cwd]);
+
+  useEffect(() => {
+    const unsub = window.api.on('workspace:status', (data: unknown) => {
+      const { workspaceId, status } = data as { workspaceId: string; status: string };
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, { status: status as any });
+    });
+    const unsubCheckpoint = window.api.on('workspace:checkpoint', (data: unknown) => {
+      const { workspaceId, checkpoint } = data as any;
+      useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
+    });
+    return () => { unsub(); unsubCheckpoint(); };
   }, []);
 
   // Fetch git info when CWD changes
@@ -265,13 +290,24 @@ export function AppShell() {
       if (meta && e.key === 'e') { e.preventDefault(); useUiStore.getState().toggleRightSidebar(); }
       if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanel(); }
 
-      // Cmd+1-9 switch tabs
+      // Cmd+1-9: switch between workspaces first, then standalone chats
       if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const idx = parseInt(e.key, 10) - 1;
-        const order = useChatStore.getState().tabOrder;
-        if (idx < order.length) {
-          useChatStore.getState().setActiveTask(order[idx]);
+        const wsStore = useWorkspaceStore.getState();
+        const chatStore = useChatStore.getState();
+        const wsList = Array.from(wsStore.workspaces.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+        const standaloneTasks = Array.from(chatStore.tasks.values()).filter((t) => !wsStore.workspaces.has(t.id));
+        const unified = [...wsList.map((ws) => ({ type: 'ws' as const, id: ws.id })), ...standaloneTasks.map((t) => ({ type: 'chat' as const, id: t.id }))];
+        if (idx < unified.length) {
+          const item = unified[idx];
+          if (item.type === 'ws') {
+            wsStore.setActiveWorkspace(item.id);
+            chatStore.setActiveTask(item.id);
+          } else {
+            wsStore.setActiveWorkspace(null);
+            chatStore.setActiveTask(item.id);
+          }
         }
       }
 
@@ -344,17 +380,12 @@ export function AppShell() {
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex flex-1 overflow-hidden">
               <div className="relative flex min-w-0 flex-1 flex-col">
-                {dashboardOpen ? (
-                  reviewingWorkspaceId ? (
-                    <WorkspaceDashboard />
-                  ) : activeWorkspaceId ? (
-                    <WorkspacePanel />
-                  ) : (
-                    <WorkspaceDashboard />
-                  )
+                {reviewingWorkspaceId ? (
+                  <CodeReviewPanel />
                 ) : (
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
+                    {activeWorkspaceId && <WorkspaceActionBar />}
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
                     <div className="shrink-0">
                       <div className="mx-auto w-full max-w-[900px] px-6 py-6">
@@ -377,6 +408,14 @@ export function AppShell() {
           </div>
         </div>
       </div>
+
+      {/* Merge dialog rendered at top level */}
+      {mergingWorkspace && (
+        <MergeDialog
+          workspace={mergingWorkspace}
+          onClose={() => useWorkspaceStore.getState().closeMerge()}
+        />
+      )}
     </div>
   );
 }

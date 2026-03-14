@@ -1,6 +1,5 @@
-import { Menu, Settings, LayoutGrid, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Menu, Settings, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { useWorkspaceStore } from '../../stores/workspace';
 
 const isMac = window.api?.platform === 'darwin';
 const isWin = window.api?.platform === 'win32';
@@ -10,8 +9,6 @@ export function TopBar() {
   const setOverlay = useUiStore((s) => s.setOverlay);
   const autoApprove = useUiStore((s) => s.autoApprove);
   const toggleAutoApprove = useUiStore((s) => s.toggleAutoApprove);
-  const dashboardOpen = useWorkspaceStore((s) => s.dashboardOpen);
-  const setDashboardOpen = useWorkspaceStore((s) => s.setDashboardOpen);
   const projectName = useUiStore((s) => s.projectName);
 
   const titleText = projectName || 'Flux';
@@ -45,19 +42,6 @@ export function TopBar() {
           title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
         >
           {autoApprove ? <ShieldCheck size={14} /> : <ShieldOff size={14} />}
-        </button>
-
-        <button
-          onClick={() => setDashboardOpen(!dashboardOpen)}
-          className={`premium-toolbar-button rounded-lg p-2 ${
-            dashboardOpen
-              ? 'text-accent'
-              : 'text-text-secondary'
-          }`}
-          aria-label="Toggle workspaces"
-          title="Workspaces"
-        >
-          <LayoutGrid size={14} />
         </button>
 
         <button
