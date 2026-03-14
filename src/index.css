@@ -34,29 +34,25 @@
 }
 
 :root {
-  --app-gradient:
-    radial-gradient(circle at top center, hsl(0 0% 100% / 0.04), transparent 32%),
-    linear-gradient(180deg, hsl(0 0% 5%) 0%, hsl(0 0% 3%) 100%);
-  --panel-gradient: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 6%) 100%);
-  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 11%) 0%, hsl(0 0% 8%) 100%);
-  --plan-gradient: linear-gradient(180deg, hsl(0 0% 10%) 0%, hsl(0 0% 6%) 100%);
-  --tool-gradient: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 6%) 100%);
-  --chrome-window-gradient: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 4%) 100%);
-  --chrome-topbar-gradient: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 5%) 100%);
-  --chrome-sidebar-gradient: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 5%) 100%);
-  --chrome-stage-gradient:
-    radial-gradient(circle at top, hsl(0 0% 100% / 0.03), transparent 36%),
-    linear-gradient(180deg, hsl(0 0% 5%) 0%, hsl(0 0% 3%) 100%);
-  --surface-tint-soft: hsl(0 0% 100% / 0.03);
-  --surface-tint-medium: hsl(0 0% 100% / 0.06);
-  --surface-tint-strong: hsl(0 0% 100% / 0.1);
+  --app-gradient: linear-gradient(180deg, hsl(0 0% 4%) 0%, hsl(0 0% 3%) 100%);
+  --panel-gradient: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 6%) 100%);
+  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 7%) 100%);
+  --plan-gradient: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 6%) 100%);
+  --tool-gradient: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 6%) 100%);
+  --chrome-window-gradient: linear-gradient(180deg, hsl(0 0% 6%) 0%, hsl(0 0% 4%) 100%);
+  --chrome-topbar-gradient: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 5%) 100%);
+  --chrome-sidebar-gradient: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 5%) 100%);
+  --chrome-stage-gradient: linear-gradient(180deg, hsl(0 0% 4%) 0%, hsl(0 0% 3%) 100%);
+  --surface-tint-soft: hsl(0 0% 100% / 0.02);
+  --surface-tint-medium: hsl(0 0% 100% / 0.05);
+  --surface-tint-strong: hsl(0 0% 100% / 0.08);
   --surface-border-soft: hsl(0 0% 100% / 0.06);
   --surface-border-strong: hsl(0 0% 100% / 0.12);
-  --panel-shadow: 0 1px 3px hsl(0 0% 0% / 0.42);
-  --panel-shadow-strong: 0 18px 42px hsl(0 0% 0% / 0.58);
+  --panel-shadow: 0 1px 2px hsl(0 0% 0% / 0.24);
+  --panel-shadow-strong: 0 4px 12px hsl(0 0% 0% / 0.3);
   --focus-ring:
-    0 0 0 1px hsl(0 0% 92% / 0.34),
-    0 0 0 5px hsl(0 0% 100% / 0.08);
+    0 0 0 1px hsl(0 0% 92% / 0.28),
+    0 0 0 3px hsl(0 0% 100% / 0.06);
 }
 
 /* Light theme override */
@@ -92,8 +88,8 @@
   --surface-tint-strong: hsl(86 34% 40% / 0.15);
   --surface-border-soft: hsl(215 20% 36% / 0.12);
   --surface-border-strong: hsl(86 32% 40% / 0.18);
-  --panel-shadow: 0 1px 3px hsl(215 20% 20% / 0.08);
-  --panel-shadow-strong: 0 2px 8px hsl(215 20% 20% / 0.12);
+  --panel-shadow: 0 1px 2px hsl(215 20% 20% / 0.06);
+  --panel-shadow-strong: 0 2px 6px hsl(215 20% 20% / 0.1);
   --focus-ring:
     0 0 0 1px hsl(86 42% 42% / 0.35),
     0 0 0 5px hsl(86 42% 42% / 0.12);
@@ -191,27 +187,27 @@ button:focus-visible {
 
 .premium-panel {
   background: var(--panel-gradient);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .premium-panel-strong {
   background: var(--panel-strong-gradient);
   box-shadow: var(--panel-shadow-strong);
-  border-radius: 10px;
+  border-radius: 7px;
 }
 
 .premium-plan-card {
   background: var(--plan-gradient);
   border-color: var(--color-border);
   box-shadow: var(--panel-shadow);
-  border-radius: 10px;
+  border-radius: 7px;
 }
 
 .premium-tool-card {
   position: relative;
   overflow: hidden;
   background: var(--tool-gradient);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .premium-tool-card::before {
@@ -231,20 +227,20 @@ button:focus-visible {
 
 .premium-message-user {
   background: var(--color-bg-elevated);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .premium-message-assistant {
   background: var(--color-bg-secondary);
   border-color: var(--color-border);
   box-shadow: none;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .premium-input-shell {
   background: var(--panel-gradient);
-  box-shadow: var(--panel-shadow);
-  border-radius: 8px;
+  box-shadow: none;
+  border-radius: 7px;
 }
 
 .chat-input-textarea:focus-visible {
@@ -253,21 +249,19 @@ button:focus-visible {
 }
 
 .premium-toolbar-button {
-  border-radius: 6px;
+  border-radius: 5px;
   border: 1px solid transparent;
   transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease,
-    opacity 180ms ease;
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
 .premium-toolbar-button:hover {
   color: var(--color-text-primary);
-  background: var(--surface-tint-medium);
+  background: var(--surface-tint-soft);
   border-color: var(--surface-border-soft);
-  box-shadow: inset 0 1px 0 var(--surface-tint-soft);
 }
 
 .premium-toolbar-button:active {
@@ -307,8 +301,8 @@ button:focus-visible {
   align-items: center;
   gap: 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 5px;
+  padding: 7px 9px;
   color: var(--color-text-secondary);
   transition:
     background-color 160ms ease,
@@ -334,8 +328,8 @@ button:focus-visible {
   align-items: flex-start;
   gap: 8px;
   border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 10px;
+  border-radius: 7px;
+  padding: 8px;
   text-align: left;
   transition:
     background-color 160ms ease,
@@ -349,9 +343,8 @@ button:focus-visible {
 }
 
 .classic-list-button-active {
-  background: linear-gradient(180deg, var(--surface-tint-medium), hsl(0 0% 7% / 0.92));
+  background: var(--surface-tint-medium);
   border-color: var(--surface-border-strong);
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
 }
 
 .classic-tab-button {
@@ -378,12 +371,12 @@ button:focus-visible {
 /* Warp-style sidebar nav icons */
 .sidebar-nav-icon {
   display: flex;
-  height: 30px;
-  width: 30px;
+  height: 28px;
+  width: 28px;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--color-text-tertiary);
   transition:
     color 120ms ease,
@@ -398,13 +391,13 @@ button:focus-visible {
 
 .sidebar-nav-icon-active {
   color: var(--color-text-primary);
-  background: linear-gradient(180deg, var(--surface-tint-strong), hsl(0 0% 8% / 0.96));
+  background: var(--surface-tint-medium);
   border-color: var(--surface-border-strong);
 }
 
 .chrome-tab {
   border: 1px solid transparent;
-  border-radius: 6px 6px 0 0;
+  border-radius: 5px 5px 0 0;
   color: var(--color-text-tertiary);
   background: transparent;
   transition:
@@ -422,7 +415,7 @@ button:focus-visible {
   color: var(--color-text-primary);
   border-color: var(--surface-border-soft);
   border-bottom-color: transparent;
-  background: var(--surface-tint-medium);
+  background: var(--surface-tint-soft);
 }
 
 /* File viewer shiki code */

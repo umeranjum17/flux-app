@@ -103,7 +103,7 @@ export function WorkspaceTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Workspaces section */}
-      <div className="flex items-center justify-between px-3.5 pt-3.5 pb-1.5">
+      <div className="flex items-center justify-between px-3 pt-3 pb-1">
         <span className="classic-section-label">Workspaces</span>
         <button
           onClick={async () => {
@@ -136,14 +136,14 @@ export function WorkspaceTab() {
             }
           }}
           disabled={creating || !isGitRepo}
-          className="premium-toolbar-button rounded-lg p-1.5 text-text-secondary disabled:opacity-50"
+          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary disabled:opacity-50"
           title={isGitRepo ? 'New workspace' : 'Not a git repository — run "git init" first'}
         >
           <Plus size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2.5">
+      <div className="flex-1 overflow-y-auto px-2">
         {workspaceList.length === 0 && standaloneTasks.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-[13px] text-text-secondary">No workspaces</p>

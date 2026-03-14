@@ -66,7 +66,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-4 pt-1.5 pb-0">
+    <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border/70 px-3 pt-1 pb-0">
       {visibleTabs.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;
@@ -82,7 +82,7 @@ export function TabBar() {
                 useWorkspaceStore.getState().setActiveWorkspace(task.workspaceId);
               }
             }}
-            className={`group chrome-tab relative flex min-w-0 max-w-[260px] cursor-pointer items-center gap-2 px-3.5 py-2.5 text-[13px] ${
+            className={`group chrome-tab relative flex min-w-0 max-w-[220px] cursor-pointer items-center gap-1.5 px-3 py-1.5 text-[12px] ${
               isActive
                 ? 'chrome-tab-active'
                 : needsAttention
@@ -100,7 +100,7 @@ export function TabBar() {
                 closeTab(id);
               }}
               title="Close tab"
-              className="premium-toolbar-button ml-auto flex-shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-all group-hover:opacity-100"
+              className="premium-toolbar-button ml-auto flex-shrink-0 rounded-md p-0.5 text-text-tertiary opacity-0 transition-all group-hover:opacity-100"
             >
               <X size={11} />
             </button>
@@ -109,7 +109,7 @@ export function TabBar() {
       })}
       <button
         onClick={handleNewTab}
-        className="premium-toolbar-button ml-1 flex-shrink-0 rounded-lg p-2 text-text-secondary"
+        className="premium-toolbar-button ml-1 flex-shrink-0 rounded-md p-1.5 text-text-secondary"
         aria-label="New tab"
         title="New tab"
       >

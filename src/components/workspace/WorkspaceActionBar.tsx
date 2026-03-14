@@ -40,7 +40,7 @@ export function WorkspaceActionBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/40 px-4 py-1.5">
+    <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-bg-secondary/35 px-3 py-1">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <GitBranch size={13} className="shrink-0 text-text-tertiary" />
         <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>
@@ -67,7 +67,7 @@ function ActionBtn({ icon, label, onClick, danger }: { icon: React.ReactNode; la
     <button
       onClick={onClick}
       title={label}
-      className={`premium-toolbar-button rounded-lg p-1.5 text-text-tertiary transition-colors ${
+      className={`premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors ${
         danger ? 'hover:bg-error/10 hover:text-error' : 'hover:bg-bg-hover hover:text-text-primary'
       }`}
     >

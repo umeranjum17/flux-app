@@ -152,7 +152,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    const lineHeight = 24;
+    const lineHeight = 20;
     const maxHeight = lineHeight * 8;
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
   }, []);
@@ -702,12 +702,12 @@ export function ChatInput({ focused }: ChatInputProps) {
   // Container border/bg classes for terminal mode (Warp-style)
   const shellClasses = isTerminal
     ? 'border-l-2 border-l-green-500/70 border-t border-r border-b border-border/80 bg-green-950/10'
-    : 'border border-border/80';
+    : 'border border-border/70';
 
   return (
     <div className="relative w-full">
       {isContinuing && (
-        <div className="mb-1.5 flex items-center gap-2 px-0.5">
+        <div className="mb-1 flex items-center gap-2 px-0.5">
           <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
             <RotateCcw size={11} />
             Continuing conversation
@@ -740,10 +740,10 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className={`premium-input-shell px-4 py-3.5 transition-colors ${shellClasses}`}>
+      <div className={`premium-input-shell px-3 py-2.5 transition-colors ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
-          <div className="mb-2 flex items-center gap-1.5">
+          <div className="mb-1.5 flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">
               <Terminal size={10} />
               Terminal
@@ -753,7 +753,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         )}
 
         {showSubagentDialog && (
-          <div className="premium-panel mb-3 space-y-3 p-4">
+          <div className="premium-panel mb-2 space-y-3 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-text-primary">Spawn subagents</p>
@@ -776,25 +776,25 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="text"
                 value={subagentModel}
                 onChange={(e) => setSubagentModel(e.target.value)}
-                className="premium-focus flex-1 rounded-lg border border-border bg-bg-elevated/75 px-3 py-2.5 text-sm text-text-primary outline-none"
+                className="premium-focus flex-1 rounded-md border border-border bg-bg-elevated/75 px-3 py-2 text-sm text-text-primary outline-none"
                 placeholder="haiku"
               />
             </div>
 
             <div className="space-y-2">
               {subagentDrafts.map((draft, index) => (
-                <div key={index} className="premium-panel space-y-2 px-3 py-3">
+                <div key={index} className="premium-panel space-y-2 px-3 py-2.5">
                   <input
                     type="text"
                     value={draft.name}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                    className="premium-focus w-full rounded-lg border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
+                    className="premium-focus w-full rounded-md border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
                     placeholder="Agent name"
                   />
                   <textarea
                     value={draft.prompt}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: e.target.value } : item))}
-                    className="premium-focus min-h-20 w-full resize-y rounded-lg border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
+                    className="premium-focus min-h-20 w-full resize-y rounded-md border border-border bg-bg-primary/80 px-3 py-2 text-sm text-text-primary outline-none"
                     placeholder="What should this subagent explore?"
                   />
                 </div>
@@ -805,7 +805,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setSubagentDrafts((current) => current.length >= 5 ? current : [...current, { name: `Explore ${current.length + 1}`, prompt: '' }])}
-                className="premium-toolbar-button inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-text-tertiary"
+                className="premium-toolbar-button inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-text-tertiary"
               >
                 <Plus size={12} />
                 Add agent
@@ -813,7 +813,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => void handleSpawnSubagents()}
-                className="rounded-lg bg-success px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                className="rounded-md bg-success px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                 disabled={!canSpawnSubagents}
               >
                 Spawn
@@ -824,11 +824,11 @@ export function ChatInput({ focused }: ChatInputProps) {
 
         {/* Attached files chips */}
         {attachedFiles.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          <div className="mb-1.5 flex flex-wrap gap-1.5">
             {attachedFiles.map((file) => (
               <span
                 key={file.path}
-                className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-bg-elevated/50 px-2.5 py-1 text-xs text-text-secondary"
+                className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-bg-elevated/50 px-2 py-0.5 text-xs text-text-secondary"
               >
                 @{file.name}
                 <button
@@ -850,8 +850,8 @@ export function ChatInput({ focused }: ChatInputProps) {
           {isTerminal && ghostText && (
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 w-full resize-none text-[15px] leading-6 outline-none font-mono whitespace-pre-wrap break-words p-[1px]"
-              style={{ minHeight: 72, maxHeight: 192, overflow: 'hidden' }}
+              className="pointer-events-none absolute inset-0 w-full resize-none text-[14px] leading-5 outline-none font-mono whitespace-pre-wrap break-words p-[1px]"
+              style={{ minHeight: 60, maxHeight: 160, overflow: 'hidden' }}
             >
               <span className="invisible">{value}</span>
               <span className="text-text-tertiary/50">{ghostText}</span>
@@ -866,8 +866,8 @@ export function ChatInput({ focused }: ChatInputProps) {
             placeholder={placeholder}
             rows={2}
             autoFocus
-            className={`chat-input-textarea w-full resize-none bg-transparent text-[15px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none ${isTerminal ? 'font-mono' : ''}`}
-            style={{ minHeight: 72, maxHeight: 192 }}
+            className={`chat-input-textarea w-full resize-none bg-transparent text-[14px] leading-5 text-text-primary placeholder:text-text-tertiary outline-none ${isTerminal ? 'font-mono' : ''}`}
+            style={{ minHeight: 60, maxHeight: 160 }}
           />
         </div>
 
@@ -877,17 +877,17 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
 
         {/* Toolbar below textarea */}
-        <div className="mt-2">
+        <div className="mt-1.5">
           <div className="flex items-center justify-between gap-3">
             {/* Left controls */}
-            <div className="relative flex items-center gap-1.5">
+            <div className="relative flex items-center gap-1">
               {!isTerminal && (
                 <>
                   {/* Model selector button */}
                   <button
                     type="button"
                     onClick={() => setShowModelSelector((v) => !v)}
-                    className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
+                    className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-text-secondary"
                     title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
                   >
                     <AgentIcon
@@ -908,7 +908,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                     <button
                       type="button"
                       onClick={handleCycleThinking}
-                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-3 py-1.5 text-xs text-text-secondary"
+                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-2.5 py-1 text-xs text-text-secondary"
                       title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
                     >
                       <Brain size={12} className="text-text-secondary" />
@@ -920,7 +920,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   <button
                     type="button"
                     onClick={() => useUiStore.getState().toggleMode()}
-                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium ${
+                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium ${
                       mode === 'plan'
                         ? 'border border-plan/20 bg-plan/10 text-plan'
                         : 'text-text-secondary'
@@ -1040,7 +1040,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 <button
                   type="button"
                   onClick={() => setShowSubagentDialog((v) => !v)}
-                  className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
+                  className="premium-toolbar-button rounded-full p-1.5 text-text-tertiary disabled:opacity-40"
                   aria-label="More options"
                   disabled={!canSpawnSubagents}
                   title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
@@ -1054,7 +1054,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 <button
                   type="button"
                   onClick={() => void handleStop()}
-                  className="flex-shrink-0 rounded-full p-3 transition-colors bg-red-600 hover:bg-red-500 text-white"
+                  className="flex-shrink-0 rounded-full p-2.5 transition-colors bg-red-600 hover:bg-red-500 text-white"
                   aria-label="Stop agent"
                   title="Stop agent (Escape)"
                 >
@@ -1066,7 +1066,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   type="button"
                   onClick={handleSend}
                   disabled={!hasContent}
-                  className={`flex-shrink-0 rounded-full p-3 transition-colors ${
+                  className={`flex-shrink-0 rounded-full p-2.5 transition-colors ${
                     hasContent
                       ? isTerminal
                         ? 'bg-green-600 text-white'

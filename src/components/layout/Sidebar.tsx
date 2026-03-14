@@ -32,7 +32,7 @@ export function Sidebar() {
       className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-border/70"
     >
       {/* Icon nav */}
-      <div className="flex items-center gap-0.5 border-b border-border/70 px-2.5 py-1.5">
+      <div className="flex items-center gap-0.5 border-b border-border/70 px-2 py-1">
         {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
           <NavIcon
             key={id}
@@ -43,7 +43,7 @@ export function Sidebar() {
           />
         ))}
 
-        <div className="mx-1 h-4 w-px bg-border/60" />
+        <div className="mx-1 h-3.5 w-px bg-border/60" />
 
         <NavIcon
           icon={<Terminal size={16} strokeWidth={1.8} />}
@@ -93,7 +93,7 @@ function ExplorerPanel() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-2">
+      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-1.5">
         <SubTabButton label="All files" active={activeSubTab === 'files'} onClick={() => setSubTab('files')} />
         <SubTabButton label="Changes" active={activeSubTab === 'changes'} onClick={() => setSubTab('changes')} />
         <SubTabButton label="Checks" active={activeSubTab === 'checks'} onClick={() => setSubTab('checks')} />
@@ -116,7 +116,7 @@ function SubTabButton({ label, active, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`classic-tab-button px-3 py-1.5 text-[12px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
+      className={`classic-tab-button px-2.5 py-1 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
     >
       {label}
     </button>
@@ -174,11 +174,11 @@ function FilesTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border/70 px-3.5 py-2.5">
+      <div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
         <span className="classic-section-label truncate">
           {projectName || 'No folder open'}
         </span>
-        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-lg p-1.5 text-text-secondary" title="Open Folder">
+        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-md p-1.5 text-text-secondary" title="Open Folder">
           <FolderOpen size={14} />
         </button>
       </div>
@@ -186,7 +186,7 @@ function FilesTab() {
       <div className="flex-1 overflow-y-auto py-2">
         {!cwd && (
           <div className="px-4 py-6 text-center">
-            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-secondary">
+            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-md border border-border/80 bg-bg-surface px-3 py-2 text-xs text-text-secondary">
               <FolderOpen size={14} />
               Open Folder
             </button>
@@ -211,8 +211,8 @@ function ChangesTab() {
   const gitBranch = useUiStore((s) => s.gitBranch);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-3.5 py-3">
-      <div className="mb-2.5 flex items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col px-3 py-2.5">
+      <div className="mb-2 flex items-center gap-2">
         <GitCompareArrows size={14} className="text-text-tertiary" />
         <span className="text-[13px] text-text-secondary">{gitBranch || 'No branch'}</span>
         {gitDirty && (
@@ -247,7 +247,7 @@ function ChecksTab() {
   const checks = gateMessages ? Array.from(gateMessages.values()) : [];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-3.5 py-3 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col px-3 py-2.5 overflow-y-auto">
       {checks.length > 0 ? (
         <div className="space-y-2">
           {checks.map((check, i) => {

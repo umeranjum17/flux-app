@@ -12,23 +12,23 @@ export function TopBar() {
 
   return (
     <div
-      className={`drag-region chrome-topbar flex h-[40px] min-h-[40px] items-center justify-between border-b border-border/80 px-4 ${isMac ? 'pl-[78px]' : ''} ${isWin ? 'pr-[140px]' : ''}`}
+      className={`drag-region chrome-topbar flex h-[34px] min-h-[34px] items-center justify-between border-b border-border/80 px-3.5 ${isMac ? 'pl-[74px]' : ''} ${isWin ? 'pr-[136px]' : ''}`}
     >
-      <div className="no-drag flex min-w-0 items-center gap-3">
+      <div className="no-drag flex min-w-0 items-center gap-2">
         <button
           onClick={toggleSidebar}
-          className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
           aria-label="Toggle sidebar"
           title="Toggle sidebar"
         >
-          <Menu size={15} />
+          <Menu size={14} />
         </button>
       </div>
 
-      <div className="no-drag flex min-w-0 items-center gap-2 overflow-hidden">
+      <div className="no-drag flex min-w-0 items-center gap-1.5 overflow-hidden">
         <button
           onClick={toggleAutoApprove}
-          className={`premium-toolbar-button rounded-lg p-2 ${
+          className={`premium-toolbar-button rounded-md p-1.5 ${
             autoApprove
               ? 'text-success'
               : 'text-text-secondary'
@@ -36,16 +36,16 @@ export function TopBar() {
           aria-label={autoApprove ? 'Auto-approve on' : 'Auto-approve off'}
           title={autoApprove ? 'Auto-approve: ON (click to disable)' : 'Auto-approve: OFF (click to enable)'}
         >
-          {autoApprove ? <ShieldCheck size={14} /> : <ShieldOff size={14} />}
+          {autoApprove ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
         </button>
 
         <button
           onClick={() => setOverlay('settings')}
-          className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
+          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
           aria-label="Settings"
           title="Settings"
         >
-          <Settings size={14} />
+          <Settings size={13} />
         </button>
       </div>
     </div>

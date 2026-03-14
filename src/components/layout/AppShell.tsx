@@ -527,7 +527,7 @@ export function AppShell() {
 
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
                     <div className="shrink-0">
-                      <div className="mx-auto w-full max-w-[1100px] px-6 pb-3 pt-3">
+                      <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">
                         <LiveRunHeader />
                         <ChatInput focused />
                       </div>
