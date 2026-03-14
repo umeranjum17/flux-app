@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Clock3, Wrench, Loader2 } from 'lucide-react';
+import { Clock3, Loader2 } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
+import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 
 const STALLED_THRESHOLDS: Record<string, number> = {
   tool: 60_000,
@@ -47,14 +48,20 @@ export function LiveRunHeader() {
 
   const isPlan = task.mode === 'plan';
   const toolName = activeRun.activeToolName;
+  const agentLabel = formatAgentLabel(task.agentId);
 
   // Build compact status text: "Working · Glob · 2:27"
-  const parts: string[] = [phaseLabel];
+  const parts: string[] = [agentLabel, phaseLabel];
   if (toolName) parts.push(toolName);
 
   return (
     <div className="mb-2 flex items-center gap-2 px-1 text-[11px] text-text-tertiary">
       <Loader2 size={11} className={`animate-spin ${isPlan ? 'text-plan' : 'text-accent'}`} />
+      <AgentIcon
+        agentId={task.agentId}
+        size={11}
+        className={AGENT_COLORS[task.agentId] ?? 'text-text-tertiary'}
+      />
       <span className="text-text-secondary">{parts.join(' \u00b7 ')}</span>
       <span className="inline-flex items-center gap-1 tabular-nums">
         <Clock3 size={10} />
@@ -80,6 +87,12 @@ function formatAgentLabel(agentId: string): string {
       return 'Claude Code';
     case 'codex':
       return 'Codex';
+    case 'openai':
+      return 'ChatGPT';
+    case 'gemini':
+      return 'Gemini';
+    case 'ollama':
+      return 'Ollama';
     default:
       return agentId;
   }
