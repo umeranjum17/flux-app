@@ -68,7 +68,7 @@ describe('worktree diff helpers', () => {
     const worktreePath = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-worktree-'));
     fs.writeFileSync(path.join(worktreePath, 'new.ts'), 'line one\nline two\n', 'utf-8');
 
-    mockGitCalls(new Map([
+    mockGitCalls(new Map<string, string | Error>([
       [`${parentRepo}::rev-parse HEAD`, 'parent-sha\n'],
       [`${parentRepo}::rev-parse --abbrev-ref HEAD`, 'master\n'],
       [`${worktreePath}::symbolic-ref --quiet --short refs/remotes/origin/HEAD`, new Error('missing remote HEAD')],
@@ -106,7 +106,7 @@ describe('worktree diff helpers', () => {
     const parentRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-parent-'));
     const worktreePath = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-worktree-'));
 
-    mockGitCalls(new Map([
+    mockGitCalls(new Map<string, string | Error>([
       [`${parentRepo}::rev-parse HEAD`, 'parent-sha\n'],
       [`${parentRepo}::rev-parse --abbrev-ref HEAD`, 'master\n'],
       [`${worktreePath}::symbolic-ref --quiet --short refs/remotes/origin/HEAD`, new Error('missing remote HEAD')],

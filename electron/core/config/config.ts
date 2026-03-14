@@ -15,7 +15,7 @@ const DEFAULT_REPOMAP_CONFIG: FluxConfig['repoMap'] = {
 const DEFAULT_CONFIG: FluxConfig = {
   theme: 'dark',
   fontSize: 14,
-  sendKey: 'cmd+enter',
+  sendKey: 'enter',
   defaultAgent: 'claude-code',
   defaultModel: 'sonnet',
   subagentModel: 'haiku',

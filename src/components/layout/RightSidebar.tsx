@@ -18,22 +18,22 @@ export function RightSidebar() {
       animate={{ width: 292, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="chrome-sidebar ml-2 flex h-full shrink-0 flex-col overflow-hidden rounded-[24px] border border-border/70"
+      className="chrome-sidebar ml-2 flex h-full shrink-0 flex-col overflow-hidden rounded-[14px] border border-white/6"
     >
-      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-3">
+      <div className="flex items-center gap-1.5 border-b border-white/6 px-3 py-3">
         <TabButton label="All files" active={activeTab === 'files'} onClick={() => setTab('files')} />
         <TabButton label="Changes" active={activeTab === 'changes'} onClick={() => setTab('changes')} />
         <TabButton label="Checks" active={activeTab === 'checks'} onClick={() => setTab('checks')} />
         <div className="flex-1" />
-        <button className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary" title="Filter">
+        <button className="premium-toolbar-button rounded-[8px] border border-white/8 bg-white/[0.02] p-1.5 text-text-secondary" title="Filter">
           <Filter size={13} />
         </button>
-        <button className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary" title="Search">
+        <button className="premium-toolbar-button rounded-[8px] border border-white/8 bg-white/[0.02] p-1.5 text-text-secondary" title="Search">
           <Search size={13} />
         </button>
         <button
           onClick={close}
-          className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary"
+          className="premium-toolbar-button rounded-[8px] border border-white/8 bg-white/[0.02] p-1.5 text-text-secondary"
         >
           <X size={13} />
         </button>
@@ -114,11 +114,11 @@ function FilesTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border/70 px-4 py-4">
+      <div className="flex items-center justify-between border-b border-white/6 px-4 py-4">
         <span className="classic-section-label truncate">
           {projectName || 'No folder open'}
         </span>
-        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-xl p-1.5 text-text-secondary" title="Open Folder">
+        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-[8px] border border-white/8 bg-white/[0.02] p-1.5 text-text-secondary" title="Open Folder">
           <FolderOpen size={14} />
         </button>
       </div>
@@ -126,7 +126,7 @@ function FilesTab() {
       <div className="flex-1 overflow-y-auto py-3">
         {!cwd && (
           <div className="px-4 py-6 text-center">
-            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-2xl border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-secondary">
+            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-[10px] border border-white/8 bg-white/[0.03] px-3.5 py-2.5 text-xs text-text-secondary">
               <FolderOpen size={14} />
               Open Folder
             </button>

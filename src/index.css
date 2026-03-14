@@ -1,87 +1,85 @@
 @import "tailwindcss";
 
 @theme {
-  /* Warmer dark palette tuned to the reference chrome. */
-  --color-bg-primary: hsl(24 15% 4.5%);
-  --color-bg-secondary: hsl(24 13% 7.5%);
-  --color-bg-elevated: hsl(24 12% 10.5%);
-  --color-bg-hover: hsl(25 11% 14.5%);
-  --color-bg-surface: hsl(24 14% 6%);
+  --color-bg-primary: hsl(0 0% 4%);
+  --color-bg-secondary: hsl(0 0% 6.2%);
+  --color-bg-elevated: hsl(0 0% 9.6%);
+  --color-bg-hover: hsl(0 0% 13.5%);
+  --color-bg-surface: hsl(0 0% 7.5%);
 
-  --color-text-primary: hsl(36 21% 92%);
-  --color-text-secondary: hsl(31 13% 71%);
-  --color-text-tertiary: hsl(28 10% 54%);
+  --color-text-primary: hsl(0 0% 92%);
+  --color-text-secondary: hsl(0 0% 73%);
+  --color-text-tertiary: hsl(0 0% 48%);
 
-  --color-accent: hsl(145 53% 55%);
-  --color-accent-hover: hsl(145 57% 61%);
-  --color-accent-muted: hsl(145 21% 16%);
-  --color-plan: hsl(37 83% 64%);
-  --color-plan-hover: hsl(37 88% 69%);
-  --color-plan-muted: hsl(31 28% 17%);
+  --color-accent: hsl(138 46% 58%);
+  --color-accent-hover: hsl(138 52% 63%);
+  --color-accent-muted: hsl(138 19% 16%);
+  --color-plan: hsl(42 82% 63%);
+  --color-plan-hover: hsl(42 88% 68%);
+  --color-plan-muted: hsl(37 23% 15%);
 
   --color-success: hsl(142 52% 46%);
   --color-error: hsl(2 73% 59%);
   --color-warning: hsl(39 94% 62%);
   --color-info: hsl(201 86% 60%);
 
-  --color-border: hsl(26 12% 19%);
-  --color-border-focus: hsl(145 44% 55%);
-  --color-border-subtle: hsl(25 12% 12%);
+  --color-border: hsl(0 0% 15%);
+  --color-border-focus: hsl(0 0% 42%);
+  --color-border-subtle: hsl(0 0% 10%);
 
   /* Typography */
-  --font-sans: 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'SF Mono', 'Menlo', 'Monaco', 'Cascadia Mono', Consolas, monospace;
+  --font-sans: 'SF Pro Text', 'SF Pro Display', 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', 'SFMono-Regular', 'IBM Plex Mono', 'Menlo', 'Monaco', monospace;
 }
 
 :root {
   --app-gradient:
-    radial-gradient(circle at top left, hsl(32 38% 18% / 0.18), transparent 34%),
-    radial-gradient(circle at top right, hsl(148 38% 14% / 0.14), transparent 28%),
-    linear-gradient(180deg, hsl(24 15% 5.5%), hsl(24 16% 3.5%));
-  --panel-gradient: linear-gradient(180deg, hsl(24 11% 11.25%), hsl(24 10% 8.25%));
-  --panel-strong-gradient: linear-gradient(180deg, hsl(24 10% 12.5%), hsl(24 11% 8.75%));
-  --plan-gradient: linear-gradient(180deg, hsl(28 14% 11.5%), hsl(24 10% 8.75%));
-  --tool-gradient: linear-gradient(180deg, hsl(25 9% 12%), hsl(24 10% 9.25%));
+    radial-gradient(circle at top center, hsl(0 0% 100% / 0.03), transparent 24%),
+    linear-gradient(180deg, hsl(0 0% 5.2%), hsl(0 0% 3.2%));
+  --panel-gradient: linear-gradient(180deg, hsl(0 0% 10.5%), hsl(0 0% 8.5%));
+  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 11.5%), hsl(0 0% 9%));
+  --plan-gradient: linear-gradient(180deg, hsl(0 0% 10.5%), hsl(0 0% 8.5%));
+  --tool-gradient: linear-gradient(180deg, hsl(0 0% 11%), hsl(0 0% 8.75%));
   --panel-shadow:
-    0 18px 40px hsl(0 0% 0% / 0.32),
-    inset 0 1px 0 hsl(0 0% 100% / 0.03);
+    0 14px 36px hsl(0 0% 0% / 0.38),
+    inset 0 1px 0 hsl(0 0% 100% / 0.02);
   --panel-shadow-strong:
-    0 26px 70px hsl(0 0% 0% / 0.42),
-    inset 0 1px 0 hsl(0 0% 100% / 0.04);
+    0 24px 64px hsl(0 0% 0% / 0.46),
+    inset 0 1px 0 hsl(0 0% 100% / 0.03);
   --focus-ring:
-    0 0 0 1px hsl(145 52% 58% / 0.56),
-    0 0 0 5px hsl(145 52% 58% / 0.14);
+    0 0 0 1px hsl(0 0% 46% / 0.7),
+    0 0 0 4px hsl(0 0% 100% / 0.04);
 }
 
 /* Light theme override */
 .theme-light {
-  --color-bg-primary: hsl(33 26% 96.5%);
-  --color-bg-secondary: hsl(32 18% 92.75%);
+  --color-bg-primary: hsl(0 0% 96.5%);
+  --color-bg-secondary: hsl(0 0% 93.25%);
   --color-bg-elevated: hsl(0 0% 100%);
-  --color-bg-hover: hsl(28 20% 88%);
-  --color-bg-surface: hsl(32 23% 94%);
-  --color-text-primary: hsl(24 21% 16%);
-  --color-text-secondary: hsl(24 12% 33%);
-  --color-text-tertiary: hsl(24 10% 47%);
-  --color-border: hsl(30 18% 80%);
-  --color-border-focus: hsl(145 46% 42%);
-  --color-border-subtle: hsl(30 21% 86%);
+  --color-bg-hover: hsl(0 0% 89%);
+  --color-bg-surface: hsl(0 0% 94%);
+  --color-text-primary: hsl(0 0% 14%);
+  --color-text-secondary: hsl(0 0% 30%);
+  --color-text-tertiary: hsl(0 0% 44%);
+  --color-border: hsl(0 0% 82%);
+  --color-border-focus: hsl(0 0% 40%);
+  --color-border-subtle: hsl(0 0% 88%);
   --app-gradient:
-    radial-gradient(circle at top left, hsl(34 48% 82% / 0.75), transparent 30%),
-    linear-gradient(180deg, hsl(34 25% 97.5%), hsl(30 19% 93.5%));
-  --panel-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.96), hsl(30 24% 95.5% / 0.96));
-  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.99), hsl(30 20% 94.5% / 0.99));
-  --plan-gradient: linear-gradient(180deg, hsl(39 80% 96% / 0.98), hsl(30 24% 94.5% / 0.98));
-  --tool-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(30 23% 95% / 0.96));
+    radial-gradient(circle at top center, hsl(0 0% 100% / 0.8), transparent 28%),
+    linear-gradient(180deg, hsl(0 0% 98%), hsl(0 0% 94.5%));
+  --panel-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(0 0% 95.5% / 0.98));
+  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.99), hsl(0 0% 94.5% / 0.99));
+  --plan-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(0 0% 95% / 0.98));
+  --tool-gradient: linear-gradient(180deg, hsl(0 0% 100% / 0.98), hsl(0 0% 95.5% / 0.98));
   --panel-shadow:
-    0 12px 28px hsl(26 22% 18% / 0.08),
+    0 12px 28px hsl(0 0% 0% / 0.06),
     inset 0 1px 0 hsl(0 0% 100%);
   --panel-shadow-strong:
-    0 20px 42px hsl(26 22% 18% / 0.1),
+    0 20px 42px hsl(0 0% 0% / 0.08),
     inset 0 1px 0 hsl(0 0% 100%);
   --focus-ring:
-    0 0 0 1px hsl(145 46% 42% / 0.45),
-    0 0 0 5px hsl(145 46% 42% / 0.12);
+    0 0 0 1px hsl(0 0% 34% / 0.45),
+    0 0 0 4px hsl(0 0% 100% / 0.55);
 }
 
 html, body, #root {
@@ -172,34 +170,32 @@ button:focus-visible {
 }
 
 .chrome-window {
-  background:
-    linear-gradient(180deg, hsl(26 9% 11% / 0.95), hsl(24 11% 6.25% / 0.98));
-  border: 1px solid hsl(28 13% 18%);
-  border-radius: 28px;
+  background: linear-gradient(180deg, hsl(0 0% 8%), hsl(0 0% 5.4%));
+  border: 1px solid hsl(0 0% 13%);
+  border-radius: 18px;
   box-shadow:
-    0 26px 80px hsl(0 0% 0% / 0.52),
-    inset 0 1px 0 hsl(0 0% 100% / 0.04);
-  backdrop-filter: blur(18px);
+    0 24px 80px hsl(0 0% 0% / 0.46),
+    inset 0 1px 0 hsl(0 0% 100% / 0.025);
+  backdrop-filter: blur(14px);
 }
 
 .chrome-topbar {
-  background: linear-gradient(180deg, hsl(24 8% 9.5%), hsl(24 9% 7.25%));
+  background: linear-gradient(180deg, hsl(0 0% 7.5%), hsl(0 0% 5.75%));
 }
 
 .chrome-sidebar {
-  background:
-    linear-gradient(180deg, hsl(24 9% 9%), hsl(24 10% 6.75%));
+  background: linear-gradient(180deg, hsl(0 0% 5.6%), hsl(0 0% 4.4%));
 }
 
 .chrome-stage {
   background:
-    radial-gradient(circle at top, hsl(0 0% 100% / 0.03), transparent 42%),
-    linear-gradient(180deg, hsl(24 8% 8.75%), hsl(24 10% 5.5%));
-  border: 1px solid hsl(27 10% 16%);
-  border-radius: 26px;
+    radial-gradient(circle at top, hsl(0 0% 100% / 0.02), transparent 36%),
+    linear-gradient(180deg, hsl(0 0% 7%), hsl(0 0% 4.8%));
+  border: 1px solid hsl(0 0% 12%);
+  border-radius: 14px;
   box-shadow:
-    0 22px 60px hsl(0 0% 0% / 0.34),
-    inset 0 1px 0 hsl(0 0% 100% / 0.03);
+    0 20px 54px hsl(0 0% 0% / 0.34),
+    inset 0 1px 0 hsl(0 0% 100% / 0.02);
 }
 
 .premium-panel,
@@ -216,27 +212,27 @@ button:focus-visible {
 
 .premium-panel {
   background: var(--panel-gradient);
-  border-radius: 18px;
+  border-radius: 12px;
 }
 
 .premium-panel-strong {
   background: var(--panel-strong-gradient);
   box-shadow: var(--panel-shadow-strong);
-  border-radius: 24px;
+  border-radius: 14px;
 }
 
 .premium-plan-card {
   background: var(--plan-gradient);
   border-color: var(--color-border);
   box-shadow: var(--panel-shadow);
-  border-radius: 22px;
+  border-radius: 14px;
 }
 
 .premium-tool-card {
   position: relative;
   overflow: hidden;
   background: var(--tool-gradient);
-  border-radius: 18px;
+  border-radius: 12px;
 }
 
 .premium-tool-card::before {
@@ -249,24 +245,24 @@ button:focus-visible {
 
 .premium-message-user {
   background: var(--color-bg-elevated);
-  border-radius: 22px;
+  border-radius: 12px;
 }
 
 .premium-message-assistant {
-  background: linear-gradient(180deg, hsl(24 8% 8.75% / 0.78), hsl(24 8% 7.25% / 0.38));
-  border-color: hsl(26 9% 14% / 0.7);
+  background: transparent;
+  border-color: transparent;
   box-shadow: none;
-  border-radius: 22px;
+  border-radius: 0;
 }
 
 .premium-input-shell {
   background: var(--panel-gradient);
   box-shadow: var(--panel-shadow-strong);
-  border-radius: 24px;
+  border-radius: 12px;
 }
 
 .premium-toolbar-button {
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid transparent;
   transition:
     background-color 180ms ease,
@@ -279,12 +275,12 @@ button:focus-visible {
 .premium-toolbar-button:hover {
   color: var(--color-text-primary);
   background: hsl(0 0% 100% / 0.04);
-  border-color: hsl(0 0% 100% / 0.06);
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+  border-color: hsl(0 0% 100% / 0.07);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.025);
 }
 
 .premium-toolbar-button:active {
-  background: var(--color-bg-elevated);
+  background: hsl(0 0% 100% / 0.07);
 }
 
 .premium-toolbar-button:focus-visible,
@@ -296,21 +292,20 @@ button:focus-visible {
 .premium-pill {
   border-radius: 999px;
   border: 1px solid hsl(0 0% 100% / 0.06);
-  background: hsl(0 0% 100% / 0.04);
+  background: hsl(0 0% 100% / 0.03);
   box-shadow: none;
 }
 
 .premium-divider {
   height: 1px;
   width: 100%;
-  background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.08), transparent);
 }
 
 .classic-section-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--color-text-tertiary);
 }
 
@@ -319,8 +314,8 @@ button:focus-visible {
   width: 100%;
   align-items: center;
   gap: 10px;
-  border: 1px solid transparent;
-  border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
   padding: 10px 12px;
   color: var(--color-text-secondary);
   transition:
@@ -331,13 +326,13 @@ button:focus-visible {
 
 .classic-nav-button:hover {
   background: hsl(0 0% 100% / 0.03);
-  border-color: hsl(0 0% 100% / 0.05);
+  border-color: hsl(0 0% 100% / 0.07);
   color: var(--color-text-primary);
 }
 
 .classic-nav-button-active {
-  background: linear-gradient(180deg, hsl(0 0% 100% / 0.05), hsl(0 0% 100% / 0.02));
-  border-color: hsl(145 22% 28%);
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.055), hsl(0 0% 100% / 0.025));
+  border-color: hsl(0 0% 100% / 0.09);
   color: var(--color-text-primary);
 }
 
@@ -347,8 +342,8 @@ button:focus-visible {
   align-items: flex-start;
   gap: 10px;
   border: 1px solid transparent;
-  border-radius: 18px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 11px 12px;
   text-align: left;
   transition:
     background-color 160ms ease,
@@ -358,12 +353,12 @@ button:focus-visible {
 
 .classic-list-button:hover {
   background: hsl(0 0% 100% / 0.03);
-  border-color: hsl(0 0% 100% / 0.05);
+  border-color: hsl(0 0% 100% / 0.06);
 }
 
 .classic-list-button-active {
-  background: linear-gradient(180deg, hsl(145 18% 18%), hsl(24 10% 11%));
-  border-color: hsl(145 24% 28%);
+  background: linear-gradient(180deg, hsl(0 0% 13%), hsl(0 0% 10.5%));
+  border-color: hsl(0 0% 100% / 0.08);
 }
 
 .classic-tab-button {
@@ -390,12 +385,12 @@ button:focus-visible {
 .chrome-rail-button {
   position: relative;
   display: flex;
-  height: 40px;
-  width: 40px;
+  height: 38px;
+  width: 38px;
   align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
   color: var(--color-text-tertiary);
   transition:
     color 160ms ease,
@@ -407,19 +402,19 @@ button:focus-visible {
 .chrome-rail-button:hover {
   color: var(--color-text-primary);
   background: hsl(0 0% 100% / 0.05);
-  border-color: hsl(0 0% 100% / 0.06);
+  border-color: hsl(0 0% 100% / 0.08);
 }
 
 .chrome-rail-button-active {
   color: var(--color-text-primary);
   background: linear-gradient(180deg, hsl(0 0% 100% / 0.08), hsl(0 0% 100% / 0.03));
-  border-color: hsl(145 23% 28%);
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.05);
+  border-color: hsl(0 0% 100% / 0.08);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
 }
 
 .chrome-tab {
   border: 1px solid transparent;
-  border-radius: 14px 14px 0 0;
+  border-radius: 10px 10px 0 0;
   color: var(--color-text-tertiary);
   background: transparent;
   transition:
@@ -430,15 +425,15 @@ button:focus-visible {
 
 .chrome-tab:hover {
   color: var(--color-text-secondary);
-  background: hsl(0 0% 100% / 0.04);
+  background: hsl(0 0% 100% / 0.03);
 }
 
 .chrome-tab-active {
   color: var(--color-text-primary);
-  border-color: hsl(0 0% 100% / 0.08);
+  border-color: hsl(0 0% 100% / 0.07);
   border-bottom-color: transparent;
   background:
-    linear-gradient(180deg, hsl(0 0% 100% / 0.07), hsl(0 0% 100% / 0.03));
+    linear-gradient(180deg, hsl(0 0% 100% / 0.06), hsl(0 0% 100% / 0.025));
 }
 
 /* File viewer shiki code */

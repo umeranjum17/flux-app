@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { TopBar } from './TopBar';
-import { ActivityBar } from './ActivityBar';
 import { Sidebar } from './Sidebar';
 import { RightSidebar } from './RightSidebar';
 import { StatusLine } from './StatusLine';
@@ -335,11 +334,10 @@ export function AppShell() {
   }, [createNewTab, cycleModel, cycleThinking]);
 
   return (
-    <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary p-3 text-text-primary">
+    <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary p-2.5 text-text-primary">
       <div className="chrome-window flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar />
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <ActivityBar />
           <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex flex-1 overflow-hidden px-2 pb-2">
@@ -356,8 +354,8 @@ export function AppShell() {
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                    <div className="shrink-0 border-t border-border/70 bg-bg-primary/32">
-                      <div className="mx-auto w-full max-w-[1040px] px-5 py-4">
+                    <div className="shrink-0 border-t border-white/6 bg-black/35">
+                      <div className="mx-auto w-full max-w-[980px] px-4 py-3.5">
                         <LiveRunHeader />
                         <ChatInput focused />
                       </div>
