@@ -40,7 +40,7 @@ export function WorkspaceActionBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/40 px-4 py-2">
+    <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/40 px-4 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <GitBranch size={13} className="shrink-0 text-text-tertiary" />
         <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>

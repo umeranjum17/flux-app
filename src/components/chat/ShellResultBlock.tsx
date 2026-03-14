@@ -40,7 +40,7 @@ export function ShellResultBlock({ command, exitCode, stdout, stderr, durationMs
   const success = exitCode === 0;
 
   return (
-    <div className="premium-panel rounded-lg border border-border/60 p-3 text-sm">
+    <div className="premium-panel rounded-lg border border-border/60 px-3 py-2.5 text-sm">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">

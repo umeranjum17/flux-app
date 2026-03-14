@@ -33,11 +33,11 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
       <div
         className={[
           role === 'user'
-            ? 'premium-message-user w-full px-5 py-4'
+            ? 'premium-message-user w-full px-4 py-3.5'
             : isActAssistant
-              ? 'premium-message-assistant w-full px-5 py-4'
+              ? 'premium-message-assistant w-full px-4 py-3.5'
               : 'w-full',
-          isPlanAssistant ? 'premium-plan-card p-5' : '',
+          isPlanAssistant ? 'premium-plan-card p-4' : '',
         ].join(' ')}
       >
         {isPlanAssistant && (

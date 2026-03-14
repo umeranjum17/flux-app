@@ -103,7 +103,7 @@ export function WorkspaceTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Workspaces section */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      <div className="flex items-center justify-between px-3.5 pt-3.5 pb-1.5">
         <span className="classic-section-label">Workspaces</span>
         <button
           onClick={async () => {
@@ -143,7 +143,7 @@ export function WorkspaceTab() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3">
+      <div className="flex-1 overflow-y-auto px-2.5">
         {workspaceList.length === 0 && standaloneTasks.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-[13px] text-text-secondary">No workspaces</p>
@@ -195,7 +195,7 @@ export function WorkspaceTab() {
         {/* Quick Chats — standalone tasks not tied to a workspace */}
         {standaloneTasks.length > 0 && (
           <>
-            <div className="mt-4 mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.1em] text-text-tertiary">
+            <div className="mt-3 mb-1 px-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-text-tertiary">
               Quick Chats
             </div>
             {standaloneTasks.map((task) => {

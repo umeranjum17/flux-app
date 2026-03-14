@@ -76,7 +76,7 @@ export function StatusLine() {
 
   return (
     <div className="flex h-[30px] min-h-[30px] select-none items-center border-t border-border bg-bg-secondary">
-      <div className="flex items-center gap-0 shrink-0">
+      <div className="flex items-center shrink-0">
         {environment === 'wsl' && (
           <span
             className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/12 px-2.5 text-[13px] font-medium text-warning"

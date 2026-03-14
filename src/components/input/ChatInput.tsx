@@ -680,7 +680,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   return (
     <div className="relative w-full">
       {isContinuing && (
-        <div className="mb-2 flex items-center gap-2 px-1">
+        <div className="mb-1.5 flex items-center gap-2 px-0.5">
           <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
             <RotateCcw size={11} />
             Continuing conversation
@@ -713,7 +713,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className={`premium-input-shell px-5 py-4 transition-colors ${shellClasses}`}>
+      <div className={`premium-input-shell px-4 py-3.5 transition-colors ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
           <div className="mb-2 flex items-center gap-1.5">
