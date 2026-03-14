@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { getDb } from '../db/connection';
 
 export type UsageProviderId = 'claude-code' | 'codex';
@@ -101,6 +102,10 @@ interface ProviderFetchResult {
 const CLAUDE_CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
 const CLAUDE_STATE_PATH = path.join(os.homedir(), '.claude.json');
 const CODEX_AUTH_PATH = path.join(os.homedir(), '.codex', 'auth.json');
+const CLAUDE_KEYCHAIN_SERVICES = [
+  'Claude Code-credentials',
+  'Claude Code',
+];
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const CLAUDE_TOKEN_URLS = [
   'https://console.anthropic.com/v1/oauth/token',
@@ -765,11 +770,24 @@ function readClaudeCredentialSource(): ClaudeCredentialSource | null {
     }
     return { path: filePath, data: credentials as Record<string, unknown>, oauth: parsed };
   }
+
+  const keychainOauth = readClaudeOauthFromKeychain();
+  if (keychainOauth) {
+    return {
+      path: 'macos-keychain',
+      data: {},
+      oauth: keychainOauth,
+    };
+  }
+
   return null;
 }
 
 function writeClaudeCredentialSource(source: ClaudeCredentialSource | null, oauth: ClaudeOauthTokens): void {
   if (!source) {
+    return;
+  }
+  if (source.path === 'macos-keychain') {
     return;
   }
   const nextData = {
@@ -801,6 +819,59 @@ function parseClaudeOauthShape(raw: Record<string, unknown>): ClaudeOauthTokens 
     refreshToken: pickString(oauth.refreshToken, oauth.refresh_token) ?? null,
     expiresAt: pickNumber(oauth.expiresAt, oauth.expires_at, oauth.expiry) ?? 0,
   };
+}
+
+function readClaudeOauthFromKeychain(): ClaudeOauthTokens | null {
+  if (process.platform !== 'darwin') {
+    return null;
+  }
+
+  for (const service of CLAUDE_KEYCHAIN_SERVICES) {
+    const output = readMacKeychainService(service);
+    if (!output) {
+      continue;
+    }
+
+    const parsed = parseClaudeKeychainOutput(output);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function readMacKeychainService(service: string): string | null {
+  try {
+    return execFileSync(
+      'security',
+      ['find-generic-password', '-s', service, '-w'],
+      { encoding: 'utf-8' },
+    ).trim();
+  } catch {
+    return null;
+  }
+}
+
+function parseClaudeKeychainOutput(raw: string): ClaudeOauthTokens | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const json = JSON.parse(raw) as Record<string, unknown>;
+    return parseClaudeOauthShape(json);
+  } catch {
+    const maybeToken = raw.trim();
+    if (!maybeToken) {
+      return null;
+    }
+    return {
+      accessToken: maybeToken,
+      refreshToken: null,
+      expiresAt: 0,
+    };
+  }
 }
 
 function hasClaudeAccountState(): boolean {
