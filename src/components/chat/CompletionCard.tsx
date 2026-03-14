@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { GitMerge, Eye, MessageSquare, Archive } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
@@ -46,6 +47,9 @@ function formatDuration(ms: number): string {
 export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, diff, durationMs }: CompletionCardProps) {
   const mergeTarget = suggestedMergeTarget || useUiStore.getState().gitBranch || 'main';
   const isReadyToArchive = workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive';
+  const hasInlineDiff = !!diff && diff.files.length > 0;
+  const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff });
+  const hasChanges = hasInlineDiff || hasWorkspaceChanges;
 
   const handleReview = () => {
     useWorkspaceStore.getState().openReview(workspace.id);
@@ -104,13 +108,15 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
             Continue
           </button>
         )}
-        <button
-          onClick={handleReview}
-          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
-        >
-          <Eye size={11} />
-          Review
-        </button>
+        {hasChanges && (
+          <button
+            onClick={handleReview}
+            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
+          >
+            <Eye size={11} />
+            Review
+          </button>
+        )}
         {isReadyToArchive ? (
           <button
             onClick={handleArchive}
@@ -120,7 +126,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
             Archive
           </button>
         ) : (
-          <>
+          hasChanges && (
             <button
               onClick={handleMerge}
               className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-success/35 bg-success/12 px-2.5 py-1.5 text-[12px] font-medium text-success hover:bg-success/16"
@@ -128,7 +134,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
               <GitMerge size={11} />
               Merge to {mergeTarget}
             </button>
-          </>
+          )
         )}
       </div>
     </div>

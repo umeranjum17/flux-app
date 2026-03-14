@@ -1,5 +1,6 @@
 import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { useChatStore } from '../../stores/chat';
 import { workspaceStatusConfig } from '../../lib/workspace-status';
 
@@ -12,6 +13,9 @@ export function WorkspaceActionBar() {
 
   const status = workspaceStatusConfig[workspace.status] ?? workspaceStatusConfig.idle;
   const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
+  const hasChanges = useWorkspaceHasChanges(workspace.id, {
+    pollMs: isRunning ? 2000 : 4000,
+  });
 
   const handleStop = async () => {
     await window.api.invoke('workspace:stop', { workspaceId: workspace.id });
@@ -54,8 +58,12 @@ export function WorkspaceActionBar() {
           <ActionBtn icon={<Square size={12} />} label="Stop" onClick={handleStop} />
         )}
         <ActionBtn icon={<ExternalLink size={12} />} label="Open IDE" onClick={handleOpenIde} />
-        <ActionBtn icon={<Eye size={12} />} label="Review" onClick={() => useWorkspaceStore.getState().openReview(workspace.id)} />
-        <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
+        {hasChanges && (
+          <>
+            <ActionBtn icon={<Eye size={12} />} label="Review" onClick={() => useWorkspaceStore.getState().openReview(workspace.id)} />
+            <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
+          </>
+        )}
         <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
       </div>
     </div>
