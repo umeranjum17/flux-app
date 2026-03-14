@@ -1,6 +1,6 @@
 import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
-import { extendedEnv, resolveExecutable, resolveSshCommand } from '../process-utils';
+import { agentCliEnv, extendedEnv, resolveExecutable, resolveSshCommand } from '../process-utils';
 
 const execFileAsync = promisify(execFile);
 import {
@@ -72,7 +72,7 @@ function versionSync(command: string): string {
   try {
     return execFileSync(command, ['--version'], {
       encoding: 'utf-8',
-      env: extendedEnv(),
+      env: agentCliEnv(),
     }).trim().split('\n')[0];
   } catch {
     return 'unknown';

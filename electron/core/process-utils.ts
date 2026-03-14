@@ -168,6 +168,78 @@ export function extendedEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
+function splitShellStyleArgs(value: string): string[] {
+  return value.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+}
+
+function unquoteShellToken(token: string): string {
+  if (
+    (token.startsWith('"') && token.endsWith('"')) ||
+    (token.startsWith('\'') && token.endsWith('\''))
+  ) {
+    return token.slice(1, -1);
+  }
+  return token;
+}
+
+function isNodeInspectorFlag(token: string): boolean {
+  const normalized = unquoteShellToken(token);
+  return (
+    normalized === '--inspect' ||
+    normalized === '--inspect-brk' ||
+    normalized === '--inspect-port' ||
+    normalized === '--inspect-publish-uid' ||
+    normalized === '--debug-port' ||
+    normalized.startsWith('--inspect=') ||
+    normalized.startsWith('--inspect-brk=') ||
+    normalized.startsWith('--inspect-port=') ||
+    normalized.startsWith('--inspect-publish-uid=') ||
+    normalized.startsWith('--debug-port=')
+  );
+}
+
+function stripsNextToken(token: string): boolean {
+  const normalized = unquoteShellToken(token);
+  return (
+    normalized === '--inspect-port' ||
+    normalized === '--inspect-publish-uid' ||
+    normalized === '--debug-port'
+  );
+}
+
+export function agentCliEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized = { ...extendedEnv(env) };
+  const nodeOptions = sanitized.NODE_OPTIONS;
+
+  if (typeof nodeOptions === 'string' && nodeOptions.trim()) {
+    const keptTokens: string[] = [];
+    let skipNextToken = false;
+
+    for (const token of splitShellStyleArgs(nodeOptions)) {
+      if (skipNextToken) {
+        skipNextToken = false;
+        continue;
+      }
+      if (isNodeInspectorFlag(token)) {
+        skipNextToken = stripsNextToken(token);
+        continue;
+      }
+      keptTokens.push(token);
+    }
+
+    if (keptTokens.length > 0) {
+      sanitized.NODE_OPTIONS = keptTokens.join(' ');
+    } else {
+      delete sanitized.NODE_OPTIONS;
+    }
+  }
+
+  delete sanitized.VSCODE_INSPECTOR_OPTIONS;
+  delete sanitized.NODE_INSPECT_RESUME_ON_START;
+
+  return sanitized;
+}
+
 export function resolveExecutable(command: string, env?: NodeJS.ProcessEnv): string | null {
   const spawnEnv = extendedEnv(env);
 

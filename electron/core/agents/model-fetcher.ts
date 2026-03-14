@@ -4,6 +4,7 @@ import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { AgentId, ModelInfo } from './types';
+import { agentCliEnv } from '../process-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -108,6 +109,7 @@ async function fetchGeminiModels(): Promise<ModelInfo[]> {
     const { stdout } = await execFileAsync('gemini', ['model', 'list'], {
       timeout: 3000,
       encoding: 'utf-8',
+      env: agentCliEnv(),
     });
     const lines = stdout.trim().split('\n').filter(Boolean);
     const models: ModelInfo[] = [];
@@ -186,6 +188,7 @@ async function fetchOllamaModels(): Promise<ModelInfo[]> {
     const { stdout } = await execFileAsync('ollama', ['list'], {
       timeout: 3000,
       encoding: 'utf-8',
+      env: agentCliEnv(),
     });
     const lines = stdout.trim().split('\n').slice(1); // skip header
     const models: ModelInfo[] = [];

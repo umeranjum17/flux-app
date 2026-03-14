@@ -15,7 +15,7 @@ vi.mock('child_process', async () => {
   };
 });
 
-import { resolveExecutable, resolveSshCommand, classifySpawnError } from '../../process-utils';
+import { agentCliEnv, resolveExecutable, resolveSshCommand, classifySpawnError } from '../../process-utils';
 import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from '../spawn-utils';
 import type { AgentMessage } from '../types';
 
@@ -59,6 +59,47 @@ describe('process-utils', () => {
         }),
       }),
     );
+  });
+
+  it('strips debugger env from agent CLI spawns while preserving unrelated NODE_OPTIONS', () => {
+    spawnMock.mockReturnValue({} as never);
+
+    spawnAgentProcess({
+      command: 'claude',
+      args: ['--version'],
+      cwd: '/tmp/flux-local',
+      env: {
+        PATH: '/custom/bin',
+        NODE_OPTIONS: '--max-old-space-size=4096 --inspect=127.0.0.1:9229 --require \"/tmp/boot.js\" --inspect-publish-uid=http',
+        VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+        NODE_INSPECT_RESUME_ON_START: '1',
+      },
+    });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['--version'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PATH: expect.stringContaining('/custom/bin'),
+          NODE_OPTIONS: '--max-old-space-size=4096 --require "/tmp/boot.js"',
+        }),
+      }),
+    );
+
+    const spawnOptions = spawnMock.mock.calls[0]?.[2];
+    expect(spawnOptions?.env?.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
+    expect(spawnOptions?.env?.NODE_INSPECT_RESUME_ON_START).toBeUndefined();
+  });
+
+  it('removes inspector-only NODE_OPTIONS entirely for agent CLIs', () => {
+    const env = agentCliEnv({
+      NODE_OPTIONS: '--inspect-brk --inspect-port 9229',
+      VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+    });
+
+    expect(env.NODE_OPTIONS).toBeUndefined();
+    expect(env.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
   });
 });
 
@@ -322,6 +363,17 @@ describe('filterStderrNoise', () => {
   it('filters MCP transport noise', () => {
     expect(filterStderrNoise('Transport channel closed')).toBeNull();
     expect(filterStderrNoise('transport error: connection reset')).toBeNull();
+  });
+
+  it('filters Node inspector noise', () => {
+    const input = [
+      'Debugger listening on ws://127.0.0.1:9229/abc123',
+      'For help, see: https://nodejs.org/en/docs/inspector',
+      'Debugger attached.',
+      'Reading prompt from stdin...',
+      'Waiting for the debugger to disconnect...',
+    ].join('\n');
+    expect(filterStderrNoise(input)).toBeNull();
   });
 
   it('preserves real error messages', () => {
