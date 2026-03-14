@@ -15,7 +15,7 @@ vi.mock('child_process', async () => {
   };
 });
 
-import { resolveExecutable, resolveSshCommand, classifySpawnError } from '../../process-utils';
+import { extendedEnv, resolveExecutable, resolveSshCommand, classifySpawnError } from '../../process-utils';
 import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from '../spawn-utils';
 import type { AgentMessage } from '../types';
 
@@ -59,6 +59,54 @@ describe('process-utils', () => {
         }),
       }),
     );
+  });
+
+  it('strips debugger injection from extendedEnv while preserving safe Node options', () => {
+    const env = extendedEnv({
+      PATH: '/custom/bin',
+      NODE_OPTIONS: '--max-old-space-size=4096 --require "/tmp/ms-vscode.js-debug/src/bootloader.js" --inspect-publish-uid=http',
+      VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+      ELECTRON_RUN_AS_NODE: '1',
+      NODE_INSPECT_RESUME_ON_START: '1',
+    });
+
+    expect(env.PATH).toContain('/custom/bin');
+    expect(env.NODE_OPTIONS).toBe('--max-old-space-size=4096');
+    expect(env.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
+    expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+    expect(env.NODE_INSPECT_RESUME_ON_START).toBeUndefined();
+  });
+
+  it('removes debugger env before spawning local agents', () => {
+    spawnMock.mockReturnValue({} as never);
+
+    spawnAgentProcess({
+      command: 'codex',
+      args: ['exec', '--json'],
+      cwd: '/tmp/flux-local',
+      env: {
+        PATH: '/custom/bin',
+        NODE_OPTIONS: '--inspect --max-old-space-size=4096',
+        VSCODE_INSPECTOR_OPTIONS: '{"foo":"bar"}',
+        ELECTRON_RUN_AS_NODE: '1',
+      },
+    });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['exec', '--json'],
+      expect.objectContaining({
+        cwd: '/tmp/flux-local',
+        env: expect.objectContaining({
+          PATH: expect.stringContaining('/custom/bin'),
+          NODE_OPTIONS: '--max-old-space-size=4096',
+        }),
+      }),
+    );
+
+    const call = spawnMock.mock.calls.at(-1);
+    expect(call?.[2]?.env?.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
+    expect(call?.[2]?.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
   });
 });
 
@@ -322,6 +370,16 @@ describe('filterStderrNoise', () => {
   it('filters MCP transport noise', () => {
     expect(filterStderrNoise('Transport channel closed')).toBeNull();
     expect(filterStderrNoise('transport error: connection reset')).toBeNull();
+  });
+
+  it('filters node inspector noise', () => {
+    const input = [
+      'Debugger listening on ws://127.0.0.1:55693/abc',
+      'For help, see: https://nodejs.org/en/docs/inspector',
+      'Debugger attached.',
+      'Waiting for the debugger to disconnect...',
+    ].join('\n');
+    expect(filterStderrNoise(input)).toBeNull();
   });
 
   it('preserves real error messages', () => {
