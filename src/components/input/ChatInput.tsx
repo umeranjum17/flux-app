@@ -976,7 +976,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 </button>
               )}
 
-              {/* Stop button (when agent is running, non-terminal) */}
+              {/* Stop button (when agent is running, chat mode only) */}
               {hasActiveRun && !isTerminal ? (
                 <button
                   type="button"
@@ -985,7 +985,8 @@ export function ChatInput({ focused }: ChatInputProps) {
                   aria-label="Stop agent"
                   title="Stop agent (Escape)"
                 >
-                  <Square size={14} fill="currentColor" />
+<<<<<<< HEAD
+                  <Square size={14} fill="currentColor" strokeWidth={0} />
                 </button>
               ) : (
                 /* Send button (circular) */
