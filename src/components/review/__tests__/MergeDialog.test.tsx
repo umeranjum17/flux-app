@@ -35,6 +35,7 @@ describe('MergeDialog', () => {
       />,
     );
 
-    expect(screen.getByRole('textbox')).toHaveValue('master');
+    const targetBranchInput = screen.getByRole('textbox') as HTMLInputElement;
+    expect(targetBranchInput.value).toBe('master');
   });
 });
