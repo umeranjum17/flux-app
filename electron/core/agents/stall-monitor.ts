@@ -50,15 +50,40 @@ export class StallMonitor {
   private idleTimer: NodeJS.Timeout | null = null;
   private healthInterval: NodeJS.Timeout | null = null;
   private disposed = false;
+  private paused = false;
   private restartCount = 0;
 
   constructor(private options: StallMonitorOptions) {
     this.resetIdleTimer();
   }
 
+  /** Pause all stall timers. Used when waiting for user input/approval. */
+  pause(): void {
+    if (this.disposed || this.paused) return;
+    this.paused = true;
+
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+
+    for (const timer of this.toolTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.toolTimers.clear();
+  }
+
+  /** Resume stall monitoring. Resets the idle timer. */
+  resume(): void {
+    if (this.disposed || !this.paused) return;
+    this.paused = false;
+    this.toolStartTimes.clear();
+    this.resetIdleTimer();
+  }
+
   /** Record that a tool call has started. Begins a per-tool timeout. */
   trackToolCall(toolCallId: string, toolName?: string): void {
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return;
 
     // Clear any existing timer for this ID (shouldn't happen, but defensive)
     this.clearToolTimer(toolCallId);
@@ -142,7 +167,7 @@ export class StallMonitor {
   }
 
   private resetIdleTimer(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return;
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
     }

@@ -25,6 +25,7 @@ import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment }
 import { executeBash } from './tools/bash';
 import { suggestCompletion, availableCompletionProviders } from './completion/service';
 import { StallMonitor } from './agents/stall-monitor';
+import { isInteractiveToolName } from './agents/claude';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -987,10 +988,18 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Stall monitor: detect stuck tools and idle sessions on the main process side.
     // Disposes previous monitor if this is a retry.
     taskStallMonitors.get(options.taskId)?.dispose();
+    const priorRetries = taskRetryCounts.get(options.taskId) ?? 0;
     const stallMonitor = new StallMonitor({
       taskId: options.taskId,
-      maxAutoRestarts: MAX_AUTO_RETRIES,
+      maxAutoRestarts: Math.max(0, MAX_AUTO_RETRIES - priorRetries),
       onStallDetected: (info) => {
+        // Safety net: ignore stall if the task is waiting for user interaction.
+        const currentStatus = taskWorkspaceStatusMap.get(options.taskId);
+        if (currentStatus === 'waiting_input' || currentStatus === 'waiting_approval') {
+          stallMonitor.pause();
+          return;
+        }
+
         const label = info.type === 'tool_timeout'
           ? `${info.toolName ?? 'Tool'} timed out after ${Math.round(info.durationMs / 1000)}s`
           : `No activity for ${Math.round(info.durationMs / 1000)}s`;
@@ -1056,12 +1065,25 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     handle.on('message', (message) => {
       // Feed the stall monitor so it can track tool durations and idle time.
       if (message.type === 'tool_call' && message.toolCallId) {
-        stallMonitor.trackToolCall(message.toolCallId, message.toolName);
+        if (isInteractiveToolName(message.toolName)) {
+          // Interactive MCP tools (ExitPlanMode, AskUserQuestion, etc.)
+          // may wait for user interaction — pause stall detection.
+          stallMonitor.pause();
+        } else {
+          stallMonitor.trackToolCall(message.toolCallId, message.toolName);
+        }
       } else if (message.type === 'tool_result' && message.toolCallId) {
         stallMonitor.trackToolResult(message.toolCallId);
+        // Resume stall monitoring if paused for an interactive tool.
+        stallMonitor.resume();
       }
       if (message.type !== 'status' && message.type !== 'rate_limit') {
         stallMonitor.markActivity();
+      }
+
+      // Pause stall detection while waiting for user input/approval.
+      if (message.type === 'question_request') {
+        stallMonitor.pause();
       }
 
       if (message.type === 'rate_limit') {
@@ -1110,6 +1132,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             message: autoApprovedMessage,
           });
         } else {
+          stallMonitor.pause();
           sendToRenderer('agent:permission', {
             taskId: options.taskId,
             requestId: message.requestId,
@@ -1733,11 +1756,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('task:approve', async (_event, { taskId, requestId }: { taskId: string; requestId: string }) => {
     const handle = activeTasks.get(taskId);
     if (handle) handle.approve(requestId);
+    taskStallMonitors.get(taskId)?.resume();
   });
 
   ipcMain.handle('task:deny', async (_event, { taskId, requestId }: { taskId: string; requestId: string }) => {
     const handle = activeTasks.get(taskId);
     if (handle) handle.deny(requestId);
+    taskStallMonitors.get(taskId)?.resume();
   });
 
   ipcMain.handle('task:answer-question', async (_event, { taskId, requestId, response }: {
@@ -1766,6 +1791,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
 
     handle.answerQuestion(requestId, response);
+    taskStallMonitors.get(taskId)?.resume();
   });
 
   ipcMain.handle('task:steer', async (_event, { taskId, prompt, images, attachments }: { taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }) => {

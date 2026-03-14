@@ -205,4 +205,128 @@ describe('StallMonitor', () => {
     vi.advanceTimersByTime(60_000);
     expect(onStallDetected).not.toHaveBeenCalled();
   });
+
+  it('pause() stops idle timer from firing', () => {
+    const onStallDetected = vi.fn();
+    const monitor = new StallMonitor({
+      taskId: 'test-pause-1',
+      maxAutoRestarts: 2,
+      onStallDetected,
+      onProcessDead: vi.fn(),
+    });
+
+    vi.advanceTimersByTime(30_000);
+    monitor.pause();
+
+    // Advance well past the idle timeout — should NOT fire
+    vi.advanceTimersByTime(60_000);
+    expect(onStallDetected).not.toHaveBeenCalled();
+
+    monitor.dispose();
+  });
+
+  it('pause() stops tool timer from firing', () => {
+    const onStallDetected = vi.fn();
+    const monitor = new StallMonitor({
+      taskId: 'test-pause-2',
+      maxAutoRestarts: 2,
+      onStallDetected,
+      onProcessDead: vi.fn(),
+    });
+
+    monitor.trackToolCall('tc-1', 'Read');
+    vi.advanceTimersByTime(10_000);
+    monitor.pause();
+
+    // Advance past Read's 30s timeout — should NOT fire
+    vi.advanceTimersByTime(30_000);
+    const toolTimeoutCalls = onStallDetected.mock.calls.filter(
+      (args) => args[0].type === 'tool_timeout',
+    );
+    expect(toolTimeoutCalls).toHaveLength(0);
+
+    monitor.dispose();
+  });
+
+  it('resume() restarts idle timer', () => {
+    const onStallDetected = vi.fn();
+    const monitor = new StallMonitor({
+      taskId: 'test-pause-3',
+      maxAutoRestarts: 2,
+      onStallDetected,
+      onProcessDead: vi.fn(),
+    });
+
+    monitor.pause();
+    // Advance 60s while paused — nothing should fire
+    vi.advanceTimersByTime(60_000);
+    expect(onStallDetected).not.toHaveBeenCalled();
+
+    monitor.resume();
+
+    // 44s after resume — should NOT fire
+    vi.advanceTimersByTime(44_000);
+    expect(onStallDetected).not.toHaveBeenCalled();
+
+    // 1 more second (45s after resume) — should fire
+    vi.advanceTimersByTime(1_000);
+    expect(onStallDetected).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'idle_timeout' }),
+    );
+
+    monitor.dispose();
+  });
+
+  it('trackToolCall is a no-op when paused', () => {
+    const onStallDetected = vi.fn();
+    const monitor = new StallMonitor({
+      taskId: 'test-pause-4',
+      maxAutoRestarts: 2,
+      onStallDetected,
+      onProcessDead: vi.fn(),
+    });
+
+    monitor.pause();
+    monitor.trackToolCall('tc-1', 'Read');
+
+    // Advance past timeout — should NOT fire (call was ignored)
+    vi.advanceTimersByTime(60_000);
+    expect(onStallDetected).not.toHaveBeenCalled();
+
+    // Resume and verify only idle timer fires, not tool timer
+    monitor.resume();
+    vi.advanceTimersByTime(45_000);
+    expect(onStallDetected).toHaveBeenCalledTimes(1);
+    expect(onStallDetected).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'idle_timeout' }),
+    );
+
+    monitor.dispose();
+  });
+
+  it('double pause and double resume are safe', () => {
+    const onStallDetected = vi.fn();
+    const monitor = new StallMonitor({
+      taskId: 'test-pause-5',
+      maxAutoRestarts: 2,
+      onStallDetected,
+      onProcessDead: vi.fn(),
+    });
+
+    // Double pause should not throw
+    monitor.pause();
+    monitor.pause();
+
+    vi.advanceTimersByTime(60_000);
+    expect(onStallDetected).not.toHaveBeenCalled();
+
+    // Double resume should not throw or double-start timers
+    monitor.resume();
+    monitor.resume();
+
+    vi.advanceTimersByTime(45_000);
+    expect(onStallDetected).toHaveBeenCalledTimes(1);
+
+    monitor.dispose();
+  });
 });
