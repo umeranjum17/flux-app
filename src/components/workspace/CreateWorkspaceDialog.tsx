@@ -45,7 +45,6 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
       }) as Workspace;
 
       useWorkspaceStore.getState().addWorkspace(workspace);
-      useWorkspaceStore.getState().setDashboardOpen(true);
       useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
 
       useChatStore.getState().createTask({
