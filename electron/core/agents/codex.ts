@@ -19,9 +19,8 @@ export const CODEX_STARTUP_TIMEOUT_MS = 30_000;
  * Spawn a Codex CLI subprocess and parse its JSONL output.
  */
 export function spawnCodex(options: SpawnOptions): AgentHandle {
-  const args: string[] = options.resumeSessionId
-    ? ['exec', 'resume', options.resumeSessionId, '--json']
-    : ['exec', '--json'];
+  const isResume = !!options.resumeSessionId;
+  const args: string[] = isResume ? ['exec', 'resume'] : ['exec'];
   let imageDir: string | null = null;
   let imageWarning: string | null = null;
   const inferredProfile = inferCodexProfile(options);
@@ -29,7 +28,9 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
   if (options.mode === 'act') {
     args.push('--full-auto');
-  } else if (options.mode === 'plan') {
+  } else if (options.mode === 'plan' && !isResume) {
+    // `codex exec resume` does not accept `--sandbox` on recent CLIs.
+    // Keep plan-mode read-only sandboxing for fresh sessions.
     args.push('--sandbox', 'read-only');
   }
 
@@ -61,6 +62,11 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
         imageWarning = `Codex image attachments could not be prepared: ${err.message ?? String(err)}`;
       }
     }
+  }
+
+  args.push('--json');
+  if (isResume) {
+    args.push(options.resumeSessionId!);
   }
 
   // Prompt as last positional argument
@@ -811,4 +817,3 @@ function readCodexString(...values: unknown[]): string {
 
   return '';
 }
-
