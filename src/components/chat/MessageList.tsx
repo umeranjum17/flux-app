@@ -221,7 +221,7 @@ export function MessageList() {
             />
           )}
 
-          {taskStatus === 'done' && (diffs.size > 0 || messages.some((m) => m.type === 'result')) && (() => {
+          {taskStatus === 'done' && (() => {
             const resultMsg = [...messages].reverse().find((m) => m.type === 'result');
             const mergedDiff = diffs.size > 0
               ? Array.from(diffs.values()).reduce(
@@ -233,26 +233,36 @@ export function MessageList() {
                   { files: [] as import('../../lib/types').DiffFileEntry[], totalAdditions: 0, totalDeletions: 0 },
                 )
               : undefined;
-            return (
-              <TaskFooter
-                durationMs={resultMsg?.durationMs}
-                diff={mergedDiff}
-              />
-            );
+
+            // Show combined completion card with inline files when workspace is available
+            if (workspace && task.mode === 'act') {
+              return (
+                <CompletionCard
+                  workspace={workspace}
+                  suggestedMergeTarget={completionTarget}
+                  onContinue={() => {
+                    useUiStore.getState().setBottomPanelMode('agent');
+                  }}
+                  diff={mergedDiff}
+                  durationMs={resultMsg?.durationMs}
+                />
+              );
+            }
+
+            // Fallback to TaskFooter for non-workspace tasks
+            if (diffs.size > 0 || messages.some((m) => m.type === 'result')) {
+              return (
+                <TaskFooter
+                  durationMs={resultMsg?.durationMs}
+                  diff={mergedDiff}
+                />
+              );
+            }
+            return null;
           })()}
 
           {task.mode === 'plan' && taskId && planText && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
-          )}
-
-          {taskStatus === 'done' && workspace && task.mode === 'act' && (
-            <CompletionCard
-              workspace={workspace}
-              suggestedMergeTarget={completionTarget}
-              onContinue={() => {
-                useUiStore.getState().setBottomPanelMode('agent');
-              }}
-            />
           )}
 
           {rateLimitSuggestion && taskId && (
