@@ -1,18 +1,55 @@
+import { useEffect, useState } from 'react';
 import { Menu, Settings, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 
 const isMac = window.api?.platform === 'darwin';
 const isWin = window.api?.platform === 'win32';
 
+interface FullscreenChangedPayload {
+  isFullscreen: boolean;
+}
+
+function isFullscreenChangedPayload(value: unknown): value is FullscreenChangedPayload {
+  return typeof value === 'object'
+    && value !== null
+    && 'isFullscreen' in value
+    && typeof (value as { isFullscreen?: unknown }).isFullscreen === 'boolean';
+}
+
 export function TopBar() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setOverlay = useUiStore((s) => s.setOverlay);
   const autoApprove = useUiStore((s) => s.autoApprove);
   const toggleAutoApprove = useUiStore((s) => s.toggleAutoApprove);
 
+  useEffect(() => {
+    if (!isMac) return;
+
+    let disposed = false;
+    const unsubscribe = window.api.on('window:fullscreen-changed', (payload: unknown) => {
+      if (isFullscreenChangedPayload(payload)) {
+        setIsFullscreen(payload.isFullscreen);
+      }
+    });
+
+    window.api.invoke('window:is-fullscreen')
+      .then((value) => {
+        if (!disposed && typeof value === 'boolean') {
+          setIsFullscreen(value);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, []);
+
   return (
     <div
-      className={`drag-region chrome-topbar flex h-[34px] min-h-[34px] items-center justify-between border-b border-border/80 px-3.5 ${isMac ? 'pl-[74px]' : ''} ${isWin ? 'pr-[136px]' : ''}`}
+      className={`drag-region chrome-topbar flex h-[34px] min-h-[34px] items-center justify-between border-b border-border/80 px-3.5 ${isMac && !isFullscreen ? 'pl-[74px]' : ''} ${isWin ? 'pr-[136px]' : ''}`}
     >
       <div className="no-drag flex min-w-0 items-center gap-2">
         <button

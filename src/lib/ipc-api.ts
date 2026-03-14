@@ -36,6 +36,7 @@ export interface IpcChannels {
   'config:get': { args: []; result: FluxConfig };
   'config:set': { args: [Partial<FluxConfig>]; result: void };
   'theme:update-titlebar': { args: [{ theme: 'dark' | 'light' }]; result: void };
+  'window:is-fullscreen': { args: []; result: boolean };
   'zoom:set': { args: [{ level: number }]; result: void };
   'zoom:get': { args: []; result: number };
   'usage:get': { args: []; result: UsageInfo };
@@ -117,6 +118,7 @@ export interface IpcEvents {
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
+  'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;
 }
 

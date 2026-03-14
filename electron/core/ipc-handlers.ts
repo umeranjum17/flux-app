@@ -524,6 +524,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'config:get',
     'config:set',
     'theme:update-titlebar',
+    'window:is-fullscreen',
     'zoom:set',
     'zoom:get',
     'usage:get',
@@ -573,6 +574,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
   }
+
+  const emitFullscreenChanged = () => {
+    sendToRenderer('window:fullscreen-changed', { isFullscreen: mainWindow.isFullScreen() });
+  };
+  mainWindow.on('enter-full-screen', emitFullscreenChanged);
+  mainWindow.on('leave-full-screen', emitFullscreenChanged);
 
   // --- Environment detection ---
 
@@ -1559,6 +1566,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       color: theme === 'dark' ? '#111217' : '#f7f9fb',
       symbolColor: theme === 'dark' ? '#aeb09d' : '#2f3a2f',
     });
+  });
+
+  ipcMain.handle('window:is-fullscreen', async () => {
+    return mainWindow.isFullScreen();
   });
 
   // --- Zoom handlers ---
