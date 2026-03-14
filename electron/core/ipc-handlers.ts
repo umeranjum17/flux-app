@@ -20,7 +20,7 @@ import { createWorktree, removeWorktree } from './worktree/manager';
 import { generateWorkspaceName } from './worktree/names';
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
-import type { WorkspaceStatus, WorkspaceOutcome } from './worktree/types';
+import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
 import { executeBash } from './tools/bash';
 import { suggestCompletion, availableCompletionProviders } from './completion/service';
@@ -524,6 +524,47 @@ async function readAttachmentPreview(
   }
 }
 
+/**
+ * Build workspace-specific context to prepend to the agent prompt.
+ * Gives the agent awareness of the workspace branch, working directory,
+ * and post-completion expectations (commit, merge workflow).
+ */
+function buildWorkspaceSystemContext(
+  workspace: Workspace,
+  mode: SpawnOptions['mode'],
+  workspaceAction?: 'merge',
+): string | null {
+  if (workspaceAction === 'merge') return null; // merge prompts are self-contained
+
+  const lines = [
+    `## Workspace Context`,
+    `You are working in a dedicated workspace branch.`,
+    `- Branch: \`${workspace.branch}\``,
+    `- Working directory: \`${workspace.worktreePath}\``,
+    `- Parent repository: \`${workspace.parentRepo}\``,
+  ];
+
+  if (mode === 'act') {
+    lines.push(
+      '',
+      '## Instructions',
+      '- Make the requested changes directly in the workspace.',
+      '- Commit your changes with clear, descriptive commit messages when you are done.',
+      '- Do NOT push to remote or create pull requests — the user will merge via the UI.',
+      '- After committing, summarize what you changed.',
+    );
+  } else if (mode === 'plan') {
+    lines.push(
+      '',
+      '## Instructions',
+      '- Analyze the codebase and create a detailed plan.',
+      '- Do NOT modify files or run destructive commands.',
+    );
+  }
+
+  return lines.join('\n');
+}
+
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const sessionStore = new SessionStore();
   const configManager = new ConfigManager();
@@ -843,6 +884,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const fallbackContext = existingSession
       ? buildConversationContext(session.id, sessionStore)
       : undefined;
+
+    // Inject workspace context into the prompt so the agent understands
+    // its workspace environment (branch, merge target, commit expectations).
+    if (workspace && !existingSession) {
+      const wsContext = buildWorkspaceSystemContext(workspace, options.mode, options.workspaceAction);
+      if (wsContext) {
+        effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
+      }
+    }
 
     const spawnOptions: SpawnOptions = {
       ...options,
@@ -1462,15 +1512,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
-            if (!finalError && options.mode === 'act') {
-              if (options.workspaceAction === 'merge') {
+            if (options.mode === 'act') {
+              if (!finalError && options.workspaceAction === 'merge') {
                 emitWorkspaceOutcome(workspace.id, 'merged');
-              } else {
-                await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
-                  // Checkpoints are best-effort
-                });
+              } else if (options.workspaceAction !== 'merge') {
+                if (!finalError) {
+                  await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
+                    // Checkpoints are best-effort
+                  });
+                }
 
-                // Auto-advance outcome to ready_for_pr if still in_progress
+                // Auto-advance outcome to ready_for_pr if still in_progress.
+                // Do this even on error — the agent may have committed work
+                // before the error occurred (e.g., session lock errors).
                 const currentWs = workspaceStore.get(workspace.id);
                 if (currentWs && currentWs.outcome === 'in_progress') {
                   emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
