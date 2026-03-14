@@ -9,6 +9,7 @@ import { useSessionStore } from '../../../stores/session';
 import { useUiStore } from '../../../stores/ui';
 
 let mockApi: MockApi;
+const defaultPromptPlaceholder = 'Ask to make changes, @mention files, run /commands';
 
 afterEach(() => {
   cleanup();
@@ -213,7 +214,7 @@ describe('ChatInput', () => {
     render(<ChatInput />);
 
     await user.type(screen.getByPlaceholderText('Answer the active question'), 'Backend first');
-    await user.click(screen.getByRole('button', { name: 'Send message' }));
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
 
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith(

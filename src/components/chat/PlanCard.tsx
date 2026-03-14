@@ -155,27 +155,19 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
   return (
     <div className={`premium-plan-card overflow-hidden rounded-lg ${
-      isStreaming ? 'border-plan/35 shadow-[0_28px_64px_rgba(0,0,0,0.36)]' : ''
+      isStreaming ? 'border-plan/20' : ''
     }`}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-plan/12 bg-plan/8 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-plan/20 bg-plan-muted/55 text-plan">
-            <ClipboardList size={14} className="text-plan" />
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-plan/10 text-plan">
+            <ClipboardList size={13} />
           </div>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-plan/90">
-              {isStreaming ? 'Live planning' : 'Strategy'}
-            </div>
-            <span className="text-sm font-semibold text-text-primary">
-              {isStreaming ? 'Generating plan...' : 'Plan'}
-            </span>
-          </div>
+          <span className="text-[13px] font-medium text-text-primary">
+            {isStreaming ? 'Generating plan...' : 'Plan'}
+          </span>
           {isStreaming && (
-            <span className="flex items-center gap-1.5 rounded-full border border-plan/20 bg-plan/12 px-2.5 py-1 text-[10px] font-medium text-plan">
-              <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
-              streaming
-            </span>
+            <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
           )}
         </div>
         {isDone && (
@@ -209,7 +201,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Revision history dropdown */}
       {showHistory && revisions.length > 0 && (
-        <div className="border-b border-plan/12 bg-bg-elevated p-4">
+        <div className="border-b border-border bg-bg-elevated p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
             Previous Revisions
           </div>
@@ -234,7 +226,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Edit mode */}
       {editing && (
-        <div className="border-b border-plan/12 p-4">
+        <div className="border-b border-border p-4">
           <textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
@@ -250,7 +242,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             </button>
             <button
               onClick={handleSaveEdit}
-              className="rounded-lg bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5"
+              className="rounded-lg bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary transition-colors hover:bg-plan-hover"
             >
               <Save size={12} className="inline mr-1" />
               Save Revision
@@ -261,7 +253,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Plan sections */}
       {!editing && (
-        <div className="divide-y divide-plan/[0.07]">
+        <div className="divide-y divide-border/60">
           {sections.map((section, idx) => {
             const isExpanded = expandedSections.has(idx);
             const steps = section.title.toLowerCase().includes('step')
@@ -272,7 +264,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
               <div key={idx}>
                 <button
                   onClick={() => toggleSection(idx)}
-                  className="premium-toolbar-button flex w-full items-center gap-2 rounded-none px-5 py-3 text-left"
+                  className="premium-toolbar-button flex w-full items-center gap-2 rounded-none px-4 py-2.5 text-left"
                 >
                   {isExpanded
                     ? <ChevronDown size={13} className="text-text-tertiary shrink-0" />
@@ -281,7 +273,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                   <span className="text-sm font-medium text-text-primary">{section.title}</span>
                 </button>
                 {isExpanded && (
-                  <div className="px-5 pb-4 pl-10">
+                  <div className="px-4 pb-3 pl-9">
                     {steps.length > 0 ? (
                       <div className="space-y-2">
                         {steps.map((step, stepIdx) => {
@@ -329,7 +321,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Action bar */}
       {isDone && !editing && (
-        <div className="flex items-center justify-between border-t border-plan/12 bg-plan/8 px-5 py-4">
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
               <input
@@ -344,7 +336,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           </div>
           <button
             onClick={handleImplement}
-            className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-bg-primary shadow-[0_16px_34px_rgba(0,0,0,0.24)] transition-transform hover:-translate-y-0.5"
+            className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-bg-primary transition-colors hover:bg-accent-hover"
           >
             <Play size={13} />
             Implement Plan

@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, ClipboardList, Zap } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, BookOpen, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -361,6 +361,18 @@ export function ChatInput({ focused }: ChatInputProps) {
     setAttachedFiles([]);
   }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, mode, setTaskStatus, setTaskSessionId, upsertSession, isTerminal, cwd, shellHistory]);
 
+  const handleStop = useCallback(async () => {
+    const task = getActiveTask();
+    if (!task) return;
+    const isActive = task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input';
+    if (!isActive) return;
+    try {
+      await window.api.invoke('task:stop', { taskId: task.id });
+    } catch {
+      // agent:done event handles status transition
+    }
+  }, [getActiveTask]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Ghost text: Tab accepts, Escape dismisses
     if (isTerminal && ghostText) {
@@ -373,6 +385,15 @@ export function ChatInput({ focused }: ChatInputProps) {
       if (e.key === 'Escape') {
         e.preventDefault();
         setGhostText('');
+        return;
+      }
+    }
+
+    if (e.key === 'Escape') {
+      const task = getActiveTask();
+      if (task && (task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input')) {
+        e.preventDefault();
+        void handleStop();
         return;
       }
     }
@@ -583,7 +604,12 @@ export function ChatInput({ focused }: ChatInputProps) {
   }, []);
 
   const activeTask = getActiveTask();
-  const canSpawnSubagents = !!activeTask && (activeTask.status === 'running' || activeTask.status === 'waiting_approval' || activeTask.status === 'waiting_input');
+  const hasActiveRun = !!activeTask && (
+    activeTask.status === 'running' ||
+    activeTask.status === 'waiting_approval' ||
+    activeTask.status === 'waiting_input'
+  );
+  const canSpawnSubagents = hasActiveRun;
   const pendingQuestion = activeTask?.pendingQuestion;
   const placeholder = isTerminal
     ? 'Run a command...'
@@ -687,7 +713,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className={`premium-input-shell px-5 py-4 transition-colors focus-within:border-accent/60 ${shellClasses}`}>
+      <div className={`premium-input-shell px-5 py-4 transition-colors ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
           <div className="mb-2 flex items-center gap-1.5">
@@ -850,15 +876,15 @@ export function ChatInput({ focused }: ChatInputProps) {
                   <button
                     type="button"
                     onClick={() => useUiStore.getState().toggleMode()}
-                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium ${
                       mode === 'plan'
-                        ? 'border-plan/25 bg-plan/12 text-plan'
-                        : 'border-accent/25 bg-accent/12 text-accent'
+                        ? 'border border-plan/20 bg-plan/10 text-plan'
+                        : 'text-text-secondary'
                     }`}
                     title={`${mode === 'plan' ? 'Plan' : 'Act'} mode (Shift+Tab to toggle)`}
                   >
-                    {mode === 'plan' ? <ClipboardList size={12} /> : <Zap size={12} />}
-                    {mode === 'plan' ? 'Plan' : 'Act'}
+                    <BookOpen size={12} />
+                    {mode === 'plan' && <span>Plan</span>}
                   </button>
 
                   {/* Thinking toggle */}
@@ -992,24 +1018,37 @@ export function ChatInput({ focused }: ChatInputProps) {
                 </button>
               )}
 
-              {/* Send button (circular) */}
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!hasContent}
-                className={`flex-shrink-0 rounded-full p-3 transition-colors ${
-                  hasContent
-                    ? isTerminal
-                      ? 'bg-green-600 text-white'
-                      : mode === 'plan'
-                      ? 'bg-plan text-bg-primary'
-                      : 'bg-accent text-bg-primary'
-                    : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
-                }`}
-                aria-label="Send message"
-              >
-                <ArrowUp size={14} strokeWidth={2.5} />
-              </button>
+              {/* Stop button (when agent is running, chat mode only) */}
+              {hasActiveRun && !isTerminal ? (
+                <button
+                  type="button"
+                  onClick={() => void handleStop()}
+                  className="flex-shrink-0 rounded-full p-3 transition-colors bg-red-600 hover:bg-red-500 text-white"
+                  aria-label="Stop agent"
+                  title="Stop agent (Escape)"
+                >
+                  <Square size={14} fill="currentColor" strokeWidth={0} />
+                </button>
+              ) : (
+                /* Send button (circular) */
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!hasContent}
+                  className={`flex-shrink-0 rounded-full p-3 transition-colors ${
+                    hasContent
+                      ? isTerminal
+                        ? 'bg-green-600 text-white'
+                        : mode === 'plan'
+                        ? 'bg-plan text-bg-primary'
+                        : 'bg-accent text-bg-primary'
+                      : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
+                  }`}
+                  aria-label="Send message"
+                >
+                  <ArrowUp size={14} strokeWidth={2.5} />
+                </button>
+              )}
             </div>
           </div>
         </div>
