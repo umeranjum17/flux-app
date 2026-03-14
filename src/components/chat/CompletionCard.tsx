@@ -22,22 +22,22 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue }: 
   };
 
   return (
-    <div className="rounded-xl border border-success/30 bg-success/5 p-4">
+    <div className="rounded-xl border border-border bg-bg-elevated/60 p-4">
       <div className="flex items-center gap-2 mb-3">
         <CheckCircle2 size={15} className="text-success shrink-0" />
-        <span className="text-sm font-medium text-text-primary">Task complete</span>
+        <span className="text-[14px] font-medium text-text-primary">Task complete</span>
       </div>
       <div className="flex flex-wrap gap-2">
         <button
           onClick={handleReview}
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-primary px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-primary px-3.5 py-2 text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
         >
           <Eye size={12} />
           Review Changes
         </button>
         <button
           onClick={handleMerge}
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-white hover:bg-accent-hover transition-colors"
         >
           <GitMerge size={12} />
           Merge to {mergeTarget}
@@ -45,9 +45,9 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue }: 
         {onContinue && (
           <button
             onClick={onContinue}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-primary px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-primary px-3.5 py-2 text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
           >
-            <MessageSquare size={12} />
+            <MessageSquare size={13} />
             Continue Working
           </button>
         )}

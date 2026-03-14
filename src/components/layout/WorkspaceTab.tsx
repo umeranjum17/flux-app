@@ -142,8 +142,8 @@ export function WorkspaceTab() {
       <div className="flex-1 overflow-y-auto px-3">
         {workspaceList.length === 0 && standaloneTasks.length === 0 && (
           <div className="px-3 py-6 text-center">
-            <p className="text-[12px] text-text-secondary">No workspaces</p>
-            <p className="mt-1 text-[10px] text-text-tertiary">Click + to create one instantly.</p>
+            <p className="text-[13px] text-text-secondary">No workspaces</p>
+            <p className="mt-1 text-[11px] text-text-tertiary">Click + to create one.</p>
           </div>
         )}
         {workspaceList.map((ws, idx) => {
@@ -162,14 +162,14 @@ export function WorkspaceTab() {
             >
               <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[12px] font-medium text-text-primary">{ws.name}</div>
-                <div className="mt-0.5 flex items-center gap-1 text-[10px] text-text-tertiary">
-                  <GitBranch size={9} />
+                <div className="truncate text-[13px] font-medium text-text-primary">{ws.name}</div>
+                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
+                  <GitBranch size={10} />
                   <span className="truncate font-mono">{ws.branch}</span>
                 </div>
               </div>
               {idx < 9 && (
-                <span className="shrink-0 text-[9px] text-text-tertiary/50 font-mono">{'\u2318'}{idx + 1}</span>
+                <span className="shrink-0 text-[10px] text-text-tertiary/50 font-mono">{'\u2318'}{idx + 1}</span>
               )}
             </button>
           );
@@ -178,7 +178,7 @@ export function WorkspaceTab() {
         {/* Quick Chats — standalone tasks not tied to a workspace */}
         {standaloneTasks.length > 0 && (
           <>
-            <div className="mt-4 mb-1 px-1 text-[10px] font-medium uppercase tracking-[0.1em] text-text-tertiary">
+            <div className="mt-4 mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.1em] text-text-tertiary">
               Quick Chats
             </div>
             {standaloneTasks.map((task) => {
@@ -191,7 +191,7 @@ export function WorkspaceTab() {
                 >
                   <span className={`mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusColor(task.status)}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-text-primary">{task.title || 'Untitled'}</div>
+                    <div className="truncate text-[13px] font-medium text-text-primary">{task.title || 'Untitled'}</div>
                   </div>
                 </button>
               );
@@ -227,7 +227,7 @@ function ContextItem({ icon, label, onClick, danger }: { icon: React.ReactNode; 
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-[11px] ${
+      className={`flex w-full items-center gap-2 px-3 py-1.5 text-[12px] ${
         danger ? 'text-error hover:bg-error/10' : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
       }`}
     >

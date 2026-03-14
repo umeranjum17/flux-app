@@ -56,7 +56,7 @@ function TabButton({ label, active, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`classic-tab-button px-3 py-1.5 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
+      className={`classic-tab-button px-3 py-1.5 text-[12px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
     >
       {label}
     </button>
@@ -154,16 +154,16 @@ function ChangesTab() {
     <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
       <div className="mb-3 flex items-center gap-2">
         <GitCompareArrows size={14} className="text-text-tertiary" />
-        <span className="text-xs text-text-secondary">{gitBranch || 'No branch'}</span>
+        <span className="text-[13px] text-text-secondary">{gitBranch || 'No branch'}</span>
         {gitDirty && (
-          <span className="rounded-md border border-warning/20 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning">modified</span>
+          <span className="rounded-md border border-warning/20 bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">modified</span>
         )}
       </div>
       {!gitDirty && (
-        <p className="text-[11px] text-text-tertiary text-center py-6">No uncommitted changes</p>
+        <p className="text-[12px] text-text-tertiary text-center py-6">No uncommitted changes</p>
       )}
       {gitDirty && (
-        <p className="text-[11px] text-text-tertiary text-center py-6">Working tree has changes</p>
+        <p className="text-[12px] text-text-tertiary text-center py-6">Working tree has changes</p>
       )}
     </div>
   );
@@ -203,10 +203,10 @@ function ChecksTab() {
               <div key={i} className="rounded-lg border border-border/50 bg-bg-surface/50 px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 size={13} className={statusColor} />
-                  <code className="flex-1 truncate text-[11px] text-text-secondary">{check.command}</code>
+                  <code className="flex-1 truncate text-[12px] text-text-secondary">{check.command}</code>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2 pl-[21px]">
-                  <span className={`text-[10px] font-medium ${statusColor}`}>
+                  <span className={`text-[11px] font-medium ${statusColor}`}>
                     {passed ? 'Passed' : isPreExisting ? 'Pre-existing failure' : 'Failed'}
                   </span>
                   {typeof check.exitCode === 'number' && !passed && (
@@ -220,8 +220,8 @@ function ChecksTab() {
       ) : (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <CheckCircle2 size={20} className="text-text-tertiary/50" />
-          <p className="text-[11px] text-text-tertiary">No checks run yet</p>
-          <p className="text-[10px] text-text-tertiary/70">
+          <p className="text-[12px] text-text-tertiary">No checks run yet</p>
+          <p className="text-[11px] text-text-tertiary/70">
             Configure commands in Settings → Quality Gates
           </p>
         </div>

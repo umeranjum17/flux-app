@@ -42,13 +42,12 @@ export function WorkspaceActionBar() {
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/40 px-4 py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <GitBranch size={12} className="shrink-0 text-accent" />
-        <span className="truncate font-mono text-[11px] text-text-secondary">{workspace.branch}</span>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium ${status.color}/15 text-text-tertiary`}>
+        <GitBranch size={13} className="shrink-0 text-text-tertiary" />
+        <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${status.color}/15 text-text-tertiary`}>
           <span className={`inline-block h-1.5 w-1.5 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
           {status.label}
         </span>
-        <span className="text-[10px] text-text-tertiary">{workspace.agentId} · {workspace.model}</span>
       </div>
       <div className="flex items-center gap-1">
         {isRunning && (
