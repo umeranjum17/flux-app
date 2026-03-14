@@ -438,7 +438,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="premium-input-shell border border-border/80 bg-bg-primary/76 p-4 transition-colors focus-within:border-accent/35">
+      <div className="premium-input-shell border border-border/80 p-4 transition-colors focus-within:border-accent/60">
         {showSubagentDialog && (
           <div className="premium-panel mb-3 space-y-3 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -461,7 +461,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="text"
                 value={subagentModel}
                 onChange={(e) => setSubagentModel(e.target.value)}
-                className="premium-focus flex-1 rounded-xl border border-border bg-bg-elevated/75 px-3 py-2.5 text-sm text-text-primary outline-none"
+                className="premium-focus flex-1 rounded-lg border border-border bg-bg-elevated/75 px-3 py-2.5 text-sm text-text-primary outline-none"
                 placeholder="haiku"
               />
             </div>
@@ -473,13 +473,13 @@ export function ChatInput({ focused }: ChatInputProps) {
                     type="text"
                     value={draft.name}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                    className="premium-focus w-full rounded-xl border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
+                    className="premium-focus w-full rounded-lg border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
                     placeholder="Agent name"
                   />
                   <textarea
                     value={draft.prompt}
                     onChange={(e) => setSubagentDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: e.target.value } : item))}
-                    className="premium-focus min-h-20 w-full resize-y rounded-xl border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
+                    className="premium-focus min-h-20 w-full resize-y rounded-lg border border-border bg-bg-primary/80 px-3 py-2.5 text-sm text-text-primary outline-none"
                     placeholder="What should this subagent explore?"
                   />
                 </div>
@@ -490,7 +490,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => setSubagentDrafts((current) => current.length >= 5 ? current : [...current, { name: `Explore ${current.length + 1}`, prompt: '' }])}
-                className="premium-toolbar-button inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs text-text-tertiary"
+                className="premium-toolbar-button inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-text-tertiary"
               >
                 <Plus size={12} />
                 Add agent
@@ -498,7 +498,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => void handleSpawnSubagents()}
-                className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary disabled:opacity-50"
+                className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary disabled:opacity-50"
                 disabled={!canSpawnSubagents}
               >
                 Spawn

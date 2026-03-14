@@ -19,9 +19,9 @@ export function ActivityBar() {
   };
 
   return (
-    <div className="chrome-sidebar flex h-full w-[58px] min-w-[58px] flex-col items-center border-r border-border/70 px-2 py-3">
+    <div className="chrome-sidebar flex h-full w-[48px] min-w-[48px] flex-col items-center border-r border-border/70 px-2 py-3">
       <div className="mb-3 flex flex-col items-center gap-2">
-        <div className="grid h-9 w-9 place-items-center rounded-2xl border border-border/80 bg-bg-primary/80 text-[11px] font-semibold tracking-[0.18em] text-text-primary">
+        <div className="grid h-8 w-8 place-items-center rounded-lg border border-border/80 bg-bg-primary/80 text-[11px] font-semibold tracking-[0.18em] text-text-primary">
           FX
         </div>
       </div>

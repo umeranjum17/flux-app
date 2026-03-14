@@ -56,7 +56,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 bg-bg-primary/35 px-3 pt-2 backdrop-blur-sm">
+    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 bg-bg-secondary px-3 pt-2">
       {tabOrder.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;
@@ -101,7 +101,7 @@ export function TabBar() {
       })}
       <button
         onClick={handleNewTab}
-        className="premium-toolbar-button ml-1 flex-shrink-0 rounded-xl p-2 text-text-secondary"
+        className="premium-toolbar-button ml-1 flex-shrink-0 rounded-lg p-2 text-text-secondary"
         aria-label="New tab"
       >
         <Plus size={13} />

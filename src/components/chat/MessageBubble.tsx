@@ -133,7 +133,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
 
       {enlargedImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 cursor-pointer"
           onClick={() => setEnlargedImage(null)}
           onKeyDown={(e) => { if (e.key === 'Escape') setEnlargedImage(null); }}
         >
@@ -177,11 +177,11 @@ function CodeBlock({ children, language }: { children: string; language?: string
     <div className="group relative my-2">
       {highlightedHtml ? (
         <div
-          className="premium-panel shiki-wrapper overflow-x-auto rounded-[20px] [&>pre]:p-4 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
+          className="premium-panel shiki-wrapper overflow-x-auto rounded-lg [&>pre]:p-4 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
           dangerouslySetInnerHTML={{ __html: highlightedHtml }}
         />
       ) : (
-        <pre className="premium-panel overflow-x-auto rounded-[20px] p-4 font-mono text-[13px]">
+        <pre className="premium-panel overflow-x-auto rounded-lg p-4 font-mono text-[13px]">
           <code className={language ? `language-${language}` : undefined}>
             {children}
           </code>

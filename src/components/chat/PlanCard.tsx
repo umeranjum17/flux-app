@@ -153,14 +153,14 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const isDone = task.status === 'done';
 
   return (
-    <div className={`premium-plan-card overflow-hidden rounded-[26px] ${
+    <div className={`premium-plan-card overflow-hidden rounded-lg ${
       isStreaming ? 'border-plan/35 shadow-[0_28px_64px_rgba(0,0,0,0.36)]' : ''
     }`}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-plan/12 bg-plan/8 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-plan/20 bg-plan-muted/55 text-plan">
-            <ClipboardList size={16} className="text-plan" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-plan/20 bg-plan-muted/55 text-plan">
+            <ClipboardList size={14} className="text-plan" />
           </div>
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-plan/90">
@@ -208,13 +208,13 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Revision history dropdown */}
       {showHistory && revisions.length > 0 && (
-        <div className="border-b border-plan/12 bg-bg-primary/35 p-4">
+        <div className="border-b border-plan/12 bg-bg-elevated p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
             Previous Revisions
           </div>
           <div className="space-y-2">
             {revisions.map((rev, i) => (
-              <div key={i} className="premium-panel flex items-center justify-between rounded-[16px] px-3 py-2 text-xs">
+              <div key={i} className="premium-panel flex items-center justify-between rounded-lg px-3 py-2 text-xs">
                 <span className="text-text-secondary">Revision {i + 1}</span>
                 <button
                   onClick={() => {
@@ -237,19 +237,19 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           <textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            className="premium-focus min-h-[220px] w-full resize-y rounded-[18px] border border-border bg-bg-primary/75 p-4 text-sm font-mono text-text-primary outline-none focus:border-plan"
+            className="premium-focus min-h-[220px] w-full resize-y rounded-lg border border-border bg-bg-primary/75 p-4 text-sm font-mono text-text-primary outline-none focus:border-plan"
           />
           <div className="mt-3 flex items-center justify-end gap-2">
             <button
               onClick={() => setEditing(false)}
-              className="premium-toolbar-button rounded-xl px-3 py-1.5 text-xs text-text-secondary"
+              className="premium-toolbar-button rounded-lg px-3 py-1.5 text-xs text-text-secondary"
             >
               <X size={12} className="inline mr-1" />
               Cancel
             </button>
             <button
               onClick={handleSaveEdit}
-              className="rounded-xl bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5"
+              className="rounded-lg bg-plan px-3.5 py-1.5 text-xs font-semibold text-bg-primary shadow-[0_14px_32px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5"
             >
               <Save size={12} className="inline mr-1" />
               Save Revision
@@ -343,7 +343,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           </div>
           <button
             onClick={handleImplement}
-            className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-bg-primary shadow-[0_16px_34px_rgba(0,0,0,0.24)] transition-transform hover:-translate-y-0.5"
+            className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-bg-primary shadow-[0_16px_34px_rgba(0,0,0,0.24)] transition-transform hover:-translate-y-0.5"
           >
             <Play size={13} />
             Implement Plan
