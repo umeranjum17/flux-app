@@ -217,6 +217,8 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
     emitter.steer(response);
   };
 
+  emitter.isAlive = () => !finished && !stopped;
+
   return emitter;
 }
 

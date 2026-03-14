@@ -359,6 +359,8 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     emitter.steer(response);
   };
 
+  emitter.isAlive = () => !finished && !stopped;
+
   return emitter;
 }
 

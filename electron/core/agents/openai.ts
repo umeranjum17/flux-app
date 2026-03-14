@@ -103,6 +103,8 @@ export function spawnOpenAI(options: SpawnOptions, resumeMessages?: SessionMessa
     emitter.steer(response);
   };
 
+  emitter.isAlive = () => !stopped;
+
   return emitter;
 }
 

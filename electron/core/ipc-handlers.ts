@@ -742,6 +742,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
       const staleHandle = activeTasks.get(options.taskId)!;
       await staleHandle.stop();
+      // Allow the CLI a moment to release its session lock file after exit,
+      // preventing "Session ID already in use" errors on the next spawn.
+      await new Promise(resolve => setTimeout(resolve, 500));
       staleHandle.removeAllListeners();
       activeTasks.delete(options.taskId);
       taskSessions.delete(options.taskId);
@@ -1502,6 +1505,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const handle = activeTasks.get(taskId);
     if (!handle) {
       throw new Error(`Task ${taskId} does not have an active run`);
+    }
+
+    if (!handle.isAlive()) {
+      throw new Error('Agent process has exited — answer cannot be delivered');
     }
 
     const sessionId = taskSessions.get(taskId);

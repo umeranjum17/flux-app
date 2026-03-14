@@ -1,5 +1,8 @@
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+import { readFileSync, appendFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
 import {
   spawnAgentProcess,
@@ -13,9 +16,52 @@ import { classifySpawnError } from '../process-utils';
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
 
 /**
+ * Repair orphaned queue-operation entries in a Claude session JSONL.
+ * When a process is killed (SIGKILL), it can't write the final "remove" entry,
+ * leaving the session in a permanently "in use" state.
+ */
+function repairSessionQueue(sessionId: string, cwd: string): void {
+  try {
+    const projectKey = cwd.replace(/\//g, '-');
+    const claudeDir = join(homedir(), '.claude', 'projects', projectKey);
+    const jsonlPath = join(claudeDir, `${sessionId}.jsonl`);
+    if (!existsSync(jsonlPath)) return;
+
+    const content = readFileSync(jsonlPath, 'utf-8');
+    let enqueueCount = 0;
+    let removeCount = 0;
+    for (const line of content.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        const entry = JSON.parse(line);
+        if (entry.type === 'queue-operation') {
+          if (entry.operation === 'enqueue') enqueueCount++;
+          else if (entry.operation === 'remove') removeCount++;
+        }
+      } catch { /* skip malformed lines */ }
+    }
+
+    const pending = enqueueCount - removeCount;
+    if (pending > 0) {
+      const now = new Date().toISOString();
+      const repairs = Array.from({ length: pending }, () =>
+        JSON.stringify({ type: 'queue-operation', operation: 'remove', timestamp: now, sessionId }),
+      ).join('\n');
+      appendFileSync(jsonlPath, '\n' + repairs + '\n');
+    }
+  } catch { /* best-effort repair */ }
+}
+
+/**
  * Spawn a Claude Code CLI subprocess and parse its NDJSON stream output.
  */
 export function spawnClaude(options: SpawnOptions): AgentHandle {
+  // Proactively repair orphaned queue entries before spawning to prevent
+  // "Session ID already in use" errors from lingering after killed processes.
+  if (options.resumeSessionId && !options.sshHost) {
+    repairSessionQueue(options.resumeSessionId, options.cwd);
+  }
+
   const args: string[] = [
     '-p',
     '--output-format', 'stream-json',
@@ -61,6 +107,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   let finished = false;
   let timeoutError: string | undefined;
   let shutdownPromise: Promise<void> | null = null;
+  let sessionIdConflict = false;
 
   const requestShutdown = () => {
     shutdownPromise ??= terminateAgentProcess(proc);
@@ -229,6 +276,12 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     const text = chunk.toString('utf-8').trim();
     if (!text) return;
 
+    // Detect "Session ID already in use" — will retry in close handler
+    if (text.includes('already in use') && options.resumeSessionId && !sessionIdConflict) {
+      sessionIdConflict = true;
+      return;
+    }
+
     const actionable = filterStderrNoise(text);
     if (!actionable) return;
 
@@ -242,6 +295,31 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   });
 
   proc.on('close', (code: number | null) => {
+    // Retry transparently when session lock collision is detected
+    if (sessionIdConflict && !stopped) {
+      watchdog.clear();
+      emitMessage({
+        type: 'status',
+        role: 'system',
+        statusKind: 'progress',
+        content: 'Session lock detected — retrying with fresh session...',
+        timestamp: Date.now(),
+      });
+      const retryHandle = spawnClaude({ ...options, resumeSessionId: undefined });
+      // Forward all events from retry to the original emitter
+      retryHandle.on('message', (msg: AgentMessage) => emitter.emit('message', msg));
+      retryHandle.on('done', (result: { code: number | null; error?: string }) => emitter.emit('done', result));
+      retryHandle.on('session-meta', (meta: unknown) => emitter.emit('session-meta', meta));
+      // Rewire control methods to the retry handle
+      emitter.stop = () => retryHandle.stop();
+      emitter.approve = (id: string) => retryHandle.approve(id);
+      emitter.deny = (id: string) => retryHandle.deny(id);
+      emitter.steer = (p: string, i?: string[]) => retryHandle.steer(p, i);
+      emitter.answerQuestion = (id: string, r: string) => retryHandle.answerQuestion(id, r);
+      emitter.isAlive = () => retryHandle.isAlive();
+      return;
+    }
+
     if (buffer.trim()) {
       const event = parseClaudeEvent(buffer);
       if (event) {
@@ -305,6 +383,8 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   emitter.answerQuestion = (requestId: string, response: string) => {
     writeClaudeQuestionResponse(proc, requestId, response);
   };
+
+  emitter.isAlive = () => !finished && !stopped && proc.stdin?.writable === true;
 
   const promptText = options.mode === 'plan'
     ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
