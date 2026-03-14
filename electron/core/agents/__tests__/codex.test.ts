@@ -299,4 +299,28 @@ describe('spawnCodex', () => {
       vi.useRealTimers();
     }
   });
+
+  it('terminates option parsing before the prompt when images are attached', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnCodex({
+      taskId: 'task-1',
+      prompt: 'describe this screenshot',
+      mode: 'act',
+      cwd: '/tmp/flux-local',
+      images: ['data:image/png;base64,aGVsbG8='],
+    });
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+    const separatorIndex = args.indexOf('--');
+    const imageIndex = args.indexOf('--image');
+
+    expect(imageIndex).toBeGreaterThan(-1);
+    expect(separatorIndex).toBeGreaterThan(imageIndex);
+    expect(args[separatorIndex + 1]).toBe('describe this screenshot');
+
+    proc.emit('close', 0);
+    void handle.stop();
+  });
 });

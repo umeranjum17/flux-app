@@ -157,7 +157,9 @@ This depends on the agent honoring the structured plan prompt.`,
     render(<MessageList />);
 
     expect(screen.getByText("I'll inspect the repo first and then map the fix to exact files.")).not.toBeNull();
-    expect(screen.getAllByText(/^Plan$/).length).toBe(1);
+    expect(screen.getByText(/^Summary$/)).not.toBeNull();
+    expect(screen.getByText(/^Analysis$/)).not.toBeNull();
+    expect(screen.getByText(/^Steps$/)).not.toBeNull();
     expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
   });
 });

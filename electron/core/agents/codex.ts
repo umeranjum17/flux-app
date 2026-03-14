@@ -69,11 +69,12 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     args.push(options.resumeSessionId!);
   }
 
-  // Prompt as last positional argument
+  // End option parsing before the prompt. This prevents Codex's variadic
+  // `--image <FILE>...` flag from greedily consuming the prompt argument.
   const prompt = options.mode === 'plan'
     ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
     : options.prompt;
-  args.push(prompt);
+  args.push('--', prompt);
 
   const proc: ChildProcess = spawnAgentProcess({
     command: options.binaryPath || 'codex',
