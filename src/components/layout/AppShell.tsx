@@ -45,7 +45,11 @@ export function AppShell() {
   const termRef = useRef<TerminalPanelHandle>(null);
 
   const hasTasks = tasks.size > 0;
-  const mergingWorkspace = mergingWorkspaceId ? workspaces.get(mergingWorkspaceId) : null;
+  const mergingWorkspace = useMemo(() => {
+    if (!mergingWorkspaceId) return null;
+    const workspace = workspaces.get(mergingWorkspaceId);
+    return workspace ? { ...workspace } : null;
+  }, [mergingWorkspaceId, workspaces]);
 
   useAgentStream();
 
