@@ -134,33 +134,8 @@ button:focus-visible {
   isolation: isolate;
 }
 
-.premium-shell::before,
-.premium-shell::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.premium-shell::before {
-  background: none;
-}
-
-.premium-shell::after {
-  background: none;
-}
-
-.premium-shell > * {
-  position: relative;
-  z-index: 1;
-}
-
 .chrome-window {
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  box-shadow: 0 1px 4px hsl(0 0% 0% / 0.15);
 }
 
 .chrome-topbar {
@@ -173,9 +148,6 @@ button:focus-visible {
 
 .chrome-stage {
   background: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: none;
 }
 
 .premium-panel,
@@ -236,8 +208,8 @@ button:focus-visible {
 
 .premium-input-shell {
   background: var(--panel-gradient);
-  box-shadow: var(--panel-shadow-strong);
-  border-radius: 10px;
+  box-shadow: var(--panel-shadow);
+  border-radius: 8px;
 }
 
 .premium-toolbar-button {
@@ -365,8 +337,8 @@ button:focus-visible {
 .chrome-rail-button {
   position: relative;
   display: flex;
-  height: 40px;
-  width: 40px;
+  height: 36px;
+  width: 36px;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;

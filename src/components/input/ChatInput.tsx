@@ -438,7 +438,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="premium-input-shell border border-border/80 p-4 transition-colors focus-within:border-accent/60">
+      <div className="premium-input-shell border border-border/80 px-5 py-4 transition-colors focus-within:border-accent/60">
         {showSubagentDialog && (
           <div className="premium-panel mb-3 space-y-3 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -535,10 +535,10 @@ export function ChatInput({ focused }: ChatInputProps) {
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={placeholder}
-          rows={1}
+          rows={2}
           autoFocus
-          className="w-full resize-none bg-transparent text-[14px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none"
-          style={{ maxHeight: 192 }}
+          className="w-full resize-none bg-transparent text-[15px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none"
+          style={{ minHeight: 72, maxHeight: 192 }}
         />
 
         <ImageAttach
@@ -652,7 +652,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="button"
                 onClick={handleSend}
                 disabled={!hasContent}
-                className={`flex-shrink-0 rounded-full p-2.5 transition-colors ${
+                className={`flex-shrink-0 rounded-full p-3 transition-colors ${
                   hasContent
                     ? mode === 'plan'
                       ? 'bg-plan text-bg-primary'
@@ -664,6 +664,11 @@ export function ChatInput({ focused }: ChatInputProps) {
                 <ArrowUp size={14} strokeWidth={2.5} />
               </button>
             </div>
+          </div>
+          <div className="mt-2 flex items-center gap-3 text-[10px] text-text-tertiary/60">
+            <span>? for help</span>
+            <span>/ for commands</span>
+            <span>Shift+Tab to toggle mode</span>
           </div>
         </div>
       </div>
