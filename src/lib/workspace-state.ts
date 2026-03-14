@@ -113,6 +113,18 @@ function isMissingIpcHandler(error: unknown, channel: string): boolean {
 
 const FUN_BRANCH_PATTERN = /^flux\/[a-z]+-[a-z]+$/;
 
+function slugifyPrompt(value: string, max = 20): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, max);
+}
+
+function workspaceNameFromPrompt(prompt: string): string {
+  const line = prompt
+    .split('\n')
+    .map((item) => item.trim())
+    .find(Boolean);
+  return (line || 'Workspace').slice(0, 40);
+}
+
 export async function createEmptyWorkspace(opts: {
   agentId: AgentId;
   model: string;
@@ -138,12 +150,24 @@ export async function startWorkspaceChat(
   // If the workspace still has an auto-generated fun name, rename the branch based on the prompt
   if (!opts.skipBranchRename && FUN_BRANCH_PATTERN.test(opts.workspace.branch)) {
     try {
-      const slug = opts.prompt.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20);
+      const name = workspaceNameFromPrompt(opts.prompt);
+      const slug = slugifyPrompt(name) || 'workspace';
       const hash = Math.random().toString(36).slice(2, 6);
       const newBranch = `flux/${slug}-${hash}`;
-      await window.api.invoke('workspace:rename-branch', { workspaceId: opts.workspace.id, newBranch });
-      useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, { branch: newBranch });
-      opts = { ...opts, workspace: { ...opts.workspace, branch: newBranch } };
+      const renamed = await window.api.invoke('workspace:rename-branch', {
+        workspaceId: opts.workspace.id,
+        newBranch,
+        newName: name,
+        newWorktreeName: `${slug}-${hash}`,
+      }) as Workspace | undefined;
+      if (renamed) {
+        useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, {
+          branch: renamed.branch,
+          name: renamed.name,
+          worktreePath: renamed.worktreePath,
+        });
+        opts = { ...opts, workspace: renamed };
+      }
     } catch {
       // Non-fatal: keep the fun name if rename fails
     }
@@ -235,7 +259,7 @@ export async function createWorkspaceAndChat(
   opts: CreateWorkspaceAndChatOptions,
 ): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
   const name = prompt.trim().slice(0, 40);
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20);
+  const slug = slugifyPrompt(name) || 'workspace';
   const hash = Math.random().toString(36).slice(2, 6);
   const branch = `flux/${slug}-${hash}`;
 

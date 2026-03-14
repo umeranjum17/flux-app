@@ -7,6 +7,7 @@ import { useAgentStore } from '../../../stores/agent';
 import { useChatStore } from '../../../stores/chat';
 import { useSessionStore } from '../../../stores/session';
 import { useUiStore } from '../../../stores/ui';
+import { useWorkspaceStore } from '../../../stores/workspace';
 
 let mockApi: MockApi;
 const defaultPromptPlaceholder = 'Ask to make changes, @mention files, run /commands';
@@ -20,6 +21,7 @@ beforeEach(() => {
   (window as any).api = mockApi;
 
   useChatStore.setState({ tasks: new Map(), activeTaskId: null });
+  useWorkspaceStore.setState({ workspaces: new Map(), activeWorkspaceId: null });
   useSessionStore.setState({ sessions: [], loading: false });
   useUiStore.setState({
     sidebarOpen: true,
@@ -174,6 +176,84 @@ describe('ChatInput', () => {
         }),
       );
     });
+  });
+
+  it('bootstraps draft workspace tabs through workspace:spawn-chat', async () => {
+    const user = userEvent.setup();
+    useWorkspaceStore.setState({
+      workspaces: new Map([
+        ['ws-1', {
+          id: 'ws-1',
+          name: 'rapid-ripple',
+          parentRepo: '/workspace',
+          branch: 'flux/rapid-ripple',
+          status: 'idle',
+          outcome: 'in_progress',
+          createdAt: 1,
+          updatedAt: 1,
+          agentId: 'codex',
+          model: 'o4-mini',
+          worktreePath: '/workspace/.flux-worktrees/c62ee4fd',
+        }],
+      ]),
+      activeWorkspaceId: 'ws-1',
+    });
+    useChatStore.getState().createTask({
+      id: 'task-draft',
+      title: 'New chat',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace/.flux-worktrees/c62ee4fd',
+      workspaceId: 'ws-1',
+    });
+
+    mockApi.invoke.mockImplementation((channel: string) => {
+      if (channel === 'completion:providers') {
+        return Promise.resolve({ providers: [] });
+      }
+      if (channel === 'workspace:rename-branch') {
+        return Promise.resolve({
+          id: 'ws-1',
+          name: 'Fix error state',
+          parentRepo: '/workspace',
+          branch: 'flux/fix-error-state-abcd',
+          status: 'idle',
+          outcome: 'in_progress',
+          createdAt: 1,
+          updatedAt: 2,
+          agentId: 'codex',
+          model: 'o4-mini',
+          worktreePath: '/workspace/.flux-worktrees/fix-error-state-abcd',
+        });
+      }
+      if (channel === 'workspace:spawn-chat') {
+        return Promise.resolve({ taskId: 'task-1', session: { id: 'session-1' } });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<ChatInput />);
+
+    await user.type(getChatInput(), 'Fix error state');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'workspace:spawn-chat',
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          prompt: 'Fix error state',
+        }),
+      );
+    });
+    expect(mockApi.invoke).not.toHaveBeenCalledWith(
+      'task:spawn',
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+      }),
+    );
   });
 
   it('re-spawns completed tasks instead of steering a missing active run', async () => {

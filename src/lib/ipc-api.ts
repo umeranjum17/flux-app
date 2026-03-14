@@ -69,8 +69,8 @@ export interface IpcChannels {
     result: Workspace;
   };
   'workspace:rename-branch': {
-    args: [{ workspaceId: string; newBranch: string }];
-    result: void;
+    args: [{ workspaceId: string; newBranch: string; newName?: string; newWorktreeName?: string }];
+    result: Workspace;
   };
   'workspace:spawn': { args: [{ workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
   'workspace:spawn-chat': {

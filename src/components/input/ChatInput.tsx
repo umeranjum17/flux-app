@@ -271,6 +271,33 @@ export function ChatInput({ focused }: ChatInputProps) {
       task = useChatStore.getState().tasks.get(taskId)!;
     }
 
+    // Draft workspace tabs (created before first send) should bootstrap via workspace:spawn-chat
+    // so first-message branch/worktree renaming and workspace session setup run consistently.
+    if (task.workspaceId && !task.sessionId) {
+      const workspace = useWorkspaceStore.getState().workspaces.get(task.workspaceId);
+      if (workspace) {
+        try {
+          await startWorkspaceChat({
+            workspace,
+            prompt: text,
+            agentId: task.agentId,
+            model: task.model,
+            mode: useUiStore.getState().mode,
+            thinking: task.thinking,
+            images: images.length > 0 ? images : undefined,
+            attachments,
+          });
+          useChatStore.getState().removeTask(task.id);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to start workspace chat');
+        }
+        setValue('');
+        setImages([]);
+        setAttachedFiles([]);
+        return;
+      }
+    }
+
     const pendingQuestion = task.pendingQuestion;
     const isAnsweringQuestion = !!pendingQuestion;
 

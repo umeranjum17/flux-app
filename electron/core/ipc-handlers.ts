@@ -2029,15 +2029,63 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(
     'workspace:rename-branch',
-    async (_event, { workspaceId, newBranch }: { workspaceId: string; newBranch: string }) => {
+    async (
+      _event,
+      {
+        workspaceId,
+        newBranch,
+        newName,
+        newWorktreeName,
+      }: { workspaceId: string; newBranch: string; newName?: string; newWorktreeName?: string },
+    ) => {
       requireFields({ workspaceId, newBranch }, 'workspaceId', 'newBranch');
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
-      await execFileAsync('git', ['branch', '-m', workspace.branch, newBranch], {
-        cwd: workspace.worktreePath,
+      const trimmedName = newName?.trim();
+      const trimmedWorktreeName = newWorktreeName
+        ?.trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 64);
+
+      let nextWorktreePath = workspace.worktreePath;
+      if (trimmedWorktreeName) {
+        const candidatePath = path.join(path.dirname(workspace.worktreePath), trimmedWorktreeName);
+        if (candidatePath !== workspace.worktreePath) {
+          try {
+            await execFileAsync('git', ['worktree', 'move', workspace.worktreePath, candidatePath], {
+              cwd: workspace.parentRepo,
+              timeout: 30000,
+            });
+            nextWorktreePath = candidatePath;
+          } catch (error) {
+            console.warn('[workspace:rename-branch] failed to move worktree path', error);
+          }
+        }
+      }
+
+      let nextBranch = workspace.branch;
+      if (newBranch.trim() && newBranch !== workspace.branch) {
+        try {
+          await execFileAsync('git', ['branch', '-m', workspace.branch, newBranch], {
+            cwd: nextWorktreePath,
+            timeout: 10000,
+          });
+          nextBranch = newBranch;
+        } catch (error) {
+          console.warn('[workspace:rename-branch] failed to rename branch', error);
+        }
+      }
+
+      const updated = workspaceStore.update(workspaceId, {
+        branch: nextBranch,
+        worktreePath: nextWorktreePath,
+        ...(trimmedName ? { name: trimmedName } : {}),
       });
-      workspaceStore.update(workspaceId, { branch: newBranch });
+      if (!updated) throw new Error(`Workspace ${workspaceId} not found`);
+      return updated;
     },
   );
 
