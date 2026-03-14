@@ -15,21 +15,25 @@ export interface StallMonitorOptions {
 
 /**
  * Per-tool timeout defaults (ms).
- * Aggressive thresholds — detect fast, recover seamlessly.
+ * Tuned to avoid false-positive stalls — subagents and long commands
+ * legitimately take minutes.
  */
 const TOOL_TIMEOUTS: Record<string, number> = {
-  Read: 30_000,
-  Glob: 30_000,
-  Edit: 30_000,
-  Write: 30_000,
-  NotebookEdit: 30_000,
-  Grep: 45_000,
-  Bash: 180_000,
-  Agent: 180_000,
-  shell: 180_000,
+  Read: 60_000,
+  Glob: 60_000,
+  Edit: 60_000,
+  Write: 60_000,
+  NotebookEdit: 60_000,
+  Grep: 90_000,
+  Bash: 300_000,
+  Agent: 900_000,
+  shell: 300_000,
+  WebFetch: 120_000,
+  WebSearch: 120_000,
+  ToolSearch: 60_000,
 };
-const DEFAULT_TOOL_TIMEOUT = 60_000;
-const IDLE_TIMEOUT = 45_000;
+const DEFAULT_TOOL_TIMEOUT = 120_000;
+const IDLE_TIMEOUT = 120_000;
 const HEALTH_CHECK_INTERVAL = 10_000;
 
 function getToolTimeout(toolName: string | undefined): number {
