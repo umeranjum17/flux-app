@@ -13,6 +13,7 @@ import type {
   TaskStatus,
   ThinkingLevel,
 } from '../lib/types';
+import { useWorkspaceStore } from './workspace';
 
 interface ChatState {
   tasks: Map<string, Task>;
@@ -286,6 +287,18 @@ export const useChatStore = create<ChatState>()(
         t.pendingQuestion = undefined;
         t.rateLimitSuggestion = undefined;
       });
+      // Persist agent/model change back to the workspace so it sticks across tab switches
+      if (task?.workspaceId) {
+        useWorkspaceStore.getState().updateWorkspace(task.workspaceId, {
+          agentId: newAgentId,
+          model: newModel,
+        });
+        window.api?.invoke('workspace:update', {
+          workspaceId: task.workspaceId,
+          agentId: newAgentId,
+          model: newModel,
+        }).catch(() => {});
+      }
     },
 
     addUserMessage(taskId, content, images?, attachments?) {
