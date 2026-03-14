@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, MessageSquare, Search, Gauge, FolderTree, Terminal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
@@ -15,9 +15,33 @@ const statusColors: Record<TaskStatus, string> = {
   done: 'bg-info',
 };
 
+type SidebarTab = 'chat' | 'search' | 'usage';
+
+const NAV_ITEMS: { id: SidebarTab; icon: typeof MessageSquare; label: string }[] = [
+  { id: 'chat', icon: MessageSquare, label: 'Chats' },
+  { id: 'search', icon: Search, label: 'Search' },
+  { id: 'usage', icon: Gauge, label: 'Usage' },
+];
+
 export function Sidebar() {
   const sidebarTab = useUiStore((s) => s.sidebarTab);
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
+  const explorerOpen = useUiStore((s) => s.explorerOpen);
+  const terminalOpen = useUiStore((s) => s.bottomPanelOpen);
+  const cwd = useUiStore((s) => s.cwd);
+
+  const handleExplorer = () => {
+    if (!cwd) {
+      window.api.invoke('cwd:pick').then((picked) => {
+        if (picked) {
+          useUiStore.getState().setCwd(picked as string);
+          useUiStore.getState().setExplorerOpen(true);
+        }
+      });
+    } else {
+      useUiStore.getState().toggleExplorer();
+    }
+  };
 
   return (
     <motion.aside
@@ -27,12 +51,32 @@ export function Sidebar() {
       transition={{ duration: 0.16, ease: 'easeOut' }}
       className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-border/70"
     >
-      <div className="border-b border-border/70 px-3 py-2.5">
-        <div className="flex gap-1">
-          <TabPill label="Chats" active={sidebarTab === 'chat'} onClick={() => setSidebarTab('chat')} />
-          <TabPill label="Search" active={sidebarTab === 'search'} onClick={() => setSidebarTab('search')} />
-          <TabPill label="Usage" active={sidebarTab === 'usage'} onClick={() => setSidebarTab('usage')} />
-        </div>
+      {/* Warp-style icon nav */}
+      <div className="flex items-center gap-1 border-b border-border/70 px-2.5 py-2">
+        {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
+          <NavIcon
+            key={id}
+            icon={<Icon size={16} strokeWidth={1.8} />}
+            label={label}
+            active={sidebarTab === id}
+            onClick={() => setSidebarTab(id)}
+          />
+        ))}
+
+        <div className="mx-1 h-4 w-px bg-border/60" />
+
+        <NavIcon
+          icon={<FolderTree size={16} strokeWidth={1.8} />}
+          label="Explorer"
+          active={explorerOpen}
+          onClick={handleExplorer}
+        />
+        <NavIcon
+          icon={<Terminal size={16} strokeWidth={1.8} />}
+          label="Terminal"
+          active={terminalOpen}
+          onClick={() => useUiStore.getState().toggleBottomPanel()}
+        />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -44,13 +88,24 @@ export function Sidebar() {
   );
 }
 
-function TabPill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function NavIcon({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
   return (
     <button
       onClick={onClick}
-      className={`classic-tab-button px-3 py-1.5 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
+      title={label}
+      className={`sidebar-nav-icon ${active ? 'sidebar-nav-icon-active' : ''}`}
     >
-      {label}
+      {icon}
     </button>
   );
 }
