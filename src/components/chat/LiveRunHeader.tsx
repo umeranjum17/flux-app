@@ -78,11 +78,13 @@ export function LiveRunHeader() {
       </span>
       {isStalled && (
         <button
-          onClick={handleStop}
+          onClick={() => {
+            window.api?.invoke('task:restart', { taskId: task.id }).catch(() => {});
+          }}
           className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-warning hover:bg-warning/10 transition-colors"
         >
           <Square size={8} fill="currentColor" />
-          stalled — stop
+          stalled — restart
         </button>
       )}
     </div>

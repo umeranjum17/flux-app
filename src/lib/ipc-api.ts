@@ -20,6 +20,7 @@ export interface IpcChannels {
     result: { taskId: string; session: Session };
   };
   'task:stop': { args: [{ taskId: string }]; result: void };
+  'task:restart': { args: [{ taskId: string }]; result: { taskId: string; session: Session } };
   'subagent:spawn': {
     args: [{ parentTaskId: string; prompt: string; model?: string; name: string; cwd?: string }];
     result: { subagentId: string };
@@ -118,6 +119,7 @@ export interface IpcEvents {
   'agent:done': { taskId: string; error?: string };
   'agent:diff': { taskId: string; key: string; diff: DiffData };
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
+  'agent:stall': { taskId: string; stallInfo: { type: string; toolName?: string; durationMs: number; autoRestartsRemaining: number } };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
