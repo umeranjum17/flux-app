@@ -1,13 +1,11 @@
-import { Files, GitBranch, Wifi, WifiOff, TerminalSquare, FolderOpen } from 'lucide-react';
+import { Files, Search, TerminalSquare, FolderOpen } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 
 export function ActivityBar() {
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const terminalOpen = useUiStore((s) => s.terminalOpen);
-  const sshConnected = useUiStore((s) => s.sshConnected);
-  const sshHost = useUiStore((s) => s.sshHost);
-  const gitBranch = useUiStore((s) => s.gitBranch);
-  const gitDirty = useUiStore((s) => s.gitDirty);
+  const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const sidebarTab = useUiStore((s) => s.sidebarTab);
   const cwd = useUiStore((s) => s.cwd);
 
   const handleOpenFolder = async () => {
@@ -18,17 +16,16 @@ export function ActivityBar() {
     }
   };
 
-  return (
-    <div className="chrome-sidebar flex h-full w-[48px] min-w-[48px] flex-col items-center border-r border-border/70 px-2 py-3">
-      <div className="mb-3 flex flex-col items-center gap-2">
-        <div className="grid h-8 w-8 place-items-center rounded-lg border border-border/80 bg-bg-primary/80 text-[11px] font-semibold tracking-[0.18em] text-text-primary">
-          FX
-        </div>
-      </div>
+  const handleSearch = () => {
+    useUiStore.getState().setSidebarTab('search');
+    useUiStore.getState().setSidebarOpen(true);
+  };
 
+  return (
+    <div className="chrome-sidebar flex h-full w-[44px] min-w-[44px] flex-col items-center border-r border-border/70 px-1.5 py-3">
       <div className="flex flex-col items-center gap-1.5">
         <ActivityIcon
-          icon={<Files size={20} />}
+          icon={<Files size={18} />}
           label="Explorer"
           shortcut="Cmd+E"
           active={explorerOpen}
@@ -42,33 +39,23 @@ export function ActivityBar() {
         />
 
         <ActivityIcon
-          icon={<FolderOpen size={20} />}
+          icon={<FolderOpen size={18} />}
           label="Open Folder"
           onClick={handleOpenFolder}
         />
 
-        <div className="relative">
-          <ActivityIcon
-            icon={<GitBranch size={20} />}
-            label={gitBranch ? `${gitBranch}${gitDirty ? ' (modified)' : ''}` : 'Source Control'}
-            active={false}
-            badge={gitDirty}
-          />
-        </div>
-
         <ActivityIcon
-          icon={sshConnected ? <Wifi size={20} /> : <WifiOff size={20} />}
-          label={sshConnected ? `SSH: ${sshHost}` : 'SSH Connect'}
-          active={sshConnected}
-          highlight={sshConnected}
-          onClick={() => useUiStore.getState().setOverlay('ssh-connect')}
+          icon={<Search size={18} />}
+          label="Search"
+          active={sidebarOpen && sidebarTab === 'search'}
+          onClick={handleSearch}
         />
       </div>
 
       <div className="flex-1" />
 
       <ActivityIcon
-        icon={<TerminalSquare size={20} />}
+        icon={<TerminalSquare size={18} />}
         label="Terminal"
         shortcut="Ctrl+`"
         active={terminalOpen}
@@ -83,16 +70,12 @@ function ActivityIcon({
   label,
   shortcut,
   active,
-  highlight,
-  badge,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   shortcut?: string;
   active?: boolean;
-  highlight?: boolean;
-  badge?: boolean;
   onClick?: () => void;
 }) {
   const title = shortcut ? `${label} (${shortcut})` : label;
@@ -101,15 +84,12 @@ function ActivityIcon({
     <button
       onClick={onClick}
       title={title}
-      className={`chrome-rail-button ${active ? 'chrome-rail-button-active' : ''} ${highlight && !active ? 'text-accent' : ''}`}
+      className={`chrome-rail-button ${active ? 'chrome-rail-button-active' : ''}`}
     >
       {active && (
         <div className="absolute -left-2 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-accent" />
       )}
       {icon}
-      {badge && (
-        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-bg-secondary bg-warning" />
-      )}
     </button>
   );
 }

@@ -2,16 +2,7 @@ import { Plus, X } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
-import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
-import type { TaskStatus, AgentId } from '../../lib/types';
-
-const AGENT_LABELS: Record<string, string> = {
-  'claude-code': 'Claude',
-  codex: 'Codex',
-  gemini: 'Gemini',
-  openai: 'OpenAI',
-  ollama: 'Ollama',
-};
+import type { TaskStatus } from '../../lib/types';
 
 function StatusDot({ status }: { status: TaskStatus }) {
   switch (status) {
@@ -56,7 +47,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 bg-bg-secondary px-3 pt-2">
+    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-3 pt-2">
       {tabOrder.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;
@@ -76,16 +67,8 @@ export function TabBar() {
             }`}
           >
             <StatusDot status={task.status} />
-            <AgentIcon
-              agentId={task.agentId}
-              size={11}
-              className={AGENT_COLORS[task.agentId] ?? 'text-text-tertiary'}
-            />
             <span className="truncate font-medium">
-              {AGENT_LABELS[task.agentId] ?? task.agentId}
-            </span>
-            <span className="hidden truncate text-[10px] text-text-tertiary sm:inline">
-              {task.title.slice(0, 24)}
+              {task.title.slice(0, 30) || 'Untitled'}
             </span>
             <button
               onClick={(e) => {

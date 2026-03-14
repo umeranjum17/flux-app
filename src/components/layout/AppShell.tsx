@@ -335,14 +335,14 @@ export function AppShell() {
   }, [createNewTab, cycleModel, cycleThinking]);
 
   return (
-    <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary p-1 text-text-primary">
+    <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary text-text-primary">
       <div className="chrome-window flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar />
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <ActivityBar />
           <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="flex flex-1 overflow-hidden px-2 pb-2">
+            <div className="flex flex-1 overflow-hidden">
               <div className="relative flex min-w-0 flex-1 flex-col">
                 {dashboardOpen ? (
                   reviewingWorkspaceId ? (
@@ -356,8 +356,8 @@ export function AppShell() {
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                    <div className="shrink-0 border-t border-border/70 bg-bg-secondary">
-                      <div className="mx-auto w-full max-w-[1040px] px-5 py-4">
+                    <div className="shrink-0">
+                      <div className="mx-auto w-full max-w-[900px] px-6 py-6">
                         <LiveRunHeader />
                         <ChatInput focused />
                       </div>

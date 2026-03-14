@@ -14,6 +14,7 @@ export interface RecentProject {
 
 interface UiState {
   sidebarOpen: boolean;
+  sidebarTab: 'chat' | 'search' | 'usage';
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
@@ -65,6 +66,7 @@ interface UiState {
 
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
+  setSidebarTab(tab: 'chat' | 'search' | 'usage'): void;
   toggleTheme(): void;
   setTheme(theme: 'dark' | 'light'): void;
   setSendKey(sendKey: 'cmd+enter' | 'enter'): void;
@@ -112,6 +114,7 @@ function basename(p: string): string {
 export const useUiStore = create<UiState>()(
   immer((set) => ({
     sidebarOpen: true,
+    sidebarTab: 'chat',
     theme: 'dark',
     sendKey: 'cmd+enter',
     mode: 'act',
@@ -146,6 +149,12 @@ export const useUiStore = create<UiState>()(
     setSidebarOpen(open) {
       set((state) => {
         state.sidebarOpen = open;
+      });
+    },
+
+    setSidebarTab(tab) {
+      set((state) => {
+        state.sidebarTab = tab;
       });
     },
 
