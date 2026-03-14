@@ -77,6 +77,10 @@ export interface IpcChannels {
   'workspace:list-chats': { args: [{ workspaceId: string }]; result: WorkspaceSession[] };
   'workspace:stop': { args: [{ workspaceId: string }]; result: void };
   'workspace:delete': { args: [{ workspaceId: string }]; result: void };
+  'workspace:set-outcome': {
+    args: [{ workspaceId: string; outcome: WorkspaceOutcome }];
+    result: void;
+  };
   'workspace:archive': { args: [{ workspaceId: string }]; result: void };
   'workspace:unarchive': { args: [{ workspaceId: string }]; result: Workspace };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
@@ -228,6 +232,7 @@ export interface Workspace {
   parentRepo: string;
   branch: string;
   status: WorkspaceStatus;
+  outcome: WorkspaceOutcome;
   createdAt: number;
   updatedAt: number;
   agentId: string;
@@ -248,6 +253,8 @@ export interface WorkspaceSession {
 }
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
+
+export type WorkspaceOutcome = 'in_progress' | 'ready_for_pr' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
 
 export interface MergeResult {
   success: boolean;

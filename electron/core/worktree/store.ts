@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { getDb } from '../db/connection';
-import type { Workspace, WorkspaceSession, WorkspaceStatus } from './types';
+import type { Workspace, WorkspaceOutcome, WorkspaceSession, WorkspaceStatus } from './types';
 
 interface CreateWorkspaceInput {
   id: string;
@@ -11,6 +11,7 @@ interface CreateWorkspaceInput {
   agentId: string;
   model: string;
   status?: WorkspaceStatus;
+  outcome?: WorkspaceOutcome;
   sessionId?: string;
 }
 
@@ -50,6 +51,7 @@ export class WorkspaceStore {
       agentId: input.agentId as any,
       model: input.model,
       status: input.status ?? 'idle',
+      outcome: input.outcome ?? 'in_progress',
       createdAt: now,
       updatedAt: now,
       sessionId: input.sessionId,
@@ -57,8 +59,8 @@ export class WorkspaceStore {
 
     db.prepare(
       `INSERT INTO workspaces (
-        id, name, parent_repo, worktree_path, branch, agent_id, model, status, created_at, updated_at, session_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, parent_repo, worktree_path, branch, agent_id, model, status, outcome, created_at, updated_at, session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       workspace.id,
       workspace.name,
@@ -68,6 +70,7 @@ export class WorkspaceStore {
       workspace.agentId,
       workspace.model,
       workspace.status,
+      workspace.outcome,
       workspace.createdAt,
       workspace.updatedAt,
       workspace.sessionId ?? null,
@@ -89,7 +92,7 @@ export class WorkspaceStore {
 
     db.prepare(
       `UPDATE workspaces
-       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, agent_id = ?, model = ?, status = ?, updated_at = ?, session_id = ?
+       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, agent_id = ?, model = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
        WHERE id = ?`,
     ).run(
       next.name,
@@ -99,6 +102,7 @@ export class WorkspaceStore {
       next.agentId,
       next.model,
       next.status,
+      next.outcome,
       next.updatedAt,
       next.sessionId ?? null,
       id,
@@ -168,6 +172,7 @@ function rowToWorkspace(row: any): Workspace {
     agentId: row.agent_id,
     model: row.model,
     status: row.status,
+    outcome: row.outcome ?? 'in_progress',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sessionId: row.session_id ?? undefined,

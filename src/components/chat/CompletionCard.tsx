@@ -66,6 +66,11 @@ export function useWorkspaceCompletion(workspaceId: string | undefined) {
       const { workspaceId: wid, suggestedMergeTarget } = data as { workspaceId: string; taskId: string; suggestedMergeTarget: string };
       if (wid === workspaceId) {
         setCompletionTarget(suggestedMergeTarget);
+        // Sync outcome from backend (auto-set to ready_for_pr on completion)
+        const ws = useWorkspaceStore.getState().workspaces.get(wid);
+        if (ws && (ws.outcome === 'in_progress' || !ws.outcome)) {
+          useWorkspaceStore.getState().updateWorkspace(wid, { outcome: 'ready_for_pr' });
+        }
       }
     });
     return () => { unsub?.(); };
