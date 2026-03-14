@@ -92,11 +92,15 @@ function buildWorkspaceMergePrompt(
   const mergeCommand = squash
     ? `git merge --squash ${workspace.branch}`
     : `git merge ${workspace.branch} --no-edit`;
+  const commitCommand = `git commit -m "Merge branch '${workspace.branch}' into '${targetBranch}'"`;
+  const pushCommand = `git push origin ${targetBranch}`;
 
   return [
     `Merge branch \`${workspace.branch}\` into \`${targetBranch}\`.`,
     `Run the merge from the parent repo at \`${workspace.parentRepo}\`, not the worktree path.`,
     `Checkout \`${targetBranch}\`, run \`${mergeCommand}\`, and handle straightforward conflicts if they come up.`,
+    `If the merge does not create a commit automatically (for example after \`--squash\`), create one with \`${commitCommand}\`.`,
+    `Push the updated \`${targetBranch}\` branch with \`${pushCommand}\` once the merge commit is ready.`,
     'If the merge needs a human decision, stop and report exactly what is blocked.',
     'Finish with `git status` and a short summary of what landed.',
   ].join('\n');
