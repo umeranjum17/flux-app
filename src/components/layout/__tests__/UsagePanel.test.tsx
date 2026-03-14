@@ -128,6 +128,101 @@ describe('UsagePanel', () => {
     expect(screen.getByText(/1 reqs/)).not.toBeNull();
   });
 
+  it('renders trend chart badges and sparse-data state', async () => {
+    const now = Date.now();
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'usage:get') {
+        return {
+          summary: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 },
+          providers: [],
+          daily: [],
+          windowDays: 7,
+          updatedAt: now,
+        };
+      }
+      if (channel === 'usage:live') {
+        return {
+          providers: [
+            {
+              providerId: 'claude-code',
+              label: 'Claude Code',
+              status: 'connected',
+              fetchedAt: now - (10 * 60_000),
+              source: 'snapshot',
+              message: 'Showing last known usage',
+              windows: [
+                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.45, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now - (10 * 60_000), source: 'snapshot', isStale: true, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+              ],
+            },
+          ],
+          history: [
+            { providerId: 'claude-code', windowKey: 'five_hour', sampledAt: now - 60_000, usedPercent: 0.45, resetsAt: now + 60_000, source: 'snapshot' },
+          ],
+          updatedAt: now,
+        };
+      }
+      return null;
+    });
+
+    render(<UsagePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Usage trend')).not.toBeNull();
+    });
+
+    expect(screen.getByText('snapshot')).not.toBeNull();
+    expect(screen.getByText(/stale/i)).not.toBeNull();
+    expect(screen.getByText('collecting points...')).not.toBeNull();
+  });
+
+  it('renders timestamp-bucketed trend strip range labels', async () => {
+    const now = Date.now();
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'usage:get') {
+        return {
+          summary: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 },
+          providers: [],
+          daily: [],
+          windowDays: 7,
+          updatedAt: now,
+        };
+      }
+      if (channel === 'usage:live') {
+        return {
+          providers: [
+            {
+              providerId: 'codex',
+              label: 'Codex',
+              status: 'connected',
+              fetchedAt: now,
+              source: 'live',
+              message: null,
+              windows: [
+                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+              ],
+            },
+          ],
+          history: [
+            { providerId: 'codex', windowKey: 'five_hour', sampledAt: now - (4 * 60_000), usedPercent: 0.2, resetsAt: null, source: 'live' },
+            { providerId: 'codex', windowKey: 'five_hour', sampledAt: now - (2 * 60_000), usedPercent: 0.35, resetsAt: null, source: 'live' },
+            { providerId: 'codex', windowKey: 'seven_day', sampledAt: now - (8 * 60 * 60_000), usedPercent: 0.5, resetsAt: null, source: 'live' },
+            { providerId: 'codex', windowKey: 'seven_day', sampledAt: now - (2 * 60 * 60_000), usedPercent: 0.55, resetsAt: null, source: 'live' },
+          ],
+          updatedAt: now,
+        };
+      }
+      return null;
+    });
+
+    render(<UsagePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('last 5h')).not.toBeNull();
+    });
+
+    expect(screen.getByText('last 7d')).not.toBeNull();
+  });
+
   it('shows empty state when no data', async () => {
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') {

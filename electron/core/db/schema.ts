@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS usage_window_snapshots (
   remaining_value REAL,
   unit TEXT,
   source TEXT NOT NULL
-)`;
+ );
+CREATE INDEX IF NOT EXISTS idx_usage_window_snapshots_lookup
+  ON usage_window_snapshots(provider_id, window_key, sampled_at)`;
 
 export const CREATE_WORKSPACES_TABLE = `
 CREATE TABLE IF NOT EXISTS workspaces (

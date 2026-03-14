@@ -124,7 +124,8 @@ const PROVIDER_LABELS: Record<UsageProviderId, string> = {
   codex: 'Codex',
 };
 const HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+const SNAPSHOT_DEDUP_WINDOW_MS = 60 * 1000;
+const SNAPSHOT_ANCHOR_INTERVAL_MS = 5 * 60 * 1000;
 const CLAUDE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const CODEX_REFRESH_INTERVAL_MS = 8 * 24 * 60 * 60 * 1000;
 
@@ -263,10 +264,7 @@ export class LiveUsageService {
 
     for (const window of windows) {
       const last = latest.get(snapshotKey(window.providerId as UsageProviderId, window.windowKey));
-      const shouldSkip = last
-        && Math.abs(window.fetchedAt - last.sampled_at) < SNAPSHOT_INTERVAL_MS
-        && Math.abs(window.usedPercent - last.used_percent) < 0.001
-        && (window.resetsAt ?? null) === last.resets_at;
+      const shouldSkip = this.shouldSkipSnapshot(window, last);
 
       if (shouldSkip) {
         continue;
@@ -285,6 +283,23 @@ export class LiveUsageService {
         window.source,
       );
     }
+  }
+
+  private shouldSkipSnapshot(window: InternalWindow, last: UsageSnapshotRow | undefined): boolean {
+    if (!last) {
+      return false;
+    }
+
+    const ageMs = Math.abs(window.fetchedAt - last.sampled_at);
+    const isEquivalent = Math.abs(window.usedPercent - last.used_percent) < 0.001
+      && (window.resetsAt ?? null) === last.resets_at;
+
+    if (!isEquivalent) {
+      return ageMs < SNAPSHOT_DEDUP_WINDOW_MS;
+    }
+
+    // Keep regular anchors for unchanged windows so trends remain readable over long sessions.
+    return ageMs < SNAPSHOT_ANCHOR_INTERVAL_MS;
   }
 
   private pruneOldSnapshots(now: number): void {

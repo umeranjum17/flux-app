@@ -256,4 +256,115 @@ describe('LiveUsageService', () => {
     expect(claude?.message).toContain('token is unavailable');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('writes periodic anchor snapshots when usage is unchanged', async () => {
+    const baseNow = Date.UTC(2026, 2, 10, 12, 0, 0);
+    const resetAt = Date.UTC(2026, 2, 10, 20, 0, 0);
+    snapshotRows.push(
+      {
+        provider_id: 'claude-code',
+        window_key: 'five_hour',
+        sampled_at: baseNow,
+        used_percent: 0.4,
+        resets_at: resetAt,
+        used_value: null,
+        limit_value: null,
+        remaining_value: null,
+        unit: 'percent',
+        source: 'live',
+      },
+      {
+        provider_id: 'claude-code',
+        window_key: 'seven_day',
+        sampled_at: baseNow,
+        used_percent: 0.7,
+        resets_at: resetAt,
+        used_value: null,
+        limit_value: null,
+        remaining_value: null,
+        unit: 'percent',
+        source: 'live',
+      },
+    );
+
+    vi.doMock('../../db/connection', () => ({
+      getDb: () => ({
+        prepare: (sql: string) => ({
+          all: (...args: any[]) => {
+            if (sql.includes('WHERE sampled_at >= ?')) {
+              return snapshotRows.filter((row) => row.sampled_at >= args[0]);
+            }
+            return [...snapshotRows].sort((left, right) => right.sampled_at - left.sampled_at);
+          },
+          run: (...args: any[]) => {
+            if (sql.includes('INSERT INTO usage_window_snapshots')) {
+              snapshotRows.push({
+                provider_id: args[0],
+                window_key: args[1],
+                sampled_at: args[2],
+                used_percent: args[3],
+                resets_at: args[4],
+                used_value: args[5],
+                limit_value: args[6],
+                remaining_value: args[7],
+                unit: args[8],
+                source: args[9],
+              });
+            }
+          },
+        }),
+      }),
+    }));
+
+    vi.doMock('fs', () => ({
+      default: {
+        readFileSync: (filePath: string) => {
+          if (filePath.endsWith('.claude/.credentials.json')) {
+            return JSON.stringify({
+              claudeAiOauth: {
+                accessToken: 'claude-access',
+                refreshToken: 'claude-refresh',
+                expiresAt: baseNow + 60_000,
+              },
+            });
+          }
+          throw new Error(`Unexpected file read: ${filePath}`);
+        },
+        writeFileSync: () => {},
+      },
+    }));
+
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('api.anthropic.com/api/oauth/usage')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            five_hour: { utilization: 0.4, resets_at: new Date(resetAt).toISOString() },
+            seven_day: { utilization: 0.7, resets_at: new Date(resetAt).toISOString() },
+          }),
+        };
+      }
+
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      };
+    }));
+
+    const { LiveUsageService } = await import('../live');
+    const dateSpy = vi.spyOn(Date, 'now');
+    const service = new LiveUsageService();
+
+    dateSpy.mockReturnValue(baseNow + (4 * 60_000));
+    await service.getOverview();
+    expect(snapshotRows).toHaveLength(2);
+
+    dateSpy.mockReturnValue(baseNow + (6 * 60_000));
+    await service.getOverview();
+    expect(snapshotRows).toHaveLength(4);
+    dateSpy.mockRestore();
+  });
 });

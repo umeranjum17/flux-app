@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BarChart3, RefreshCw, WifiOff } from 'lucide-react';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow, UsageHistoryPoint, UsageInfo } from '../../lib/ipc-api';
 
@@ -12,6 +12,25 @@ const STATUS_COLORS: Record<LiveUsageWindow['status'], string> = {
   allowed_warning: 'var(--color-warning)',
   rejected: 'var(--color-error)',
 };
+
+const CHART_WIDTH = 260;
+const CHART_HEIGHT = 72;
+const CHART_BASELINE_Y = 60;
+const CHART_VALUE_HEIGHT = 48;
+const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
+const SEVEN_DAY_MS = 7 * 24 * 60 * 60 * 1000;
+const FIVE_HOUR_BUCKET_MS = 5 * 60 * 1000;
+const SEVEN_DAY_BUCKET_MS = 2 * 60 * 60 * 1000;
+
+type ProviderUsageHistory = { five_hour: UsageHistoryPoint[]; seven_day: UsageHistoryPoint[] };
+
+interface TrendPoint {
+  x: number;
+  y: number;
+  sampledAt: number;
+  usedPercent: number;
+  source: UsageHistoryPoint['source'];
+}
 
 export function UsagePanel() {
   const [usage, setUsage] = useState<UsageInfo | null>(null);
@@ -152,13 +171,13 @@ function ProviderCard({
   history,
 }: {
   provider: LiveUsageProvider;
-  history: { five_hour: UsageHistoryPoint[]; seven_day: UsageHistoryPoint[] };
+  history: ProviderUsageHistory;
 }) {
   const color = PROVIDER_COLORS[provider.providerId];
   const hasWindows = provider.windows.length > 0;
   const isDisconnected = provider.status === 'auth_missing';
   const isError = provider.status === 'error';
-  const hasHistory = history.five_hour.length > 1 || history.seven_day.length > 1;
+  const hasHistory = history.five_hour.length > 0 || history.seven_day.length > 0;
 
   return (
     <div className="rounded-xl border border-border bg-bg-elevated/80 p-3 shadow-[0_6px_18px_hsl(0_0%_0%_/_0.2)]">
@@ -210,55 +229,175 @@ function UsageTrendChart({
   history,
 }: {
   provider: LiveUsageProvider;
-  history: { five_hour: UsageHistoryPoint[]; seven_day: UsageHistoryPoint[] };
+  history: ProviderUsageHistory;
 }) {
-  const fiveHourSeries = compactHistory(history.five_hour);
-  const sevenDaySeries = compactHistory(history.seven_day);
+  const fiveHourSeries = useMemo(
+    () => buildWindowSeries(history.five_hour, FIVE_HOUR_MS, FIVE_HOUR_BUCKET_MS),
+    [history.five_hour],
+  );
+  const sevenDaySeries = useMemo(
+    () => buildWindowSeries(history.seven_day, SEVEN_DAY_MS, SEVEN_DAY_BUCKET_MS),
+    [history.seven_day],
+  );
 
-  if (fiveHourSeries.length < 2 && sevenDaySeries.length < 2) {
+  if (fiveHourSeries.length === 0 && sevenDaySeries.length === 0) {
     return null;
   }
 
+  const staleAgeMs = provider.fetchedAt ? Math.max(0, Date.now() - provider.fetchedAt) : null;
+  const isStale = provider.source !== 'live' || provider.windows.some((window) => window.isStale);
+
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-tertiary">
+      <div className="mb-2 flex items-center justify-between text-[10px] text-text-tertiary">
         <span>Usage trend</span>
-        <span className="tabular-nums">{provider.source === 'snapshot' ? 'snapshot' : 'live'}</span>
+        <div className="flex items-center gap-1.5">
+          <TrendBadge label={formatSourceLabel(provider.source)} />
+          {isStale && staleAgeMs !== null && <TrendBadge label={`stale ${formatAge(staleAgeMs)}`} />}
+        </div>
       </div>
-      <div className="h-20">
-        <svg viewBox="0 0 260 72" className="h-full w-full">
-          <defs>
-            <linearGradient id={`${provider.providerId}-fill-5h`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={STATUS_COLORS.allowed} stopOpacity="0.35" />
-              <stop offset="100%" stopColor={STATUS_COLORS.allowed} stopOpacity="0.02" />
-            </linearGradient>
-            <linearGradient id={`${provider.providerId}-fill-7d`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={PROVIDER_COLORS[provider.providerId]} stopOpacity="0.22" />
-              <stop offset="100%" stopColor={PROVIDER_COLORS[provider.providerId]} stopOpacity="0.01" />
-            </linearGradient>
-          </defs>
-          <line x1="0" y1="60" x2="260" y2="60" stroke="var(--color-border-subtle)" strokeWidth="1" />
-          <line x1="0" y1="36" x2="260" y2="36" stroke="var(--color-border-subtle)" strokeOpacity="0.6" strokeWidth="1" />
-          <line x1="0" y1="12" x2="260" y2="12" stroke="var(--color-border-subtle)" strokeOpacity="0.45" strokeWidth="1" />
-          {fiveHourSeries.length > 1 && (
-            <>
-              <path d={buildAreaPath(fiveHourSeries)} fill={`url(#${provider.providerId}-fill-5h)`} />
-              <path d={buildLinePath(fiveHourSeries)} fill="none" stroke={STATUS_COLORS.allowed} strokeWidth="2.2" strokeLinecap="round" />
-            </>
-          )}
-          {sevenDaySeries.length > 1 && (
-            <>
-              <path d={buildAreaPath(sevenDaySeries)} fill={`url(#${provider.providerId}-fill-7d)`} />
-              <path d={buildLinePath(sevenDaySeries)} fill="none" stroke={PROVIDER_COLORS[provider.providerId]} strokeWidth="1.8" strokeLinecap="round" />
-            </>
-          )}
-        </svg>
-      </div>
-      <div className="mt-1.5 flex items-center justify-between text-[10px] text-text-tertiary">
-        <span className="tabular-nums">5h {formatPercent(latestUsedPercent(fiveHourSeries))}</span>
-        <span className="tabular-nums">7d {formatPercent(latestUsedPercent(sevenDaySeries))}</span>
+      <div className="space-y-2">
+        <TrendStrip
+          label="5h"
+          points={fiveHourSeries}
+          bucketMs={FIVE_HOUR_BUCKET_MS}
+          windowMs={FIVE_HOUR_MS}
+          strokeColor={STATUS_COLORS.allowed}
+          areaColor={STATUS_COLORS.allowed}
+        />
+        <TrendStrip
+          label="7d"
+          points={sevenDaySeries}
+          bucketMs={SEVEN_DAY_BUCKET_MS}
+          windowMs={SEVEN_DAY_MS}
+          strokeColor={PROVIDER_COLORS[provider.providerId]}
+        />
       </div>
     </div>
+  );
+}
+
+function TrendStrip({
+  label,
+  points,
+  bucketMs,
+  windowMs,
+  strokeColor,
+  areaColor,
+}: {
+  label: string;
+  points: TrendPoint[];
+  bucketMs: number;
+  windowMs: number;
+  strokeColor: string;
+  areaColor?: string;
+}) {
+  const [hovered, setHovered] = useState<TrendPoint | null>(null);
+  const hasEnoughPoints = points.length > 1;
+  const latestPoint = points.length > 0 ? points[points.length - 1] : null;
+  const segments = useMemo(
+    () => splitSegmentsByGap(points, bucketMs * 2.5),
+    [points, bucketMs],
+  );
+  const usesLiveData = points.some((point) => point.source === 'live');
+  const lineDash = usesLiveData ? undefined : '3 3';
+
+  return (
+    <div className="rounded-md border border-border-subtle bg-bg-primary/50 px-2 py-1.5">
+      <div className="mb-1 flex items-center justify-between text-[10px] text-text-tertiary">
+        <span className="font-medium">{label}</span>
+        <span className="tabular-nums text-text-secondary">
+          {latestPoint ? formatPercent(latestPoint.usedPercent) : '--'}
+        </span>
+      </div>
+
+      {!hasEnoughPoints && (
+        <div className="py-1 text-[10px] text-text-tertiary">
+          collecting points...
+        </div>
+      )}
+
+      {hasEnoughPoints && (
+        <div className="h-16">
+          <svg
+            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+            className="h-full w-full"
+            onMouseLeave={() => setHovered(null)}
+            onMouseMove={(event) => {
+              const next = findNearestTrendPoint(event, points);
+              setHovered(next);
+            }}
+          >
+            <line x1="0" y1={CHART_BASELINE_Y} x2={CHART_WIDTH} y2={CHART_BASELINE_Y} stroke="var(--color-border-subtle)" strokeWidth="1" />
+            <line x1="0" y1={36} x2={CHART_WIDTH} y2={36} stroke="var(--color-border-subtle)" strokeOpacity="0.55" strokeWidth="1" />
+            <line x1="0" y1={12} x2={CHART_WIDTH} y2={12} stroke="var(--color-border-subtle)" strokeOpacity="0.4" strokeWidth="1" />
+
+            {areaColor && segments.map((segment, index) => (
+              <path
+                key={`${label}-area-${index}`}
+                d={buildAreaPath(segment)}
+                fill={areaColor}
+                fillOpacity={0.12}
+              />
+            ))}
+
+            {segments.map((segment, index) => (
+              <path
+                key={`${label}-line-${index}`}
+                d={buildLinePath(segment)}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={lineDash}
+              />
+            ))}
+
+            {hovered && (
+              <>
+                <line
+                  x1={hovered.x}
+                  y1={12}
+                  x2={hovered.x}
+                  y2={CHART_BASELINE_Y}
+                  stroke="var(--color-text-tertiary)"
+                  strokeOpacity="0.4"
+                  strokeWidth="1"
+                />
+                <circle cx={hovered.x} cy={hovered.y} r="2.8" fill={strokeColor} />
+              </>
+            )}
+
+            {latestPoint && !hovered && (
+              <circle cx={latestPoint.x} cy={latestPoint.y} r="2.8" fill={strokeColor} />
+            )}
+          </svg>
+        </div>
+      )}
+
+      <div className="mt-1 flex items-center justify-between text-[10px] text-text-tertiary tabular-nums">
+        {hovered ? (
+          <>
+            <span>{formatHoverTimestamp(hovered.sampledAt)} · {formatPercent(hovered.usedPercent)}</span>
+            <span>{formatSourceLabel(hovered.source)}</span>
+          </>
+        ) : (
+          <>
+            <span>{formatWindowRange(windowMs)}</span>
+            <span>{points.length} pts</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TrendBadge({ label }: { label: string }) {
+  return (
+    <span className="rounded-full border border-border-subtle bg-bg-primary/55 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-text-tertiary">
+      {label}
+    </span>
   );
 }
 
@@ -322,8 +461,8 @@ function formatTimeUntil(timestamp: number): string {
   return `${days}d ${hours % 24}h`;
 }
 
-function groupHistoryByProvider(history: UsageHistoryPoint[]): Map<'claude-code' | 'codex', { five_hour: UsageHistoryPoint[]; seven_day: UsageHistoryPoint[] }> {
-  const grouped = new Map<'claude-code' | 'codex', { five_hour: UsageHistoryPoint[]; seven_day: UsageHistoryPoint[] }>();
+function groupHistoryByProvider(history: UsageHistoryPoint[]): Map<'claude-code' | 'codex', ProviderUsageHistory> {
+  const grouped = new Map<'claude-code' | 'codex', ProviderUsageHistory>();
   grouped.set('claude-code', { five_hour: [], seven_day: [] });
   grouped.set('codex', { five_hour: [], seven_day: [] });
 
@@ -341,51 +480,166 @@ function groupHistoryByProvider(history: UsageHistoryPoint[]): Map<'claude-code'
   return grouped;
 }
 
-function compactHistory(series: UsageHistoryPoint[]): Array<{ x: number; y: number }> {
-  if (series.length <= 40) {
-    return series.map((point, index) => ({
-      x: (index / Math.max(1, series.length - 1)) * 260,
-      y: 60 - (Math.max(0, Math.min(1, point.usedPercent)) * 48),
-    }));
+function buildWindowSeries(series: UsageHistoryPoint[], windowMs: number, bucketMs: number): TrendPoint[] {
+  if (series.length === 0) {
+    return [];
   }
 
-  const chunkSize = Math.ceil(series.length / 40);
-  const compacted: Array<{ x: number; y: number }> = [];
-  for (let i = 0; i < series.length; i += chunkSize) {
-    const chunk = series.slice(i, i + chunkSize);
-    const avg = chunk.reduce((sum, point) => sum + Math.max(0, Math.min(1, point.usedPercent)), 0) / chunk.length;
-    compacted.push({
-      x: (compacted.length / Math.max(1, Math.ceil(series.length / chunkSize) - 1)) * 260,
-      y: 60 - (avg * 48),
+  const latestTimestamp = series[series.length - 1]?.sampledAt ?? Date.now();
+  const endAt = Math.max(Date.now(), latestTimestamp);
+  const startAt = endAt - windowMs;
+  const buckets = new Map<number, {
+    sum: number;
+    count: number;
+    sampledAt: number;
+    source: UsageHistoryPoint['source'];
+  }>();
+
+  for (const point of series) {
+    if (point.sampledAt < startAt || point.sampledAt > endAt) {
+      continue;
+    }
+    const index = Math.floor((point.sampledAt - startAt) / bucketMs);
+    const existing = buckets.get(index);
+    if (existing) {
+      existing.sum += clampPercent(point.usedPercent);
+      existing.count += 1;
+      if (point.sampledAt >= existing.sampledAt) {
+        existing.sampledAt = point.sampledAt;
+        existing.source = point.source;
+      }
+      continue;
+    }
+    buckets.set(index, {
+      sum: clampPercent(point.usedPercent),
+      count: 1,
+      sampledAt: point.sampledAt,
+      source: point.source,
     });
   }
-  return compacted;
+
+  return [...buckets.entries()]
+    .sort((left, right) => left[0] - right[0])
+    .map(([index, bucket]) => {
+      const midpoint = startAt + (index * bucketMs) + (bucketMs / 2);
+      const usedPercent = bucket.sum / bucket.count;
+      return {
+        x: clampNumber(((midpoint - startAt) / windowMs) * CHART_WIDTH, 0, CHART_WIDTH),
+        y: CHART_BASELINE_Y - (usedPercent * CHART_VALUE_HEIGHT),
+        sampledAt: bucket.sampledAt,
+        usedPercent,
+        source: bucket.source,
+      };
+    });
 }
 
-function buildLinePath(points: Array<{ x: number; y: number }>): string {
+function splitSegmentsByGap(points: TrendPoint[], maxGapMs: number): TrendPoint[][] {
+  if (points.length === 0) {
+    return [];
+  }
+
+  const segments: TrendPoint[][] = [[points[0]]];
+  for (let i = 1; i < points.length; i += 1) {
+    const point = points[i];
+    const previous = points[i - 1];
+    if (!point || !previous) continue;
+
+    if (point.sampledAt - previous.sampledAt > maxGapMs) {
+      segments.push([point]);
+    } else {
+      segments[segments.length - 1]?.push(point);
+    }
+  }
+
+  return segments.filter((segment) => segment.length > 0);
+}
+
+function findNearestTrendPoint(event: ReactMouseEvent<SVGSVGElement>, points: TrendPoint[]): TrendPoint | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (rect.width <= 0) {
+    return null;
+  }
+
+  const ratio = CHART_WIDTH / rect.width;
+  const x = (event.clientX - rect.left) * ratio;
+  let nearest = points[0];
+  let minDistance = Infinity;
+
+  for (const point of points) {
+    const distance = Math.abs(point.x - x);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = point;
+    }
+  }
+
+  return nearest;
+}
+
+function buildLinePath(points: TrendPoint[]): string {
   if (points.length === 0) return '';
   const first = points[0];
   const rest = points.slice(1).map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
   return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)} ${rest}`;
 }
 
-function buildAreaPath(points: Array<{ x: number; y: number }>): string {
+function buildAreaPath(points: TrendPoint[]): string {
   if (points.length === 0) return '';
   const line = buildLinePath(points);
   const last = points[points.length - 1];
   const first = points[0];
-  return `${line} L ${last.x.toFixed(2)} 60 L ${first.x.toFixed(2)} 60 Z`;
-}
-
-function latestUsedPercent(points: Array<{ x: number; y: number }>): number | null {
-  if (points.length === 0) {
-    return null;
-  }
-  const last = points[points.length - 1];
-  return (60 - last.y) / 48;
+  return `${line} L ${last.x.toFixed(2)} ${CHART_BASELINE_Y} L ${first.x.toFixed(2)} ${CHART_BASELINE_Y} Z`;
 }
 
 function formatPercent(value: number | null): string {
   if (value === null || Number.isNaN(value)) return '--';
   return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+}
+
+function formatWindowRange(windowMs: number): string {
+  if (windowMs === FIVE_HOUR_MS) {
+    return 'last 5h';
+  }
+  return 'last 7d';
+}
+
+function formatSourceLabel(source: LiveUsageProvider['source'] | UsageHistoryPoint['source'] | null): string {
+  if (source === 'live') return 'live';
+  if (source === 'snapshot') return 'snapshot';
+  if (source === 'stream_fallback') return 'fallback';
+  return 'unknown';
+}
+
+function formatHoverTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (sameDay) {
+    return time;
+  }
+  const day = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${day} ${time}`;
+}
+
+function formatAge(ageMs: number): string {
+  const minutes = Math.floor(ageMs / 60000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function clampPercent(value: number): number {
+  return clampNumber(value, 0, 1);
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

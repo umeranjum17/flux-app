@@ -34,6 +34,10 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     name: '011_add_workspace_outcome',
     sql: "ALTER TABLE workspaces ADD COLUMN outcome TEXT NOT NULL DEFAULT 'in_progress'",
   },
+  {
+    name: '012_create_usage_snapshot_lookup_index',
+    sql: 'CREATE INDEX IF NOT EXISTS idx_usage_window_snapshots_lookup ON usage_window_snapshots(provider_id, window_key, sampled_at)',
+  },
 ];
 
 export function runMigrations(): void {
