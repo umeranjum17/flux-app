@@ -445,21 +445,19 @@ function renderMessage(
 
     case 'quality_gate': {
       const isPreExisting = msg.isPreExisting;
-      const borderColor = msg.passed
-        ? 'border-success/30 bg-success/10'
+      const statusIcon = msg.passed ? '✓' : isPreExisting ? '⚠' : '✗';
+      const statusColor = msg.passed
+        ? 'text-success'
         : isPreExisting
-          ? 'border-warning/30 bg-warning/10'
-          : 'border-error/30 bg-error/10';
-      const label = msg.passed
-        ? 'Quality gate passed'
-        : isPreExisting
-          ? 'Quality gate (pre-existing failure)'
-          : 'Quality gate failed';
+          ? 'text-warning'
+          : 'text-error';
+      const output = (msg.stderr || msg.stdout || '').trim();
       return (
-        <div className={`rounded-lg border p-3 text-sm ${borderColor} text-text-primary`}>
+        <div className="rounded-lg border border-border/50 bg-bg-surface/50 p-3 text-sm">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="font-medium">{label}</span>
+              <span className={`font-semibold ${statusColor}`}>{statusIcon}</span>
+              <code className="text-xs text-text-secondary">{msg.command}</code>
               {isPreExisting && (
                 <span className="rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide bg-warning/20 text-warning">
                   pre-existing
@@ -467,21 +465,23 @@ function renderMessage(
               )}
               {typeof msg.retryAttempt === 'number' && typeof msg.maxRetries === 'number' && (
                 <span className="text-[10px] text-text-tertiary">
-                  Retry {msg.retryAttempt}/{msg.maxRetries}
+                  retry {msg.retryAttempt}/{msg.maxRetries}
                 </span>
               )}
             </div>
-            {typeof msg.exitCode === 'number' && (
-              <span className="text-xs text-text-tertiary">exit {msg.exitCode}</span>
-            )}
+            <span className={`text-xs font-medium ${statusColor}`}>
+              {msg.passed ? 'passed' : 'failed'}
+            </span>
           </div>
-          {msg.command && (
-            <div className="mt-1 font-mono text-xs text-text-secondary">{msg.command}</div>
-          )}
-          {(msg.stderr || msg.stdout) && (
-            <pre className="mt-2 overflow-x-auto rounded bg-bg-primary/70 p-2 text-xs text-text-secondary whitespace-pre-wrap">
-              {(msg.stderr || msg.stdout || '').trim()}
-            </pre>
+          {output && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-text-tertiary hover:text-text-secondary select-none">
+                Show output ({output.split('\n').length} lines)
+              </summary>
+              <pre className="mt-1.5 max-h-48 overflow-auto rounded bg-bg-primary/70 p-2 text-[11px] text-text-secondary whitespace-pre-wrap">
+                {output}
+              </pre>
+            </details>
           )}
         </div>
       );
