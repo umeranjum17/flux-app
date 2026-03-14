@@ -26,6 +26,7 @@ import { executeBash } from './tools/bash';
 import { suggestCompletion, availableCompletionProviders } from './completion/service';
 import { StallMonitor } from './agents/stall-monitor';
 import { isInteractiveToolName } from './agents/claude';
+import type { SdkAgentHandle } from './agents/claude-sdk';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -2746,6 +2747,26 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('completion:providers', () => {
     return { providers: availableCompletionProviders() };
+  });
+
+  // ---- MCP server management (Phase 4) ----
+
+  ipcMain.handle('mcp:status', async (_event, { taskId }: { taskId: string }) => {
+    const handle = activeTasks.get(taskId);
+    if (!handle || !('getMcpServerStatus' in handle)) return [];
+    return (handle as SdkAgentHandle).getMcpServerStatus();
+  });
+
+  ipcMain.handle('mcp:reconnect', async (_event, { taskId, serverName }: { taskId: string; serverName: string }) => {
+    const handle = activeTasks.get(taskId);
+    if (!handle || !('reconnectMcpServer' in handle)) return;
+    await (handle as SdkAgentHandle).reconnectMcpServer(serverName);
+  });
+
+  ipcMain.handle('mcp:toggle', async (_event, { taskId, serverName, enabled }: { taskId: string; serverName: string; enabled: boolean }) => {
+    const handle = activeTasks.get(taskId);
+    if (!handle || !('toggleMcpServer' in handle)) return;
+    await (handle as SdkAgentHandle).toggleMcpServer(serverName, enabled);
   });
 
   // Initialize repo map if enabled
