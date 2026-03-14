@@ -22,6 +22,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   defaultThinking: 'medium',
   defaultMode: 'act',
   qualityGateCommands: [],
+  qualityGateMaxRetries: 2,
   customAgentPaths: {},
   zoomLevel: 1.0,
   recentProjects: [],

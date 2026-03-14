@@ -62,6 +62,9 @@ export interface AgentMessage {
   passed?: boolean;
   stdout?: string;
   stderr?: string;
+  retryAttempt?: number;
+  maxRetries?: number;
+  isPreExisting?: boolean;
   rateLimitInfo?: {
     providerId?: 'claude-code' | 'codex';
     status: string;

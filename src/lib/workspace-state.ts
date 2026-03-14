@@ -81,11 +81,43 @@ function isMissingIpcHandler(error: unknown, channel: string): boolean {
   return message.includes(`No handler registered for '${channel}'`);
 }
 
+const FUN_BRANCH_PATTERN = /^flux\/[a-z]+-[a-z]+$/;
+
+export async function createEmptyWorkspace(opts: {
+  agentId: AgentId;
+  model: string;
+  cwd: string;
+}): Promise<Workspace> {
+  const workspace = await window.api.invoke('workspace:create-quick', {
+    parentRepo: opts.cwd,
+    agentId: opts.agentId,
+    model: opts.model,
+  }) as Workspace;
+
+  useWorkspaceStore.getState().addWorkspace(workspace);
+  useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
+  return workspace;
+}
+
 export async function startWorkspaceChat(
   opts: StartWorkspaceChatOptions,
 ): Promise<{ taskId: string; session: Session }> {
   let taskId: string;
   let session: Session;
+
+  // If the workspace still has an auto-generated fun name, rename the branch based on the prompt
+  if (FUN_BRANCH_PATTERN.test(opts.workspace.branch)) {
+    try {
+      const slug = opts.prompt.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20);
+      const hash = Math.random().toString(36).slice(2, 6);
+      const newBranch = `flux/${slug}-${hash}`;
+      await window.api.invoke('workspace:rename-branch', { workspaceId: opts.workspace.id, newBranch });
+      useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, { branch: newBranch });
+      opts = { ...opts, workspace: { ...opts.workspace, branch: newBranch } };
+    } catch {
+      // Non-fatal: keep the fun name if rename fails
+    }
+  }
 
   try {
     const result = await window.api.invoke('workspace:spawn-chat', {

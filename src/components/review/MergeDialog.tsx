@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { X, GitMerge, AlertTriangle } from 'lucide-react';
+import { X, GitMerge, AlertTriangle, Wrench } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { useAgentStore } from '../../stores/agent';
+import { startWorkspaceChat } from '../../lib/workspace-state';
 import type { Workspace, MergeResult } from '../../lib/ipc-api';
 
 interface MergeDialogProps {
@@ -17,6 +19,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const [deleteAfterMerge, setDeleteAfterMerge] = useState(true);
   const [merging, setMerging] = useState(false);
   const [result, setResult] = useState<MergeResult | null>(null);
+  const [askingAgent, setAskingAgent] = useState(false);
 
   useEffect(() => {
     if (!gitBranch?.trim()) return;
@@ -116,13 +119,41 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           {result && !result.success && (
             <div className="flex items-start gap-2 text-xs text-error bg-error/10 border border-error/30 rounded-lg px-3 py-2">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1 min-w-0">
                 {result.conflicts ? (
                   <>
                     <p className="font-medium mb-1">Merge conflicts in:</p>
-                    <ul className="list-disc list-inside font-mono">
+                    <ul className="list-disc list-inside font-mono mb-2">
                       {result.conflicts.map((f) => <li key={f}>{f}</li>)}
                     </ul>
+                    <button
+                      onClick={async () => {
+                        if (askingAgent) return;
+                        setAskingAgent(true);
+                        try {
+                          const { selectedAgentId: agentId, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
+                          const { mode } = useUiStore.getState();
+                          const conflictList = result.conflicts!.join('\n');
+                          const prompt = `There are merge conflicts in the following files:\n\n${conflictList}\n\nPlease resolve all conflict markers and commit the resolved files.`;
+                          await startWorkspaceChat({
+                            workspace,
+                            prompt,
+                            agentId,
+                            model,
+                            mode,
+                            thinking,
+                          });
+                          onClose();
+                        } catch {
+                          setAskingAgent(false);
+                        }
+                      }}
+                      disabled={askingAgent}
+                      className="flex items-center gap-1.5 rounded-lg border border-error/40 bg-error/10 px-2.5 py-1 text-[10px] font-medium text-error hover:bg-error/20 disabled:opacity-50 transition-colors"
+                    >
+                      <Wrench size={10} />
+                      {askingAgent ? 'Starting agent...' : 'Ask Agent to Resolve'}
+                    </button>
                   </>
                 ) : (
                   result.error
