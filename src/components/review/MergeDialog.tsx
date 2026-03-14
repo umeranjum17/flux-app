@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react';
-import { X, GitMerge } from 'lucide-react';
+import { X, GitMerge, Zap } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { startWorkspaceChat } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
+import type { AgentId } from '../../lib/types';
+
+/** Pick the cheapest available model for merge tasks per agent family. */
+const MERGE_MODELS: Record<AgentId, { model: string; label: string }> = {
+  'claude-code': { model: 'haiku', label: 'Haiku' },
+  codex: { model: 'gpt-5-codex-mini', label: 'Codex Mini' },
+  gemini: { model: 'gemini-2.5-flash', label: 'Gemini Flash' },
+  openai: { model: 'gpt-5-mini', label: 'GPT-5 Mini' },
+  ollama: { model: 'mistral', label: 'Mistral' },
+};
 
 interface MergeDialogProps {
   workspace: Workspace;
@@ -21,10 +31,12 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     setTargetBranch((current) => current.trim() || gitBranch);
   }, [gitBranch]);
 
+  const agentId = useAgentStore((s) => s.selectedAgentId);
+  const mergeInfo = MERGE_MODELS[agentId];
+
   const handleMerge = async () => {
     setStarting(true);
     try {
-      const { selectedAgentId: agentId, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
       const { mode } = useUiStore.getState();
       const squashNote = squash
         ? 'Use --squash to collapse all commits into one.'
@@ -34,9 +46,9 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
         workspace,
         prompt,
         agentId,
-        model,
+        model: mergeInfo.model,
         mode,
-        thinking,
+        thinking: 'low',
       });
       onClose();
     } catch {
@@ -65,6 +77,14 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           {/* Summary */}
           <div className="text-xs text-text-secondary">
             Merging <span className="font-mono text-text-primary">{workspace.branch}</span> into target branch
+          </div>
+
+          {/* Model badge */}
+          <div className="flex items-center gap-2 rounded-lg bg-accent/8 border border-accent/20 px-3 py-2">
+            <Zap size={12} className="text-accent shrink-0" />
+            <span className="text-[11px] text-text-secondary">
+              Using <span className="font-medium text-accent">{mergeInfo.label}</span> for merge — fast and cost-effective
+            </span>
           </div>
 
           {/* Target branch */}
