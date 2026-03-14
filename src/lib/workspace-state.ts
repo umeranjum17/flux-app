@@ -84,6 +84,42 @@ export interface StartWorkspaceMergeOptions {
   squash: boolean;
 }
 
+function isValidSession(value: unknown): value is Session {
+  if (!value || typeof value !== 'object') return false;
+  const session = value as Partial<Session>;
+  return typeof session.id === 'string'
+    && typeof session.title === 'string'
+    && typeof session.agentId === 'string'
+    && typeof session.model === 'string'
+    && typeof session.mode === 'string'
+    && typeof session.cwd === 'string'
+    && typeof session.createdAt === 'number'
+    && typeof session.updatedAt === 'number'
+    && !!session.metadata
+    && typeof session.metadata === 'object';
+}
+
+async function resolveWorkspaceSession(
+  workspace: Workspace,
+  taskId: string,
+  candidate: unknown,
+): Promise<Session> {
+  if (isValidSession(candidate)) {
+    return candidate;
+  }
+
+  const sessions = await window.api.invoke('sessions:list') as Session[];
+  const latestWorkspaceSession = sessions
+    .filter((session) => session.metadata?.workspaceId === workspace.id)
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+
+  if (latestWorkspaceSession) {
+    return latestWorkspaceSession;
+  }
+
+  throw new Error(`Merge started without a usable session for task ${taskId}`);
+}
+
 function isMissingIpcHandler(error: unknown, channel: string): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes(`No handler registered for '${channel}'`);
@@ -212,11 +248,12 @@ export async function startWorkspaceMerge(
     targetBranch: opts.targetBranch,
     squash: opts.squash,
     prompt,
-  }) as { taskId: string; session: Session };
+  }) as { taskId: string; session?: Session };
+  const session = await resolveWorkspaceSession(opts.workspace, result.taskId, result.session);
 
   registerWorkspaceTask({
     taskId: result.taskId,
-    session: result.session,
+    session,
     workspace: opts.workspace,
     prompt,
     title: `Merge ${opts.workspace.branch} -> ${opts.targetBranch}`.slice(0, 80),
@@ -224,7 +261,7 @@ export async function startWorkspaceMerge(
     initialStatus: 'merging',
   });
 
-  return result;
+  return { taskId: result.taskId, session };
 }
 
 export async function createWorkspaceAndChat(

@@ -124,4 +124,49 @@ describe('MergeDialog', () => {
     expect(useSessionStore.getState().sessions[0]?.id).toBe('session-1');
     expect(useWorkspaceStore.getState().workspaces.get(workspace.id)?.sessionId).toBe('session-1');
   });
+
+  it('recovers the workspace session when merge returns a partial payload', async () => {
+    const onClose = vi.fn();
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'workspace:merge') {
+        return {
+          taskId: 'task-2',
+        };
+      }
+      if (channel === 'sessions:list') {
+        return [{
+          id: 'session-2',
+          title: '[WS] Hardening pass',
+          agentId: 'codex',
+          model: 'gpt-5-codex',
+          mode: 'act',
+          cwd: '/repo',
+          createdAt: 2,
+          updatedAt: 2,
+          metadata: { workspaceId: workspace.id },
+        }];
+      }
+      return undefined;
+    });
+
+    render(<MergeDialog workspace={workspace} onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Merge' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith('sessions:list');
+    });
+
+    const task = useChatStore.getState().tasks.get('task-2');
+    expect(task).toEqual(expect.objectContaining({
+      id: 'task-2',
+      agentId: 'codex',
+      cwd: '/repo',
+      workspaceId: workspace.id,
+      status: 'running',
+    }));
+
+    expect(useSessionStore.getState().sessions[0]?.id).toBe('session-2');
+    expect(onClose).toHaveBeenCalled();
+  });
 });
