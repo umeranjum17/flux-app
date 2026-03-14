@@ -15,9 +15,9 @@
   --color-accent: hsl(145 53% 55%);
   --color-accent-hover: hsl(145 57% 61%);
   --color-accent-muted: hsl(145 21% 16%);
-  --color-plan: hsl(37 83% 64%);
-  --color-plan-hover: hsl(37 88% 69%);
-  --color-plan-muted: hsl(31 28% 17%);
+  --color-plan: hsl(215 60% 65%);
+  --color-plan-hover: hsl(215 65% 72%);
+  --color-plan-muted: hsl(215 22% 14%);
 
   --color-success: hsl(142 52% 46%);
   --color-error: hsl(2 73% 59%);
