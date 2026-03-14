@@ -30,7 +30,9 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     args.push('--model', options.model);
   }
 
-  if (options.mode === 'plan') {
+  if (options.dangerouslyBypassPermissions) {
+    args.push('--dangerously-skip-permissions');
+  } else if (options.mode === 'plan') {
     args.push('--permission-mode', 'plan');
   }
 

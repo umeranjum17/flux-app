@@ -33,7 +33,11 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   const reasoningEffort = mapCodexReasoningEffort(options.thinking);
 
   if (options.mode === 'act') {
-    args.push('--full-auto');
+    if (options.dangerouslyBypassPermissions) {
+      args.push('--dangerously-bypass-approvals-and-sandbox');
+    } else {
+      args.push('--full-auto');
+    }
   } else if (options.mode === 'plan' && !isResume) {
     // `codex exec resume` does not accept `--sandbox` on recent CLIs.
     // Keep plan-mode read-only sandboxing for fresh sessions.
