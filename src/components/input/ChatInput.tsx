@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap, Terminal, ChevronDown } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -529,7 +529,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     ? 'Run a command...'
     : pendingQuestion
     ? pendingQuestion.placeholder ?? pendingQuestion.prompt
-    : 'Ask Flux anything... (@ to mention files)';
+    : 'Ask to make changes, @mention files, run /commands';
 
   const hasContent = isTerminal ? value.trim().length > 2 : value.trim().length > 0;
 
@@ -760,9 +760,8 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
 
         {/* Toolbar below textarea */}
-        <div className="mt-3 pt-2">
-          <div className="premium-divider" />
-          <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-3">
             {/* Left controls */}
             <div className="relative flex items-center gap-1.5">
               {!isTerminal && (
@@ -900,82 +899,18 @@ export function ChatInput({ focused }: ChatInputProps) {
 
             {/* Right controls */}
             <div className="flex items-center gap-1.5">
-              {/* Terminal toggle */}
-              <button
-                type="button"
-                onClick={handleToggleInputMode}
-                className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors ${
-                  isTerminal
-                    ? 'border border-green-500/30 bg-green-500/10 text-green-400'
-                    : 'text-text-tertiary'
-                }`}
-                title="Toggle terminal mode"
-              >
-                <Terminal size={12} />
-              </button>
-
-              {/* Plan / Act segmented toggle (chat mode only) */}
+              {/* Subagent button (chat mode only) */}
               {!isTerminal && (
-                <div className="premium-pill flex items-center overflow-hidden text-[11px] font-medium">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      useUiStore.getState().setMode('plan');
-                      const t = getActiveTask();
-                      if (t) setTaskMode(t.id, 'plan');
-                    }}
-                    className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
-                      mode === 'plan'
-                        ? 'bg-plan text-bg-primary'
-                        : 'text-text-tertiary'
-                    }`}
-                  >
-                    <ClipboardList size={11} />
-                    Plan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      useUiStore.getState().setMode('act');
-                      const t = getActiveTask();
-                      if (t) setTaskMode(t.id, 'act');
-                    }}
-                    className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
-                      mode === 'act'
-                        ? 'bg-accent text-bg-primary'
-                        : 'text-text-tertiary'
-                    }`}
-                  >
-                    <Zap size={11} />
-                    Act
-                  </button>
-                </div>
-              )}
-
-              {/* Attach / subagent button (chat mode only) */}
-              {!isTerminal && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleFileSelect}
-                    className="premium-toolbar-button rounded-full p-2 text-text-tertiary"
-                    aria-label="Attach file"
-                    title="Attach image"
-                  >
-                    <Paperclip size={14} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowSubagentDialog((v) => !v)}
-                    className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
-                    aria-label="More options"
-                    disabled={!canSpawnSubagents}
-                    title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
-                  >
-                    <Plus size={14} />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => setShowSubagentDialog((v) => !v)}
+                  className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
+                  aria-label="More options"
+                  disabled={!canSpawnSubagents}
+                  title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
+                >
+                  <Plus size={14} />
+                </button>
               )}
 
               {/* Send button (circular) */}
@@ -997,11 +932,6 @@ export function ChatInput({ focused }: ChatInputProps) {
                 <ArrowUp size={14} strokeWidth={2.5} />
               </button>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-3 text-[10px] text-text-tertiary/60">
-            <span>? for help</span>
-            <span>/ for commands</span>
-            <span>Shift+Tab to toggle mode</span>
           </div>
         </div>
       </div>
