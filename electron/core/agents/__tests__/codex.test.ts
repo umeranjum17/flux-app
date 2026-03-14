@@ -249,6 +249,29 @@ describe('spawnCodex', () => {
     expect(args.indexOf('session-123')).toBeLessThan(args.length - 1);
   });
 
+  it('includes actionable stderr in the final exit error', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const done = vi.fn();
+    handle.on('done', done);
+
+    proc.stderr.emit('data', Buffer.from('ERROR codex: profile failed\n', 'utf-8'));
+    proc.emit('close', 1);
+
+    expect(done).toHaveBeenCalledWith(expect.objectContaining({
+      code: 1,
+      error: 'Codex exited with code 1: ERROR codex: profile failed',
+    }));
+  });
+
   it('preserves read-only sandbox for fresh plan sessions', () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);

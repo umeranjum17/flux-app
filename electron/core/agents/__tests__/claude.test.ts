@@ -430,7 +430,7 @@ describe('spawnClaude', () => {
     });
   });
 
-  it('times out when startup never becomes healthy after spawn and hook noise', () => {
+  it('times out when startup never becomes healthy after spawn and hook noise', async () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);
 
@@ -457,13 +457,18 @@ describe('spawnClaude', () => {
     });
 
     // SSH doubles the effective timeout
-    vi.advanceTimersByTime(CLAUDE_STARTUP_TIMEOUT_MS * 2);
+    await vi.advanceTimersByTimeAsync(CLAUDE_STARTUP_TIMEOUT_MS * 2);
 
     expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
     expect(messages.at(-1)).toMatchObject({
       type: 'error',
       content: expect.stringContaining('umera@extreme'),
     });
+    expect(done).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
     expect(done).toHaveBeenCalledWith(expect.objectContaining({
       code: 1,
       error: expect.stringContaining('/remote/workspace'),
