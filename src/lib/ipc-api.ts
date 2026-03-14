@@ -42,6 +42,7 @@ export interface IpcChannels {
   'cwd:set': { args: [{ cwd: string }]; result: string };
   'cwd:pick': { args: []; result: string | null };
   'git:branch': { args: []; result: string | null };
+  'git:upstream': { args: []; result: string | null };
   'git:status': { args: []; result: { dirty: boolean; files: string } };
   'fs:readdir': { args: [{ dirPath?: string; depth?: number }]; result: Array<{ name: string; path: string; isDirectory: boolean; children?: unknown[] }> };
   'fs:read': { args: [{ filePath: string }]; result: { content: string | null; error: string | null } };
@@ -83,6 +84,7 @@ export interface IpcChannels {
   'diff:get': { args: [{ taskId: string; sessionId: string }]; result: DiffData | null };
   'shell:exec': { args: [{ command: string; cwd: string; timeout?: number }]; result: { stdout: string; stderr: string; exitCode: number; durationMs: number } };
   'completion:suggest': { args: [{ prefix: string; cwd: string; recentCommands: string[]; model?: string }]; result: { suggestion: string } };
+  'completion:providers': { args: []; result: { providers: string[] } };
 }
 
 // Events main sends to renderer

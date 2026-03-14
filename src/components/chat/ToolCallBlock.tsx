@@ -13,13 +13,13 @@ import {
   ChevronDown,
   CheckCircle,
   XCircle,
-  Download,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 import { BashPanel, ReadPanel, EditDiffPanel, SearchPanel, GlobPanel, GenericPanel } from './ToolPanels';
 
-const CARD_TRANSITION = {
-  duration: 0.22,
+const EXPAND_TRANSITION = {
+  duration: 0.18,
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
@@ -34,14 +34,14 @@ class ToolContentErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div className="px-3 pb-3">
-          <div className="premium-panel rounded-lg border border-error/20 bg-error/5 p-3">
-            <div className="flex items-center gap-2 text-xs text-error font-medium mb-1">
-              <AlertTriangle size={12} />
-              Failed to render tool output
+        <div className="pl-6 pr-2 pb-2">
+          <div className="rounded-md border border-error/20 bg-error/5 p-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-error font-medium">
+              <AlertTriangle size={11} />
+              Failed to render output
             </div>
             {this.props.fallbackContent && (
-              <pre className="text-xs font-mono text-text-tertiary whitespace-pre-wrap max-h-32 overflow-y-auto mt-2">
+              <pre className="text-[11px] font-mono text-text-tertiary whitespace-pre-wrap max-h-24 overflow-y-auto mt-1">
                 {this.props.fallbackContent.slice(0, 500)}
               </pre>
             )}
@@ -80,24 +80,18 @@ interface QuestionItem {
 
 function getToolIcon(toolName: string) {
   const name = toolName.toLowerCase();
-  if (name.includes('todo')) {
-    return { Icon: ListTodo, color: 'text-info' };
-  }
-  if (name.includes('question')) {
-    return { Icon: CircleHelp, color: 'text-info' };
-  }
-  if (name.includes('bash') || name.includes('command') || name.includes('shell')) {
+  if (name.includes('todo')) return { Icon: ListTodo, color: 'text-info' };
+  if (name.includes('question')) return { Icon: CircleHelp, color: 'text-info' };
+  if (name.includes('bash') || name.includes('command') || name.includes('shell'))
     return { Icon: Terminal, color: 'text-warning' };
-  }
-  if (name.includes('read') || name.includes('view')) {
+  if (name.includes('read') || name.includes('view'))
     return { Icon: FileText, color: 'text-info' };
-  }
-  if (name.includes('write') || name.includes('edit') || name.includes('patch')) {
+  if (name.includes('write') || name.includes('edit') || name.includes('patch'))
     return { Icon: FilePen, color: 'text-info' };
-  }
-  if (name.includes('grep') || name.includes('glob') || name.includes('search') || name.includes('find')) {
+  if (name.includes('grep') || name.includes('glob') || name.includes('search') || name.includes('find'))
     return { Icon: Search, color: 'text-success' };
-  }
+  if (name.includes('agent'))
+    return { Icon: Download, color: 'text-accent' };
   return { Icon: Wrench, color: 'text-text-secondary' };
 }
 
@@ -109,12 +103,12 @@ function formatToolLabel(toolName: string): string {
 }
 
 function getToolDescription(toolName: string, toolInput?: Record<string, unknown>, resultContent?: string): string {
-  if (!toolInput) return toolName;
+  if (!toolInput) return '';
   const name = toolName.toLowerCase();
   const todoItems = parseTodoItems(toolName, toolInput);
   if (todoItems.length > 0) {
     const completed = todoItems.filter((item) => item.status === 'completed').length;
-    return `${completed} out of ${todoItems.length} tasks completed`;
+    return `${completed}/${todoItems.length} completed`;
   }
   const questionItems = parseQuestionItems(toolName, toolInput);
   if (questionItems.length > 0) {
@@ -123,17 +117,26 @@ function getToolDescription(toolName: string, toolInput?: Record<string, unknown
 
   if (name.includes('bash') && toolInput.command) {
     const cmd = String(toolInput.command);
-    const trimmed = cmd.length > 60 ? cmd.slice(0, 60) + '...' : cmd;
+    const trimmed = cmd.length > 80 ? cmd.slice(0, 80) + '...' : cmd;
     const exitCode = parseExitCode(resultContent);
-    return typeof exitCode === 'number' ? `$ ${trimmed} · exit ${exitCode}` : `$ ${trimmed}`;
+    return typeof exitCode === 'number' ? `${trimmed}  exit ${exitCode}` : trimmed;
+  }
+  if (name.includes('agent') && toolInput.prompt) {
+    const prompt = String(toolInput.prompt);
+    return prompt.length > 80 ? prompt.slice(0, 80) + '...' : prompt;
+  }
+  if (name.includes('agent') && toolInput.description) {
+    return String(toolInput.description);
   }
   if ((name.includes('read') || name.includes('write') || name.includes('edit')) && (toolInput.file_path || toolInput.path)) {
-    const filePath = String(toolInput.file_path || toolInput.path);
+    const fp = String(toolInput.file_path || toolInput.path);
+    // Show just the filename for brevity in the header
+    const shortPath = fp.split('/').slice(-2).join('/');
     if (name.includes('read') && resultContent) {
       const lineCount = resultContent.split('\n').length;
-      return `${filePath} (${lineCount} lines)`;
+      return `${shortPath} (${lineCount} lines)`;
     }
-    return filePath;
+    return shortPath;
   }
   if (name.includes('grep') && toolInput.pattern) {
     const summary = summarizeGrepResult(resultContent);
@@ -143,9 +146,9 @@ function getToolDescription(toolName: string, toolInput?: Record<string, unknown
   }
   if (name.includes('glob') && toolInput.pattern) {
     const count = extractGlobPaths(resultContent).length;
-    return count > 0 ? `${String(toolInput.pattern)} · ${count} files found` : String(toolInput.pattern);
+    return count > 0 ? `${String(toolInput.pattern)} · ${count} files` : String(toolInput.pattern);
   }
-  return toolName;
+  return '';
 }
 
 function countDiffStats(content: string): { added: number; removed: number } | null {
@@ -164,8 +167,6 @@ function isFileEditTool(toolName: string): boolean {
   const name = toolName.toLowerCase();
   return name.includes('edit') || name.includes('write') || name.includes('patch');
 }
-
-const MAX_RESULT_LINES = 3;
 
 function parseExitCode(resultContent?: string): number | null {
   if (!resultContent) return null;
@@ -205,86 +206,10 @@ function extractGlobPaths(resultContent?: string): string[] {
   } catch {
     // Fall through to line parsing.
   }
-
   return resultContent
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-}
-
-function getPreviewLines(resultContent: string, maxLines: number): string[] {
-  return resultContent.split('\n').slice(0, maxLines);
-}
-
-function ToolResultPreview({
-  toolName,
-  resultContent,
-}: {
-  toolName: string;
-  resultContent: string;
-}) {
-  const lowerName = toolName.toLowerCase();
-
-  if (lowerName.includes('read')) {
-    const lines = resultContent.split('\n');
-    const preview = lines.slice(0, MAX_RESULT_LINES).join('\n');
-    const remaining = Math.max(0, lines.length - MAX_RESULT_LINES);
-    return (
-      <div className="px-3 pb-2">
-        <div className="premium-panel max-h-28 overflow-hidden rounded-lg px-3 py-2">
-          <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{preview}</pre>
-        </div>
-        {remaining > 0 && (
-          <div className="mt-1 text-[11px] text-text-tertiary">({remaining} more lines)</div>
-        )}
-      </div>
-    );
-  }
-
-  if (lowerName.includes('grep')) {
-    const matches = extractGrepMatches(resultContent).slice(0, 5);
-    if (matches.length === 0) return null;
-    return (
-      <div className="px-3 pb-2">
-        <div className="premium-panel space-y-1 rounded-lg px-3 py-2">
-          {matches.map((match) => (
-            <div key={match.file} className="flex items-center justify-between gap-3 text-xs font-mono text-text-secondary">
-              <span className="truncate">{match.file}</span>
-              <span className="shrink-0 text-text-tertiary">{match.count} match{match.count === 1 ? '' : 'es'}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (lowerName.includes('glob')) {
-    const paths = extractGlobPaths(resultContent).slice(0, 8);
-    if (paths.length === 0) return null;
-    return (
-      <div className="px-3 pb-2">
-        <div className="premium-panel space-y-1 rounded-lg px-3 py-2">
-          {paths.map((filePath) => (
-            <div key={filePath} className="truncate text-xs font-mono text-text-secondary">{filePath}</div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (lowerName.includes('bash') || lowerName.includes('command') || lowerName.includes('shell')) {
-    const lines = getPreviewLines(resultContent, 3).filter((line) => line.trim().length > 0);
-    if (lines.length === 0) return null;
-    return (
-      <div className="px-3 pb-2">
-        <div className="premium-panel max-h-24 overflow-hidden rounded-lg px-3 py-2">
-          <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">{lines.join('\n')}</pre>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
 }
 
 export function ToolCallBlock({
@@ -301,28 +226,14 @@ export function ToolCallBlock({
 }: ToolCallBlockProps) {
   const isEdit = isFileEditTool(toolName);
   const resolvedFilePath = filePath ?? (toolInput?.file_path as string | undefined) ?? (toolInput?.path as string | undefined);
-  const [expanded, setExpanded] = useState(isEdit);
+  const [expanded, setExpanded] = useState(false);
   const { Icon, color } = getToolIcon(toolName);
   const description = getToolDescription(toolName, toolInput, resultContent);
   const todoItems = useMemo(() => parseTodoItems(toolName, toolInput), [toolInput, toolName]);
   const questionItems = useMemo(() => parseQuestionItems(toolName, toolInput), [toolInput, toolName]);
   const isSemanticTodo = todoItems.length > 0;
   const isSemanticQuestion = questionItems.length > 0;
-  const statusLabel = isRunning && !isComplete ? 'Running' : isComplete ? (resultIsError ? 'Failed' : 'Complete') : 'Queued';
-  const statusBadgeClass = isRunning && !isComplete
-    ? 'border-accent/20 bg-accent/12 text-accent'
-    : isComplete
-      ? resultIsError
-        ? 'border-error/20 bg-error/10 text-error'
-        : 'border-success/20 bg-success/10 text-success'
-      : 'border-border/80 bg-bg-elevated text-text-tertiary';
-  const iconShellClass = isRunning && !isComplete
-    ? 'border-accent/20 bg-accent-muted/35'
-    : isComplete
-      ? resultIsError
-        ? 'border-error/20 bg-error/10'
-        : 'border-success/20 bg-success/10'
-      : 'border-border/80 bg-bg-elevated';
+  const shouldShowSemanticBody = isSemanticTodo || isSemanticQuestion;
 
   const diffStats = useMemo(() => {
     if (!isFileEditTool(toolName)) return null;
@@ -333,102 +244,67 @@ export function ToolCallBlock({
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
-      return <Loader2 size={14} className={`${color} animate-spin shrink-0`} />;
+      return <Loader2 size={13} className="text-accent animate-spin shrink-0" />;
+    }
+    if (isComplete && resultIsError) {
+      return <XCircle size={13} className="text-error shrink-0" />;
     }
     if (isComplete) {
-      return resultIsError
-        ? <XCircle size={14} className="text-error shrink-0" />
-        : <CheckCircle size={14} className="text-success shrink-0" />;
+      return <CheckCircle size={13} className="text-success shrink-0" />;
     }
-    return <Icon size={14} className={`${color} shrink-0`} />;
+    return <Icon size={13} className={`${color} shrink-0`} />;
   }, [isRunning, isComplete, resultIsError, Icon, color]);
 
-  const shouldShowSemanticBody = isSemanticTodo || isSemanticQuestion;
-  const shouldShowPreview = !expanded && !isEdit && !!resultContent && !shouldShowSemanticBody;
-  const shouldShowExpanded = expanded && !shouldShowSemanticBody;
-  const hasBody = shouldShowSemanticBody || shouldShowPreview || shouldShowExpanded;
+  const hasExpandableContent = !!resultContent || !!diff || shouldShowSemanticBody;
 
   return (
-    <div className="premium-tool-card">
+    <div className="tool-call-row group">
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="group flex w-full items-start gap-3 px-3.5 py-3.5 text-left"
+        onClick={() => hasExpandableContent && setExpanded(!expanded)}
+        className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
-        <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${iconShellClass}`}>
+        <span className="shrink-0 flex items-center justify-center w-5 h-5">
           {statusIcon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">
-              {formatToolLabel(toolName)}
-            </span>
-            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass}`}>
-              {statusLabel}
-            </span>
-            {toolCallId && (
-              <span className="text-[10px] font-mono text-text-tertiary/80">
-                {toolCallId.slice(-6)}
-              </span>
-            )}
-          </div>
-          <div className="mt-1.5 truncate text-[13px] font-medium text-text-primary">
+        </span>
+        <span className="text-[12px] font-medium text-text-secondary">
+          {formatToolLabel(toolName)}
+        </span>
+        {description && (
+          <span className="text-[12px] text-text-tertiary truncate min-w-0">
             {description}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          {diffStats && (
-            <span className="flex items-center gap-1 shrink-0">
-              <span className="rounded-full border border-success/20 bg-success/12 px-2 py-0.5 text-xs font-mono text-success">
-                +{diffStats.added}
-              </span>
-              <span className="rounded-full border border-error/20 bg-error/10 px-2 py-0.5 text-xs font-mono text-error">
-                -{diffStats.removed}
-              </span>
-            </span>
-          )}
-          {resultContent && !shouldShowSemanticBody && (
-            <span className="p-1 text-text-tertiary transition-colors group-hover:text-text-primary">
-              <Download size={12} />
-            </span>
-          )}
-          <span className="p-1 text-text-tertiary transition-colors group-hover:text-text-primary">
-            {expanded ? (
-              <ChevronDown size={14} className="shrink-0" />
-            ) : (
-              <ChevronRight size={14} className="shrink-0" />
-            )}
           </span>
-        </div>
+        )}
+        {diffStats && (
+          <span className="flex items-center gap-1 shrink-0 ml-auto text-[11px] font-mono">
+            <span className="text-success">+{diffStats.added}</span>
+            <span className="text-error">-{diffStats.removed}</span>
+          </span>
+        )}
+        {hasExpandableContent && (
+          <span className="shrink-0 text-text-tertiary/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
+        )}
       </button>
 
       <AnimatePresence initial={false}>
-        {hasBody && (
+        {expanded && hasExpandableContent && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={CARD_TRANSITION}
-            className="overflow-hidden border-t border-border/60"
+            transition={EXPAND_TRANSITION}
+            className="overflow-hidden"
           >
-            <div className="py-3">
+            <div className="pl-7 pr-1 pt-1 pb-2">
               {shouldShowSemanticBody && (
-                <div className="px-4 pb-1">
-                  {isSemanticTodo && (
-                    <TodoPreview items={todoItems} expanded={expanded} />
-                  )}
-                  {isSemanticQuestion && (
-                    <QuestionPreview questions={questionItems} />
-                  )}
-                </div>
+                <>
+                  {isSemanticTodo && <TodoPreview items={todoItems} expanded={expanded} />}
+                  {isSemanticQuestion && <QuestionPreview questions={questionItems} />}
+                </>
               )}
 
-              {shouldShowPreview && resultContent && (
-                <ToolContentErrorBoundary fallbackContent={resultContent}>
-                  <ToolResultPreview toolName={toolName} resultContent={resultContent} />
-                </ToolContentErrorBoundary>
-              )}
-
-              {shouldShowExpanded && (
+              {!shouldShowSemanticBody && (
                 <ToolContentErrorBoundary fallbackContent={resultContent ?? diff}>
                   <ExpandedToolContent
                     toolName={toolName}
@@ -487,9 +363,9 @@ function TodoPreview({ items, expanded }: { items: TodoItem[]; expanded: boolean
   const visibleItems = expanded ? items : items.slice(0, 4);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {visibleItems.map((item, index) => (
-        <div key={`${item.content}-${index}`} className="premium-panel flex items-start gap-3 rounded-lg px-3 py-2 text-sm">
+        <div key={`${item.content}-${index}`} className="flex items-start gap-2 text-[12px]">
           <span className="mt-0.5 shrink-0 text-text-tertiary">
             {item.status === 'completed' ? '✓' : item.status === 'in_progress' ? '◌' : '○'}
           </span>
@@ -498,14 +374,14 @@ function TodoPreview({ items, expanded }: { items: TodoItem[]; expanded: boolean
               {item.content}
             </div>
             {item.activeForm && item.activeForm !== item.content && item.status === 'in_progress' && (
-              <div className="text-xs text-text-tertiary">{item.activeForm}</div>
+              <div className="text-[11px] text-text-tertiary">{item.activeForm}</div>
             )}
           </div>
         </div>
       ))}
       {!expanded && items.length > visibleItems.length && (
-        <div className="text-xs text-text-tertiary">
-          {items.length - visibleItems.length} more task{items.length - visibleItems.length === 1 ? '' : 's'}
+        <div className="text-[11px] text-text-tertiary pl-5">
+          +{items.length - visibleItems.length} more
         </div>
       )}
     </div>
@@ -514,22 +390,22 @@ function TodoPreview({ items, expanded }: { items: TodoItem[]; expanded: boolean
 
 function QuestionPreview({ questions }: { questions: QuestionItem[] }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {questions.map((question, index) => (
-        <div key={`${question.question}-${index}`} className="space-y-2">
+        <div key={`${question.question}-${index}`} className="space-y-1">
           {question.header && (
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
               {question.header}
             </div>
           )}
-          <div className="text-sm text-text-primary">{question.question}</div>
+          <div className="text-[12px] text-text-primary">{question.question}</div>
           {question.options.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-1 pl-2">
               {question.options.map((option) => (
-                <div key={option.label} className="premium-panel rounded-lg px-3 py-2">
-                  <div className="text-sm text-text-primary">{option.label}</div>
+                <div key={option.label} className="text-[12px] text-text-secondary">
+                  {option.label}
                   {option.description && (
-                    <div className="mt-1 text-xs text-text-tertiary">{option.description}</div>
+                    <span className="text-text-tertiary ml-1">— {option.description}</span>
                   )}
                 </div>
               ))}
