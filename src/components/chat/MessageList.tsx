@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown, ArrowRightLeft, X, Play, Copy, ClipboardList, Check } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
@@ -87,6 +87,24 @@ export function MessageList() {
   const lastMessage = messages[messages.length - 1];
   const showCursor = isStreaming && lastMessage?.role === 'assistant' && lastMessage?.type === 'text';
 
+  // Hide PlanCard if user sent a new message after the plan was generated
+  const planIsStale = useMemo(() => {
+    if (!planText) return false;
+    let lastPlanIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (isPlanMessage(messages[i], task.mode)) {
+        lastPlanIdx = i;
+        break;
+      }
+    }
+    if (lastPlanIdx < 0) return false;
+    // Check if any user message exists after the plan
+    for (let i = lastPlanIdx + 1; i < messages.length; i++) {
+      if (messages[i].role === 'user' && messages[i].type === 'text') return true;
+    }
+    return false;
+  }, [messages, planText, task.mode]);
+
   // Build set of message indices where agent switches happened
   const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
 
@@ -120,7 +138,7 @@ export function MessageList() {
               for (let idx = 0; idx < messages.length; idx++) {
                 const msg = messages[idx];
                 if (mergedResultIndices.has(idx)) continue;
-                if (isPlanMessage(msg, task.mode)) continue;
+                if (!planIsStale && isPlanMessage(msg, task.mode)) continue;
 
                 if (isSubagentMarker(msg)) {
                   const groupIds: string[] = [];
@@ -261,8 +279,8 @@ export function MessageList() {
             return null;
           })()}
 
-          {task.mode === 'plan' && taskId && planText && (taskStatus === 'done' || isStreaming) && (
-            <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
+          {task.mode === 'plan' && taskId && planText && !planIsStale && (taskStatus === 'done' || isStreaming) && (
+            <PlanCard task={task} isStreaming={taskStatus === 'running' && task.mode === 'plan'} />
           )}
 
           {rateLimitSuggestion && taskId && (
