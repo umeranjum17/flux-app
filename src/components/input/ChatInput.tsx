@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, ClipboardList, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -803,6 +803,21 @@ export function ChatInput({ focused }: ChatInputProps) {
                     open={showModelSelector}
                     onClose={() => setShowModelSelector(false)}
                   />
+
+                  {/* Plan / Act mode toggle */}
+                  <button
+                    type="button"
+                    onClick={() => useUiStore.getState().toggleMode()}
+                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      mode === 'plan'
+                        ? 'border-plan/25 bg-plan/12 text-plan'
+                        : 'border-accent/25 bg-accent/12 text-accent'
+                    }`}
+                    title={`${mode === 'plan' ? 'Plan' : 'Act'} mode (Shift+Tab to toggle)`}
+                  >
+                    {mode === 'plan' ? <ClipboardList size={12} /> : <Zap size={12} />}
+                    {mode === 'plan' ? 'Plan' : 'Act'}
+                  </button>
 
                   {/* Thinking toggle */}
                   {supportsThinking && (
