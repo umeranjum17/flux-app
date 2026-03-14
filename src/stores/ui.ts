@@ -25,6 +25,7 @@ interface UiState {
   projectName: string;
 
   // Git
+  isGitRepo: boolean;
   gitBranch: string | null;
   gitUpstream: string | null;
   gitDirty: boolean;
@@ -80,6 +81,7 @@ interface UiState {
   toggleMode(): void;
   setOverlay(overlay: Overlay): void;
   setCwd(cwd: string): void;
+  setIsGitRepo(isRepo: boolean): void;
   setGitBranch(branch: string | null): void;
   setGitUpstream(upstream: string | null): void;
   setGitDirty(dirty: boolean): void;
@@ -132,6 +134,7 @@ export const useUiStore = create<UiState>()(
     activeOverlay: null,
     cwd: '',
     projectName: '',
+    isGitRepo: true,
     gitBranch: null,
     gitUpstream: null,
     gitDirty: false,
@@ -214,6 +217,12 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
+      });
+    },
+
+    setIsGitRepo(isRepo) {
+      set((state) => {
+        state.isGitRepo = isRepo;
       });
     },
 

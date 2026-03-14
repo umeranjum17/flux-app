@@ -1566,6 +1566,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // --- Git handlers ---
 
+  ipcMain.handle('git:is-repo', async (_event, { dirPath }: { dirPath?: string } = {}) => {
+    const target = dirPath ?? currentCwd;
+    try {
+      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+        cwd: target,
+        timeout: 5000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
   ipcMain.handle('git:branch', async () => {
     try {
       const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: currentCwd });
@@ -1906,6 +1919,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         throw new Error('Workspaces are only supported for local repositories right now');
       }
 
+      try {
+        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
+      } catch {
+        throw new Error(
+          `"${parentRepo}" is not a git repository. Run "git init" in that folder first, then try again.`,
+        );
+      }
+
       const worktree = await createWorktree(parentRepo, branch);
       return workspaceStore.create({
         id: worktree.id,
@@ -1929,6 +1950,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
       if (sshHost) {
         throw new Error('Workspaces are only supported for local repositories right now');
+      }
+
+      try {
+        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
+      } catch {
+        throw new Error(
+          `"${parentRepo}" is not a git repository. Run "git init" in that folder first, then try again.`,
+        );
       }
 
       const funName = generateWorkspaceName();

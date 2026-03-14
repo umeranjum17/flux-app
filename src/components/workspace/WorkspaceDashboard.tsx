@@ -16,6 +16,7 @@ export function WorkspaceDashboard() {
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const showArchived = useWorkspaceStore((s) => s.showArchived);
   const cwd = useUiStore((s) => s.cwd);
+  const isGitRepo = useUiStore((s) => s.isGitRepo);
 
   const [showCreate, setShowCreate] = useState(false);
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
@@ -137,7 +138,9 @@ export function WorkspaceDashboard() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
+          disabled={!isGitRepo}
+          title={isGitRepo ? undefined : 'Not a git repository — run "git init" first'}
+          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={13} />
           New Workspace
@@ -148,17 +151,23 @@ export function WorkspaceDashboard() {
         {workspaceList.length === 0 && archivedList.length === 0 ? (
           <div className="premium-panel flex h-full flex-col items-center justify-center px-6 text-center">
             <LayoutGrid size={34} className="mb-3 text-text-tertiary/40" />
-            <p className="text-sm text-text-secondary">No workspaces yet</p>
-            <p className="mt-1 text-xs text-text-tertiary">
-              Create a workspace to run agents on isolated branches.
+            <p className="text-sm text-text-secondary">
+              {isGitRepo ? 'No workspaces yet' : 'Not a git repository'}
             </p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
-            >
-              <Plus size={13} />
-              Create First Workspace
-            </button>
+            <p className="mt-1 text-xs text-text-tertiary">
+              {isGitRepo
+                ? 'Create a workspace to run agents on isolated branches.'
+                : 'Workspaces require a git repository. Run "git init" in this folder to get started.'}
+            </p>
+            {isGitRepo && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
+              >
+                <Plus size={13} />
+                Create First Workspace
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
