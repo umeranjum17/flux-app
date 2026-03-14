@@ -794,6 +794,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       ? existingAgentSessionId   // only resume if we captured a real Claude session ID before
       : session.id;              // local: always use Flux session ID
 
+    // Pre-build conversation context so the agent can fall back to it
+    // if native session resume fails (e.g., "Session ID already in use").
+    const fallbackContext = existingSession
+      ? buildConversationContext(session.id, sessionStore)
+      : undefined;
+
     const spawnOptions: SpawnOptions = {
       ...options,
       cwd: spawnCwd,
@@ -807,6 +813,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         : agentId === 'claude-code'
           ? claudeResumeId
           : undefined,
+      fallbackContext: fallbackContext || undefined,
     };
     let detectedCodexSessionId: string | undefined = existingAgentSessionId;
 

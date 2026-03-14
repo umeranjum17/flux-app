@@ -109,6 +109,8 @@ export interface SpawnOptions {
   dangerouslyBypassPermissions?: boolean; // Disable agent sandboxing for externally sandboxed runs
   parentTaskId?: string;
   subagentName?: string;
+  /** Pre-built conversation context to inject if native session resume fails. */
+  fallbackContext?: string;
 }
 
 export interface AgentHandle extends EventEmitter {
