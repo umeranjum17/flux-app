@@ -85,9 +85,9 @@ function FileTreeItem({
               <ChevronRight size={12} className="text-text-tertiary shrink-0" />
             )}
             {expanded ? (
-              <FolderOpen size={14} className="text-text-secondary shrink-0" />
+              <FolderOpen size={14} className="shrink-0" style={{ color: 'hsl(42, 70%, 62%)' }} />
             ) : (
-              <Folder size={14} className="text-text-secondary shrink-0" />
+              <Folder size={14} className="shrink-0" style={{ color: 'hsl(42, 65%, 55%)' }} />
             )}
           </>
         ) : (
