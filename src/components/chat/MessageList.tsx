@@ -209,7 +209,7 @@ export function MessageList() {
             />
           )}
 
-          {(taskStatus === 'done' || taskStatus === 'error') && (diffs.size > 0 || messages.some((m) => m.type === 'result')) && (() => {
+          {taskStatus === 'done' && (diffs.size > 0 || messages.some((m) => m.type === 'result')) && (() => {
             const resultMsg = [...messages].reverse().find((m) => m.type === 'result');
             const mergedDiff = diffs.size > 0
               ? Array.from(diffs.values()).reduce(

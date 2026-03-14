@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, ClipboardList, Zap, Square } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, BookOpen, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -671,7 +671,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className={`premium-input-shell px-5 py-4 transition-colors focus-within:border-accent/60 ${shellClasses}`}>
+      <div className={`premium-input-shell px-5 py-4 transition-colors ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
           <div className="mb-2 flex items-center gap-1.5">
@@ -834,15 +834,15 @@ export function ChatInput({ focused }: ChatInputProps) {
                   <button
                     type="button"
                     onClick={() => useUiStore.getState().toggleMode()}
-                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium ${
                       mode === 'plan'
-                        ? 'border-plan/25 bg-plan/12 text-plan'
-                        : 'border-accent/25 bg-accent/12 text-accent'
+                        ? 'border border-plan/20 bg-plan/10 text-plan'
+                        : 'text-text-secondary'
                     }`}
                     title={`${mode === 'plan' ? 'Plan' : 'Act'} mode (Shift+Tab to toggle)`}
                   >
-                    {mode === 'plan' ? <ClipboardList size={12} /> : <Zap size={12} />}
-                    {mode === 'plan' ? 'Plan' : 'Act'}
+                    <BookOpen size={12} />
+                    {mode === 'plan' && <span>Plan</span>}
                   </button>
 
                   {/* Thinking toggle */}
@@ -985,7 +985,6 @@ export function ChatInput({ focused }: ChatInputProps) {
                   aria-label="Stop agent"
                   title="Stop agent (Escape)"
                 >
-<<<<<<< HEAD
                   <Square size={14} fill="currentColor" strokeWidth={0} />
                 </button>
               ) : (
