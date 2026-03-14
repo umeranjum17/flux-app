@@ -7,6 +7,14 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: (...args: any[]) => mockQuery(...args),
 }));
 
+// Mock session-repair to avoid filesystem side effects in tests
+const mockRepairSessionQueue = vi.fn();
+const mockIsSessionLockError = vi.fn();
+vi.mock('../session-repair', () => ({
+  repairSessionQueue: (...args: any[]) => mockRepairSessionQueue(...args),
+  isSessionLockError: (...args: any[]) => mockIsSessionLockError(...args),
+}));
+
 import { spawnClaudeSdk } from '../claude-sdk';
 import type { SpawnOptions } from '../types';
 
@@ -537,5 +545,288 @@ describe('spawnClaudeSdk', () => {
     const callArgs = mockQuery.mock.calls[0][0];
     expect(callArgs.prompt).toContain('## Repo Map');
     expect(callArgs.prompt).toContain('Hello Claude');
+  });
+
+  // ---- Phase 3: Session Management Tests ----
+
+  describe('session management (Phase 3)', () => {
+    it('calls repairSessionQueue before spawn when resumeSessionId is set', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      spawnClaudeSdk(baseOptions({ resumeSessionId: 'sess-repair-1' }));
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockRepairSessionQueue).toHaveBeenCalledWith('sess-repair-1', '/tmp/test');
+    });
+
+    it('does not call repairSessionQueue when no resumeSessionId', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockRepairSessionQueue).not.toHaveBeenCalled();
+    });
+
+    it('retries with fallback context on session lock error', async () => {
+      let callCount = 0;
+      mockIsSessionLockError.mockReturnValue(true);
+
+      mockQuery.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: throw session lock error
+          const gen = {
+            async *[Symbol.asyncIterator]() {
+              throw new Error('Session ID already in use');
+            },
+            close: vi.fn(),
+            streamInput: vi.fn(),
+            mcpServerStatus: vi.fn().mockResolvedValue([]),
+            reconnectMcpServer: vi.fn().mockResolvedValue(undefined),
+            toggleMcpServer: vi.fn().mockResolvedValue(undefined),
+            setMcpServers: vi.fn().mockResolvedValue({}),
+          };
+          const iter = gen[Symbol.asyncIterator]();
+          return Object.assign(iter, gen);
+        }
+        // Second call: succeed with a message
+        return createFakeQuery([
+          {
+            type: 'assistant',
+            uuid: 'retry-msg',
+            session_id: 'new-sess',
+            message: { content: [{ type: 'text', text: 'Resumed via context' }] },
+            parent_tool_use_id: null,
+          },
+        ]);
+      });
+
+      const handle = spawnClaudeSdk(baseOptions({
+        resumeSessionId: 'locked-session',
+        fallbackContext: 'Previous conversation context here',
+      }));
+      const messages: any[] = [];
+      handle.on('message', (msg: any) => messages.push(msg));
+      await new Promise<void>((resolve) => handle.once('done', resolve));
+
+      // Should have retried
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+
+      // Second call should NOT have resume option (fresh session)
+      const retryArgs = mockQuery.mock.calls[1][0];
+      expect(retryArgs.options.resume).toBeUndefined();
+
+      // Should have injected fallback context into prompt
+      expect(retryArgs.prompt).toContain('Previous conversation context here');
+
+      // Should have emitted status about session lock
+      const statusMsgs = messages.filter((m) => m.type === 'status' && m.content.includes('Session lock'));
+      expect(statusMsgs.length).toBeGreaterThan(0);
+
+      // Should have emitted the retried message
+      const textMsgs = messages.filter((m) => m.type === 'text');
+      expect(textMsgs).toHaveLength(1);
+      expect(textMsgs[0].content).toBe('Resumed via context');
+    });
+
+    it('retries with fresh session when no fallback context', async () => {
+      let callCount = 0;
+      mockIsSessionLockError.mockReturnValue(true);
+
+      mockQuery.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          const gen = {
+            async *[Symbol.asyncIterator]() {
+              throw new Error('Session ID already in use');
+            },
+            close: vi.fn(),
+            streamInput: vi.fn(),
+            mcpServerStatus: vi.fn().mockResolvedValue([]),
+            reconnectMcpServer: vi.fn().mockResolvedValue(undefined),
+            toggleMcpServer: vi.fn().mockResolvedValue(undefined),
+            setMcpServers: vi.fn().mockResolvedValue({}),
+          };
+          const iter = gen[Symbol.asyncIterator]();
+          return Object.assign(iter, gen);
+        }
+        return createFakeQuery([]);
+      });
+
+      const handle = spawnClaudeSdk(baseOptions({
+        resumeSessionId: 'locked-session-2',
+        // No fallbackContext
+      }));
+      const messages: any[] = [];
+      handle.on('message', (msg: any) => messages.push(msg));
+      await new Promise<void>((resolve) => handle.once('done', resolve));
+
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+
+      // Status should mention fresh session
+      const statusMsgs = messages.filter((m) => m.type === 'status' && m.content.includes('fresh session'));
+      expect(statusMsgs.length).toBeGreaterThan(0);
+    });
+
+    it('does not retry on non-lock errors', async () => {
+      mockIsSessionLockError.mockReturnValue(false);
+
+      mockQuery.mockImplementation(() => {
+        const gen = {
+          async *[Symbol.asyncIterator]() {
+            throw new Error('Network timeout');
+          },
+          close: vi.fn(),
+          streamInput: vi.fn(),
+        };
+        const iter = gen[Symbol.asyncIterator]();
+        return Object.assign(iter, gen);
+      });
+
+      const handle = spawnClaudeSdk(baseOptions({
+        resumeSessionId: 'some-session',
+        fallbackContext: 'some context',
+      }));
+      const result = await new Promise<any>((resolve) => handle.once('done', resolve));
+
+      expect(mockQuery).toHaveBeenCalledTimes(1);
+      expect(result.error).toBe('Network timeout');
+    });
+
+    it('calls repairSessionQueue again after session lock error before retry', async () => {
+      let callCount = 0;
+      mockIsSessionLockError.mockReturnValue(true);
+
+      mockQuery.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          const gen = {
+            async *[Symbol.asyncIterator]() {
+              throw new Error('Session ID already in use');
+            },
+            close: vi.fn(),
+            streamInput: vi.fn(),
+            mcpServerStatus: vi.fn().mockResolvedValue([]),
+            reconnectMcpServer: vi.fn().mockResolvedValue(undefined),
+            toggleMcpServer: vi.fn().mockResolvedValue(undefined),
+            setMcpServers: vi.fn().mockResolvedValue({}),
+          };
+          const iter = gen[Symbol.asyncIterator]();
+          return Object.assign(iter, gen);
+        }
+        return createFakeQuery([]);
+      });
+
+      const handle = spawnClaudeSdk(baseOptions({
+        resumeSessionId: 'locked-session-3',
+      }));
+      await new Promise<void>((resolve) => handle.once('done', resolve));
+
+      // repairSessionQueue called twice: once before spawn, once after lock error
+      expect(mockRepairSessionQueue).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ---- Phase 4: MCP Tool Server Tests ----
+
+  describe('MCP tool server management (Phase 4)', () => {
+    it('passes mcpServers config to SDK options', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      const mcpServers = {
+        'my-server': {
+          name: 'my-server',
+          command: 'node',
+          args: ['server.js'],
+        },
+      };
+
+      spawnClaudeSdk(baseOptions(), mcpServers);
+      await new Promise((r) => setTimeout(r, 10));
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.options.mcpServers).toEqual(mcpServers);
+    });
+
+    it('does not include mcpServers when none provided', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.options.mcpServers).toBeUndefined();
+    });
+
+    it('getMcpServerStatus() returns empty array when no query instance', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      const handle = spawnClaudeSdk(baseOptions());
+      // Stop immediately to clear queryInstance
+      await handle.stop();
+
+      const statuses = await handle.getMcpServerStatus();
+      expect(statuses).toEqual([]);
+    });
+
+    it('getMcpServerStatus() delegates to query instance', async () => {
+      const mockStatuses = [
+        { name: 'test-server', status: 'connected', tools: ['tool1', 'tool2'] },
+      ];
+      const fakeQuery = createFakeQuery([]);
+      fakeQuery.mcpServerStatus.mockResolvedValue(mockStatuses);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      const handle = spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      const statuses = await handle.getMcpServerStatus();
+      expect(statuses).toHaveLength(1);
+      expect(statuses[0]).toMatchObject({
+        name: 'test-server',
+        status: 'connected',
+        tools: ['tool1', 'tool2'],
+      });
+    });
+
+    it('reconnectMcpServer() delegates to query instance', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      const handle = spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      await handle.reconnectMcpServer('my-server');
+      expect(fakeQuery.reconnectMcpServer).toHaveBeenCalledWith('my-server');
+    });
+
+    it('toggleMcpServer() delegates to query instance', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      const handle = spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      await handle.toggleMcpServer('my-server', false);
+      expect(fakeQuery.toggleMcpServer).toHaveBeenCalledWith('my-server', false);
+    });
+
+    it('setMcpServers() delegates to query instance', async () => {
+      const fakeQuery = createFakeQuery([]);
+      mockQuery.mockReturnValue(fakeQuery);
+
+      const handle = spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      const servers = { newServer: { name: 'newServer', command: 'node', args: ['new.js'] } };
+      await handle.setMcpServers(servers);
+      expect(fakeQuery.setMcpServers).toHaveBeenCalledWith(servers);
+    });
   });
 });

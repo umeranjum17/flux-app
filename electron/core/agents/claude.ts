@@ -1,8 +1,5 @@
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { readFileSync, appendFileSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
 import {
   spawnAgentProcess,
@@ -19,6 +16,7 @@ import {
   normalizeClaudeQuestions as _normalizeClaudeQuestions,
   mapClaudeEffort as _mapClaudeEffort,
 } from './claude-utils';
+import { repairSessionQueue } from './session-repair';
 
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
 
@@ -51,85 +49,7 @@ function classifyClaudeExit(code: number | null, stderr: string): string {
   return `Claude exited with code ${code}${hint}`;
 }
 
-/**
- * Find all JSONL files for a given session ID across all project directories.
- * The session may have been created from a different CWD (e.g., a worktree),
- * so we search globally rather than only in the current project's directory.
- */
-function findSessionJsonlPaths(sessionId: string): string[] {
-  const projectsDir = join(homedir(), '.claude', 'projects');
-  if (!existsSync(projectsDir)) return [];
-
-  const paths: string[] = [];
-  try {
-    for (const dir of readdirSync(projectsDir, { withFileTypes: true })) {
-      if (!dir.isDirectory()) continue;
-      const jsonlPath = join(projectsDir, dir.name, `${sessionId}.jsonl`);
-      if (existsSync(jsonlPath)) {
-        paths.push(jsonlPath);
-      }
-    }
-  } catch { /* best-effort */ }
-  return paths;
-}
-
-/**
- * Repair a single session JSONL file by balancing orphaned queue-operation entries.
- * Returns true if repairs were applied.
- */
-function repairSessionJsonl(jsonlPath: string, sessionId: string): boolean {
-  try {
-    const content = readFileSync(jsonlPath, 'utf-8');
-    let enqueueCount = 0;
-    let removeCount = 0;
-    for (const line of content.split('\n')) {
-      if (!line.trim()) continue;
-      try {
-        const entry = JSON.parse(line);
-        if (entry.type === 'queue-operation') {
-          if (entry.operation === 'enqueue') enqueueCount++;
-          // Both 'remove' and 'dequeue' release a queue slot
-          else if (entry.operation === 'remove' || entry.operation === 'dequeue') removeCount++;
-        }
-      } catch { /* skip malformed lines */ }
-    }
-
-    const pending = enqueueCount - removeCount;
-    if (pending > 0) {
-      const now = new Date().toISOString();
-      const repairs = Array.from({ length: pending }, () =>
-        JSON.stringify({ type: 'queue-operation', operation: 'remove', timestamp: now, sessionId }),
-      ).join('\n');
-      appendFileSync(jsonlPath, '\n' + repairs + '\n');
-      return true;
-    }
-  } catch { /* best-effort repair */ }
-  return false;
-}
-
-/**
- * Repair orphaned queue-operation entries in Claude session JSONL files.
- * When a process is killed (SIGKILL), it can't write the final "remove" entry,
- * leaving the session in a permanently "in use" state.
- *
- * Searches all project directories since the session may have been created
- * from a different CWD (e.g., a worktree that no longer exists).
- */
-function repairSessionQueue(sessionId: string, cwd: string): void {
-  // Try the expected project directory first (fast path)
-  const projectKey = cwd.replace(/\//g, '-');
-  const expectedPath = join(homedir(), '.claude', 'projects', projectKey, `${sessionId}.jsonl`);
-  if (existsSync(expectedPath)) {
-    repairSessionJsonl(expectedPath, sessionId);
-  }
-
-  // Also search all project directories for the session (handles worktree moves)
-  for (const path of findSessionJsonlPaths(sessionId)) {
-    if (path !== expectedPath) {
-      repairSessionJsonl(path, sessionId);
-    }
-  }
-}
+// Session queue repair utilities are now in session-repair.ts
 
 /**
  * Spawn a Claude Code CLI subprocess and parse its NDJSON stream output.

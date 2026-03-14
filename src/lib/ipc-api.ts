@@ -111,6 +111,9 @@ export interface IpcChannels {
   'shell:exec': { args: [{ command: string; cwd: string; timeout?: number }]; result: { stdout: string; stderr: string; exitCode: number; durationMs: number } };
   'completion:suggest': { args: [{ prefix: string; cwd: string; recentCommands: string[]; model?: string }]; result: { suggestion: string; error?: string } };
   'completion:providers': { args: []; result: { providers: string[] } };
+  'mcp:status': { args: [{ taskId: string }]; result: McpServerStatus[] };
+  'mcp:reconnect': { args: [{ taskId: string; serverName: string }]; result: void };
+  'mcp:toggle': { args: [{ taskId: string; serverName: string; enabled: boolean }]; result: void };
 }
 
 // Events main sends to renderer
@@ -351,4 +354,11 @@ export interface UsageInfo {
   }>;
   windowDays: number;
   updatedAt: number;
+}
+
+export interface McpServerStatus {
+  name: string;
+  status: 'connected' | 'disconnected' | 'error';
+  error?: string;
+  tools?: string[];
 }

@@ -13,6 +13,7 @@ import {
 import type { SessionMessage } from '../session/types';
 import { spawnClaude } from './claude';
 import { spawnClaudeSdk } from './claude-sdk';
+import { loadMcpServers } from './mcp-config';
 import { spawnCodex } from './codex';
 import { spawnGemini } from './gemini';
 import { spawnOpenAI } from './openai';
@@ -175,7 +176,8 @@ class AgentManager {
 
     // Use Agent SDK for local Claude sessions when enabled
     if (id === 'claude-code' && !options.sshHost && shouldUseClaudeSdk()) {
-      return spawnClaudeSdk(opts);
+      const mcpServers = loadMcpServers(options.cwd);
+      return spawnClaudeSdk(opts, mcpServers);
     }
 
     const spawner = spawners[id];
