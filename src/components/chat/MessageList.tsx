@@ -221,7 +221,7 @@ export function MessageList() {
             />
           )}
 
-          {taskStatus === 'done' && (() => {
+          {(taskStatus === 'done' || taskStatus === 'error') && (() => {
             const resultMsg = [...messages].reverse().find((m) => m.type === 'result');
             const mergedDiff = diffs.size > 0
               ? Array.from(diffs.values()).reduce(
@@ -234,7 +234,9 @@ export function MessageList() {
                 )
               : undefined;
 
-            // Show combined completion card with inline files when workspace is available
+            // Show combined completion card with inline files when workspace is available.
+            // Show on error too — the agent may have completed work before the error occurred
+            // (e.g., session lock errors after changes were committed).
             if (workspace && task.mode === 'act') {
               return (
                 <CompletionCard

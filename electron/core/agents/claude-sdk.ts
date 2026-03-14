@@ -105,6 +105,7 @@ export function spawnClaudeSdk(
   const pendingPermissions = new Map<string, PendingPermission>();
   let finished = false;
   let queryInstance: Query | null = null;
+  let resultEmitted = false; // Track if a result message was emitted (work complete)
 
   // Build the prompt — include context block (repo map) if available
   let effectivePrompt = options.prompt;
@@ -456,7 +457,8 @@ export function spawnClaudeSdk(
         continue;
       }
 
-      // Result message — task complete
+      // Result message — task complete. Break out of the loop since
+      // nothing meaningful follows a result and the stream may hang.
       if (msg.type === 'result') {
         const result = msg as any;
         const sessionId = result.session_id;
@@ -464,6 +466,7 @@ export function spawnClaudeSdk(
           emitter.emit('session-meta', { id: sessionId });
         }
 
+        resultEmitted = true;
         emitMessage({
           type: 'result',
           role: 'assistant',
@@ -474,7 +477,7 @@ export function spawnClaudeSdk(
           outputTokens: result.total_output_tokens,
           durationMs: result.duration_ms,
         });
-        continue;
+        break;
       }
 
       // Rate limit event
@@ -522,6 +525,21 @@ export function spawnClaudeSdk(
     } catch (err: any) {
       // Phase 3: Session lock detection — retry with fallback context
       if (isSessionLockError(err) && options.resumeSessionId && !abortController.signal.aborted) {
+        // If a result was already emitted, the work is done — no need to retry.
+        // Just emit done and let the completion flow handle it.
+        if (resultEmitted) {
+          emitMessage({
+            type: 'status',
+            role: 'system',
+            statusKind: 'progress',
+            content: 'Session lock detected after completion — work is already done.',
+            timestamp: Date.now(),
+          });
+          finished = true;
+          emitter.emit('done', { error: null });
+          return;
+        }
+
         // Attempt more aggressive repair after detecting the lock
         repairSessionQueue(options.resumeSessionId, options.cwd);
 
