@@ -85,8 +85,8 @@ export interface IpcChannels {
   'workspace:unarchive': { args: [{ workspaceId: string }]; result: Workspace };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:merge': {
-    args: [{ workspaceId: string; targetBranch: string; squash?: boolean }];
-    result: MergeResult;
+    args: [{ workspaceId: string; targetBranch: string; squash?: boolean; prompt: string }];
+    result: { taskId: string; session: Session };
   };
   'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
   'workspace:file-diff': {
