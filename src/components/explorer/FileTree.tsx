@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
+import { getFileIcon } from './fileIcons';
 
 export interface TreeNode {
   name: string;
@@ -92,7 +93,10 @@ function FileTreeItem({
         ) : (
           <>
             <span className="w-3 shrink-0" />
-            <File size={14} className="text-text-tertiary shrink-0" />
+            {(() => {
+              const { icon: Icon, color } = getFileIcon(node.name);
+              return <Icon size={14} className="shrink-0" style={{ color }} />;
+            })()}
           </>
         )}
         <span className="truncate text-text-secondary">{node.name}</span>
