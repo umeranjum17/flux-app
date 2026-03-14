@@ -380,13 +380,17 @@ export function ChatInput({ focused }: ChatInputProps) {
         if (task.mode !== currentMode) {
           setTaskMode(task.id, currentMode);
         }
+        // Sync agent/model selection to the task (user may have changed the selector)
+        if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
+          useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+        }
         setTaskStatus(task.id, 'running');
         const result = await window.api.invoke('task:spawn', {
           taskId: task.id,
           workspaceId: task.workspaceId,
           prompt: text,
-          agentId: task.agentId,
-          model: task.model,
+          agentId: selectedAgentId,
+          model: selectedModel,
           mode: currentMode,
           thinking: task.thinking,
           cwd: task.cwd,
@@ -413,12 +417,15 @@ export function ChatInput({ focused }: ChatInputProps) {
           if (task.mode !== currentMode) {
             setTaskMode(task.id, currentMode);
           }
+          if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
+            useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+          }
           const spawnResult = await window.api.invoke('task:spawn', {
             taskId: task.id,
             workspaceId: task.workspaceId,
             prompt: text,
-            agentId: task.agentId,
-            model: task.model,
+            agentId: selectedAgentId,
+            model: selectedModel,
             mode: currentMode,
             thinking: task.thinking,
             cwd: task.cwd,
