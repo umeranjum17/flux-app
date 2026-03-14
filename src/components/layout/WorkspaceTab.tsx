@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, Archive } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
@@ -183,7 +183,7 @@ export function WorkspaceTab() {
                 }}
                 className="shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
               >
-                <Archive size={12} />
+                <Trash2 size={12} />
               </span>
               {idx < 9 && (
                 <span className="shrink-0 text-[10px] text-text-tertiary/50 font-mono">{'\u2318'}{idx + 1}</span>
@@ -231,7 +231,7 @@ export function WorkspaceTab() {
             {isRunning(contextMenu.ws) && (
               <ContextItem icon={<Square size={12} />} label="Stop" onClick={() => handleContextAction('stop', contextMenu.ws)} />
             )}
-            <ContextItem icon={<Archive size={12} />} label="Archive" onClick={() => handleContextAction('archive', contextMenu.ws)} />
+            <ContextItem icon={<Trash2 size={12} />} label="Archive" onClick={() => handleContextAction('archive', contextMenu.ws)} />
             <div className="my-1 border-t border-border/60" />
             <ContextItem icon={<Trash2 size={12} />} label="Delete" onClick={() => handleContextAction('delete', contextMenu.ws)} danger />
           </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
-import { GitMerge, Eye, MessageSquare, Archive } from 'lucide-react';
+import { GitMerge, Eye, MessageSquare, Trash2 } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import type { Workspace } from '../../lib/ipc-api';
@@ -122,7 +122,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
             onClick={handleArchive}
             className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-warning/35 bg-warning/12 px-2.5 py-1.5 text-[12px] font-medium text-warning hover:bg-warning/16"
           >
-            <Archive size={11} />
+            <Trash2 size={11} />
             Archive
           </button>
         ) : (

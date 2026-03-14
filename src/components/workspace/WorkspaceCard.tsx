@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, Archive, ArchiveRestore, ChevronDown } from 'lucide-react';
+import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ArchiveRestore, ChevronDown } from 'lucide-react';
 import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from '../../lib/ipc-api';
 import { workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -97,7 +97,7 @@ export function WorkspaceCard({
             <ActionButton icon={<ExternalLink size={12} />} label="Open IDE" onClick={onOpenIde} />
             <ActionButton icon={<Eye size={12} />} label="Review" onClick={onReview} />
             <ActionButton icon={<GitMerge size={12} />} label="Merge" onClick={onMerge} />
-            {onArchive && <ActionButton icon={<Archive size={12} />} label="Archive" onClick={onArchive} />}
+            {onArchive && <ActionButton icon={<Trash2 size={12} />} label="Archive" onClick={onArchive} />}
             <ActionButton icon={<Trash2 size={12} />} label="Delete" onClick={onDelete} variant="danger" />
           </>
         )}
