@@ -85,6 +85,10 @@ export interface IpcChannels {
     args: [{ workspaceId: string; outcome: WorkspaceOutcome }];
     result: void;
   };
+  'workspace:update': {
+    args: [{ workspaceId: string; agentId?: string; model?: string }];
+    result: void;
+  };
   'workspace:archive': { args: [{ workspaceId: string }]; result: void };
   'workspace:unarchive': { args: [{ workspaceId: string }]; result: Workspace };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };

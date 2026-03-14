@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Clock3, Loader2 } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Clock3, Loader2, Square } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 
@@ -31,6 +31,15 @@ export function LiveRunHeader() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [activeRun, isLive]);
+
+  const handleStop = useCallback(async () => {
+    if (!task) return;
+    try {
+      await window.api.invoke('task:stop', { taskId: task.id });
+    } catch {
+      // agent:done event handles status transition
+    }
+  }, [task]);
 
   if (!task || !isLive || !activeRun) {
     return null;
@@ -68,7 +77,13 @@ export function LiveRunHeader() {
         {formatElapsed(now - activeRun.startedAt)}
       </span>
       {isStalled && (
-        <span className="text-warning">stalled</span>
+        <button
+          onClick={handleStop}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-warning hover:bg-warning/10 transition-colors"
+        >
+          <Square size={8} fill="currentColor" />
+          stalled — stop
+        </button>
       )}
     </div>
   );

@@ -219,6 +219,18 @@ export function AppShell() {
     return () => { unsub(); unsubOutcome(); unsubCheckpoint(); };
   }, []);
 
+  // Sync model selector when the active workspace changes so each workspace
+  // shows and uses its own agent/model in the chat input dropdown.
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    const workspace = useWorkspaceStore.getState().workspaces.get(activeWorkspaceId);
+    if (!workspace?.agentId) return;
+    useAgentStore.getState().syncToWorkspace(
+      workspace.agentId as import('../../lib/types').AgentId,
+      workspace.model,
+    );
+  }, [activeWorkspaceId]);
+
   // Fetch git info when CWD changes
   useEffect(() => {
     if (!cwd) return;

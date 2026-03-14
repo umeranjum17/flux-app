@@ -45,6 +45,10 @@ const taskWorkspaceMap = new Map<string, string>(); // taskId → workspaceId
 const taskWorkspaceStatusMap = new Map<string, WorkspaceStatus>();
 const cleaningUp = new Set<string>();
 const taskIdleHeartbeats = new Map<string, NodeJS.Timeout>();
+const taskLastActivity = new Map<string, number>(); // taskId → timestamp of last meaningful activity
+const taskStallWatchdogs = new Map<string, NodeJS.Timeout>();
+const STALL_AUTO_STOP_MS = 5 * 60 * 1000; // 5 minutes without meaningful activity → auto-stop
+const STALL_CHECK_INTERVAL_MS = 30_000; // check every 30 seconds
 const activeTerminals = new Map<string, ChildProcess>();
 const activeSubagents = new Map<string, {
   parentTaskId: string;
@@ -755,6 +759,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         clearInterval(taskIdleHeartbeats.get(options.taskId)!);
         taskIdleHeartbeats.delete(options.taskId);
       }
+      if (taskStallWatchdogs.has(options.taskId)) {
+        clearInterval(taskStallWatchdogs.get(options.taskId)!);
+        taskStallWatchdogs.delete(options.taskId);
+      }
+      taskLastActivity.delete(options.taskId);
     }
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments);
@@ -979,6 +988,38 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }, 10_000);
     taskIdleHeartbeats.set(options.taskId, idleHeartbeat);
 
+    // Stall watchdog: auto-stop tasks with no meaningful activity for too long.
+    taskLastActivity.set(options.taskId, Date.now());
+    const stallWatchdog = setInterval(() => {
+      if (!activeTasks.has(options.taskId) || cleaningUp.has(options.taskId)) {
+        clearInterval(stallWatchdog);
+        taskStallWatchdogs.delete(options.taskId);
+        taskLastActivity.delete(options.taskId);
+        return;
+      }
+      const lastActivity = taskLastActivity.get(options.taskId) ?? Date.now();
+      const elapsed = Date.now() - lastActivity;
+      if (elapsed >= STALL_AUTO_STOP_MS) {
+        clearInterval(stallWatchdog);
+        taskStallWatchdogs.delete(options.taskId);
+        const elapsedMin = Math.round(elapsed / 60_000);
+        sendToRenderer('agent:message', {
+          taskId: options.taskId,
+          message: {
+            type: 'error',
+            role: 'system',
+            content: `Agent stalled — no activity for ${elapsedMin} minutes. Stopping automatically. You can send a new message to retry.`,
+            timestamp: Date.now(),
+          } satisfies AgentMessage,
+        });
+        const taskHandle = activeTasks.get(options.taskId);
+        if (taskHandle) {
+          void taskHandle.stop();
+        }
+      }
+    }, STALL_CHECK_INTERVAL_MS);
+    taskStallWatchdogs.set(options.taskId, stallWatchdog);
+
     emitTaskMessage(options.taskId, session.id, {
       type: 'status',
       role: 'system',
@@ -1017,6 +1058,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
         }
       }
+
+      // Track meaningful activity for stall watchdog (exclude heartbeats and rate limits)
+      const isHeartbeat = message.type === 'status' && message.statusKind === 'progress';
+      if (!isHeartbeat && message.type !== 'rate_limit') {
+        taskLastActivity.set(options.taskId, Date.now());
+      }
+
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
       const autoApprovePermission = Boolean(
@@ -1113,6 +1161,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             clearInterval(taskIdleHeartbeats.get(options.taskId)!);
             taskIdleHeartbeats.delete(options.taskId);
           }
+          if (taskStallWatchdogs.has(options.taskId)) {
+            clearInterval(taskStallWatchdogs.get(options.taskId)!);
+            taskStallWatchdogs.delete(options.taskId);
+          }
+          taskLastActivity.delete(options.taskId);
 
           if (agentId === 'codex' && !detectedCodexSessionId) {
             const detectedSession = findLatestCodexSession(options.cwd, startedAt);
@@ -1325,6 +1378,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       clearInterval(taskIdleHeartbeats.get(taskId)!);
       taskIdleHeartbeats.delete(taskId);
     }
+    if (taskStallWatchdogs.has(taskId)) {
+      clearInterval(taskStallWatchdogs.get(taskId)!);
+      taskStallWatchdogs.delete(taskId);
+    }
+    taskLastActivity.delete(taskId);
     taskSessions.delete(taskId);
     cleaningUp.delete(taskId);
     sendToRenderer('agent:done', { taskId, error: undefined });
@@ -2268,6 +2326,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:set-outcome',
     async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
       emitWorkspaceOutcome(workspaceId, outcome as WorkspaceOutcome);
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:update',
+    async (_event, { workspaceId, agentId, model }: { workspaceId: string; agentId?: string; model?: string }) => {
+      workspaceStore.update(workspaceId, {
+        ...(agentId ? { agentId: agentId as AgentId } : {}),
+        ...(model ? { model } : {}),
+      });
     },
   );
 
