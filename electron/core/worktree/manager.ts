@@ -2,13 +2,42 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
+import { dialog } from 'electron';
 import type { WorktreeInfo, DiffFile, MergeResult } from './types';
 
 const execFileAsync = promisify(execFile);
 
 function worktreeBaseDir(parentRepo: string): string {
-  return path.resolve(parentRepo, '..', '.flux-worktrees');
+  const slug = path.basename(parentRepo) || 'root';
+  const hash = crypto.createHash('md5').update(parentRepo).digest('hex').slice(0, 8);
+  return path.join(os.homedir(), '.flux', 'worktrees', `${slug}-${hash}`);
+}
+
+function ensureBaseDir(baseDir: string): string {
+  if (fs.existsSync(baseDir)) return baseDir;
+
+  try {
+    fs.mkdirSync(baseDir, { recursive: true });
+    return baseDir;
+  } catch (err: any) {
+    if (err.code !== 'EACCES') throw err;
+
+    const result = dialog.showOpenDialogSync({
+      title: 'Choose a directory for workspace worktrees',
+      message: `Flux doesn't have permission to create worktrees at "${baseDir}". Please choose a writable location.`,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+
+    if (!result || result.length === 0) {
+      throw new Error('Workspace creation cancelled — no writable directory was selected');
+    }
+
+    const chosen = path.join(result[0], '.flux-worktrees');
+    fs.mkdirSync(chosen, { recursive: true });
+    return chosen;
+  }
 }
 
 export async function createWorktree(
@@ -16,11 +45,7 @@ export async function createWorktree(
   branchName: string,
 ): Promise<WorktreeInfo> {
   const id = crypto.randomUUID();
-  const baseDir = worktreeBaseDir(parentRepo);
-
-  if (!fs.existsSync(baseDir)) {
-    fs.mkdirSync(baseDir, { recursive: true });
-  }
+  const baseDir = ensureBaseDir(worktreeBaseDir(parentRepo));
 
   const worktreePath = path.join(baseDir, id);
 
