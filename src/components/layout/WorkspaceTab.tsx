@@ -108,8 +108,22 @@ export function WorkspaceTab() {
             if (!cwd) return;
             setCreating(true);
             try {
-              const { selectedAgentId: agentId, selectedModel: model } = useAgentStore.getState();
-              await createEmptyWorkspace({ agentId, model, cwd });
+              const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
+              const ws = await createEmptyWorkspace({ agentId, model, cwd });
+              // Auto-create first chat so the user can start typing immediately
+              const taskId = crypto.randomUUID();
+              useChatStore.getState().createTask({
+                id: taskId,
+                title: 'New chat',
+                agentId: ws.agentId as any,
+                model: ws.model,
+                mode: 'act',
+                thinking: selectedThinking,
+                cwd: ws.worktreePath,
+                workspaceId: ws.id,
+              });
+              useChatStore.getState().setActiveTask(taskId);
+              useUiStore.getState().setBottomPanelMode('agent');
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
               toast.error(message);
