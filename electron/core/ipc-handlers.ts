@@ -924,6 +924,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
     if (workspace) {
       updateWorkspaceTaskStatus(options.taskId, workspace.id, 'running', { sessionId: session.id });
+      if (
+        options.workspaceAction !== 'merge'
+        && options.mode === 'act'
+        && (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
+      ) {
+        emitWorkspaceOutcome(workspace.id, 'in_progress');
+      }
     }
 
     if (options.prompt !== '[Resuming previous session]') {
@@ -2341,7 +2348,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
-    return getChangedFiles(workspace.worktreePath, workspace.parentRepo);
+    const files = await getChangedFiles(workspace.worktreePath, workspace.parentRepo);
+    if (
+      files.length > 0
+      && (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
+    ) {
+      emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
+    }
+    return files;
   });
 
   ipcMain.handle(
