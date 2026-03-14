@@ -24,7 +24,7 @@ export interface QuestionField {
 }
 
 export interface AgentMessage {
-  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'question_request' | 'rate_limit' | 'quality_gate';
+  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'question_request' | 'rate_limit' | 'quality_gate' | 'shell_result';
   role: MessageRole;
   content: string;
   timestamp: number;
