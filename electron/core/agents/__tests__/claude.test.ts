@@ -447,6 +447,93 @@ describe('spawnClaude', () => {
     });
   });
 
+  it('maps wrapped agent_progress events into subagent messages and lifecycle markers', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnClaude({
+      taskId: 'task-1',
+      prompt: 'hi',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'assistant',
+      message: {
+        content: [{
+          type: 'tool_use',
+          id: 'toolu_parent',
+          name: 'Agent',
+          input: {
+            description: 'Explore project structure',
+            prompt: 'Inspect the codebase',
+          },
+        }],
+      },
+    });
+
+    emitStdout(proc, {
+      type: 'progress',
+      data: {
+        type: 'agent_progress',
+        agentId: 'agent-sub-1',
+        parentToolUseID: 'toolu_parent',
+        prompt: 'Inspect the codebase',
+        message: {
+          type: 'assistant',
+          message: {
+            content: [{
+              type: 'tool_use',
+              id: 'toolu_sub_read',
+              name: 'Read',
+              input: { file_path: '/workspace/README.md' },
+            }],
+          },
+        },
+      },
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'status',
+      subagentId: 'agent-sub-1',
+      subagentName: 'Explore project structure',
+      subagentStatus: 'spawning',
+      statusKind: 'spawn',
+    }));
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'tool_call',
+      subagentId: 'agent-sub-1',
+      subagentStatus: 'running',
+      toolName: 'Read',
+      toolCallId: 'toolu_sub_read',
+    }));
+
+    emitStdout(proc, {
+      type: 'user',
+      message: {
+        content: [{
+          type: 'tool_result',
+          tool_use_id: 'toolu_parent',
+          content: 'Subagent completed',
+          is_error: false,
+        }],
+      },
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'status',
+      subagentId: 'agent-sub-1',
+      subagentName: 'Explore project structure',
+      subagentStatus: 'done',
+      statusKind: 'progress',
+    }));
+  });
+
   it('times out when startup never becomes healthy after spawn and hook noise', async () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);

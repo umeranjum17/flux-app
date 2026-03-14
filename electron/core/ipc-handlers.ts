@@ -1065,6 +1065,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         sendToRenderer('agent:message', { taskId: options.taskId, message });
       }
 
+      // Subagent streaming already provides rich progress; avoid repeating
+      // generic parent tool heartbeats that look like a stuck loader.
+      if (message.subagentId && toolHeartbeats.size > 0) {
+        for (const interval of toolHeartbeats.values()) {
+          clearInterval(interval);
+        }
+        toolHeartbeats.clear();
+      }
+
       // Tool-execution heartbeats to prevent false "Stalled" detection
       if (message.type === 'tool_call' && message.toolCallId) {
         const heartbeatInterval = setInterval(() => {

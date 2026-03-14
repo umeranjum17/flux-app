@@ -210,8 +210,129 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   // Streaming tool input accumulation (Phase 1.4)
   const toolInputBuffers = new Map<number, { name: string; id: string; json: string }>();
   const emittedToolCallIds = new Set<string>();
+  const pendingAgentNamesByParentTool = new Map<string, string>();
+  const parentToolToSubagent = new Map<string, string>();
+  const startedSubagentIds = new Set<string>();
+  const finishedSubagentIds = new Set<string>();
+  const subagentNames = new Map<string, string>();
+
+  const emitSubagentLifecycle = (opts: {
+    subagentId: string;
+    subagentName: string;
+    status: 'spawning' | 'done' | 'error';
+  }) => {
+    if (opts.status === 'spawning') {
+      if (startedSubagentIds.has(opts.subagentId)) return;
+      startedSubagentIds.add(opts.subagentId);
+    } else {
+      if (finishedSubagentIds.has(opts.subagentId)) return;
+      finishedSubagentIds.add(opts.subagentId);
+    }
+
+    emitMessage({
+      type: 'status',
+      role: 'system',
+      content: opts.status === 'spawning'
+        ? opts.subagentName
+        : opts.status === 'error'
+          ? `${opts.subagentName} failed`
+          : `${opts.subagentName} finished`,
+      timestamp: Date.now(),
+      statusKind: opts.status === 'spawning' ? 'spawn' : 'progress',
+      subagentId: opts.subagentId,
+      subagentName: opts.subagentName,
+      subagentStatus: opts.status,
+    });
+  };
+
+  const deriveSubagentName = (opts: {
+    subagentId: string;
+    parentToolCallId?: string;
+    explicitName?: string;
+    promptHint?: string;
+  }): string => {
+    const existing = subagentNames.get(opts.subagentId);
+    if (existing) return existing;
+
+    const fromParent = opts.parentToolCallId
+      ? pendingAgentNamesByParentTool.get(opts.parentToolCallId)
+      : undefined;
+    const candidate = opts.explicitName ?? fromParent ?? opts.promptHint ?? `Subagent ${opts.subagentId.slice(0, 8)}`;
+    const singleLine = candidate.split('\n')[0]?.trim() ?? candidate.trim();
+    const clipped = singleLine.length > 80 ? `${singleLine.slice(0, 77)}...` : singleLine;
+    const resolved = clipped || `Subagent ${opts.subagentId.slice(0, 8)}`;
+    subagentNames.set(opts.subagentId, resolved);
+    return resolved;
+  };
+
+  const emitWrappedSubagentProgress = (event: Record<string, any>): boolean => {
+    const progressPayload = unwrapClaudeAgentProgress(event);
+    if (!progressPayload) return false;
+
+    const subagentId = progressPayload.subagentId;
+    if (!subagentId) {
+      const nested = progressPayload.messageEvent;
+      if (!nested) return true;
+      const mapped = mapClaudeEvent(nested);
+      if (!mapped) return true;
+      const msgs = Array.isArray(mapped) ? mapped : [mapped];
+      for (const msg of msgs) {
+        if (msg.type === 'tool_call' && msg.toolCallId && isAgentToolName(msg.toolName)) {
+          pendingAgentNamesByParentTool.set(msg.toolCallId, extractAgentSubagentName(msg.toolInput));
+        }
+        emitMessage(msg);
+      }
+      return true;
+    }
+
+    if (progressPayload.parentToolCallId) {
+      parentToolToSubagent.set(progressPayload.parentToolCallId, subagentId);
+    }
+
+    const subagentName = deriveSubagentName({
+      subagentId,
+      parentToolCallId: progressPayload.parentToolCallId,
+      explicitName: progressPayload.subagentNameHint,
+      promptHint: progressPayload.promptHint,
+    });
+
+    emitSubagentLifecycle({ subagentId, subagentName, status: 'spawning' });
+
+    if (progressPayload.messageEvent) {
+      const mapped = mapClaudeEvent(progressPayload.messageEvent);
+      if (mapped) {
+        const msgs = Array.isArray(mapped) ? mapped : [mapped];
+        for (const msg of msgs) {
+          if (msg.type === 'tool_call' && msg.toolCallId && isAgentToolName(msg.toolName)) {
+            pendingAgentNamesByParentTool.set(msg.toolCallId, extractAgentSubagentName(msg.toolInput));
+          }
+          emitMessage({
+            ...msg,
+            subagentId,
+            subagentName,
+            ...(msg.subagentStatus ? {} : { subagentStatus: 'running' as const }),
+          });
+        }
+      }
+    }
+
+    if (progressPayload.isTerminal) {
+      emitSubagentLifecycle({
+        subagentId,
+        subagentName,
+        status: progressPayload.hasError ? 'error' : 'done',
+      });
+    }
+
+    return true;
+  };
 
   const emitMapped = (event: Record<string, any>) => {
+    // Wrapped subagent progress stream from Claude's Agent tool
+    if (emitWrappedSubagentProgress(event)) {
+      return;
+    }
+
     // Handle content_block_start for tool_use — begin streaming accumulation
     if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
       const block = event.content_block;
@@ -256,6 +377,9 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
         }
 
         emittedToolCallIds.add(buf.id);
+        if (isAgentToolName(buf.name)) {
+          pendingAgentNamesByParentTool.set(buf.id, extractAgentSubagentName(parsedInput));
+        }
         emitMessage({
           type: 'tool_call',
           role: 'assistant',
@@ -280,6 +404,21 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
         }
         if (m.type === 'tool_call' && m.toolCallId) {
           emittedToolCallIds.add(m.toolCallId);
+          if (isAgentToolName(m.toolName)) {
+            pendingAgentNamesByParentTool.set(m.toolCallId, extractAgentSubagentName(m.toolInput));
+          }
+        }
+        if (m.type === 'tool_result' && m.toolCallId) {
+          const subagentId = parentToolToSubagent.get(m.toolCallId);
+          if (subagentId) {
+            const subagentName = subagentNames.get(subagentId) ?? `Subagent ${subagentId.slice(0, 8)}`;
+            emitSubagentLifecycle({
+              subagentId,
+              subagentName,
+              status: m.isError ? 'error' : 'done',
+            });
+            parentToolToSubagent.delete(m.toolCallId);
+          }
         }
         emitMessage(m);
       }
@@ -577,6 +716,101 @@ function normalizeToolResultContent(content: unknown): string {
   }
   if (content == null) return '';
   try { return JSON.stringify(content); } catch { return String(content); }
+}
+
+function unwrapClaudeAgentProgress(event: Record<string, any>): {
+  subagentId?: string;
+  parentToolCallId?: string;
+  messageEvent?: Record<string, any>;
+  promptHint?: string;
+  subagentNameHint?: string;
+  isTerminal: boolean;
+  hasError: boolean;
+} | null {
+  if (!event || typeof event !== 'object' || Array.isArray(event)) {
+    return null;
+  }
+
+  let payload: Record<string, any> = event;
+  let envelopeType = readClaudeString(event.type);
+  if (
+    envelopeType === 'progress'
+    && event.data
+    && typeof event.data === 'object'
+    && !Array.isArray(event.data)
+  ) {
+    payload = event.data as Record<string, any>;
+    envelopeType = readClaudeString((payload as any).type, envelopeType);
+  }
+
+  const lowered = envelopeType.toLowerCase();
+  if (!(lowered === 'agent_progress' || lowered.startsWith('agent_'))) {
+    return null;
+  }
+
+  const rawMessage = payload.message;
+  const messageEvent = rawMessage && typeof rawMessage === 'object' && !Array.isArray(rawMessage)
+    ? rawMessage as Record<string, any>
+    : undefined;
+
+  const subagentId = readClaudeString(
+    payload.agentId,
+    payload.agent_id,
+    event.agentId,
+    event.agent_id,
+  );
+  const parentToolCallId = readClaudeString(
+    payload.parentToolUseID,
+    payload.parentToolUseId,
+    payload.parent_tool_use_id,
+    event.parentToolUseID,
+    event.parentToolUseId,
+    event.parent_tool_use_id,
+  );
+  const promptHint = readClaudeString(payload.prompt, event.prompt);
+  const subagentNameHint = readClaudeString(
+    payload.name,
+    payload.subagentName,
+    payload.subagent_name,
+    event.subagentName,
+    event.subagent_name,
+  );
+  const nestedType = readClaudeString(messageEvent?.type, messageEvent?.event, messageEvent?.subtype).toLowerCase();
+  const isTerminal = /agent_(done|completed|complete|finished|error|failed)/.test(lowered)
+    || nestedType === 'result'
+    || nestedType === 'error';
+  const hasError = /error|failed/.test(lowered) || nestedType === 'error';
+
+  return {
+    ...(subagentId ? { subagentId } : {}),
+    ...(parentToolCallId ? { parentToolCallId } : {}),
+    ...(messageEvent ? { messageEvent } : {}),
+    ...(promptHint ? { promptHint } : {}),
+    ...(subagentNameHint ? { subagentNameHint } : {}),
+    isTerminal,
+    hasError,
+  };
+}
+
+function isAgentToolName(name: unknown): boolean {
+  return typeof name === 'string' && name.trim().toLowerCase() === 'agent';
+}
+
+function extractAgentSubagentName(input: Record<string, unknown> | undefined): string {
+  if (!input || typeof input !== 'object') return 'Subagent';
+  const description = readClaudeString((input as any).description);
+  if (description) return description;
+  const prompt = readClaudeString((input as any).prompt);
+  return prompt || 'Subagent';
+}
+
+function readClaudeString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
 }
 
 /**
