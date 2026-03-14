@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, BookOpen, Square } from 'lucide-react';
+import { useRef, useState, useCallback, useEffect, useMemo, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, BookOpen, Square, Gauge, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -11,7 +11,7 @@ import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
-import type { FluxConfig, Session } from '../../lib/ipc-api';
+import type { FluxConfig, RateLimitInfo, Session } from '../../lib/ipc-api';
 import type { FileAttachment, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 
@@ -42,6 +42,9 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showCompletionPicker, setShowCompletionPicker] = useState(false);
   const [completionProviders, setCompletionProviders] = useState<string[]>([]);
+  const [showRateLimits, setShowRateLimits] = useState(false);
+  const [cachedRateLimits, setCachedRateLimits] = useState<RateLimitInfo[]>([]);
+  const [rateLimitsUpdatedAt, setRateLimitsUpdatedAt] = useState<number | null>(null);
 
   // Terminal / ghost text state
   const [ghostText, setGhostText] = useState('');
@@ -49,6 +52,10 @@ export function ChatInput({ focused }: ChatInputProps) {
   const historyIndex = useRef(-1);
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
+  const activeTask = useChatStore((s) => {
+    const id = s.activeTaskId;
+    return id ? s.tasks.get(id) : undefined;
+  });
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
   const { mode, sendKey } = useUiStore();
@@ -80,7 +87,60 @@ export function ChatInput({ focused }: ChatInputProps) {
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const refreshRateLimits = useCallback(async () => {
+    try {
+      const result = await window.api.invoke('usage:rate-limits') as RateLimitInfo[] | undefined;
+      if (!Array.isArray(result)) {
+        setCachedRateLimits([]);
+        setRateLimitsUpdatedAt(Date.now());
+        return;
+      }
+      setCachedRateLimits(result);
+      const newestFetchedAt = result.reduce(
+        (max, entry) => Math.max(max, entry.fetchedAt ?? 0),
+        0,
+      );
+      setRateLimitsUpdatedAt(newestFetchedAt > 0 ? newestFetchedAt : Date.now());
+    } catch {
+      setCachedRateLimits([]);
+      setRateLimitsUpdatedAt(Date.now());
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRateLimits();
+    const interval = setInterval(() => {
+      void refreshRateLimits();
+    }, 60_000);
+    const cleanupMessage = window.api.on('agent:message', (...args: unknown[]) => {
+      const data = args[0] as { message?: { type?: string } } | undefined;
+      if (data?.message?.type === 'rate_limit') {
+        void refreshRateLimits();
+      }
+    });
+    const cleanupDone = window.api.on('agent:done', () => {
+      void refreshRateLimits();
+    });
+    return () => {
+      clearInterval(interval);
+      cleanupMessage();
+      cleanupDone();
+    };
+  }, [refreshRateLimits]);
+
   const isMac = window.api?.platform === 'darwin';
+  const activeTaskRateLimit = useMemo(
+    () => normalizeTaskRateLimit(activeTask?.rateLimitInfo, activeTask?.agentId),
+    [activeTask?.rateLimitInfo, activeTask?.agentId],
+  );
+  const visibleRateLimits = useMemo(
+    () => mergeRateLimits(cachedRateLimits, activeTaskRateLimit),
+    [cachedRateLimits, activeTaskRateLimit],
+  );
+  const highestSeverity = useMemo(
+    () => computeHighestSeverity(visibleRateLimits),
+    [visibleRateLimits],
+  );
 
   // Focus textarea when panel switches to agent mode
   useEffect(() => {
@@ -930,6 +990,109 @@ export function ChatInput({ focused }: ChatInputProps) {
                     <BookOpen size={12} />
                     {mode === 'plan' && <span>Plan</span>}
                   </button>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!showRateLimits) {
+                          void refreshRateLimits();
+                        }
+                        setShowRateLimits((open) => !open);
+                      }}
+                      className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs ${
+                        highestSeverity === 'rejected'
+                          ? 'border-error/40 bg-error/10 text-error'
+                          : highestSeverity === 'allowed_warning'
+                            ? 'border-warning/35 bg-warning/10 text-warning'
+                            : highestSeverity === 'allowed'
+                              ? 'border-success/25 bg-success/10 text-success'
+                              : 'border-border/60 bg-bg-elevated/50 text-text-secondary'
+                      }`}
+                      title="Peek rate limits"
+                      aria-label="Peek rate limits"
+                    >
+                      <Gauge size={12} />
+                      <span
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${
+                          highestSeverity === 'rejected'
+                            ? 'bg-error'
+                            : highestSeverity === 'allowed_warning'
+                              ? 'bg-warning'
+                              : highestSeverity === 'allowed'
+                                ? 'bg-success'
+                                : 'bg-text-tertiary/50'
+                        }`}
+                      />
+                    </button>
+
+                    {showRateLimits && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowRateLimits(false)} />
+                        <div className="absolute bottom-full left-0 z-50 mb-1 w-[280px] rounded-lg border border-border/80 bg-bg-elevated p-2.5 shadow-xl">
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                              Rate Limits
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void refreshRateLimits()}
+                              className="rounded p-1 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+                              title="Refresh rate limits"
+                              aria-label="Refresh rate limits"
+                            >
+                              <RefreshCw size={11} />
+                            </button>
+                          </div>
+
+                          {visibleRateLimits.length === 0 ? (
+                            <p className="py-2 text-[11px] text-text-tertiary">No rate limit data yet.</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {visibleRateLimits.map((entry) => (
+                                <div
+                                  key={`${entry.providerId}:${entry.rateLimitType}`}
+                                  className="rounded-md border border-border/60 bg-bg-primary/55 px-2 py-1.5"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="truncate text-[11px] font-medium text-text-primary">
+                                      {providerLabel(entry.providerId)}
+                                    </p>
+                                    <span className={`text-[11px] font-semibold tabular-nums ${rateLimitTextColor(entry)}`}>
+                                      {Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100)}%
+                                    </span>
+                                  </div>
+                                  <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
+                                    <span className="truncate">{entry.rateLimitType.replace(/[_-]+/g, ' ')}</span>
+                                    <span>
+                                      {entry.resetsAt > 0 ? `resets in ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="mt-2 flex items-center justify-between">
+                            <p className="text-[10px] text-text-tertiary">
+                              {rateLimitsUpdatedAt ? `Updated ${formatRelativeTime(rateLimitsUpdatedAt)}` : 'Not refreshed yet'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                useUiStore.getState().setSidebarOpen(true);
+                                useUiStore.getState().setSidebarTab('usage');
+                                setShowRateLimits(false);
+                              }}
+                              className="rounded px-1.5 py-1 text-[10px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                            >
+                              Open usage
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -1096,4 +1259,107 @@ export function ChatInput({ focused }: ChatInputProps) {
       />
     </div>
   );
+}
+
+function normalizeTaskRateLimit(
+  info: {
+    providerId?: 'claude-code' | 'codex';
+    status?: string;
+    resetsAt?: number;
+    rateLimitType?: string;
+    utilization?: number;
+    overageStatus?: string;
+    overageResetsAt?: number;
+    fetchedAt?: number;
+  } | undefined,
+  activeAgentId: string | undefined,
+): RateLimitInfo | null {
+  if (!info) return null;
+  const inferredProvider = info.providerId
+    ?? (activeAgentId === 'claude-code' || activeAgentId === 'codex' ? activeAgentId : null);
+  if (!inferredProvider) return null;
+  return {
+    providerId: inferredProvider,
+    status: coerceRateLimitStatus(info.status, info.utilization),
+    resetsAt: typeof info.resetsAt === 'number' ? info.resetsAt : 0,
+    rateLimitType: info.rateLimitType ?? 'unknown',
+    utilization: typeof info.utilization === 'number' ? info.utilization : 0,
+    ...(typeof info.overageStatus === 'string' ? { overageStatus: info.overageStatus } : {}),
+    ...(typeof info.overageResetsAt === 'number' ? { overageResetsAt: info.overageResetsAt } : {}),
+    ...(typeof info.fetchedAt === 'number' ? { fetchedAt: info.fetchedAt } : {}),
+  };
+}
+
+function coerceRateLimitStatus(
+  status: string | undefined,
+  utilization: number | undefined,
+): RateLimitInfo['status'] {
+  if (status === 'allowed' || status === 'allowed_warning' || status === 'rejected') {
+    return status;
+  }
+  const pct = typeof utilization === 'number' ? utilization : 0;
+  if (pct >= 1) return 'rejected';
+  if (pct >= 0.8) return 'allowed_warning';
+  return 'allowed';
+}
+
+function mergeRateLimits(
+  cached: RateLimitInfo[],
+  active: RateLimitInfo | null,
+): RateLimitInfo[] {
+  const deduped = new Map<string, RateLimitInfo>();
+  for (const entry of cached) {
+    deduped.set(`${entry.providerId}:${entry.rateLimitType}`, entry);
+  }
+  if (active) {
+    deduped.set(`${active.providerId}:${active.rateLimitType}`, active);
+  }
+  return Array.from(deduped.values()).sort((left, right) => {
+    if (left.providerId === right.providerId) {
+      return left.rateLimitType.localeCompare(right.rateLimitType);
+    }
+    return left.providerId.localeCompare(right.providerId);
+  });
+}
+
+function computeHighestSeverity(
+  entries: RateLimitInfo[],
+): RateLimitInfo['status'] | null {
+  if (entries.some((entry) => entry.status === 'rejected')) return 'rejected';
+  if (entries.some((entry) => entry.status === 'allowed_warning')) return 'allowed_warning';
+  if (entries.some((entry) => entry.status === 'allowed')) return 'allowed';
+  return null;
+}
+
+function providerLabel(providerId: RateLimitInfo['providerId']): string {
+  return providerId === 'claude-code' ? 'Claude Code' : 'Codex';
+}
+
+function rateLimitTextColor(entry: RateLimitInfo): string {
+  if (entry.status === 'rejected') return 'text-error';
+  if (entry.status === 'allowed_warning') return 'text-warning';
+  if (entry.status === 'allowed') return 'text-success';
+  return 'text-text-secondary';
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatTimeUntil(timestamp: number): string {
+  const diffMs = Math.max(0, timestamp - Date.now());
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
 }
