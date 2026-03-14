@@ -555,7 +555,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:archive',
     'workspace:unarchive',
     'workspace:open-ide',
-    'workspace:merge',
     'workspace:diff-files',
     'workspace:file-diff',
     'workspace:discard-file',
@@ -1255,9 +1254,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // --- Task handlers ---
 
-  ipcMain.handle('task:spawn', async (_event, options: SpawnOptions & { agentId?: string }) => {
-    return spawnTaskRun(options);
-  });
+  ipcMain.handle(
+    'task:spawn',
+    async (
+      _event,
+      options: SpawnOptions & { agentId?: string; autoApprovePermissions?: boolean; workspaceAction?: 'merge' },
+    ) => {
+      return spawnTaskRun(options);
+    },
+  );
 
   ipcMain.handle('task:stop', async (_event, { taskId }: { taskId: string }) => {
     requireFields({ taskId }, 'taskId');
@@ -2251,39 +2256,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         env: extendedEnv(),
       });
       return { ide: selected };
-    },
-  );
-
-  ipcMain.handle(
-    'workspace:merge',
-    async (
-      _event,
-      {
-        workspaceId,
-        targetBranch,
-        squash,
-        prompt,
-      }: { workspaceId: string; targetBranch: string; squash?: boolean; prompt: string },
-    ) => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) {
-        throw new Error(`Workspace ${workspaceId} not found`);
-      }
-
-      emitWorkspaceStatus(workspaceId, 'merging');
-      const taskId = crypto.randomUUID();
-      const result = await spawnTaskRun({
-        taskId,
-        workspaceId: workspace.id,
-        prompt,
-        agentId: workspace.agentId,
-        model: workspace.model,
-        mode: 'act',
-        cwd: workspace.parentRepo,
-        autoApprovePermissions: true,
-        workspaceAction: 'merge',
-      });
-      return { taskId, session: result.session };
     },
   );
 

@@ -70,10 +70,10 @@ describe('MergeDialog', () => {
     expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('master');
   });
 
-  it('starts an agent-backed merge task', async () => {
+  it('starts a merge task in the parent repo with agent git access', async () => {
     const onClose = vi.fn();
     mockApi.invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'workspace:merge') {
+      if (channel === 'task:spawn') {
         return {
           taskId: 'task-1',
           session: {
@@ -98,12 +98,18 @@ describe('MergeDialog', () => {
 
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
-        'workspace:merge',
+        'task:spawn',
         expect.objectContaining({
+          taskId: expect.any(String),
           workspaceId: workspace.id,
-          targetBranch: 'master',
-          squash: true,
-          prompt: expect.stringContaining('Merge workspace branch'),
+          agentId: workspace.agentId,
+          model: workspace.model,
+          mode: 'act',
+          thinking: 'medium',
+          cwd: workspace.parentRepo,
+          autoApprovePermissions: true,
+          workspaceAction: 'merge',
+          prompt: expect.stringContaining('Merge branch'),
         }),
       );
     });
@@ -125,26 +131,11 @@ describe('MergeDialog', () => {
     expect(useWorkspaceStore.getState().workspaces.get(workspace.id)?.sessionId).toBe('session-1');
   });
 
-  it('recovers the workspace session when merge returns a partial payload', async () => {
+  it('shows an error if the merge task cannot be started', async () => {
     const onClose = vi.fn();
     mockApi.invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'workspace:merge') {
-        return {
-          taskId: 'task-2',
-        };
-      }
-      if (channel === 'sessions:list') {
-        return [{
-          id: 'session-2',
-          title: '[WS] Hardening pass',
-          agentId: 'codex',
-          model: 'gpt-5-codex',
-          mode: 'act',
-          cwd: '/repo',
-          createdAt: 2,
-          updatedAt: 2,
-          metadata: { workspaceId: workspace.id },
-        }];
+      if (channel === 'task:spawn') {
+        throw new Error('spawn failed');
       }
       return undefined;
     });
@@ -154,19 +145,9 @@ describe('MergeDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start Merge' }));
 
     await waitFor(() => {
-      expect(mockApi.invoke).toHaveBeenCalledWith('sessions:list');
+      expect(screen.getByText('spawn failed')).toBeInTheDocument();
     });
 
-    const task = useChatStore.getState().tasks.get('task-2');
-    expect(task).toEqual(expect.objectContaining({
-      id: 'task-2',
-      agentId: 'codex',
-      cwd: '/repo',
-      workspaceId: workspace.id,
-      status: 'running',
-    }));
-
-    expect(useSessionStore.getState().sessions[0]?.id).toBe('session-2');
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

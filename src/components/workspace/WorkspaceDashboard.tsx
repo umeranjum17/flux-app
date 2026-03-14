@@ -118,7 +118,12 @@ export function WorkspaceDashboard() {
   }
 
   // If merging, show merge dialog
-  const mergingWorkspace = mergingWorkspaceId ? workspaces.get(mergingWorkspaceId) : null;
+  const mergingWorkspace = mergingWorkspaceId
+    ? (() => {
+        const workspace = workspaces.get(mergingWorkspaceId);
+        return workspace ? { ...workspace } : null;
+      })()
+    : null;
 
   return (
     <div className="chrome-stage flex flex-1 flex-col overflow-hidden">

@@ -84,40 +84,22 @@ export interface StartWorkspaceMergeOptions {
   squash: boolean;
 }
 
-function isValidSession(value: unknown): value is Session {
-  if (!value || typeof value !== 'object') return false;
-  const session = value as Partial<Session>;
-  return typeof session.id === 'string'
-    && typeof session.title === 'string'
-    && typeof session.agentId === 'string'
-    && typeof session.model === 'string'
-    && typeof session.mode === 'string'
-    && typeof session.cwd === 'string'
-    && typeof session.createdAt === 'number'
-    && typeof session.updatedAt === 'number'
-    && !!session.metadata
-    && typeof session.metadata === 'object';
-}
-
-async function resolveWorkspaceSession(
+function buildWorkspaceMergePrompt(
   workspace: Workspace,
-  taskId: string,
-  candidate: unknown,
-): Promise<Session> {
-  if (isValidSession(candidate)) {
-    return candidate;
-  }
+  targetBranch: string,
+  squash: boolean,
+): string {
+  const mergeCommand = squash
+    ? `git merge --squash ${workspace.branch}`
+    : `git merge ${workspace.branch} --no-edit`;
 
-  const sessions = await window.api.invoke('sessions:list') as Session[];
-  const latestWorkspaceSession = sessions
-    .filter((session) => session.metadata?.workspaceId === workspace.id)
-    .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-
-  if (latestWorkspaceSession) {
-    return latestWorkspaceSession;
-  }
-
-  throw new Error(`Merge started without a usable session for task ${taskId}`);
+  return [
+    `Merge branch \`${workspace.branch}\` into \`${targetBranch}\`.`,
+    `Run the merge from the parent repo at \`${workspace.parentRepo}\`, not the worktree path.`,
+    `Checkout \`${targetBranch}\`, run \`${mergeCommand}\`, and handle straightforward conflicts if they come up.`,
+    'If the merge needs a human decision, stop and report exactly what is blocked.',
+    'Finish with `git status` and a short summary of what landed.',
+  ].join('\n');
 }
 
 function isMissingIpcHandler(error: unknown, channel: string): boolean {
@@ -212,48 +194,28 @@ export async function startWorkspaceChat(
   return { taskId, session };
 }
 
-export function buildWorkspaceMergePrompt(
-  workspace: Workspace,
-  targetBranch: string,
-  squash: boolean,
-): string {
-  const mergeMode = squash ? 'a squash merge' : 'a regular merge commit';
-
-  return [
-    `Merge workspace branch \`${workspace.branch}\` into \`${targetBranch}\` using ${mergeMode}.`,
-    '',
-    'Repository context:',
-    `- Parent repository: ${workspace.parentRepo}`,
-    `- Workspace worktree: ${workspace.worktreePath}`,
-    `- Workspace branch: ${workspace.branch}`,
-    `- Target branch: ${targetBranch}`,
-    '',
-    'Requirements:',
-    `1. Run the git merge from the parent repository at \`${workspace.parentRepo}\`, not from the detached worktree metadata.`,
-    '2. Inspect and clean up stale git state if it blocks the merge, including in-progress merge/rebase/cherry-pick state or a dirty index.',
-    `3. Make sure the workspace branch is ready to merge, then merge it into \`${targetBranch}\` with ${mergeMode}.`,
-    '4. Resolve straightforward conflicts if you can do so safely. If manual product decisions are required, stop and explain exactly what needs input.',
-    '5. Verify the final repo state with git status and a concise summary of what landed.',
-    '',
-    'You are expected to manage the git workflow directly and report the final result in this chat.',
-  ].join('\n');
-}
-
 export async function startWorkspaceMerge(
   opts: StartWorkspaceMergeOptions,
 ): Promise<{ taskId: string; session: Session }> {
+  const taskId = crypto.randomUUID();
   const prompt = buildWorkspaceMergePrompt(opts.workspace, opts.targetBranch, opts.squash);
-  const result = await window.api.invoke('workspace:merge', {
+  const result = await window.api.invoke('task:spawn', {
+    taskId,
     workspaceId: opts.workspace.id,
-    targetBranch: opts.targetBranch,
-    squash: opts.squash,
     prompt,
-  }) as { taskId: string; session?: Session };
-  const session = await resolveWorkspaceSession(opts.workspace, result.taskId, result.session);
+    agentId: opts.workspace.agentId,
+    model: opts.workspace.model,
+    mode: 'act',
+    thinking: 'medium',
+    cwd: opts.workspace.parentRepo,
+    autoApprovePermissions: true,
+    workspaceAction: 'merge',
+  }) as { taskId?: string; session: Session };
+  const effectiveTaskId = result.taskId ?? taskId;
 
   registerWorkspaceTask({
-    taskId: result.taskId,
-    session,
+    taskId: effectiveTaskId,
+    session: result.session,
     workspace: opts.workspace,
     prompt,
     title: `Merge ${opts.workspace.branch} -> ${opts.targetBranch}`.slice(0, 80),
@@ -261,7 +223,7 @@ export async function startWorkspaceMerge(
     initialStatus: 'merging',
   });
 
-  return { taskId: result.taskId, session };
+  return { taskId: effectiveTaskId, session: result.session };
 }
 
 export async function createWorkspaceAndChat(

@@ -15,7 +15,10 @@ export interface IpcChannels {
   'env:detect': { args: []; result: EnvironmentInfo };
   'agents:detect': { args: []; result: DetectedAgent[] };
   'agents:check-auth': { args: [{ agentId: string }]; result: AuthResult };
-  'task:spawn': { args: [SpawnOptions & { agentId?: string }]; result: { taskId: string; session: Session } };
+  'task:spawn': {
+    args: [SpawnOptions & { agentId?: string; autoApprovePermissions?: boolean; workspaceAction?: 'merge' }];
+    result: { taskId: string; session: Session };
+  };
   'task:stop': { args: [{ taskId: string }]; result: void };
   'subagent:spawn': {
     args: [{ parentTaskId: string; prompt: string; model?: string; name: string; cwd?: string }];
@@ -84,10 +87,6 @@ export interface IpcChannels {
   'workspace:archive': { args: [{ workspaceId: string }]; result: void };
   'workspace:unarchive': { args: [{ workspaceId: string }]; result: Workspace };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
-  'workspace:merge': {
-    args: [{ workspaceId: string; targetBranch: string; squash?: boolean; prompt: string }];
-    result: { taskId: string; session: Session };
-  };
   'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
   'workspace:file-diff': {
     args: [{ workspaceId: string; filePath: string }];
