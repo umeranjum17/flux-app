@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
-import { MessageSquare, Search, Gauge, Files, Terminal, FolderOpen, GitCompareArrows, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, Search, Gauge, Files, Terminal, FolderOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../stores/ui';
-import { useChatStore } from '../../stores/chat';
 import { UsagePanel } from './UsagePanel';
 import { WorkspaceTab } from './WorkspaceTab';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
@@ -31,7 +30,6 @@ export function Sidebar() {
       transition={{ duration: 0.16, ease: 'easeOut' }}
       className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-border/70"
     >
-      {/* Icon nav */}
       <div className="flex items-center gap-0.5 border-b border-border/70 px-2 py-1">
         {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
           <NavIcon
@@ -85,45 +83,13 @@ function NavIcon({
   );
 }
 
-/* ── Explorer Panel (moved from RightSidebar) ── */
-
 function ExplorerPanel() {
-  const activeSubTab = useUiStore((s) => s.explorerSubTab);
-  const setSubTab = useUiStore((s) => s.setExplorerSubTab);
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-1.5">
-        <SubTabButton label="All files" active={activeSubTab === 'files'} onClick={() => setSubTab('files')} />
-        <SubTabButton label="Changes" active={activeSubTab === 'changes'} onClick={() => setSubTab('changes')} />
-        <SubTabButton label="Checks" active={activeSubTab === 'checks'} onClick={() => setSubTab('checks')} />
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeSubTab === 'files' && <FilesTab />}
-        {activeSubTab === 'changes' && <ChangesTab />}
-        {activeSubTab === 'checks' && <ChecksTab />}
-      </div>
+      <FilesTab />
     </div>
   );
 }
-
-function SubTabButton({ label, active, onClick }: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`classic-tab-button px-2.5 py-1 text-[11px] font-medium ${active ? 'classic-tab-button-active' : ''}`}
-    >
-      {label}
-    </button>
-  );
-}
-
-/* ── Files Tab ── */
 
 function FilesTab() {
   const cwd = useUiStore((s) => s.cwd);
@@ -174,21 +140,30 @@ function FilesTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
-        <span className="classic-section-label truncate">
-          {projectName || 'No folder open'}
-        </span>
-        <button onClick={handleOpenFolder} className="premium-toolbar-button rounded-md p-1.5 text-text-secondary" title="Open Folder">
+      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-[12px] font-medium text-text-secondary">
+            {projectName || 'No folder open'}
+          </p>
+        </div>
+        <button
+          onClick={handleOpenFolder}
+          className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
+          title="Open folder"
+        >
           <FolderOpen size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {!cwd && (
-          <div className="px-4 py-6 text-center">
-            <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-md border border-border/80 bg-bg-surface px-3 py-2 text-xs text-text-secondary">
+          <div className="px-2 py-6 text-center">
+            <button
+              onClick={handleOpenFolder}
+              className="premium-toolbar-button inline-flex items-center gap-2 rounded-md border border-border/70 bg-bg-surface/70 px-3 py-2 text-xs text-text-secondary"
+            >
               <FolderOpen size={14} />
-              Open Folder
+              Open folder
             </button>
           </div>
         )}
@@ -203,93 +178,6 @@ function FilesTab() {
     </div>
   );
 }
-
-/* ── Changes Tab ── */
-
-function ChangesTab() {
-  const gitDirty = useUiStore((s) => s.gitDirty);
-  const gitBranch = useUiStore((s) => s.gitBranch);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col px-3 py-2.5">
-      <div className="mb-2 flex items-center gap-2">
-        <GitCompareArrows size={14} className="text-text-tertiary" />
-        <span className="text-[13px] text-text-secondary">{gitBranch || 'No branch'}</span>
-        {gitDirty && (
-          <span className="rounded-md border border-warning/20 bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">modified</span>
-        )}
-      </div>
-      {!gitDirty && (
-        <p className="text-[12px] text-text-tertiary text-center py-6">No uncommitted changes</p>
-      )}
-      {gitDirty && (
-        <p className="text-[12px] text-text-tertiary text-center py-6">Working tree has changes</p>
-      )}
-    </div>
-  );
-}
-
-/* ── Checks Tab ── */
-
-function ChecksTab() {
-  const activeTask = useChatStore((s) => {
-    const id = s.activeTaskId;
-    return id ? s.tasks.get(id) : undefined;
-  });
-
-  const gateMessages = activeTask?.messages
-    .filter((m) => m.type === 'quality_gate' && m.command)
-    .reduce((acc, m) => {
-      acc.set(m.command!, m);
-      return acc;
-    }, new Map<string, typeof activeTask.messages[number]>());
-
-  const checks = gateMessages ? Array.from(gateMessages.values()) : [];
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col px-3 py-2.5 overflow-y-auto">
-      {checks.length > 0 ? (
-        <div className="space-y-2">
-          {checks.map((check, i) => {
-            const passed = check.passed;
-            const isPreExisting = check.isPreExisting;
-            const statusColor = passed
-              ? 'text-success'
-              : isPreExisting
-                ? 'text-warning'
-                : 'text-error';
-            return (
-              <div key={i} className="rounded-lg border border-border/50 bg-bg-surface/50 px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 size={13} className={statusColor} />
-                  <code className="flex-1 truncate text-[12px] text-text-secondary">{check.command}</code>
-                </div>
-                <div className="mt-1.5 flex items-center gap-2 pl-[21px]">
-                  <span className={`text-[11px] font-medium ${statusColor}`}>
-                    {passed ? 'Passed' : isPreExisting ? 'Pre-existing failure' : 'Failed'}
-                  </span>
-                  {typeof check.exitCode === 'number' && !passed && (
-                    <span className="text-[10px] text-text-tertiary">exit {check.exitCode}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <CheckCircle2 size={20} className="text-text-tertiary/50" />
-          <p className="text-[12px] text-text-tertiary">No checks run yet</p>
-          <p className="text-[11px] text-text-tertiary/70">
-            Configure commands in Settings → Quality Gates
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Search Tab ── */
 
 function SearchTab() {
   const [query, setQuery] = useState('');

@@ -67,41 +67,41 @@ function FileTreeItem({
     setExpanded(!expanded);
   }, [expanded, children, node, onFileSelect]);
 
-  const paddingLeft = depth * 16 + 8;
+  const paddingLeft = depth * 14 + 6;
 
   return (
     <div>
       <button
         onClick={handleToggle}
         onDoubleClick={() => { if (!node.isDirectory) onFileDoubleClick?.(node.path); }}
-        className="w-full flex items-center gap-1.5 py-0.5 pr-2 text-xs hover:bg-bg-hover transition-colors text-left"
+        className="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs text-text-secondary transition-colors hover:bg-bg-hover/70"
         style={{ paddingLeft }}
       >
         {node.isDirectory ? (
           <>
             {expanded ? (
-              <ChevronDown size={12} className="text-text-tertiary shrink-0" />
+              <ChevronDown size={11} className="shrink-0 text-text-tertiary" />
             ) : (
-              <ChevronRight size={12} className="text-text-tertiary shrink-0" />
+              <ChevronRight size={11} className="shrink-0 text-text-tertiary" />
             )}
             {expanded ? (
-              <FolderOpen size={14} className="shrink-0" style={{ color: 'hsl(42, 70%, 62%)' }} />
+              <FolderOpen size={13} className="shrink-0" style={{ color: 'hsl(42, 70%, 62%)' }} />
             ) : (
-              <Folder size={14} className="shrink-0" style={{ color: 'hsl(42, 65%, 55%)' }} />
+              <Folder size={13} className="shrink-0" style={{ color: 'hsl(42, 65%, 55%)' }} />
             )}
           </>
         ) : (
           <>
-            <span className="w-3 shrink-0" />
+            <span className="w-[11px] shrink-0" />
             {(() => {
               const { icon: Icon, color } = getFileIcon(node.name);
-              return <Icon size={14} className="shrink-0" style={{ color }} />;
+              return <Icon size={13} className="shrink-0" style={{ color }} />;
             })()}
           </>
         )}
-        <span className="truncate text-text-secondary">{node.name}</span>
+        <span className="truncate">{node.name}</span>
         {loading && (
-          <span className="text-[10px] text-text-tertiary ml-auto">...</span>
+          <span className="ml-auto text-[10px] text-text-tertiary">...</span>
         )}
       </button>
       {expanded && children && children.length > 0 && (

@@ -15,7 +15,6 @@ export interface RecentProject {
 interface UiState {
   sidebarOpen: boolean;
   sidebarTab: 'workspaces' | 'search' | 'usage' | 'explorer';
-  explorerSubTab: 'files' | 'changes' | 'checks';
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
@@ -71,7 +70,6 @@ interface UiState {
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
   setSidebarTab(tab: 'workspaces' | 'search' | 'usage' | 'explorer'): void;
-  setExplorerSubTab(tab: 'files' | 'changes' | 'checks'): void;
   toggleTheme(): void;
   setTheme(theme: 'dark' | 'light'): void;
   setSendKey(sendKey: 'cmd+enter' | 'enter'): void;
@@ -121,7 +119,6 @@ export const useUiStore = create<UiState>()(
   immer((set) => ({
     sidebarOpen: true,
     sidebarTab: 'workspaces',
-    explorerSubTab: 'files',
     theme: 'dark',
     sendKey: 'cmd+enter',
     mode: 'act',
@@ -165,12 +162,6 @@ export const useUiStore = create<UiState>()(
     setSidebarTab(tab) {
       set((state) => {
         state.sidebarTab = tab;
-      });
-    },
-
-    setExplorerSubTab(tab) {
-      set((state) => {
-        state.explorerSubTab = tab;
       });
     },
 
