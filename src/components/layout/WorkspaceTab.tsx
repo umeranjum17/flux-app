@@ -13,6 +13,7 @@ export function WorkspaceTab() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const tasks = useChatStore((s) => s.tasks);
+  const isGitRepo = useUiStore((s) => s.isGitRepo);
   const [creating, setCreating] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
@@ -116,9 +117,9 @@ export function WorkspaceTab() {
               setCreating(false);
             }
           }}
-          disabled={creating}
+          disabled={creating || !isGitRepo}
           className="premium-toolbar-button rounded-lg p-1.5 text-text-secondary disabled:opacity-50"
-          title="New workspace"
+          title={isGitRepo ? 'New workspace' : 'Not a git repository — run "git init" first'}
         >
           <Plus size={14} />
         </button>

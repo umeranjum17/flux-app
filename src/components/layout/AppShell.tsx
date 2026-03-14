@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { AlertTriangle, FolderOpen, Terminal } from 'lucide-react';
 import { TopBar } from './TopBar';
 // ActivityBar removed — navigation merged into Sidebar icon bar
 import { Sidebar } from './Sidebar';
@@ -36,6 +37,7 @@ export function AppShell() {
   const bottomPanelOpen = useUiStore((s) => s.bottomPanelOpen);
   const theme = useUiStore((s) => s.theme);
   const cwd = useUiStore((s) => s.cwd);
+  const isGitRepo = useUiStore((s) => s.isGitRepo);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -216,6 +218,22 @@ export function AppShell() {
     if (!cwd) return;
     let cancelled = false;
     (async () => {
+      // Check if the folder is a git repository first
+      try {
+        const isRepo = await window.api.invoke('git:is-repo') as boolean;
+        if (!cancelled) useUiStore.getState().setIsGitRepo(isRepo);
+        if (!isRepo) {
+          // Not a git repo — clear git state and stop
+          useUiStore.getState().setGitBranch(null);
+          useUiStore.getState().setGitUpstream(null);
+          useUiStore.getState().setGitDirty(false);
+          return;
+        }
+      } catch {
+        if (!cancelled) useUiStore.getState().setIsGitRepo(false);
+        return;
+      }
+
       try {
         const branch = await window.api.invoke('git:branch') as string | null;
         if (!cancelled) useUiStore.getState().setGitBranch(branch);
@@ -458,6 +476,40 @@ export function AppShell() {
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
                     {activeWorkspaceId && <WorkspaceActionBar />}
+
+                    {/* Not-a-git-repo banner */}
+                    {!isGitRepo && cwd && (
+                      <div className="mx-auto mt-6 w-full max-w-[600px] px-6">
+                        <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 px-5 py-4">
+                          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-500" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-text-primary">
+                              Not a Git repository
+                            </p>
+                            <p className="mt-1 text-xs text-text-secondary">
+                              <span className="font-mono text-[11px] text-text-tertiary">{cwd}</span>{' '}
+                              is not a git repository. Workspaces require git to create isolated branches.
+                            </p>
+                            <p className="mt-2 text-xs text-text-tertiary">
+                              Initialize it by running:
+                            </p>
+                            <code className="mt-1 inline-block rounded bg-bg-secondary px-2 py-1 font-mono text-[11px] text-accent">
+                              git init
+                            </code>
+                            <div className="mt-3 flex items-center gap-2">
+                              <button
+                                onClick={() => openProject()}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors"
+                              >
+                                <FolderOpen size={12} />
+                                Open Different Folder
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
                     <div className="shrink-0">
                       <div className="mx-auto w-full max-w-[900px] px-6 pb-2 pt-4">

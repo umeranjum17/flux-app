@@ -41,6 +41,7 @@ export interface IpcChannels {
   'cwd:get': { args: []; result: string };
   'cwd:set': { args: [{ cwd: string }]; result: string };
   'cwd:pick': { args: []; result: string | null };
+  'git:is-repo': { args: [{ dirPath?: string }?]; result: boolean };
   'git:branch': { args: []; result: string | null };
   'git:upstream': { args: []; result: string | null };
   'git:status': { args: []; result: { dirty: boolean; files: string } };
