@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CheckCircle2, ChevronDown, ChevronRight, Download, Loader2, XCircle } from 'lucide-react';
 import type { AgentMessage, SubagentState } from '../../lib/types';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingBlock } from './ThinkingBlock';
@@ -17,15 +18,13 @@ interface SubagentBlockProps {
 }
 
 function formatTokens(total: number): string {
-  if (total >= 1000) {
-    return `${(total / 1000).toFixed(1)}k tokens`;
-  }
+  if (total >= 1000) return `${(total / 1000).toFixed(1)}k tokens`;
   return `${total} tokens`;
 }
 
 function renderStatusIcon(status: SubagentState['status']) {
   if (status === 'spawning' || status === 'running') {
-    return <Loader2 size={13} className="animate-spin text-text-tertiary shrink-0" />;
+    return <Loader2 size={13} className="animate-spin text-accent shrink-0" />;
   }
   if (status === 'error') {
     return <XCircle size={13} className="text-error shrink-0" />;
@@ -34,49 +33,65 @@ function renderStatusIcon(status: SubagentState['status']) {
 }
 
 export function SubagentBlock({ subagents, stage, taskMode }: SubagentBlockProps) {
+  return (
+    <div className="space-y-0.5">
+      {subagents.map(({ id, state }) => (
+        <SubagentRow key={id} id={id} state={state} taskMode={taskMode} />
+      ))}
+    </div>
+  );
+}
+
+function SubagentRow({
+  id,
+  state,
+  taskMode,
+}: {
+  id: string;
+  state: SubagentState;
+  taskMode?: 'plan' | 'act';
+}) {
   const [expanded, setExpanded] = useState(false);
-  const title = stage === 'running'
-    ? `Running ${subagents.length} agent${subagents.length === 1 ? '' : 's'}...`
-    : `${subagents.length} agent${subagents.length === 1 ? '' : 's'} finished`;
+  const hasMessages = state.messages.length > 0;
 
   return (
-    <div className="rounded-lg border border-border bg-bg-elevated/60">
+    <div className="tool-call-row group">
       <button
-        type="button"
-        onClick={() => setExpanded((current) => !current)}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
+        onClick={() => hasMessages && setExpanded(!expanded)}
+        className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
-        {expanded ? (
-          <ChevronDown size={14} className="text-text-tertiary shrink-0" />
-        ) : (
-          <ChevronRight size={14} className="text-text-tertiary shrink-0" />
+        <span className="shrink-0 flex items-center justify-center w-5 h-5">
+          {renderStatusIcon(state.status)}
+        </span>
+        <span className="text-[12px] font-medium text-text-secondary">Agent</span>
+        <span className="text-[12px] text-text-tertiary truncate min-w-0">
+          {state.name}
+        </span>
+        <span className="ml-auto shrink-0 text-[11px] text-text-tertiary/60 tabular-nums">
+          {state.toolCount > 0 && `${state.toolCount} tools`}
+        </span>
+        {hasMessages && (
+          <span className="shrink-0 text-text-tertiary/50 opacity-0 group-hover:opacity-100 transition-opacity">
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
         )}
-        <span className="text-sm text-text-primary">{title}</span>
       </button>
 
-      <div className="space-y-1 px-3 pb-3">
-        {subagents.map(({ id, state }, index) => {
-          const connector = index === subagents.length - 1 ? '└─' : '├─';
-          return (
-            <div key={id} className="rounded-md border-l border-border/70 pl-3">
-              <div className="flex items-center gap-2 text-sm text-text-secondary">
-                <span className="font-mono text-text-tertiary">{connector}</span>
-                {renderStatusIcon(state.status)}
-                <span className="truncate text-text-primary">{state.name}</span>
-                <span className="ml-auto shrink-0 text-xs text-text-tertiary">
-                  {state.toolCount} tool {state.toolCount === 1 ? 'use' : 'uses'} · {formatTokens(state.inputTokens + state.outputTokens)}
-                </span>
-              </div>
-
-              {expanded && state.messages.length > 0 && (
-                <div className="mt-2 space-y-2 pb-1">
-                  <SubagentMessageList messages={state.messages} taskMode={taskMode} />
-                </div>
-              )}
+      <AnimatePresence initial={false}>
+        {expanded && hasMessages && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="pl-5 pr-1 pt-1 pb-2 space-y-0.5">
+              <SubagentMessageList messages={state.messages} taskMode={taskMode} />
             </div>
-          );
-        })}
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -111,7 +126,7 @@ function SubagentMessageList({
         if (mergedResultIndices.has(index)) return null;
         const mergedResult = mergedResultIndices.has(index + 1) ? messages[index + 1] : null;
         return (
-          <div key={`${message.timestamp}-${index}`} className="pl-5">
+          <div key={`${message.timestamp}-${index}`}>
             {renderSubagentMessage(message, mergedResult, taskMode)}
           </div>
         );
@@ -163,8 +178,8 @@ function renderSubagentMessage(
         />
       );
     case 'error':
-      return <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">{message.content}</div>;
+      return <div className="rounded-md border border-error/30 bg-error/10 p-2 text-[12px] text-error">{message.content}</div>;
     default:
-      return <div className="text-sm text-text-secondary">{message.content}</div>;
+      return <div className="text-[12px] text-text-secondary">{message.content}</div>;
   }
 }

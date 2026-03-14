@@ -16,13 +16,15 @@ export function ActivityIndicator({
 
   return (
     <div
-      className="premium-pill flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-text-tertiary"
+      className="flex items-center gap-2 px-1 py-1 text-[12px] text-text-tertiary"
       data-status-kind={statusKind}
     >
       {showSpinner ? (
         <Loader2 size={13} className="shrink-0 animate-spin text-accent" />
       ) : (
-        <span className="h-2 w-2 shrink-0 rounded-full bg-text-tertiary/60" />
+        <span className="flex items-center justify-center w-5 h-5">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-tertiary/60" />
+        </span>
       )}
       <span>{label}</span>
     </div>
