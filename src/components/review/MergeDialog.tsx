@@ -1,19 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, GitMerge, Zap } from 'lucide-react';
+import { X, GitMerge } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { useAgentStore } from '../../stores/agent';
-import { startWorkspaceChat } from '../../lib/workspace-state';
-import type { Workspace } from '../../lib/ipc-api';
-import type { AgentId } from '../../lib/types';
-
-/** Pick the cheapest available model for merge tasks per agent family. */
-const MERGE_MODELS: Record<AgentId, { model: string; label: string }> = {
-  'claude-code': { model: 'haiku', label: 'Haiku' },
-  codex: { model: 'gpt-5-codex-mini', label: 'Codex Mini' },
-  gemini: { model: 'gemini-2.5-flash', label: 'Gemini Flash' },
-  openai: { model: 'gpt-5-mini', label: 'GPT-5 Mini' },
-  ollama: { model: 'mistral', label: 'Mistral' },
-};
+import { useWorkspaceStore } from '../../stores/workspace';
+import type { Workspace, MergeResult } from '../../lib/ipc-api';
 
 interface MergeDialogProps {
   workspace: Workspace;
@@ -24,36 +13,37 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const gitBranch = useUiStore((s) => s.gitBranch);
   const [targetBranch, setTargetBranch] = useState(() => gitBranch?.trim() ?? '');
   const [squash, setSquash] = useState(true);
-  const [starting, setStarting] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!gitBranch?.trim()) return;
     setTargetBranch((current) => current.trim() || gitBranch);
   }, [gitBranch]);
 
-  const agentId = useAgentStore((s) => s.selectedAgentId);
-  const mergeInfo = MERGE_MODELS[agentId];
-
   const handleMerge = async () => {
-    setStarting(true);
+    setMerging(true);
+    setError(null);
     try {
-      const { mode } = useUiStore.getState();
-      const squashNote = squash
-        ? 'Use --squash to collapse all commits into one.'
-        : '';
-      const prompt = `Merge branch "${workspace.branch}" into "${targetBranch}". ${squashNote}\n\nHandle any conflicts, dirty working tree, or other issues automatically. Commit the result when done.`;
-      await startWorkspaceChat({
-        workspace,
-        prompt,
-        agentId,
-        model: mergeInfo.model,
-        mode,
-        thinking: 'low',
-        skipBranchRename: true,
-      });
-      onClose();
-    } catch {
-      setStarting(false);
+      const result = await window.api.invoke('workspace:merge', {
+        workspaceId: workspace.id,
+        targetBranch: targetBranch.trim(),
+        squash,
+      }) as MergeResult;
+
+      if (result.success) {
+        useWorkspaceStore.getState().updateWorkspace(workspace.id, { outcome: 'merged' });
+        onClose();
+      } else if (result.conflicts?.length) {
+        setError(`Merge conflicts in: ${result.conflicts.join(', ')}`);
+        setMerging(false);
+      } else {
+        setError(result.error ?? 'Merge failed');
+        setMerging(false);
+      }
+    } catch (err: any) {
+      setError(err.message ?? 'Merge failed');
+      setMerging(false);
     }
   };
 
@@ -80,13 +70,12 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             Merging <span className="font-mono text-text-primary">{workspace.branch}</span> into target branch
           </div>
 
-          {/* Model badge */}
-          <div className="flex items-center gap-2 rounded-lg bg-bg-elevated border border-border/60 px-3 py-2">
-            <Zap size={12} className="text-text-secondary shrink-0" />
-            <span className="text-[13px] text-text-secondary">
-              Using <span className="font-medium text-text-primary">{mergeInfo.label}</span> for merge — fast and cost-effective
-            </span>
-          </div>
+          {/* Error */}
+          {error && (
+            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
 
           {/* Target branch */}
           <div>
@@ -123,10 +112,10 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           </button>
           <button
             onClick={handleMerge}
-            disabled={starting || !targetBranch.trim()}
+            disabled={merging || !targetBranch.trim()}
             className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {starting ? 'Starting agent...' : 'Merge'}
+            {merging ? 'Merging...' : 'Merge'}
           </button>
         </div>
       </div>
