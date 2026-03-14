@@ -30,6 +30,8 @@ export function TerminalTabs({ tabs, activeId, onSelect, onClose, onCreate }: Te
           <button
             onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
             className="p-0.5 rounded hover:bg-bg-hover transition-colors"
+            title={`Close ${tab.title}`}
+            aria-label={`Close ${tab.title}`}
           >
             <X size={10} />
           </button>

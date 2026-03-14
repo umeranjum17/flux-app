@@ -49,7 +49,12 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             <GitMerge size={16} className="text-success" />
             <h2 className="text-sm font-semibold text-text-primary">Merge Workspace</h2>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover text-text-tertiary">
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-bg-hover text-text-tertiary"
+            title="Close merge dialog"
+            aria-label="Close merge dialog"
+          >
             <X size={16} />
           </button>
         </div>

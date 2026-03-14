@@ -79,7 +79,12 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold text-text-primary">New Workspace</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover text-text-tertiary">
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-bg-hover text-text-tertiary"
+            title="Close create workspace dialog"
+            aria-label="Close create workspace dialog"
+          >
             <X size={16} />
           </button>
         </div>

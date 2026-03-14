@@ -118,6 +118,8 @@ export function ContextSettings() {
                 type="button"
                 onClick={() => setOverlay(null)}
                 className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                title="Close context settings"
+                aria-label="Close context settings"
               >
                 <X size={18} />
               </button>
@@ -205,7 +207,13 @@ export function ContextSettings() {
                       {localConfig.indexedFilePatterns.map((p, i) => (
                         <div key={i} className="flex items-center gap-2 bg-bg-primary border border-border rounded-lg px-3 py-1.5">
                           <code className="flex-1 text-xs text-text-primary font-mono">{p}</code>
-                          <button type="button" onClick={() => removePattern(i)} className="p-0.5 text-text-tertiary hover:text-error">
+                          <button
+                            type="button"
+                            onClick={() => removePattern(i)}
+                            className="p-0.5 text-text-tertiary hover:text-error"
+                            title="Remove include pattern"
+                            aria-label="Remove include pattern"
+                          >
                             <Trash2 size={12} />
                           </button>
                         </div>
@@ -219,7 +227,13 @@ export function ContextSettings() {
                           placeholder="**/*.rs"
                           className="flex-1 bg-bg-primary border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-focus font-mono"
                         />
-                        <button type="button" onClick={addPattern} className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-hover rounded-lg">
+                        <button
+                          type="button"
+                          onClick={addPattern}
+                          className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-hover rounded-lg"
+                          title="Add include pattern"
+                          aria-label="Add include pattern"
+                        >
                           <Plus size={14} />
                         </button>
                       </div>
@@ -233,7 +247,13 @@ export function ContextSettings() {
                       {localConfig.excludePatterns.map((p, i) => (
                         <div key={i} className="flex items-center gap-2 bg-bg-primary border border-border rounded-lg px-3 py-1.5">
                           <code className="flex-1 text-xs text-text-primary font-mono">{p}</code>
-                          <button type="button" onClick={() => removeExclude(i)} className="p-0.5 text-text-tertiary hover:text-error">
+                          <button
+                            type="button"
+                            onClick={() => removeExclude(i)}
+                            className="p-0.5 text-text-tertiary hover:text-error"
+                            title="Remove exclude pattern"
+                            aria-label="Remove exclude pattern"
+                          >
                             <Trash2 size={12} />
                           </button>
                         </div>
@@ -247,7 +267,13 @@ export function ContextSettings() {
                           placeholder="vendor/**"
                           className="flex-1 bg-bg-primary border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-focus font-mono"
                         />
-                        <button type="button" onClick={addExclude} className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-hover rounded-lg">
+                        <button
+                          type="button"
+                          onClick={addExclude}
+                          className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-hover rounded-lg"
+                          title="Add exclude pattern"
+                          aria-label="Add exclude pattern"
+                        >
                           <Plus size={14} />
                         </button>
                       </div>

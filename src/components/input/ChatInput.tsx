@@ -736,6 +736,8 @@ export function ChatInput({ focused }: ChatInputProps) {
                 type="button"
                 onClick={() => setShowSubagentDialog(false)}
                 className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+                title="Close subagent panel"
+                aria-label="Close subagent panel"
               >
                 <X size={14} />
               </button>
@@ -805,6 +807,8 @@ export function ChatInput({ focused }: ChatInputProps) {
                 <button
                   onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
                   className="premium-toolbar-button rounded-sm p-0.5 text-text-tertiary"
+                  title={`Remove ${file.name}`}
+                  aria-label={`Remove ${file.name}`}
                 >
                   <X size={10} />
                 </button>

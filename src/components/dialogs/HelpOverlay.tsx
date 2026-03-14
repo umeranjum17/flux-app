@@ -72,6 +72,8 @@ export function HelpOverlay() {
               <button
                 onClick={() => setOverlay(null)}
                 className="p-1 rounded-md hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+                title="Close help"
+                aria-label="Close help"
               >
                 <X size={16} />
               </button>

@@ -298,6 +298,8 @@ export function MessageList() {
                     });
                   }}
                   className="premium-toolbar-button rounded-xl p-1.5 text-text-tertiary"
+                  title="Dismiss suggestion"
+                  aria-label="Dismiss suggestion"
                 >
                   <X size={14} />
                 </button>

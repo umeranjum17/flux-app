@@ -105,6 +105,8 @@ export function SessionPicker() {
                 type="button"
                 onClick={() => setOverlay(null)}
                 className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                title="Close sessions"
+                aria-label="Close sessions"
               >
                 <X size={18} />
               </button>
@@ -177,6 +179,8 @@ export function SessionPicker() {
                       type="button"
                       onClick={() => handleDelete(session.id)}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-error hover:bg-error/10 transition-colors ml-auto"
+                      title="Delete session"
+                      aria-label="Delete session"
                     >
                       <Trash2 size={12} />
                     </button>

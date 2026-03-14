@@ -211,6 +211,8 @@ export function SshConnectDialog() {
                                 removeRecentHost(r.host, r.remotePath);
                               }}
                               className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-error transition-all p-0.5"
+                              title="Remove from recent SSH hosts"
+                              aria-label="Remove from recent SSH hosts"
                             >
                               <X size={12} />
                             </button>

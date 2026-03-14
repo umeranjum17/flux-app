@@ -37,7 +37,12 @@ export function CheckpointDiffPanel({ checkpoint, workspaceId, onClose }: Checkp
               {checkpoint.deletions > 0 && <span className="text-error ml-1">-{checkpoint.deletions}</span>}
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover text-text-tertiary">
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-bg-hover text-text-tertiary"
+            title="Close checkpoint diff"
+            aria-label="Close checkpoint diff"
+          >
             <X size={16} />
           </button>
         </div>

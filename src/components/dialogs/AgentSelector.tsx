@@ -84,6 +84,8 @@ export function AgentSelector() {
                 type="button"
                 onClick={() => setOverlay(null)}
                 className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                title="Close agent selector"
+                aria-label="Close agent selector"
               >
                 <X size={16} />
               </button>

@@ -196,6 +196,7 @@ function CodeBlock({ children, language }: { children: string; language?: string
         onClick={handleCopy}
         className="premium-toolbar-button absolute top-2 right-2 rounded-lg p-1.5 text-text-secondary opacity-0 transition-opacity group-hover:opacity-100"
         aria-label="Copy code"
+        title={copied ? 'Copied' : 'Copy code'}
       >
         {copied ? <Check size={14} /> : <ClipboardCopy size={14} />}
       </button>

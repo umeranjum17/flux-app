@@ -125,6 +125,8 @@ export function SettingsPanel() {
                 type="button"
                 onClick={() => setOverlay(null)}
                 className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                title="Close settings"
+                aria-label="Close settings"
               >
                 <X size={18} />
               </button>
@@ -328,6 +330,8 @@ export function SettingsPanel() {
                           type="button"
                           onClick={() => removeQualityGateCommand(index)}
                           className="p-1 rounded text-text-tertiary hover:text-error transition-colors"
+                          title="Remove quality gate command"
+                          aria-label="Remove quality gate command"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -347,6 +351,8 @@ export function SettingsPanel() {
                         type="button"
                         onClick={addQualityGateCommand}
                         className="p-2 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                        title="Add quality gate command"
+                        aria-label="Add quality gate command"
                       >
                         <Plus size={16} />
                       </button>

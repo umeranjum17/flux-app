@@ -29,7 +29,12 @@ export function RevertConfirmDialog({
             <AlertTriangle size={16} className="text-warning" />
             <h2 className="text-sm font-semibold text-text-primary">Revert to Checkpoint</h2>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover text-text-tertiary">
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-bg-hover text-text-tertiary"
+            title="Close revert dialog"
+            aria-label="Close revert dialog"
+          >
             <X size={16} />
           </button>
         </div>

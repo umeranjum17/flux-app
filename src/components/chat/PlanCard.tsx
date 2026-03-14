@@ -210,6 +210,8 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                     toast.success(`Revision ${i + 1} copied`);
                   }}
                   className="premium-toolbar-button rounded-lg p-1 text-text-tertiary"
+                  title={`Copy revision ${i + 1}`}
+                  aria-label={`Copy revision ${i + 1}`}
                 >
                   <Copy size={11} />
                 </button>
