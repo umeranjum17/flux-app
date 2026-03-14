@@ -48,4 +48,5 @@ export interface Workspace {
   createdAt: number;
   updatedAt: number;
   sessionId?: string;
+  archivedAt?: number;
 }

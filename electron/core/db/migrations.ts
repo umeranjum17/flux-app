@@ -26,6 +26,10 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
     sql: `INSERT OR IGNORE INTO workspace_sessions (workspace_id, session_id, position, created_at)
 SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NULL`,
   },
+  {
+    name: '010_add_workspace_archived_at',
+    sql: 'ALTER TABLE workspaces ADD COLUMN archived_at INTEGER',
+  },
 ];
 
 export function runMigrations(): void {
@@ -45,6 +49,14 @@ export function runMigrations(): void {
     if (applied.has(migration.name)) continue;
 
     if (migration.name === '005_add_message_payload_json' && hasColumn(db, 'messages', 'payload_json')) {
+      db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
+        migration.name,
+        Date.now()
+      );
+      continue;
+    }
+
+    if (migration.name === '010_add_workspace_archived_at' && hasColumn(db, 'workspaces', 'archived_at')) {
       db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
         migration.name,
         Date.now()
