@@ -140,6 +140,23 @@ describe('spawnClaude', () => {
     }));
   });
 
+  it('bypasses permissions when explicitly requested for merge-style runs', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnClaude({
+      taskId: 'task-1',
+      prompt: 'merge this branch',
+      mode: 'act',
+      cwd: '/workspace',
+      dangerouslyBypassPermissions: true,
+    });
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+    expect(args).toContain('--dangerously-skip-permissions');
+    expect(args).not.toContain('--permission-mode');
+  });
+
   it('uses the same stdin protocol for steer, approve, and deny', () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);

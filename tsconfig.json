@@ -12,6 +12,7 @@
     "outDir": "dist",
     "resolveJsonModule": true,
     "jsx": "react-jsx",
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
     "paths": {
       "@/*": ["src/*"],
       "@electron/*": ["electron/*"]

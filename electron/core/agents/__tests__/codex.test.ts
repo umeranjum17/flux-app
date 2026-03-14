@@ -289,6 +289,23 @@ describe('spawnCodex', () => {
     expect(args[sandboxIndex + 1]).toBe('read-only');
   });
 
+  it('bypasses sandboxing when explicitly requested for merge-style runs', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnCodex({
+      taskId: 'task-1',
+      prompt: 'merge this branch',
+      mode: 'act',
+      cwd: '/workspace',
+      dangerouslyBypassPermissions: true,
+    });
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+    expect(args).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(args).not.toContain('--full-auto');
+  });
+
   it('skips local image temp files when Codex runs over SSH and emits a warning', () => {
     vi.useFakeTimers();
     try {
