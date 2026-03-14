@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { TopBar } from './TopBar';
-import { ActivityBar } from './ActivityBar';
+// ActivityBar removed — navigation merged into Sidebar icon bar
 import { Sidebar } from './Sidebar';
 import { RightSidebar } from './RightSidebar';
 import { StatusLine } from './StatusLine';
@@ -379,7 +379,6 @@ export function AppShell() {
       <div className="chrome-window flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar />
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <ActivityBar />
           <AnimatePresence>{sidebarOpen && <Sidebar />}</AnimatePresence>
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex flex-1 overflow-hidden">
