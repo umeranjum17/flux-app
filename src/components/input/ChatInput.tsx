@@ -340,10 +340,10 @@ export function ChatInput({ focused }: ChatInputProps) {
           await startWorkspaceChat({
             workspace,
             prompt: text,
-            agentId: task.agentId,
-            model: task.model,
+            agentId: selectedAgentId,
+            model: selectedModel,
             mode: useUiStore.getState().mode,
-            thinking: task.thinking,
+            thinking: selectedThinking,
             images: images.length > 0 ? images : undefined,
             attachments,
           });
