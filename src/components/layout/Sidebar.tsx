@@ -135,9 +135,9 @@ function SearchTab() {
         />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3">
-        {searching && <p className="px-3 py-4 text-center text-[11px] text-text-tertiary">Searching...</p>}
+        {searching && <p className="px-3 py-4 text-center text-[12px] text-text-tertiary">Searching...</p>}
         {!searching && results.length === 0 && query && (
-          <p className="px-3 py-4 text-center text-[11px] text-text-tertiary">No results</p>
+          <p className="px-3 py-4 text-center text-[12px] text-text-tertiary">No results</p>
         )}
         {results.map((r, i) => (
           <button
@@ -150,8 +150,8 @@ function SearchTab() {
             className="classic-list-button"
           >
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] text-accent">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
-              <div className="truncate font-mono text-[10px] text-text-tertiary">{r.text}</div>
+              <div className="truncate text-[12px] text-accent">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
+              <div className="truncate font-mono text-[11px] text-text-tertiary">{r.text}</div>
             </div>
           </button>
         ))}

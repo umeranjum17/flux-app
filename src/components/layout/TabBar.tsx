@@ -82,7 +82,7 @@ export function TabBar() {
                 useWorkspaceStore.getState().setActiveWorkspace(task.workspaceId);
               }
             }}
-            className={`group chrome-tab relative flex min-w-0 max-w-[240px] cursor-pointer items-center gap-2 px-3.5 py-2.5 text-[11px] ${
+            className={`group chrome-tab relative flex min-w-0 max-w-[260px] cursor-pointer items-center gap-2 px-3.5 py-2.5 text-[12px] ${
               isActive
                 ? 'chrome-tab-active'
                 : needsAttention

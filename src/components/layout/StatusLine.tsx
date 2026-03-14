@@ -75,51 +75,51 @@ export function StatusLine() {
   }, [sshConnected]);
 
   return (
-    <div className="flex h-[28px] min-h-[28px] select-none items-center border-t border-border bg-bg-secondary">
+    <div className="flex h-[30px] min-h-[30px] select-none items-center border-t border-border bg-bg-secondary">
       <div className="flex items-center gap-0 shrink-0">
         {environment === 'wsl' && (
           <span
-            className="flex h-[28px] items-center gap-1.5 border-r border-border bg-warning/12 px-2 text-[10px] font-medium text-warning"
+            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/12 px-2.5 text-[11px] font-medium text-warning"
             title="Running inside WSL"
           >
-            <Terminal size={11} />
+            <Terminal size={12} />
             WSL
           </span>
         )}
         {environment === 'ssh' && !sshConnected && (
           <span
-            className="flex h-[28px] items-center gap-1.5 border-r border-border bg-info/12 px-2 text-[10px] font-medium text-info"
+            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-info/12 px-2.5 text-[11px] font-medium text-info"
             title="Running inside an SSH session"
           >
-            <Monitor size={11} />
+            <Monitor size={12} />
             SSH Session
           </span>
         )}
         <button
           onClick={handleSshClick}
-          className={`premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2 text-[10px] font-medium ${
+          className={`premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2.5 text-[11px] font-medium ${
             sshConnected
               ? 'border-r border-accent/20 bg-accent-muted/45 text-accent'
               : 'border-r border-border text-text-tertiary'
           }`}
           title={sshConnected ? `SSH: ${sshHost} (click to manage)` : 'Connect to SSH remote'}
         >
-          {sshConnected ? <Wifi size={11} /> : <WifiOff size={11} />}
+          {sshConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
           {sshConnected ? `SSH: ${sshHost}` : 'SSH'}
         </button>
 
         <button
           onClick={handleOpenFolder}
-          className="premium-toolbar-button flex h-[28px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2 text-[10px] text-text-tertiary"
+          className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[11px] text-text-tertiary"
           title="Open folder"
         >
-          <FolderOpen size={11} />
+          <FolderOpen size={12} />
           {shortCwd || 'Open Folder'}
         </button>
 
         {gitBranch && (
-          <span className="flex h-[28px] items-center gap-1 px-2 text-[10px] text-text-tertiary">
-            <GitBranch size={11} />
+          <span className="flex h-[30px] items-center gap-1.5 border-r border-border px-2.5 text-[11px] text-text-tertiary">
+            <GitBranch size={12} />
             {gitBranch}
             {gitDirty && <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />}
           </span>
@@ -127,7 +127,7 @@ export function StatusLine() {
 
         <button
           onClick={() => useUiStore.getState().setOverlay('context-settings')}
-          className={`premium-toolbar-button flex h-[28px] items-center gap-1 rounded-none border-y-0 border-l border-l-border px-2 text-[11px] ${
+          className={`premium-toolbar-button flex h-[30px] items-center gap-1 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[11px] ${
             !repoMapConfig.enabled
               ? 'text-text-tertiary'
             : repoMapStatus.state === 'ready'
@@ -144,17 +144,17 @@ export function StatusLine() {
               : `Repo map: ${repoMapStatus.state} (${repoMapStatus.totalTags} tags)`
           }
         >
-          <Brain size={11} className={repoMapStatus.state === 'building' ? 'animate-pulse' : ''} />
+          <Brain size={12} className={repoMapStatus.state === 'building' ? 'animate-pulse' : ''} />
           {repoMapConfig.enabled && <span>{repoMapStatus.state === 'building' ? 'indexing' : 'map'}</span>}
         </button>
       </div>
 
       <div className="flex-1" />
 
-      <div className="flex items-center gap-2 px-3 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-2.5 px-3 min-w-0 overflow-hidden">
         <button
           onClick={handleAgentClick}
-          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          className="text-[11px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Switch agent (Ctrl+Shift+A)"
         >
           {agentName}
@@ -162,7 +162,7 @@ export function StatusLine() {
         <Dot />
         <button
           onClick={handleCycleModel}
-          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          className="text-[11px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Cycle model (Ctrl+Shift+M)"
         >
           {model}
@@ -170,7 +170,7 @@ export function StatusLine() {
         <Dot />
         <button
           onClick={handleCycleThinking}
-          className="text-[10px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          className="text-[11px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Cycle thinking level (Ctrl+Shift+T)"
         >
           think {thinking}
@@ -194,11 +194,11 @@ export function StatusLine() {
           </>
         )}
         <Dot />
-        <span className="text-[10px] text-text-tertiary tabular-nums">
+        <span className="text-[11px] text-text-tertiary tabular-nums">
           ${cost.toFixed(4)}
         </span>
-        <span className="text-[10px] text-text-tertiary tabular-nums">
-          {formatTokens(tokens)} tokens
+        <span className="text-[11px] text-text-tertiary tabular-nums">
+          {formatTokens(tokens)} tok
         </span>
       </div>
     </div>
@@ -207,7 +207,7 @@ export function StatusLine() {
 
 function Dot() {
   return (
-    <span className="text-[10px] text-text-tertiary" aria-hidden>
+    <span className="text-[11px] text-text-tertiary/60" aria-hidden>
       &middot;
     </span>
   );

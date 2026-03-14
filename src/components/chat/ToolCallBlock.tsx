@@ -261,28 +261,28 @@ export function ToolCallBlock({
     <div className="tool-call-row group">
       <button
         onClick={() => hasExpandableContent && setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
+        className="flex w-full items-center gap-2.5 py-1.5 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
         <span className="shrink-0 flex items-center justify-center w-5 h-5">
           {statusIcon}
         </span>
-        <span className="text-[12px] font-medium text-text-secondary">
+        <span className="text-[13px] font-medium text-text-secondary">
           {formatToolLabel(toolName)}
         </span>
         {description && (
-          <span className="text-[12px] text-text-tertiary truncate min-w-0">
+          <span className="text-[13px] text-text-tertiary truncate min-w-0">
             {description}
           </span>
         )}
         {diffStats && (
-          <span className="flex items-center gap-1 shrink-0 ml-auto text-[11px] font-mono">
+          <span className="flex items-center gap-1 shrink-0 ml-auto text-[12px] font-mono">
             <span className="text-success">+{diffStats.added}</span>
             <span className="text-error">-{diffStats.removed}</span>
           </span>
         )}
         {hasExpandableContent && (
           <span className="shrink-0 text-text-tertiary/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </span>
         )}
       </button>

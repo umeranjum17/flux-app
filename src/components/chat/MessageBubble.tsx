@@ -78,7 +78,7 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
             ))}
           </div>
         )}
-        <div className={`markdown-prose max-w-none text-text-primary ${isPlanAssistant ? 'text-[13px] leading-6' : 'text-[13px] leading-6'}`}>
+        <div className="markdown-prose max-w-none text-text-primary text-[14px] leading-relaxed">
           <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
