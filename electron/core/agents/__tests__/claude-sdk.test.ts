@@ -465,7 +465,62 @@ describe('spawnClaudeSdk', () => {
       expect(questionMsgs).toHaveLength(1);
     });
 
-    it('auto-approves interactive tools like ExitPlanMode', async () => {
+    it('ExitPlanMode emits question_request and waits for user decision', async () => {
+      let canUseToolFn: any = null;
+      mockQuery.mockImplementation((args: any) => {
+        canUseToolFn = args.options.canUseTool;
+        return createFakeQuery([]);
+      });
+
+      const handle = spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      const messages: any[] = [];
+      handle.on('message', (m: any) => messages.push(m));
+
+      // Call ExitPlanMode — should not resolve immediately
+      const resultPromise = canUseToolFn('ExitPlanMode', {}, {
+        signal: new AbortController().signal,
+        toolUseID: 'tool-3',
+      });
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Should have emitted a question_request
+      const questionMsg = messages.find((m: any) => m.type === 'question_request');
+      expect(questionMsg).toBeDefined();
+      expect(questionMsg.content).toContain('implement');
+
+      // User answers "Implement" → should resolve with allow
+      handle.answerQuestion('tool-3', 'Implement');
+      const result = await resultPromise;
+      expect(result).toEqual({ behavior: 'allow' });
+    });
+
+    it('ExitPlanMode denies with feedback when user chooses Refine', async () => {
+      let canUseToolFn: any = null;
+      mockQuery.mockImplementation((args: any) => {
+        canUseToolFn = args.options.canUseTool;
+        return createFakeQuery([]);
+      });
+
+      const handle = spawnClaudeSdk(baseOptions());
+      await new Promise((r) => setTimeout(r, 10));
+
+      const resultPromise = canUseToolFn('ExitPlanMode', {}, {
+        signal: new AbortController().signal,
+        toolUseID: 'tool-3',
+      });
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // User types custom feedback
+      handle.answerQuestion('tool-3', 'Add error handling to step 3');
+      const result = await resultPromise;
+      expect(result).toEqual({ behavior: 'deny', message: 'Add error handling to step 3' });
+    });
+
+    it('auto-approves EnterPlanMode silently', async () => {
       let canUseToolFn: any = null;
       mockQuery.mockImplementation((args: any) => {
         canUseToolFn = args.options.canUseTool;
@@ -475,7 +530,7 @@ describe('spawnClaudeSdk', () => {
       spawnClaudeSdk(baseOptions());
       await new Promise((r) => setTimeout(r, 10));
 
-      const result = await canUseToolFn('ExitPlanMode', {}, {
+      const result = await canUseToolFn('EnterPlanMode', {}, {
         signal: new AbortController().signal,
         toolUseID: 'tool-3',
       });

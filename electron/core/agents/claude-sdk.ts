@@ -138,18 +138,85 @@ export function spawnClaudeSdk(
       });
 
       return new Promise<{ behavior: 'allow'; updatedInput?: Record<string, unknown> } | { behavior: 'deny'; message: string }>((resolve, reject) => {
-        callOptions.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+        if (callOptions.signal.aborted) {
+          resolve({ behavior: 'deny', message: 'Cancelled' });
+          return;
+        }
+        callOptions.signal.addEventListener('abort', () => {
+          pendingPermissions.delete(requestId);
+          resolve({ behavior: 'deny', message: 'Cancelled' });
+        }, { once: true });
         pendingPermissions.set(requestId, { resolve, reject, toolName });
       });
     }
 
-    // Bypass mode: auto-approve everything
-    if (options.dangerouslyBypassPermissions) {
+    // ExitPlanMode: ask user whether to implement or refine the plan
+    if (baseName === 'ExitPlanMode') {
+      const requestId = callOptions.toolUseID;
+      emitMessage({
+        type: 'question_request',
+        role: 'assistant',
+        content: 'Plan complete. Ready to implement?',
+        timestamp: Date.now(),
+        requestId,
+        questions: [{
+          question: 'Plan complete. Ready to implement?',
+          options: [
+            { label: 'Implement', value: 'Implement' },
+            { label: 'Refine', value: 'Refine' },
+          ],
+          allowFreeform: true,
+          placeholder: 'Or describe what to change...',
+        }],
+        options: [
+          { label: 'Implement', value: 'Implement' },
+          { label: 'Refine', value: 'Refine' },
+        ],
+        allowFreeform: true,
+        placeholder: 'Or describe what to change...',
+      });
+
+      return new Promise<{ behavior: 'allow'; updatedInput?: Record<string, unknown> } | { behavior: 'deny'; message: string }>((resolve, reject) => {
+        if (callOptions.signal.aborted) {
+          resolve({ behavior: 'deny', message: 'Cancelled' });
+          return;
+        }
+        callOptions.signal.addEventListener('abort', () => {
+          pendingPermissions.delete(requestId);
+          resolve({ behavior: 'deny', message: 'Cancelled' });
+        }, { once: true });
+
+        // Wrap resolve so "Implement" allows and anything else denies with feedback
+        pendingPermissions.set(requestId, {
+          resolve: (val) => {
+            if (val.behavior === 'allow') {
+              const answer = (val.updatedInput?.answer as string) ?? '';
+              if (answer === 'Implement' || answer === '') {
+                resolve({ behavior: 'allow' });
+              } else {
+                // User chose "Refine" or typed custom feedback
+                const feedback = answer === 'Refine'
+                  ? 'The user wants to refine the plan. Ask them what to change.'
+                  : answer;
+                resolve({ behavior: 'deny', message: feedback });
+              }
+            } else {
+              resolve(val);
+            }
+          },
+          reject,
+          toolName,
+        });
+      });
+    }
+
+    // EnterPlanMode, DiffComment: auto-approve silently
+    if (baseName === 'EnterPlanMode' || baseName === 'DiffComment') {
       return { behavior: 'allow' as const };
     }
 
-    // Interactive tools (ExitPlanMode, EnterPlanMode, DiffComment): auto-approve
-    if (isInteractiveToolName(baseName)) {
+    // Bypass mode: auto-approve everything
+    if (options.dangerouslyBypassPermissions) {
       return { behavior: 'allow' as const };
     }
 
@@ -166,7 +233,14 @@ export function spawnClaudeSdk(
     });
 
     return new Promise<{ behavior: 'allow'; updatedInput?: Record<string, unknown> } | { behavior: 'deny'; message: string }>((resolve, reject) => {
-      callOptions.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+      if (callOptions.signal.aborted) {
+        resolve({ behavior: 'deny', message: 'Cancelled' });
+        return;
+      }
+      callOptions.signal.addEventListener('abort', () => {
+        pendingPermissions.delete(requestId);
+        resolve({ behavior: 'deny', message: 'Cancelled' });
+      }, { once: true });
       pendingPermissions.set(requestId, { resolve, reject, toolName });
     });
   };
@@ -332,6 +406,9 @@ export function spawnClaudeSdk(
               timestamp: now,
             });
           } else if (block.type === 'tool_use') {
+            // Skip SDK-internal tools (ExitPlanMode, EnterPlanMode, etc.)
+            // — they don't produce tool_result messages and would leave the spinner stuck.
+            if (isInteractiveToolName(block.name)) continue;
             emitMessage({
               type: 'tool_call',
               role: 'assistant',
