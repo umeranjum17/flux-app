@@ -11,10 +11,10 @@ interface MessageBubbleProps {
   role: 'user' | 'assistant' | 'system';
   images?: string[];
   attachments?: FileAttachment[];
-  mode?: 'plan' | 'act';
+  highlightAsPlan?: boolean;
 }
 
-export function MessageBubble({ content, role, images, attachments, mode }: MessageBubbleProps) {
+export function MessageBubble({ content, role, images, attachments, highlightAsPlan = false }: MessageBubbleProps) {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   if (role === 'system') {
@@ -25,7 +25,7 @@ export function MessageBubble({ content, role, images, attachments, mode }: Mess
     );
   }
 
-  const isPlanAssistant = mode === 'plan' && role === 'assistant';
+  const isPlanAssistant = highlightAsPlan && role === 'assistant';
   const isActAssistant = role === 'assistant' && !isPlanAssistant;
 
   return (

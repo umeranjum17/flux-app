@@ -7,6 +7,7 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
 import { ResultBlock } from './ResultBlock';
+import { isPlanMessage } from '../../lib/plan';
 
 interface SubagentBlockProps {
   subagents: Array<{
@@ -148,7 +149,7 @@ function renderSubagentMessage(
           role={message.role as 'user' | 'assistant' | 'system'}
           images={message.images}
           attachments={message.attachments}
-          mode={taskMode}
+          highlightAsPlan={isPlanMessage(message, taskMode)}
         />
       );
     case 'thinking':

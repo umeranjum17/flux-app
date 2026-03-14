@@ -92,4 +92,72 @@ describe('MessageList', () => {
     expect(screen.getByText(/Line 1/)).not.toBeNull();
     expect(screen.getByText(/Line 2/)).not.toBeNull();
   });
+
+  it('does not render exploratory assistant text as a plan card', () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Planning',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'plan',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'running');
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: "I'll inspect the repo first and then map the fix to exact files.",
+      timestamp: 4,
+    });
+
+    render(<MessageList />);
+
+    expect(screen.getByText("I'll inspect the repo first and then map the fix to exact files.")).not.toBeNull();
+    expect(screen.queryByText(/^Generating plan\.\.\.$/)).toBeNull();
+    expect(screen.queryByText(/^Plan$/)).toBeNull();
+  });
+
+  it('renders only the structured plan in the plan card', () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Planning',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'plan',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: "I'll inspect the repo first and then map the fix to exact files.",
+      timestamp: 5,
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: `## Summary
+Stabilize the plan renderer.
+
+## Analysis
+Only structured plan markdown should be treated as plan content.
+
+## Steps
+1. Detect real plan output.
+2. Keep exploratory commentary out of the plan card.
+3. Render interim updates as normal assistant text.
+
+## Trade-offs
+This depends on the agent honoring the structured plan prompt.`,
+      timestamp: 6,
+    });
+
+    render(<MessageList />);
+
+    expect(screen.getByText("I'll inspect the repo first and then map the fix to exact files.")).not.toBeNull();
+    expect(screen.getAllByText(/^Plan$/).length).toBe(1);
+    expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
+  });
 });
