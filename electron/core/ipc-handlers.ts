@@ -17,6 +17,7 @@ import { repoMapService } from './intelligence/repomap';
 import type { RepoMapConfig } from './config/types';
 import { WorkspaceStore } from './worktree/store';
 import { createWorktree, mergeWorktree, removeWorktree } from './worktree/manager';
+import { generateWorkspaceName } from './worktree/names';
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
 import type { WorkspaceStatus } from './worktree/types';
@@ -877,6 +878,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Capture git baseline for diff tracking
     const preRunRef = await captureGitSnapshot(options.cwd);
 
+    // Capture quality gate baseline (pre-agent results) to detect pre-existing failures
+    const qualityGateBaseline = new Map<string, boolean>();
+    if (options.mode === 'act' && !sshHost) {
+      const baselineCommands = await resolveQualityGateCommands(options.cwd);
+      for (const cmd of baselineCommands) {
+        const baseResult = await runShellCommand(cmd, options.cwd, sshHost);
+        qualityGateBaseline.set(cmd, baseResult.exitCode === 0);
+      }
+    }
+
     let handle: AgentHandle;
     try {
       handle = agentManager.spawn(agentId, spawnOptions, resumeMessages);
@@ -1049,24 +1060,101 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
           if (!finalError && options.mode === 'act') {
             const commands = await resolveQualityGateCommands(options.cwd);
+            const maxRetries = configManager.get().qualityGateMaxRetries ?? 2;
+
             for (const command of commands) {
-              const gateResult = await runShellCommand(command, options.cwd, sshHost);
-              const passed = gateResult.exitCode === 0;
-              const message: AgentMessage = {
-                type: 'quality_gate',
-                role: 'system',
-                content: passed ? `Quality gate passed: ${command}` : `Quality gate failed: ${command}`,
-                timestamp: Date.now(),
-                command,
-                exitCode: gateResult.exitCode,
-                passed,
-                stdout: gateResult.stdout,
-                stderr: gateResult.stderr,
-              };
-              emitQualityGateMessage(options.taskId, session.id, message);
+              let passed = false;
+              let lastResult: { stdout: string; stderr: string; exitCode: number } = { stdout: '', stderr: '', exitCode: 0 };
+
+              for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                const gateResult = await runShellCommand(command, options.cwd, sshHost);
+                passed = gateResult.exitCode === 0;
+                lastResult = gateResult;
+
+                const gateMsg: AgentMessage = {
+                  type: 'quality_gate',
+                  role: 'system',
+                  content: passed ? `Quality gate passed: ${command}` : `Quality gate failed: ${command}`,
+                  timestamp: Date.now(),
+                  command,
+                  exitCode: gateResult.exitCode,
+                  passed,
+                  stdout: gateResult.stdout,
+                  stderr: gateResult.stderr,
+                  retryAttempt: attempt > 0 ? attempt : undefined,
+                  maxRetries: attempt > 0 ? maxRetries : undefined,
+                };
+                emitQualityGateMessage(options.taskId, session.id, gateMsg);
+
+                if (passed || attempt >= maxRetries) break;
+
+                // Spawn a lightweight fix-up agent to address the errors
+                const fixTaskId = crypto.randomUUID();
+                const errorOutput = (gateResult.stderr || gateResult.stdout || '').trim();
+                const fixPrompt = `The quality gate command \`${command}\` failed with these errors:\n\n\`\`\`\n${errorOutput}\n\`\`\`\n\nPlease fix these issues so the command passes.`;
+
+                emitTaskMessage(options.taskId, session.id, {
+                  type: 'status',
+                  role: 'system',
+                  statusKind: 'progress',
+                  content: `Quality gate failed — attempting fix (${attempt + 1}/${maxRetries})...`,
+                  timestamp: Date.now(),
+                });
+
+                const fixHandle = agentManager.spawn(agentId, {
+                  taskId: fixTaskId,
+                  prompt: fixPrompt,
+                  cwd: spawnOptions.cwd,
+                  mode: 'act',
+                  model: spawnOptions.model,
+                  binaryPath: spawnOptions.binaryPath,
+                  sshHost: spawnOptions.sshHost,
+                  remoteCwd: spawnOptions.remoteCwd,
+                }, undefined);
+
+                await new Promise<void>((resolve) => {
+                  const safetyTimer = setTimeout(() => {
+                    fixHandle.removeAllListeners();
+                    resolve();
+                  }, 120_000);
+
+                  fixHandle.on('message', (msg: AgentMessage) => {
+                    if (msg.type === 'permission_request' && msg.requestId) {
+                      fixHandle.approve(msg.requestId);
+                    } else if (msg.type !== 'result' && msg.type !== 'rate_limit') {
+                      emitTaskMessage(options.taskId, session.id, msg);
+                    }
+                  });
+
+                  fixHandle.on('done', () => {
+                    clearTimeout(safetyTimer);
+                    fixHandle.removeAllListeners();
+                    resolve();
+                  });
+                });
+              }
+
               if (!passed) {
-                finalError = `Quality gate failed: ${command}`;
-                break;
+                const baselinePassed = qualityGateBaseline.get(command);
+                if (baselinePassed === false) {
+                  // Pre-existing failure — warn but do not block
+                  const preExistingMsg: AgentMessage = {
+                    type: 'quality_gate',
+                    role: 'system',
+                    content: `Quality gate pre-existing failure (existed before agent ran): ${command}`,
+                    timestamp: Date.now(),
+                    command,
+                    exitCode: lastResult.exitCode,
+                    passed: false,
+                    isPreExisting: true,
+                    stdout: lastResult.stdout,
+                    stderr: lastResult.stderr,
+                  };
+                  emitQualityGateMessage(options.taskId, session.id, preExistingMsg);
+                } else {
+                  finalError = `Quality gate failed: ${command}`;
+                  break;
+                }
               }
             }
           }
@@ -1100,6 +1188,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
               await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
                 // Checkpoints are best-effort
               });
+
+              // Emit completion event so renderer can show merge prompts
+              try {
+                const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: workspace.parentRepo });
+                const suggestedMergeTarget = branchOut.trim() || 'main';
+                sendToRenderer('workspace:completion', {
+                  workspaceId: workspace.id,
+                  taskId: options.taskId,
+                  suggestedMergeTarget,
+                });
+              } catch {
+                // Best-effort
+              }
             }
           }
         } finally {
@@ -1820,6 +1921,47 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         model,
         status: 'idle',
       });
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:create-quick',
+    async (
+      _event,
+      { parentRepo, agentId, model }: { parentRepo: string; agentId: string; model: string },
+    ) => {
+      requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
+      if (sshHost) {
+        throw new Error('Workspaces are only supported for local repositories right now');
+      }
+
+      const funName = generateWorkspaceName();
+      const branch = `flux/${funName}`;
+      const worktree = await createWorktree(parentRepo, branch);
+      return workspaceStore.create({
+        id: worktree.id,
+        name: funName,
+        parentRepo,
+        worktreePath: worktree.path,
+        branch: worktree.branch,
+        agentId,
+        model,
+        status: 'idle',
+      });
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:rename-branch',
+    async (_event, { workspaceId, newBranch }: { workspaceId: string; newBranch: string }) => {
+      requireFields({ workspaceId, newBranch }, 'workspaceId', 'newBranch');
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+      await execFileAsync('git', ['branch', '-m', workspace.branch, newBranch], {
+        cwd: workspace.worktreePath,
+      });
+      workspaceStore.update(workspaceId, { branch: newBranch });
     },
   );
 

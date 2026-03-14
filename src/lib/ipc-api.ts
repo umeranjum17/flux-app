@@ -60,6 +60,14 @@ export interface IpcChannels {
     args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string }];
     result: Workspace;
   };
+  'workspace:create-quick': {
+    args: [{ parentRepo: string; agentId: string; model: string }];
+    result: Workspace;
+  };
+  'workspace:rename-branch': {
+    args: [{ workspaceId: string; newBranch: string }];
+    result: void;
+  };
   'workspace:spawn': { args: [{ workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
   'workspace:spawn-chat': {
     args: [{ workspaceId: string; prompt: string; mode?: TaskMode; agentId?: string; model?: string; images?: string[]; attachments?: FileAttachment[] }];
@@ -100,6 +108,7 @@ export interface IpcEvents {
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
+  'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'repomap:status': RepoMapIpcStatus;
 }
 
@@ -168,6 +177,7 @@ export interface FluxConfig {
   defaultThinking: ThinkingLevel;
   defaultMode: TaskMode;
   qualityGateCommands: string[];
+  qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;
   zoomLevel?: number;
   recentProjects: Array<{

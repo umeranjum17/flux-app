@@ -27,6 +27,8 @@ import { SubagentBlock } from './SubagentBlock';
 import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
 import { ShellResultBlock } from './ShellResultBlock';
+import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
+import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
 
 const messageVariants = {
@@ -57,6 +59,10 @@ export function MessageList() {
   const taskId = task?.id;
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
   const planText = task ? getLatestPlanText(task.messages) : '';
+
+  const workspaceId = task?.workspaceId;
+  const workspace = useWorkspaceStore((s) => workspaceId ? s.workspaces.get(workspaceId) : undefined);
+  const completionTarget = useWorkspaceCompletion(workspaceId);
 
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
     useAutoScroll([messages.length, messages[messages.length - 1]?.content]);
@@ -234,6 +240,16 @@ export function MessageList() {
 
           {task.mode === 'plan' && taskId && planText && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
+          )}
+
+          {taskStatus === 'done' && workspace && task.mode === 'act' && (
+            <CompletionCard
+              workspace={workspace}
+              suggestedMergeTarget={completionTarget}
+              onContinue={() => {
+                useUiStore.getState().setBottomPanelMode('agent');
+              }}
+            />
           )}
 
           {rateLimitSuggestion && taskId && (
@@ -427,17 +443,34 @@ function renderMessage(
         />
       );
 
-    case 'quality_gate':
+    case 'quality_gate': {
+      const isPreExisting = msg.isPreExisting;
+      const borderColor = msg.passed
+        ? 'border-success/30 bg-success/10'
+        : isPreExisting
+          ? 'border-warning/30 bg-warning/10'
+          : 'border-error/30 bg-error/10';
+      const label = msg.passed
+        ? 'Quality gate passed'
+        : isPreExisting
+          ? 'Quality gate (pre-existing failure)'
+          : 'Quality gate failed';
       return (
-        <div className={`rounded-lg border p-3 text-sm ${
-          msg.passed
-            ? 'border-success/30 bg-success/10 text-text-primary'
-            : 'border-error/30 bg-error/10 text-text-primary'
-        }`}>
+        <div className={`rounded-lg border p-3 text-sm ${borderColor} text-text-primary`}>
           <div className="flex items-center justify-between gap-3">
-            <span className="font-medium">
-              {msg.passed ? 'Quality gate passed' : 'Quality gate failed'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{label}</span>
+              {isPreExisting && (
+                <span className="rounded px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide bg-warning/20 text-warning">
+                  pre-existing
+                </span>
+              )}
+              {typeof msg.retryAttempt === 'number' && typeof msg.maxRetries === 'number' && (
+                <span className="text-[10px] text-text-tertiary">
+                  Retry {msg.retryAttempt}/{msg.maxRetries}
+                </span>
+              )}
+            </div>
             {typeof msg.exitCode === 'number' && (
               <span className="text-xs text-text-tertiary">exit {msg.exitCode}</span>
             )}
@@ -452,6 +485,7 @@ function renderMessage(
           )}
         </div>
       );
+    }
 
     case 'permission_request':
       return (

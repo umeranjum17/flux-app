@@ -5,7 +5,7 @@ import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { workspaceStatusConfig } from '../../lib/workspace-status';
-import { createWorkspaceAndChat } from '../../lib/workspace-state';
+import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
 import { toast } from 'sonner';
 
@@ -14,7 +14,7 @@ export function WorkspaceTab() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const tasks = useChatStore((s) => s.tasks);
   const activeTaskId = useChatStore((s) => s.activeTaskId);
-  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [chatsCollapsed, setChatsCollapsed] = useState(false);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
@@ -117,21 +117,34 @@ export function WorkspaceTab() {
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="classic-section-label">Workspaces</span>
         <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="premium-toolbar-button rounded-lg p-1.5 text-text-secondary"
+          onClick={async () => {
+            if (creating) return;
+            const cwd = useUiStore.getState().cwd;
+            if (!cwd) return;
+            setCreating(true);
+            try {
+              const { selectedAgentId: agentId, selectedModel: model } = useAgentStore.getState();
+              await createEmptyWorkspace({ agentId, model, cwd });
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              toast.error(message);
+            } finally {
+              setCreating(false);
+            }
+          }}
+          disabled={creating}
+          className="premium-toolbar-button rounded-lg p-1.5 text-text-secondary disabled:opacity-50"
           title="New workspace"
         >
           <Plus size={14} />
         </button>
       </div>
 
-      {showCreate && <QuickCreate onClose={() => setShowCreate(false)} />}
-
       <div className="flex-1 overflow-y-auto px-3">
-        {workspaceList.length === 0 && !showCreate && (
+        {workspaceList.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-[12px] text-text-secondary">No workspaces</p>
-            <p className="mt-1 text-[10px] text-text-tertiary">Send a message to auto-create one.</p>
+            <p className="mt-1 text-[10px] text-text-tertiary">Click + to create one instantly.</p>
           </div>
         )}
         {workspaceList.map((ws, idx) => {
@@ -274,70 +287,3 @@ function statusColor(status: string): string {
   }
 }
 
-/* ── Inline Quick Create ─────────────────── */
-
-function QuickCreate({ onClose }: { onClose: () => void }) {
-  const [prompt, setPrompt] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const cwd = useUiStore((s) => s.cwd);
-
-  const handleCreate = async () => {
-    if (!prompt.trim() || !cwd) return;
-    setCreating(true);
-    setError(null);
-
-    const { selectedAgentId: agentId, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
-    const { mode } = useUiStore.getState();
-
-    try {
-      await createWorkspaceAndChat(prompt.trim(), {
-        agentId,
-        model,
-        mode,
-        thinking,
-        cwd,
-      });
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-      toast.error(message);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <div className="mx-3 mb-2 rounded-lg border border-border/80 bg-bg-surface p-3">
-      <textarea
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleCreate();
-          }
-          if (e.key === 'Escape') onClose();
-        }}
-        placeholder="What should this workspace work on?"
-        rows={3}
-        autoFocus
-        className="w-full resize-none rounded-md border border-border/60 bg-bg-primary px-2.5 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent"
-      />
-      {error && (
-        <div className="mt-1.5 text-[10px] text-error">{error}</div>
-      )}
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-[9px] text-text-tertiary">Enter to create · Esc to cancel</span>
-        <button
-          onClick={handleCreate}
-          disabled={creating || !prompt.trim()}
-          className="rounded-md bg-accent px-2.5 py-1 text-[10px] font-medium text-white hover:bg-accent/90 disabled:opacity-50"
-        >
-          {creating ? 'Creating...' : 'Create'}
-        </button>
-      </div>
-    </div>
-  );
-}

@@ -33,6 +33,7 @@ export interface FluxConfig {
   defaultThinking: ThinkingLevel;
   defaultMode: 'plan' | 'act';
   qualityGateCommands: string[];
+  qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;
   recentProjects: RecentProject[];
   recentSshHosts: RecentSshHost[];

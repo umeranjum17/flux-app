@@ -17,6 +17,7 @@ const defaultConfig: FluxConfig = {
   defaultMode: 'act' as const,
   zoomLevel: 1.0,
   qualityGateCommands: [],
+  qualityGateMaxRetries: 2,
   customAgentPaths: {},
   recentProjects: [],
   recentSshHosts: [],
