@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GitMerge, Eye, MessageSquare } from 'lucide-react';
+import { GitMerge, Eye, MessageSquare, Archive } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import type { Workspace } from '../../lib/ipc-api';
@@ -45,6 +45,7 @@ function formatDuration(ms: number): string {
 
 export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, diff, durationMs }: CompletionCardProps) {
   const mergeTarget = suggestedMergeTarget || useUiStore.getState().gitBranch || 'main';
+  const isReadyToArchive = workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive';
 
   const handleReview = () => {
     useWorkspaceStore.getState().openReview(workspace.id);
@@ -52,6 +53,11 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
 
   const handleMerge = () => {
     useWorkspaceStore.getState().openMerge(workspace.id);
+  };
+
+  const handleArchive = async () => {
+    await window.api.invoke('workspace:archive', { workspaceId: workspace.id });
+    useWorkspaceStore.getState().archiveWorkspace(workspace.id);
   };
 
   const handleFileClick = async (filePath: string) => {
@@ -96,21 +102,33 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
           <Eye size={11} />
           Review
         </button>
-        <button
-          onClick={handleMerge}
-          className="flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-[12px] font-medium text-white hover:bg-success/85 transition-colors"
-        >
-          <GitMerge size={11} />
-          Merge to {mergeTarget}
-        </button>
-        {onContinue && (
+        {isReadyToArchive ? (
           <button
-            onClick={onContinue}
-            className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+            onClick={handleArchive}
+            className="flex items-center gap-1.5 rounded-lg bg-warning px-3 py-1.5 text-[12px] font-medium text-white hover:bg-warning/85 transition-colors"
           >
-            <MessageSquare size={11} />
-            Continue
+            <Archive size={11} />
+            Archive
           </button>
+        ) : (
+          <>
+            <button
+              onClick={handleMerge}
+              className="flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-[12px] font-medium text-white hover:bg-success/85 transition-colors"
+            >
+              <GitMerge size={11} />
+              Merge to {mergeTarget}
+            </button>
+            {onContinue && (
+              <button
+                onClick={onContinue}
+                className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-[12px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+              >
+                <MessageSquare size={11} />
+                Continue
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

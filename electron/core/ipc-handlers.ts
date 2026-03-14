@@ -20,7 +20,7 @@ import { createWorktree, removeWorktree } from './worktree/manager';
 import { generateWorkspaceName } from './worktree/names';
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
-import type { WorkspaceStatus } from './worktree/types';
+import type { WorkspaceStatus, WorkspaceOutcome } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
 import { executeBash } from './tools/bash';
 import { suggestCompletion, availableCompletionProviders } from './completion/service';
@@ -600,6 +600,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       ...(extra?.sessionId ? { sessionId: extra.sessionId } : {}),
     });
     sendToRenderer('workspace:status', { workspaceId, status });
+  };
+
+  const emitWorkspaceOutcome = (workspaceId: string, outcome: WorkspaceOutcome) => {
+    workspaceStore.update(workspaceId, { outcome });
+    sendToRenderer('workspace:outcome', { workspaceId, outcome });
   };
 
   const aggregateWorkspaceStatus = (workspaceId: string): WorkspaceStatus => {
@@ -1212,7 +1217,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
             if (!finalError && options.mode === 'act') {
               if (options.workspaceAction === 'merge') {
-                workspaceStore.update(workspace.id, { outcome: 'merged' });
+                emitWorkspaceOutcome(workspace.id, 'merged');
               } else {
                 await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
                   // Checkpoints are best-effort
@@ -1221,7 +1226,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
                 // Auto-advance outcome to ready_for_pr if still in_progress
                 const currentWs = workspaceStore.get(workspace.id);
                 if (currentWs && currentWs.outcome === 'in_progress') {
-                  workspaceStore.update(workspace.id, { outcome: 'ready_for_pr' });
+                  emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
                 }
 
                 // Emit completion event so renderer can show merge prompts
@@ -2161,7 +2166,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(
     'workspace:set-outcome',
     async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
-      workspaceStore.update(workspaceId, { outcome: outcome as any });
+      emitWorkspaceOutcome(workspaceId, outcome as WorkspaceOutcome);
     },
   );
 

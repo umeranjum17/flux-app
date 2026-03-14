@@ -48,11 +48,15 @@ export function WorkspaceDashboard() {
       const { workspaceId, status } = data as { workspaceId: string; status: string };
       useWorkspaceStore.getState().updateWorkspace(workspaceId, { status: status as any });
     });
+    const unsubOutcome = window.api.on('workspace:outcome', (data: unknown) => {
+      const { workspaceId, outcome } = data as { workspaceId: string; outcome: string };
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, { outcome: outcome as any });
+    });
     const unsubCheckpoint = window.api.on('workspace:checkpoint', (data: unknown) => {
       const { workspaceId, checkpoint } = data as any;
       useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
     });
-    return () => { unsub(); unsubCheckpoint(); };
+    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); };
   }, []);
 
   const handleStop = useCallback(async (ws: Workspace) => {

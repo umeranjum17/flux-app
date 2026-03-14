@@ -114,6 +114,7 @@ export interface IpcEvents {
   'agent:diff': { taskId: string; key: string; diff: DiffData };
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
+  'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'repomap:status': RepoMapIpcStatus;

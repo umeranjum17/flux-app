@@ -835,7 +835,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             placeholder={placeholder}
             rows={2}
             autoFocus
-            className={`w-full resize-none bg-transparent text-[15px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none ${isTerminal ? 'font-mono' : ''}`}
+            className={`chat-input-textarea w-full resize-none bg-transparent text-[15px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none ${isTerminal ? 'font-mono' : ''}`}
             style={{ minHeight: 72, maxHeight: 192 }}
           />
         </div>
@@ -872,6 +872,19 @@ export function ChatInput({ focused }: ChatInputProps) {
                     onClose={() => setShowModelSelector(false)}
                   />
 
+                  {/* Thinking toggle */}
+                  {supportsThinking && (
+                    <button
+                      type="button"
+                      onClick={handleCycleThinking}
+                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-3 py-1.5 text-xs text-text-secondary"
+                      title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
+                    >
+                      <Brain size={12} className="text-text-secondary" />
+                      <span className="text-text-primary font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                    </button>
+                  )}
+
                   {/* Plan / Act mode toggle */}
                   <button
                     type="button"
@@ -886,19 +899,6 @@ export function ChatInput({ focused }: ChatInputProps) {
                     <BookOpen size={12} />
                     {mode === 'plan' && <span>Plan</span>}
                   </button>
-
-                  {/* Thinking toggle */}
-                  {supportsThinking && (
-                    <button
-                      type="button"
-                      onClick={handleCycleThinking}
-                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-3 py-1.5 text-xs text-text-secondary"
-                      title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
-                    >
-                      <Brain size={12} className="text-text-secondary" />
-                      <span className="text-text-primary font-medium">{THINKING_LABELS[selectedThinking]}</span>
-                    </button>
-                  )}
                 </>
               )}
 
