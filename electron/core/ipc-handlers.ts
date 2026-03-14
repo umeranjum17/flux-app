@@ -22,7 +22,7 @@ import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoin
 import type { WorkspaceStatus } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
 import { executeBash } from './tools/bash';
-import { suggestCompletion } from './completion/service';
+import { suggestCompletion, availableCompletionProviders } from './completion/service';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -1938,6 +1938,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('completion:suggest', async (_event, { prefix, cwd, recentCommands, model }: { prefix: string; cwd: string; recentCommands: string[]; model?: string }) => {
     const suggestion = await suggestCompletion(prefix, cwd, recentCommands, model);
     return { suggestion };
+  });
+
+  ipcMain.handle('completion:providers', () => {
+    return { providers: availableCompletionProviders() };
   });
 
   // Initialize repo map if enabled

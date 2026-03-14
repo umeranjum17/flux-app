@@ -150,7 +150,7 @@ export const useUiStore = create<UiState>()(
     autoApproveTools: ['Read', 'Glob', 'Grep', 'Bash'],
     inputMode: 'chat',
     shellHistory: [],
-    completionModel: 'gpt-4o-mini',
+    completionModel: 'haiku',
 
     toggleSidebar() {
       set((state) => {
