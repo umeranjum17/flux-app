@@ -108,7 +108,7 @@ export function TaskFooter({ durationMs, diff }: TaskFooterProps) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary mt-3">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary mt-1.5">
       {durationMs != null && durationMs > 0 && (
         <span className="font-medium text-text-secondary">{formatDuration(durationMs)}</span>
       )}

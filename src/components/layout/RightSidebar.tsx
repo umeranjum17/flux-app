@@ -20,7 +20,7 @@ export function RightSidebar() {
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-l border-border/70"
     >
-      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-3">
+      <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-2.5">
         <TabButton label="All files" active={activeTab === 'files'} onClick={() => setTab('files')} />
         <TabButton label="Changes" active={activeTab === 'changes'} onClick={() => setTab('changes')} />
         <TabButton label="Checks" active={activeTab === 'checks'} onClick={() => setTab('checks')} />
@@ -114,7 +114,7 @@ function FilesTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border/70 px-4 py-4">
+      <div className="flex items-center justify-between border-b border-border/70 px-3.5 py-2.5">
         <span className="classic-section-label truncate">
           {projectName || 'No folder open'}
         </span>
@@ -123,7 +123,7 @@ function FilesTab() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-3">
+      <div className="flex-1 overflow-y-auto py-2">
         {!cwd && (
           <div className="px-4 py-6 text-center">
             <button onClick={handleOpenFolder} className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-secondary">
@@ -151,8 +151,8 @@ function ChangesTab() {
   const gitBranch = useUiStore((s) => s.gitBranch);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
-      <div className="mb-3 flex items-center gap-2">
+    <div className="flex min-h-0 flex-1 flex-col px-3.5 py-3">
+      <div className="mb-2.5 flex items-center gap-2">
         <GitCompareArrows size={14} className="text-text-tertiary" />
         <span className="text-[13px] text-text-secondary">{gitBranch || 'No branch'}</span>
         {gitDirty && (
@@ -188,7 +188,7 @@ function ChecksTab() {
   const checks = gateMessages ? Array.from(gateMessages.values()) : [];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 py-4 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col px-3.5 py-3 overflow-y-auto">
       {checks.length > 0 ? (
         <div className="space-y-2">
           {checks.map((check, i) => {

@@ -66,7 +66,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-3 pt-2">
+    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-4 pt-1.5 pb-0">
       {visibleTabs.map((id) => {
         const task = tasks.get(id);
         if (!task) return null;

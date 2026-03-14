@@ -42,7 +42,7 @@ export function Sidebar() {
       className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-border/70"
     >
       {/* Warp-style icon nav */}
-      <div className="flex items-center gap-1 border-b border-border/70 px-2.5 py-2">
+      <div className="flex items-center gap-0.5 border-b border-border/70 px-2.5 py-1.5">
         {NAV_ITEMS.map(({ id, icon: Icon, label }) => (
           <NavIcon
             key={id}
@@ -122,8 +122,8 @@ function SearchTab() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-border/70 px-4 py-4">
-        <div className="classic-section-label pb-2">Search</div>
+      <div className="border-b border-border/70 px-3.5 py-3">
+        <div className="classic-section-label pb-1.5">Search</div>
         <input
           type="text"
           value={query}
@@ -131,10 +131,10 @@ function SearchTab() {
           onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
           placeholder="Search in files"
           autoFocus
-          className="premium-focus w-full rounded-lg border border-border/80 bg-bg-surface px-3.5 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
+          className="premium-focus w-full rounded-lg border border-border/80 bg-bg-surface px-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary outline-none transition-colors focus:border-accent"
         />
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div className="flex-1 overflow-y-auto px-2.5 py-2">
         {searching && <p className="px-3 py-4 text-center text-[12px] text-text-tertiary">Searching...</p>}
         {!searching && results.length === 0 && query && (
           <p className="px-3 py-4 text-center text-[12px] text-text-tertiary">No results</p>

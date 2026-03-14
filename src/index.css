@@ -272,10 +272,10 @@ button:focus-visible {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   color: var(--color-text-secondary);
   transition:
     background-color 160ms ease,
@@ -299,10 +299,10 @@ button:focus-visible {
   display: flex;
   width: 100%;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 12px;
+  padding: 10px;
   text-align: left;
   transition:
     background-color 160ms ease,
