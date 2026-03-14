@@ -52,6 +52,51 @@ export function spawnAgentProcess(options: SpawnAgentProcessOptions): ChildProce
   });
 }
 
+export function terminateAgentProcess(
+  proc: ChildProcess,
+  options?: { forceKillAfterMs?: number; closeStdin?: boolean },
+): Promise<void> {
+  const forceKillAfterMs = options?.forceKillAfterMs ?? 5000;
+  const closeStdin = options?.closeStdin ?? true;
+
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      proc.removeListener('close', finish);
+      proc.removeListener('exit', finish);
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+      }
+      resolve();
+    };
+
+    proc.once('close', finish);
+    proc.once('exit', finish);
+
+    if (proc.exitCode != null || proc.signalCode != null) {
+      finish();
+      return;
+    }
+
+    if (closeStdin && proc.stdin?.writable) {
+      try { proc.stdin.end(); } catch {}
+    }
+
+    try { proc.kill('SIGTERM'); } catch {}
+
+    forceKillTimer = setTimeout(() => {
+      try { proc.kill('SIGKILL'); } catch {}
+      // Resolve even if the OS never delivers a close event so callers can
+      // continue cleanup and avoid wedging task state forever.
+      finish();
+    }, forceKillAfterMs);
+  });
+}
+
 export interface StartupWatchdog {
   markProgress: () => void;
   resetProgress: () => void;

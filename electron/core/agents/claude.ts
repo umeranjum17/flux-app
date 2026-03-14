@@ -1,7 +1,13 @@
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
-import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
+import {
+  spawnAgentProcess,
+  createStartupWatchdog,
+  filterStderrNoise,
+  isMeaningfulMessage,
+  terminateAgentProcess,
+} from './spawn-utils';
 import { classifySpawnError } from '../process-utils';
 
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
@@ -51,6 +57,13 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
 
   let stopped = false;
   let finished = false;
+  let timeoutError: string | undefined;
+  let shutdownPromise: Promise<void> | null = null;
+
+  const requestShutdown = () => {
+    shutdownPromise ??= terminateAgentProcess(proc);
+    return shutdownPromise;
+  };
 
   const finish = (result: { code: number | null; error?: string }) => {
     if (finished) return;
@@ -67,14 +80,14 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     cwd: options.cwd,
     onTimeout: (error) => {
       if (finished || stopped) return;
-      try { proc.kill('SIGTERM'); } catch {}
+      timeoutError = error;
       emitMessage({
         type: 'error',
         role: 'system',
         content: error,
         timestamp: Date.now(),
       });
-      finish({ code: 1, error });
+      void requestShutdown().finally(() => finish({ code: 1, error }));
     },
   });
 
@@ -98,7 +111,6 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   }
 
   proc.stdout?.on('data', () => watchdog.resetProgress());
-  proc.stderr?.on('data', () => watchdog.resetProgress());
 
   let buffer = '';
   const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
@@ -235,11 +247,11 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       }
     }
 
-    const exitError = stopped || code === 0 || code === null
+    const exitError = timeoutError ?? (stopped || code === 0 || code === null
       ? undefined
       : lastStderrError
         ? `Claude exited with code ${code}: ${lastStderrError}`
-        : `Claude exited with code ${code}`;
+        : `Claude exited with code ${code}`);
 
     finish({
       code,
@@ -265,16 +277,11 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     if (exitPromise) return exitPromise;
     stopped = true;
     watchdog.clear();
-    exitPromise = new Promise<void>((resolve) => {
-      if (finished) { resolve(); return; }
-      proc.once('close', () => resolve());
-      try { proc.kill('SIGTERM'); } catch {}
-      const forceKillTimer = setTimeout(() => {
-        try { proc.kill('SIGKILL'); } catch {}
-        resolve();
-      }, 5000);
-      proc.once('close', () => clearTimeout(forceKillTimer));
-    });
+    if (finished) {
+      exitPromise = Promise.resolve();
+      return exitPromise;
+    }
+    exitPromise = requestShutdown();
     return exitPromise;
   };
 

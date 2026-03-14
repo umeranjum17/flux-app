@@ -4,7 +4,13 @@ import path from 'path';
 import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
-import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
+import {
+  spawnAgentProcess,
+  createStartupWatchdog,
+  filterStderrNoise,
+  isMeaningfulMessage,
+  terminateAgentProcess,
+} from './spawn-utils';
 import { classifySpawnError } from '../process-utils';
 import {
   extractCodexSessionMeta,
@@ -90,12 +96,30 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   let stopped = false;
   let finished = false;
   let heartbeatInterval: ReturnType<typeof setInterval>;
+  let timeoutError: string | undefined;
+  let shutdownPromise: Promise<void> | null = null;
+  let lastStderrError = '';
+
+  const cleanupPersistedImages = (() => {
+    let cleaned = false;
+    return () => {
+      if (cleaned) return;
+      cleaned = true;
+      cleanupTempDir(imageDir);
+    };
+  })();
+
+  const requestShutdown = () => {
+    shutdownPromise ??= terminateAgentProcess(proc);
+    return shutdownPromise;
+  };
 
   const finish = (result: { code: number | null; error?: string }) => {
     if (finished) return;
     finished = true;
     clearInterval(heartbeatInterval);
     watchdog.clear();
+    cleanupPersistedImages();
     emitter.emit('done', result);
   };
 
@@ -117,17 +141,17 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     onTimeout: (error) => {
       if (finished || stopped) return;
       clearInterval(heartbeatInterval);
-      try { proc.kill('SIGTERM'); } catch {}
       const detail = stderrCapture.trim()
         ? `${error}\n\nStderr output:\n${stderrCapture.trim()}`
         : error;
+      timeoutError = detail;
       emitMessage({
         type: 'error',
         role: 'system',
         content: detail,
         timestamp: Date.now(),
       });
-      finish({ code: 1, error: detail });
+      void requestShutdown().finally(() => finish({ code: 1, error: detail }));
     },
   });
 
@@ -240,6 +264,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
 
     const actionable = filterStderrNoise(text);
     if (!actionable) return;
+    lastStderrError = actionable;
 
     const msg: AgentMessage = {
       type: 'error',
@@ -251,7 +276,7 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   });
 
   proc.on('close', (code: number | null) => {
-    cleanupTempDir(imageDir);
+    cleanupPersistedImages();
     if (buffer.trim()) {
       try {
         const event = JSON.parse(buffer.trim());
@@ -269,12 +294,18 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     }
     finish({
       code,
-      ...(stopped || code === 0 || code === null ? {} : { error: `Codex exited with code ${code}` }),
+      ...(timeoutError || stopped || code === 0 || code === null
+        ? (timeoutError ? { error: timeoutError } : {})
+        : {
+          error: lastStderrError
+            ? `Codex exited with code ${code}: ${lastStderrError}`
+            : `Codex exited with code ${code}`,
+        }),
     });
   });
 
   proc.on('error', (err: Error) => {
-    cleanupTempDir(imageDir);
+    cleanupPersistedImages();
     try { proc.kill(); } catch {}
     const info = classifySpawnError(err, { command: 'codex', sshHost: options.sshHost });
     const content = `Failed to start Codex: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
@@ -293,16 +324,13 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
     clearInterval(heartbeatInterval);
     watchdog.clear();
     stopped = true;
-    cleanupTempDir(imageDir);
-    exitPromise = new Promise<void>((resolve) => {
-      if (finished) { resolve(); return; }
-      proc.once('close', () => resolve());
-      try { proc.kill('SIGTERM'); } catch {}
-      const forceKillTimer = setTimeout(() => {
-        try { proc.kill('SIGKILL'); } catch {}
-        resolve();
-      }, 5000);
-      proc.once('close', () => clearTimeout(forceKillTimer));
+    if (finished) {
+      cleanupPersistedImages();
+      exitPromise = Promise.resolve();
+      return exitPromise;
+    }
+    exitPromise = requestShutdown().finally(() => {
+      cleanupPersistedImages();
     });
     return exitPromise;
   };

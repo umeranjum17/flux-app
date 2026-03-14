@@ -1300,7 +1300,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     for (const targetId of targets) {
       const subagent = activeSubagents.get(targetId);
       if (!subagent) continue;
-      subagent.handle.stop();
+      await subagent.handle.stop();
       subagent.handle.removeAllListeners();
       activeSubagents.delete(targetId);
       activeTasks.delete(targetId);

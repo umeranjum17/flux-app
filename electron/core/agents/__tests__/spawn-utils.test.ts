@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { spawnMock } = vi.hoisted(() => ({
@@ -16,8 +17,26 @@ vi.mock('child_process', async () => {
 });
 
 import { extendedEnv, resolveExecutable, resolveSshCommand, classifySpawnError } from '../../process-utils';
-import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from '../spawn-utils';
+import {
+  spawnAgentProcess,
+  createStartupWatchdog,
+  filterStderrNoise,
+  isMeaningfulMessage,
+  terminateAgentProcess,
+} from '../spawn-utils';
 import type { AgentMessage } from '../types';
+
+class FakeWritable {
+  writable = true;
+  end = vi.fn();
+}
+
+class FakeChildProcess extends EventEmitter {
+  stdin = new FakeWritable();
+  kill = vi.fn();
+  exitCode: number | null = null;
+  signalCode: NodeJS.Signals | null = null;
+}
 
 describe('process-utils', () => {
   afterEach(() => {
@@ -354,6 +373,45 @@ describe('createStartupWatchdog', () => {
     // Neither resettable nor hard timer should fire
     vi.advanceTimersByTime(20000);
     expect(onTimeout).not.toHaveBeenCalled();
+  });
+});
+
+describe('terminateAgentProcess', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('ends stdin, sends SIGTERM, and escalates to SIGKILL when close never arrives', async () => {
+    const proc = new FakeChildProcess();
+    const stopped = terminateAgentProcess(proc as unknown as Parameters<typeof terminateAgentProcess>[0], {
+      forceKillAfterMs: 2500,
+    });
+
+    expect(proc.stdin.end).toHaveBeenCalledTimes(1);
+    expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+
+    vi.advanceTimersByTime(2500);
+    expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+
+    vi.advanceTimersByTime(0);
+    await expect(stopped).resolves.toBeUndefined();
+  });
+
+  it('resolves immediately when the child closes before force kill', async () => {
+    const proc = new FakeChildProcess();
+    const stopped = terminateAgentProcess(proc as unknown as Parameters<typeof terminateAgentProcess>[0], {
+      forceKillAfterMs: 2500,
+    });
+
+    proc.emit('close', 0);
+    await expect(stopped).resolves.toBeUndefined();
+
+    vi.advanceTimersByTime(2500);
+    expect(proc.kill).toHaveBeenCalledTimes(1);
   });
 });
 
