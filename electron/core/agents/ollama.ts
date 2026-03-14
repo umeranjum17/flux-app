@@ -215,5 +215,7 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
     emitter.steer(response);
   };
 
+  emitter.isAlive = () => !finished && !stopped;
+
   return emitter;
 }

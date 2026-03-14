@@ -119,6 +119,8 @@ export interface AgentHandle extends EventEmitter {
   deny(requestId: string): void;
   steer(prompt: string, images?: string[]): void;
   answerQuestion(requestId: string, response: string): void;
+  /** Returns true if the underlying process is still running. */
+  isAlive(): boolean;
 }
 
 export interface ModelInfo {

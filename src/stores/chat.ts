@@ -516,6 +516,9 @@ function applyLiveMessage(task: Task, message: AgentMessage): void {
 
 function ensureActiveRun(task: Task, phase: ActiveRunState['phase'], message?: AgentMessage): void {
   const timestamp = message?.timestamp ?? Date.now();
+  // Heartbeat progress messages should update phase but NOT reset lastActivityAt,
+  // so that the stalled detection can still trigger during long API waits.
+  const isHeartbeat = message?.type === 'status' && message.statusKind === 'progress';
   if (!task.activeRun) {
     task.activeRun = {
       startedAt: timestamp,
@@ -523,7 +526,9 @@ function ensureActiveRun(task: Task, phase: ActiveRunState['phase'], message?: A
       phase,
     };
   } else {
-    task.activeRun.lastActivityAt = timestamp;
+    if (!isHeartbeat) {
+      task.activeRun.lastActivityAt = timestamp;
+    }
     task.activeRun.phase = phase;
   }
 
@@ -535,6 +540,7 @@ function ensureActiveRun(task: Task, phase: ActiveRunState['phase'], message?: A
 
   if (message?.type === 'tool_result' && message.toolCallId && task.activeRun.activeToolCallId === message.toolCallId) {
     task.activeRun.activeToolCallId = undefined;
+    task.activeRun.activeToolName = undefined;
   }
 
   if (phase !== 'waiting_approval' && phase !== 'waiting_input') {
