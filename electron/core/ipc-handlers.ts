@@ -1511,8 +1511,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('theme:update-titlebar', async (_event, { theme }: { theme: 'dark' | 'light' }) => {
     if (process.platform !== 'win32' || !mainWindow) return;
     mainWindow.setTitleBarOverlay({
-      color: theme === 'dark' ? '#151922' : '#f4f7fb',
-      symbolColor: theme === 'dark' ? '#9ca4b5' : '#2b3547',
+      color: theme === 'dark' ? '#111217' : '#f7f9fb',
+      symbolColor: theme === 'dark' ? '#aeb09d' : '#2f3a2f',
     });
   });
 

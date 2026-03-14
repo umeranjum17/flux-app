@@ -52,10 +52,10 @@ export function WorkspaceCard({
       onClick={isArchived ? undefined : onSelect}
       className={`w-full rounded-[22px] border px-5 py-4 text-left transition-colors ${
         isArchived
-          ? 'border-border/50 bg-bg-secondary/50 opacity-70'
+          ? 'border-border/45 bg-bg-secondary/40 opacity-70'
           : isActive
-            ? 'border-border bg-bg-elevated/60 shadow-[0_18px_34px_rgba(0,0,0,0.2)]'
-            : 'border-border/80 bg-bg-secondary/88 hover:border-border-focus/40 hover:bg-bg-hover/60'
+            ? 'border-border-focus/60 bg-bg-elevated/82 shadow-[0_20px_42px_rgba(0,0,0,0.34)]'
+            : 'border-border/70 bg-bg-secondary/78 hover:border-border-focus/34 hover:bg-bg-hover/74'
       }`}
     >
       <div className="flex flex-wrap items-center gap-3">

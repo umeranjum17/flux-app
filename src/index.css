@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  /* Indigo-blue dark palette — unified hue 228, real accent color. */
-  --color-bg-primary: hsl(228 14% 6%);
-  --color-bg-secondary: hsl(228 12% 10%);
-  --color-bg-elevated: hsl(228 10% 14%);
-  --color-bg-hover: hsl(228 8% 18%);
-  --color-bg-surface: hsl(228 13% 8%);
+  /* Near-black slate palette with an olive accent derived from the reference mockups. */
+  --color-bg-primary: hsl(232 22% 7%);
+  --color-bg-secondary: hsl(232 16% 11%);
+  --color-bg-elevated: hsl(230 14% 15%);
+  --color-bg-hover: hsl(230 13% 19%);
+  --color-bg-surface: hsl(233 18% 9%);
 
-  --color-text-primary: hsl(228 15% 93%);
-  --color-text-secondary: hsl(228 8% 60%);
-  --color-text-tertiary: hsl(228 6% 44%);
+  --color-text-primary: hsl(60 14% 96%);
+  --color-text-secondary: hsl(228 10% 71%);
+  --color-text-tertiary: hsl(228 8% 53%);
 
-  --color-accent: hsl(228 55% 60%);
-  --color-accent-hover: hsl(228 55% 68%);
-  --color-accent-muted: hsl(228 40% 14%);
-  --color-plan: hsl(228 40% 56%);
-  --color-plan-hover: hsl(228 40% 64%);
-  --color-plan-muted: hsl(228 30% 12%);
+  --color-accent: hsl(78 54% 62%);
+  --color-accent-hover: hsl(78 58% 68%);
+  --color-accent-muted: hsl(78 26% 18%);
+  --color-plan: hsl(78 36% 60%);
+  --color-plan-hover: hsl(78 42% 67%);
+  --color-plan-muted: hsl(78 22% 16%);
 
-  --color-success: hsl(152 40% 46%);
-  --color-error: hsl(358 55% 55%);
-  --color-warning: hsl(42 70% 52%);
-  --color-info: hsl(228 45% 58%);
+  --color-success: hsl(148 42% 54%);
+  --color-error: hsl(358 70% 63%);
+  --color-warning: hsl(41 78% 60%);
+  --color-info: hsl(200 62% 64%);
 
-  --color-border: hsl(228 10% 18%);
-  --color-border-focus: hsl(228 40% 45%);
-  --color-border-subtle: hsl(228 10% 12%);
+  --color-border: hsl(230 12% 24%);
+  --color-border-focus: hsl(78 38% 47%);
+  --color-border-subtle: hsl(232 16% 14%);
 
   /* Typography */
   --font-sans: 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
@@ -34,16 +34,29 @@
 }
 
 :root {
-  --app-gradient: var(--color-bg-primary);
-  --panel-gradient: var(--color-bg-secondary);
-  --panel-strong-gradient: var(--color-bg-elevated);
-  --plan-gradient: var(--color-bg-secondary);
-  --tool-gradient: var(--color-bg-secondary);
-  --panel-shadow: 0 1px 3px hsl(228 20% 3% / 0.35);
-  --panel-shadow-strong: 0 4px 16px hsl(228 20% 3% / 0.45);
+  --app-gradient:
+    radial-gradient(circle at top left, hsl(78 56% 62% / 0.14), transparent 28%),
+    linear-gradient(180deg, hsl(233 21% 8%) 0%, hsl(233 24% 6%) 100%);
+  --panel-gradient: linear-gradient(180deg, hsl(232 15% 12%) 0%, hsl(232 17% 10%) 100%);
+  --panel-strong-gradient: linear-gradient(180deg, hsl(230 14% 16%) 0%, hsl(230 16% 13%) 100%);
+  --plan-gradient: linear-gradient(180deg, hsl(78 22% 18% / 0.82) 0%, hsl(232 17% 11%) 100%);
+  --tool-gradient: linear-gradient(180deg, hsl(232 15% 12%) 0%, hsl(232 16% 10%) 100%);
+  --chrome-window-gradient: linear-gradient(180deg, hsl(232 15% 11%) 0%, hsl(233 18% 9%) 100%);
+  --chrome-topbar-gradient: linear-gradient(180deg, hsl(232 15% 12%) 0%, hsl(232 16% 10%) 100%);
+  --chrome-sidebar-gradient: linear-gradient(180deg, hsl(232 15% 12%) 0%, hsl(233 18% 9%) 100%);
+  --chrome-stage-gradient:
+    radial-gradient(circle at top, hsl(78 56% 62% / 0.1), transparent 34%),
+    linear-gradient(180deg, hsl(233 21% 8%) 0%, hsl(233 24% 6%) 100%);
+  --surface-tint-soft: hsl(78 34% 62% / 0.04);
+  --surface-tint-medium: hsl(78 36% 62% / 0.07);
+  --surface-tint-strong: hsl(78 38% 62% / 0.12);
+  --surface-border-soft: hsl(0 0% 100% / 0.06);
+  --surface-border-strong: hsl(78 34% 62% / 0.18);
+  --panel-shadow: 0 1px 3px hsl(232 28% 3% / 0.42);
+  --panel-shadow-strong: 0 18px 42px hsl(232 35% 2% / 0.5);
   --focus-ring:
-    0 0 0 1px hsl(228 55% 60% / 0.56),
-    0 0 0 5px hsl(228 55% 60% / 0.14);
+    0 0 0 1px hsl(78 54% 62% / 0.62),
+    0 0 0 5px hsl(78 54% 62% / 0.16);
 }
 
 /* Light theme override */
@@ -56,19 +69,34 @@
   --color-text-primary: hsl(215 18% 16%);
   --color-text-secondary: hsl(215 12% 33%);
   --color-text-tertiary: hsl(215 10% 47%);
+  --color-accent: hsl(86 42% 42%);
+  --color-accent-hover: hsl(86 40% 35%);
+  --color-accent-muted: hsl(86 32% 86%);
+  --color-plan: hsl(86 36% 44%);
+  --color-plan-hover: hsl(86 36% 38%);
+  --color-plan-muted: hsl(86 24% 88%);
   --color-border: hsl(215 14% 80%);
-  --color-border-focus: hsl(228 50% 50%);
+  --color-border-focus: hsl(86 42% 42%);
   --color-border-subtle: hsl(215 16% 86%);
-  --app-gradient: var(--color-bg-primary);
-  --panel-gradient: var(--color-bg-secondary);
-  --panel-strong-gradient: var(--color-bg-elevated);
-  --plan-gradient: var(--color-bg-secondary);
-  --tool-gradient: var(--color-bg-secondary);
+  --app-gradient: linear-gradient(180deg, hsl(90 20% 98%) 0%, hsl(210 28% 95%) 100%);
+  --panel-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 22% 95%) 100%);
+  --panel-strong-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 18% 96%) 100%);
+  --plan-gradient: linear-gradient(180deg, hsl(86 36% 92%) 0%, hsl(0 0% 100%) 100%);
+  --tool-gradient: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 18% 96%) 100%);
+  --chrome-window-gradient: linear-gradient(180deg, hsl(210 24% 95%) 0%, hsl(210 20% 92%) 100%);
+  --chrome-topbar-gradient: linear-gradient(180deg, hsl(210 22% 94%) 0%, hsl(210 20% 91%) 100%);
+  --chrome-sidebar-gradient: linear-gradient(180deg, hsl(210 22% 94%) 0%, hsl(210 18% 91%) 100%);
+  --chrome-stage-gradient: linear-gradient(180deg, hsl(90 20% 98%) 0%, hsl(210 28% 95%) 100%);
+  --surface-tint-soft: hsl(86 30% 40% / 0.06);
+  --surface-tint-medium: hsl(86 32% 40% / 0.1);
+  --surface-tint-strong: hsl(86 34% 40% / 0.15);
+  --surface-border-soft: hsl(215 20% 36% / 0.12);
+  --surface-border-strong: hsl(86 32% 40% / 0.18);
   --panel-shadow: 0 1px 3px hsl(215 20% 20% / 0.08);
   --panel-shadow-strong: 0 2px 8px hsl(215 20% 20% / 0.12);
   --focus-ring:
-    0 0 0 1px hsl(228 55% 60% / 0.45),
-    0 0 0 5px hsl(228 55% 60% / 0.12);
+    0 0 0 1px hsl(86 42% 42% / 0.35),
+    0 0 0 5px hsl(86 42% 42% / 0.12);
 }
 
 html, body, #root {
@@ -84,7 +112,7 @@ body {
   line-height: 1.5;
   letter-spacing: 0;
   color: var(--color-text-primary);
-  background: var(--color-bg-primary);
+  background: var(--app-gradient);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -94,7 +122,7 @@ body {
 }
 
 ::selection {
-  background: hsl(228 55% 60% / 0.24);
+  background: hsl(78 54% 62% / 0.24);
   color: var(--color-text-primary);
 }
 
@@ -115,15 +143,15 @@ button:focus-visible {
   height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(0 0% 0% / 0.08);
+  background: hsl(0 0% 0% / 0.12);
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(228 8% 22%);
+  background: hsl(229 10% 26%);
   border-radius: 99px;
   border: 1px solid transparent;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(228 8% 30%);
+  background: hsl(78 26% 34%);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
@@ -135,19 +163,19 @@ button:focus-visible {
 }
 
 .chrome-window {
-  background: var(--color-bg-secondary);
+  background: var(--chrome-window-gradient);
 }
 
 .chrome-topbar {
-  background: var(--color-bg-secondary);
+  background: var(--chrome-topbar-gradient);
 }
 
 .chrome-sidebar {
-  background: var(--color-bg-secondary);
+  background: var(--chrome-sidebar-gradient);
 }
 
 .chrome-stage {
-  background: var(--color-bg-primary);
+  background: var(--chrome-stage-gradient);
 }
 
 .premium-panel,
@@ -232,9 +260,9 @@ button:focus-visible {
 
 .premium-toolbar-button:hover {
   color: var(--color-text-primary);
-  background: hsl(0 0% 100% / 0.04);
-  border-color: hsl(0 0% 100% / 0.06);
-  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+  background: var(--surface-tint-medium);
+  border-color: var(--surface-border-soft);
+  box-shadow: inset 0 1px 0 var(--surface-tint-soft);
 }
 
 .premium-toolbar-button:active {
@@ -249,8 +277,8 @@ button:focus-visible {
 
 .premium-pill {
   border-radius: 999px;
-  border: 1px solid hsl(0 0% 100% / 0.06);
-  background: hsl(0 0% 100% / 0.04);
+  border: 1px solid var(--surface-border-soft);
+  background: var(--surface-tint-soft);
   box-shadow: none;
 }
 
@@ -284,14 +312,14 @@ button:focus-visible {
 }
 
 .classic-nav-button:hover {
-  background: hsl(0 0% 100% / 0.03);
-  border-color: hsl(0 0% 100% / 0.05);
+  background: var(--surface-tint-soft);
+  border-color: var(--surface-border-soft);
   color: var(--color-text-primary);
 }
 
 .classic-nav-button-active {
-  background: hsl(0 0% 100% / 0.06);
-  border-color: hsl(0 0% 100% / 0.10);
+  background: var(--surface-tint-medium);
+  border-color: var(--surface-border-strong);
   color: var(--color-text-primary);
 }
 
@@ -301,7 +329,7 @@ button:focus-visible {
   align-items: flex-start;
   gap: 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 12px;
   padding: 10px;
   text-align: left;
   transition:
@@ -311,13 +339,14 @@ button:focus-visible {
 }
 
 .classic-list-button:hover {
-  background: hsl(0 0% 100% / 0.03);
-  border-color: hsl(0 0% 100% / 0.05);
+  background: var(--surface-tint-soft);
+  border-color: var(--surface-border-soft);
 }
 
 .classic-list-button-active {
-  background: hsl(0 0% 100% / 0.06);
-  border-color: hsl(0 0% 100% / 0.10);
+  background: linear-gradient(180deg, var(--surface-tint-medium), hsl(230 15% 15% / 0.82));
+  border-color: var(--surface-border-strong);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
 }
 
 .classic-tab-button {
@@ -332,13 +361,13 @@ button:focus-visible {
 
 .classic-tab-button:hover {
   color: var(--color-text-secondary);
-  background: hsl(0 0% 100% / 0.04);
+  background: var(--surface-tint-soft);
 }
 
 .classic-tab-button-active {
-  border-color: hsl(0 0% 100% / 0.10);
+  border-color: var(--surface-border-strong);
   color: var(--color-text-primary);
-  background: hsl(0 0% 100% / 0.08);
+  background: var(--surface-tint-medium);
 }
 
 /* Warp-style sidebar nav icons */
@@ -359,13 +388,13 @@ button:focus-visible {
 
 .sidebar-nav-icon:hover {
   color: var(--color-text-primary);
-  background: hsl(0 0% 100% / 0.06);
+  background: var(--surface-tint-medium);
 }
 
 .sidebar-nav-icon-active {
   color: var(--color-text-primary);
-  background: hsl(0 0% 100% / 0.10);
-  border-color: hsl(0 0% 100% / 0.08);
+  background: linear-gradient(180deg, var(--surface-tint-strong), hsl(230 16% 16% / 0.9));
+  border-color: var(--surface-border-strong);
 }
 
 .chrome-tab {
@@ -381,14 +410,14 @@ button:focus-visible {
 
 .chrome-tab:hover {
   color: var(--color-text-secondary);
-  background: hsl(0 0% 100% / 0.04);
+  background: var(--surface-tint-soft);
 }
 
 .chrome-tab-active {
   color: var(--color-text-primary);
-  border-color: hsl(0 0% 100% / 0.08);
+  border-color: var(--surface-border-soft);
   border-bottom-color: transparent;
-  background: hsl(0 0% 100% / 0.06);
+  background: var(--surface-tint-medium);
 }
 
 /* File viewer shiki code */
