@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import type { Task } from '../../lib/types';
+import { getLatestPlanText } from '../../lib/plan';
 
 interface PlanSection {
   title: string;
@@ -82,13 +83,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const setTaskStatus = useChatStore((s) => s.setTaskStatus);
   const setTaskMode = useChatStore((s) => s.setTaskMode);
 
-  const planText = useMemo(() =>
-    task.messages
-      .filter((m) => m.role === 'assistant' && m.type === 'text')
-      .map((m) => m.content)
-      .join('\n\n'),
-    [task.messages],
-  );
+  const planText = useMemo(() => getLatestPlanText(task.messages), [task.messages]);
 
   const sections = useMemo(() => parsePlanSections(planText), [planText]);
   const revisions = task.planRevisions ?? [];

@@ -27,6 +27,7 @@ import { SubagentBlock } from './SubagentBlock';
 import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
 import { ShellResultBlock } from './ShellResultBlock';
+import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
 
 const messageVariants = {
   initial: { opacity: 0, y: 14, scale: 0.985 },
@@ -55,6 +56,7 @@ export function MessageList() {
   const taskStatus = task?.status;
   const taskId = task?.id;
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
+  const planText = task ? getLatestPlanText(task.messages) : '';
 
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
     useAutoScroll([messages.length, messages[messages.length - 1]?.content]);
@@ -112,6 +114,7 @@ export function MessageList() {
               for (let idx = 0; idx < messages.length; idx++) {
                 const msg = messages[idx];
                 if (mergedResultIndices.has(idx)) continue;
+                if (isPlanMessage(msg, task.mode)) continue;
 
                 if (isSubagentMarker(msg)) {
                   const groupIds: string[] = [];
@@ -229,7 +232,7 @@ export function MessageList() {
             );
           })()}
 
-          {task.mode === 'plan' && taskId && (taskStatus === 'done' || isStreaming) && (
+          {task.mode === 'plan' && taskId && planText && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
           )}
 
@@ -354,6 +357,7 @@ function renderMessage(
   taskMode?: string,
 ) {
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
+  const highlightAsPlan = isPlanMessage(msg, taskMode as 'plan' | 'act' | undefined);
 
   switch (msg.type) {
     case 'text':
@@ -364,7 +368,7 @@ function renderMessage(
             role={msg.role as 'user' | 'assistant' | 'system'}
             images={msg.images}
             attachments={msg.attachments}
-            mode={taskMode as 'plan' | 'act' | undefined}
+            highlightAsPlan={highlightAsPlan}
           />
         </div>
       );
