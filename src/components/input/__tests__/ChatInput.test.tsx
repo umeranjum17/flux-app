@@ -9,6 +9,7 @@ import { useSessionStore } from '../../../stores/session';
 import { useUiStore } from '../../../stores/ui';
 
 let mockApi: MockApi;
+const defaultPromptPlaceholder = 'Ask to make changes, @mention files, run /commands';
 
 afterEach(() => {
   cleanup();
@@ -69,7 +70,7 @@ describe('ChatInput', () => {
     const user = userEvent.setup();
     render(<ChatInput />);
 
-    await user.type(screen.getByPlaceholderText('Ask Flux anything... (@ to mention files)'), 'Fix the bug');
+    await user.type(screen.getByPlaceholderText(defaultPromptPlaceholder), 'Fix the bug');
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() => {
@@ -100,7 +101,7 @@ describe('ChatInput', () => {
 
     render(<ChatInput />);
 
-    await user.type(screen.getByPlaceholderText('Ask Flux anything... (@ to mention files)'), 'Continue');
+    await user.type(screen.getByPlaceholderText(defaultPromptPlaceholder), 'Continue');
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() => {
@@ -124,7 +125,7 @@ describe('ChatInput', () => {
 
     render(<ChatInput />);
 
-    await user.type(screen.getByPlaceholderText('Ask Flux anything... (@ to mention files)'), 'Review this');
+    await user.type(screen.getByPlaceholderText(defaultPromptPlaceholder), 'Review this');
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() => {
@@ -167,7 +168,7 @@ describe('ChatInput', () => {
     render(<ChatInput />);
 
     await user.type(screen.getByPlaceholderText('Answer the active question'), 'Backend first');
-    await user.click(screen.getByRole('button', { name: 'Send message' }));
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
 
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
