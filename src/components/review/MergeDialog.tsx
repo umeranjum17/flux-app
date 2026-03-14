@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { X, GitMerge, AlertTriangle, Wrench } from 'lucide-react';
-import { useWorkspaceStore } from '../../stores/workspace';
-import { useChatStore } from '../../stores/chat';
+import { X, GitMerge } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { startWorkspaceChat } from '../../lib/workspace-state';
-import type { Workspace, MergeResult } from '../../lib/ipc-api';
+import type { Workspace } from '../../lib/ipc-api';
 
 interface MergeDialogProps {
   workspace: Workspace;
@@ -16,10 +14,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const gitBranch = useUiStore((s) => s.gitBranch);
   const [targetBranch, setTargetBranch] = useState(() => gitBranch?.trim() ?? '');
   const [squash, setSquash] = useState(true);
-  const [deleteAfterMerge, setDeleteAfterMerge] = useState(true);
-  const [merging, setMerging] = useState(false);
-  const [result, setResult] = useState<MergeResult | null>(null);
-  const [askingAgent, setAskingAgent] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (!gitBranch?.trim()) return;
@@ -27,34 +22,25 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   }, [gitBranch]);
 
   const handleMerge = async () => {
-    setMerging(true);
+    setStarting(true);
     try {
-      const mergeResult = await window.api.invoke('workspace:merge', {
-        workspaceId: workspace.id,
-        targetBranch,
-        squash,
-      }) as MergeResult;
-
-      setResult(mergeResult);
-
-      if (mergeResult.success) {
-        useWorkspaceStore.getState().updateWorkspace(workspace.id, { status: 'done' });
-
-        if (deleteAfterMerge) {
-          await window.api.invoke('workspace:delete', { workspaceId: workspace.id });
-          useWorkspaceStore.getState().removeWorkspace(workspace.id);
-          const chatStore = useChatStore.getState();
-          for (const task of [...chatStore.tasks.values()]) {
-            if (task.workspaceId === workspace.id) {
-              chatStore.removeTask(task.id);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      setResult({ success: false, error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setMerging(false);
+      const { selectedAgentId: agentId, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
+      const { mode } = useUiStore.getState();
+      const squashNote = squash
+        ? 'Use --squash to collapse all commits into one.'
+        : '';
+      const prompt = `Merge branch "${workspace.branch}" into "${targetBranch}". ${squashNote}\n\nHandle any conflicts, dirty working tree, or other issues automatically. Commit the result when done.`;
+      await startWorkspaceChat({
+        workspace,
+        prompt,
+        agentId,
+        model,
+        mode,
+        thinking,
+      });
+      onClose();
+    } catch {
+      setStarting(false);
     }
   };
 
@@ -103,70 +89,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
               />
               Squash commits (recommended — collapses checkpoint commits)
             </label>
-
-            <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={deleteAfterMerge}
-                onChange={(e) => setDeleteAfterMerge(e.target.checked)}
-                className="rounded border-border"
-              />
-              Delete worktree after merge
-            </label>
           </div>
-
-          {/* Result */}
-          {result && !result.success && (
-            <div className="flex items-start gap-2 text-xs text-error bg-error/10 border border-error/30 rounded-lg px-3 py-2">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                {result.conflicts ? (
-                  <>
-                    <p className="font-medium mb-1">Merge conflicts in:</p>
-                    <ul className="list-disc list-inside font-mono mb-2">
-                      {result.conflicts.map((f) => <li key={f}>{f}</li>)}
-                    </ul>
-                    <button
-                      onClick={async () => {
-                        if (askingAgent) return;
-                        setAskingAgent(true);
-                        try {
-                          const { selectedAgentId: agentId, selectedModel: model, selectedThinking: thinking } = useAgentStore.getState();
-                          const { mode } = useUiStore.getState();
-                          const conflictList = result.conflicts!.join('\n');
-                          const prompt = `There are merge conflicts in the following files:\n\n${conflictList}\n\nPlease resolve all conflict markers and commit the resolved files.`;
-                          await startWorkspaceChat({
-                            workspace,
-                            prompt,
-                            agentId,
-                            model,
-                            mode,
-                            thinking,
-                          });
-                          onClose();
-                        } catch {
-                          setAskingAgent(false);
-                        }
-                      }}
-                      disabled={askingAgent}
-                      className="flex items-center gap-1.5 rounded-lg border border-error/40 bg-error/10 px-2.5 py-1 text-[10px] font-medium text-error hover:bg-error/20 disabled:opacity-50 transition-colors"
-                    >
-                      <Wrench size={10} />
-                      {askingAgent ? 'Starting agent...' : 'Ask Agent to Resolve'}
-                    </button>
-                  </>
-                ) : (
-                  result.error
-                )}
-              </div>
-            </div>
-          )}
-
-          {result?.success && (
-            <div className="text-xs text-success bg-success/10 border border-success/30 rounded-lg px-3 py-2">
-              Merge successful!
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -175,17 +98,15 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             onClick={onClose}
             className="px-3 py-1.5 text-xs rounded-lg text-text-secondary hover:bg-bg-hover transition-colors"
           >
-            {result?.success ? 'Close' : 'Cancel'}
+            Cancel
           </button>
-          {!result?.success && (
-            <button
-              onClick={handleMerge}
-              disabled={merging || !targetBranch.trim()}
-              className="px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {merging ? 'Merging...' : 'Merge'}
-            </button>
-          )}
+          <button
+            onClick={handleMerge}
+            disabled={starting || !targetBranch.trim()}
+            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {starting ? 'Starting agent...' : 'Merge'}
+          </button>
         </div>
       </div>
     </div>

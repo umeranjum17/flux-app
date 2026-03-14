@@ -232,6 +232,19 @@ export async function mergeWorktree(
     // Nothing to commit is fine
   }
 
+  // Stash any uncommitted changes in the parent repo before merge
+  let didStash = false;
+  try {
+    const { stdout: stashOut } = await execFileAsync(
+      'git',
+      ['stash', 'push', '-m', '[flux] Auto-stash before merge'],
+      { cwd: parentRepo, timeout: 10000 },
+    );
+    didStash = !stashOut.includes('No local changes');
+  } catch {
+    // Nothing to stash is fine
+  }
+
   // Merge into target branch from the parent repo
   try {
     const mergeArgs = squash
@@ -257,6 +270,15 @@ export async function mergeWorktree(
       );
     }
 
+    // Restore stashed changes after successful merge
+    if (didStash) {
+      try {
+        await execFileAsync('git', ['stash', 'pop'], { cwd: parentRepo, timeout: 10000 });
+      } catch {
+        // Stash pop conflict — leave stash in place, user can resolve later
+      }
+    }
+
     return { success: true };
   } catch (err: any) {
     // Check for merge conflicts
@@ -276,10 +298,23 @@ export async function mergeWorktree(
           cwd: parentRepo,
           timeout: 10000,
         });
+        // Restore stash after aborting
+        if (didStash) {
+          try {
+            await execFileAsync('git', ['stash', 'pop'], { cwd: parentRepo, timeout: 10000 });
+          } catch { /* leave stash in place */ }
+        }
         return { success: false, conflicts };
       }
     } catch {
       // Status check failed
+    }
+
+    // Restore stash on general failure
+    if (didStash) {
+      try {
+        await execFileAsync('git', ['stash', 'pop'], { cwd: parentRepo, timeout: 10000 });
+      } catch { /* leave stash in place */ }
     }
 
     return { success: false, error: err.message };
