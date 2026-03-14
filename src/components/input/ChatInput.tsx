@@ -985,6 +985,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                   aria-label="Stop agent"
                   title="Stop agent (Escape)"
                 >
+<<<<<<< HEAD
                   <Square size={14} fill="currentColor" strokeWidth={0} />
                 </button>
               ) : (
