@@ -76,18 +76,50 @@ export interface StartWorkspaceChatOptions {
   attachments?: FileAttachment[];
 }
 
+function isMissingIpcHandler(error: unknown, channel: string): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(`No handler registered for '${channel}'`);
+}
+
 export async function startWorkspaceChat(
   opts: StartWorkspaceChatOptions,
 ): Promise<{ taskId: string; session: Session }> {
-  const { taskId, session } = await window.api.invoke('workspace:spawn-chat', {
-    workspaceId: opts.workspace.id,
-    prompt: opts.prompt,
-    mode: opts.mode,
-    agentId: opts.agentId,
-    model: opts.model,
-    images: opts.images,
-    attachments: opts.attachments,
-  }) as { taskId: string; session: Session };
+  let taskId: string;
+  let session: Session;
+
+  try {
+    const result = await window.api.invoke('workspace:spawn-chat', {
+      workspaceId: opts.workspace.id,
+      prompt: opts.prompt,
+      mode: opts.mode,
+      agentId: opts.agentId,
+      model: opts.model,
+      images: opts.images,
+      attachments: opts.attachments,
+    }) as { taskId: string; session: Session };
+    taskId = result.taskId;
+    session = result.session;
+  } catch (error) {
+    if (!isMissingIpcHandler(error, 'workspace:spawn-chat')) {
+      throw error;
+    }
+
+    taskId = crypto.randomUUID();
+    const result = await window.api.invoke('task:spawn', {
+      taskId,
+      workspaceId: opts.workspace.id,
+      prompt: opts.prompt,
+      agentId: opts.agentId,
+      model: opts.model,
+      mode: opts.mode,
+      thinking: opts.thinking,
+      cwd: opts.workspace.worktreePath,
+      images: opts.images,
+      attachments: opts.attachments,
+    }) as { taskId?: string; session: Session };
+    taskId = result.taskId ?? taskId;
+    session = result.session;
+  }
 
   useChatStore.getState().createTask({
     id: taskId,

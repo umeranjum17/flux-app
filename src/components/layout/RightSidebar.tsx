@@ -18,7 +18,7 @@ export function RightSidebar() {
       animate={{ width: 292, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="chrome-sidebar ml-2 flex h-full shrink-0 flex-col overflow-hidden border border-border/70"
+      className="chrome-sidebar flex h-full shrink-0 flex-col overflow-hidden border-l border-border/70"
     >
       <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-3">
         <TabButton label="All files" active={activeTab === 'files'} onClick={() => setTab('files')} />

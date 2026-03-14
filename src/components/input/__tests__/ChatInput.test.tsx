@@ -121,6 +121,61 @@ describe('ChatInput', () => {
     });
   });
 
+  it('falls back to task:spawn when workspace:spawn-chat is unavailable', async () => {
+    const user = userEvent.setup();
+    mockApi.invoke.mockImplementation((channel: string, ...args: any[]) => {
+      if (channel === 'completion:providers') {
+        return Promise.resolve({ providers: [] });
+      }
+      if (channel === 'workspace:create') {
+        return Promise.resolve({
+          id: 'ws-1',
+          name: 'Fix the bug',
+          parentRepo: '/workspace',
+          branch: 'flux/fix-the-bug-abcd',
+          status: 'idle',
+          createdAt: 1,
+          updatedAt: 1,
+          agentId: 'codex',
+          model: 'o4-mini',
+          worktreePath: '/workspace/.flux-worktrees/ws-1',
+        });
+      }
+      if (channel === 'workspace:spawn-chat') {
+        return Promise.reject(new Error("No handler registered for 'workspace:spawn-chat'"));
+      }
+      if (channel === 'task:spawn') {
+        return Promise.resolve({ taskId: args[0]?.taskId, session: { id: 'session-legacy' } });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<ChatInput />);
+
+    await user.type(getChatInput(), 'Fix the bug');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'workspace:spawn-chat',
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          prompt: 'Fix the bug',
+        }),
+      );
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:spawn',
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          prompt: 'Fix the bug',
+          agentId: 'codex',
+          model: 'o4-mini',
+          cwd: '/workspace/.flux-worktrees/ws-1',
+        }),
+      );
+    });
+  });
+
   it('re-spawns completed tasks instead of steering a missing active run', async () => {
     const user = userEvent.setup();
     useChatStore.getState().createTask({

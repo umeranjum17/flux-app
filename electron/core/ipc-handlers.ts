@@ -217,6 +217,7 @@ async function runShellCommand(command: string, cwd: string, remoteHost: string 
     const { stdout, stderr } = await execFileAsync(shell, args, {
       cwd,
       timeout: 120000,
+      env: extendedEnv(),
     });
     return { stdout, stderr, exitCode: 0 };
   } catch (err: any) {
