@@ -21,6 +21,8 @@ import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
 import type { WorkspaceStatus } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
+import { executeBash } from './tools/bash';
+import { suggestCompletion } from './completion/service';
 
 const execFileAsync = promisify(execFile);
 const MAX_ATTACHED_FILES = 6;
@@ -546,6 +548,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'repomap:get-status',
     'repomap:rebuild',
     'repomap:preview',
+    'shell:exec',
+    'completion:suggest',
   ];
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
@@ -1913,6 +1917,27 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const session = sessionStore.get(sessionId);
     if (!session) return null;
     return captureGitDiff(session.cwd, '');
+  });
+
+  // --- Shell exec handler ---
+
+  ipcMain.handle('shell:exec', async (_event, { command, cwd, timeout }: { command: string; cwd: string; timeout?: number }) => {
+    const start = Date.now();
+    const result = await executeBash(command, cwd, timeout ?? 30000);
+    const durationMs = Date.now() - start;
+    // Truncate output to 64KB
+    const cap = 64 * 1024;
+    return {
+      stdout: result.stdout.slice(0, cap),
+      stderr: result.stderr.slice(0, cap),
+      exitCode: result.exitCode,
+      durationMs,
+    };
+  });
+
+  ipcMain.handle('completion:suggest', async (_event, { prefix, cwd, recentCommands, model }: { prefix: string; cwd: string; recentCommands: string[]; model?: string }) => {
+    const suggestion = await suggestCompletion(prefix, cwd, recentCommands, model);
+    return { suggestion };
   });
 
   // Initialize repo map if enabled

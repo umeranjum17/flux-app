@@ -63,6 +63,11 @@ interface UiState {
   autoApprove: boolean;
   autoApproveTools: string[];
 
+  // Smart terminal input
+  inputMode: 'chat' | 'terminal';
+  shellHistory: string[];
+  completionModel: string;
+
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
   toggleTheme(): void;
@@ -93,6 +98,10 @@ interface UiState {
   setAutoApprove(enabled: boolean): void;
   toggleAutoApprove(): void;
   setAutoApproveTools(tools: string[]): void;
+  setInputMode(mode: 'chat' | 'terminal'): void;
+  toggleInputMode(): void;
+  addShellCommand(cmd: string): void;
+  setCompletionModel(model: string): void;
 
   // Right sidebar
   toggleRightSidebar(): void;
@@ -136,6 +145,9 @@ export const useUiStore = create<UiState>()(
     recentProjects: [],
     autoApprove: false,
     autoApproveTools: ['Read', 'Glob', 'Grep', 'Bash'],
+    inputMode: 'chat',
+    shellHistory: [],
+    completionModel: 'gpt-4o-mini',
 
     toggleSidebar() {
       set((state) => {
@@ -332,6 +344,30 @@ export const useUiStore = create<UiState>()(
     setAutoApproveTools(tools) {
       set((state) => {
         state.autoApproveTools = tools;
+      });
+    },
+
+    setInputMode(mode) {
+      set((state) => {
+        state.inputMode = mode;
+      });
+    },
+
+    toggleInputMode() {
+      set((state) => {
+        state.inputMode = state.inputMode === 'chat' ? 'terminal' : 'chat';
+      });
+    },
+
+    addShellCommand(cmd) {
+      set((state) => {
+        state.shellHistory = [cmd, ...state.shellHistory.filter((c) => c !== cmd)].slice(0, 20);
+      });
+    },
+
+    setCompletionModel(model) {
+      set((state) => {
+        state.completionModel = model;
       });
     },
 

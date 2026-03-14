@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap } from 'lucide-react';
+import { ArrowUp, Paperclip, Plus, X, RotateCcw, Brain, ClipboardList, Zap, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -39,12 +39,23 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [subagentDrafts, setSubagentDrafts] = useState([{ name: 'Explore', prompt: '' }]);
   const [showModelSelector, setShowModelSelector] = useState(false);
 
+  // Terminal / ghost text state
+  const [ghostText, setGhostText] = useState('');
+  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historyIndex = useRef(-1);
+
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
   const { mode, sendKey } = useUiStore();
+  const inputMode = useUiStore((s) => s.inputMode);
+  const shellHistory = useUiStore((s) => s.shellHistory);
+  const completionModel = useUiStore((s) => s.completionModel);
   const currentAgent = agents.find((agent) => agent.id === selectedAgentId);
   const pendingMention = useUiStore((s) => s.pendingMention);
+  const cwd = useUiStore((s) => s.cwd);
+
+  const isTerminal = inputMode === 'terminal';
 
   const isMac = window.api?.platform === 'darwin';
 
@@ -67,6 +78,46 @@ export function ChatInput({ focused }: ChatInputProps) {
     }
   }, [pendingMention]);
 
+  // When switching to terminal mode, ensure '$ ' prefix
+  useEffect(() => {
+    if (isTerminal && !value.startsWith('$ ')) {
+      setValue('$ ');
+      setGhostText('');
+      historyIndex.current = -1;
+    } else if (!isTerminal && value.startsWith('$ ')) {
+      setValue('');
+      setGhostText('');
+    }
+  }, [isTerminal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cancel pending completion timer on unmount
+  useEffect(() => {
+    return () => {
+      if (completionTimer.current) clearTimeout(completionTimer.current);
+    };
+  }, []);
+
+  const scheduleCompletion = useCallback((prefix: string) => {
+    if (completionTimer.current) clearTimeout(completionTimer.current);
+    setGhostText('');
+
+    if (!prefix.trim() || prefix === '$ ') return;
+
+    completionTimer.current = setTimeout(async () => {
+      try {
+        const result = await window.api.invoke('completion:suggest', {
+          prefix,
+          cwd: cwd || '.',
+          recentCommands: shellHistory,
+          model: completionModel,
+        }) as { suggestion: string };
+        setGhostText(result.suggestion ?? '');
+      } catch {
+        setGhostText('');
+      }
+    }, 400);
+  }, [cwd, shellHistory, completionModel]);
+
   const autoResize = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -84,6 +135,57 @@ export function ChatInput({ focused }: ChatInputProps) {
     const text = value.trim();
     if (!text) return;
 
+    // ── Terminal mode: run shell command ──
+    if (isTerminal && text.startsWith('$ ')) {
+      const command = text.slice(2).trim();
+      if (!command) return;
+
+      let task = getActiveTask();
+      if (!task) {
+        const taskId = crypto.randomUUID();
+        createTask({
+          id: taskId,
+          title: `$ ${command}`.slice(0, 80),
+          agentId: selectedAgentId,
+          model: selectedModel,
+          mode,
+          thinking: selectedThinking,
+          cwd: cwd || '.',
+        });
+        task = useChatStore.getState().tasks.get(taskId)!;
+      }
+
+      addUserMessage(task.id, `$ ${command}`);
+      useUiStore.getState().addShellCommand(command);
+      historyIndex.current = -1;
+      setValue('$ ');
+      setGhostText('');
+
+      try {
+        const result = await window.api.invoke('shell:exec', {
+          command,
+          cwd: task.cwd || cwd || '.',
+        }) as { stdout: string; stderr: string; exitCode: number; durationMs: number };
+
+        useChatStore.getState().addMessage(task.id, {
+          type: 'shell_result',
+          role: 'assistant',
+          content: '',
+          command,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          durationMs: result.durationMs,
+          timestamp: Date.now(),
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Shell command failed';
+        toast.error(message);
+      }
+      return;
+    }
+
+    // ── Chat mode: agent conversation ──
     let task = getActiveTask();
     const attachments = attachedFiles.length > 0 ? attachedFiles : undefined;
 
@@ -96,7 +198,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         model: selectedModel,
         mode,
         thinking: selectedThinking,
-        cwd: useUiStore.getState().cwd || '.',
+        cwd: cwd || '.',
       });
       task = useChatStore.getState().tasks.get(taskId)!;
     }
@@ -187,13 +289,55 @@ export function ChatInput({ focused }: ChatInputProps) {
     setValue('');
     setImages([]);
     setAttachedFiles([]);
-  }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, mode, setTaskStatus, setTaskSessionId, upsertSession]);
+  }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, mode, setTaskStatus, setTaskSessionId, upsertSession, isTerminal, cwd, shellHistory]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ghost text: Tab accepts, Escape dismisses
+    if (isTerminal && ghostText) {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        setValue((v) => v + ghostText);
+        setGhostText('');
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setGhostText('');
+        return;
+      }
+    }
+
+    // Shell history: Up/Down in terminal mode
+    if (isTerminal) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const next = historyIndex.current + 1;
+        if (next < shellHistory.length) {
+          historyIndex.current = next;
+          setValue(`$ ${shellHistory[next]}`);
+          setGhostText('');
+        }
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = historyIndex.current - 1;
+        if (next < 0) {
+          historyIndex.current = -1;
+          setValue('$ ');
+        } else {
+          historyIndex.current = next;
+          setValue(`$ ${shellHistory[next]}`);
+        }
+        setGhostText('');
+        return;
+      }
+    }
+
     if (showSlash || showMention) return;
 
-    // Shift+Tab toggles plan/act mode
-    if (e.key === 'Tab' && e.shiftKey) {
+    // Shift+Tab toggles plan/act mode (chat mode only)
+    if (!isTerminal && e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
       useUiStore.getState().toggleMode();
       return;
@@ -211,7 +355,28 @@ export function ChatInput({ focused }: ChatInputProps) {
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const v = e.target.value;
+
+    // Guard: in terminal mode keep '$ ' prefix
+    if (isTerminal) {
+      if (!v.startsWith('$ ')) {
+        setValue('$ ');
+        setGhostText('');
+        return;
+      }
+      setValue(v);
+      historyIndex.current = -1;
+      setGhostText('');
+      scheduleCompletion(v.slice(2)); // pass command part only
+      return;
+    }
+
     setValue(v);
+
+    // Auto-switch to terminal mode when user types '$ '
+    if (v === '$ ' || v.startsWith('$ ')) {
+      useUiStore.getState().setInputMode('terminal');
+      return;
+    }
 
     if (v.startsWith('/')) {
       setShowSlash(true);
@@ -309,6 +474,9 @@ export function ChatInput({ focused }: ChatInputProps) {
         ui.setMode('act');
         if (activeTaskForSlash) setTaskMode(activeTaskForSlash.id, 'act');
         break;
+      case '/shell':
+        ui.setInputMode('terminal');
+        break;
       case '/agent':
         ui.setOverlay('agent-selector');
         break;
@@ -340,14 +508,20 @@ export function ChatInput({ focused }: ChatInputProps) {
     useAgentStore.getState().setSelectedThinking(levels[(idx + 1) % levels.length]);
   }, []);
 
+  const handleToggleInputMode = useCallback(() => {
+    useUiStore.getState().toggleInputMode();
+  }, []);
+
   const activeTask = getActiveTask();
   const canSpawnSubagents = !!activeTask && (activeTask.status === 'running' || activeTask.status === 'waiting_approval' || activeTask.status === 'waiting_input');
   const pendingQuestion = activeTask?.pendingQuestion;
-  const placeholder = pendingQuestion
+  const placeholder = isTerminal
+    ? 'Run a command...'
+    : pendingQuestion
     ? pendingQuestion.placeholder ?? pendingQuestion.prompt
     : 'Ask Flux anything... (@ to mention files)';
 
-  const hasContent = value.trim().length > 0;
+  const hasContent = isTerminal ? value.trim().length > 2 : value.trim().length > 0;
 
   useEffect(() => {
     if (!showSubagentDialog) return;
@@ -390,7 +564,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     }
   }, [activeTask, canSpawnSubagents, subagentDrafts, subagentModel]);
 
-  const isContinuing = activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
+  const isContinuing = !isTerminal && activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
   const isModeSwitch = isContinuing && activeTask.mode !== mode;
 
   const displayModel = (() => {
@@ -401,6 +575,11 @@ export function ChatInput({ focused }: ChatInputProps) {
       .replace('gpt-', 'GPT-');
   })();
   const supportsThinking = currentAgent?.supportsThinking ?? true;
+
+  // Container border/bg classes for terminal mode (Warp-style)
+  const shellClasses = isTerminal
+    ? 'border-l-2 border-l-green-500/70 border-t border-r border-b border-border/80 bg-green-950/10'
+    : 'border border-border/80';
 
   return (
     <div className="relative w-full">
@@ -438,7 +617,18 @@ export function ChatInput({ focused }: ChatInputProps) {
         />
       )}
 
-      <div className="premium-input-shell border border-border/80 p-4 transition-colors focus-within:border-accent/60">
+      <div className={`premium-input-shell p-4 transition-colors focus-within:border-accent/60 ${shellClasses}`}>
+        {/* Terminal mode badge */}
+        {isTerminal && (
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">
+              <Terminal size={10} />
+              Terminal
+            </span>
+            <span className="text-[10px] text-text-tertiary">Tab to complete · ↑↓ history · Esc to dismiss</span>
+          </div>
+        )}
+
         {showSubagentDialog && (
           <div className="premium-panel mb-3 space-y-3 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -527,19 +717,32 @@ export function ChatInput({ focused }: ChatInputProps) {
           </div>
         )}
 
-        {/* Textarea */}
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={placeholder}
-          rows={1}
-          autoFocus
-          className="w-full resize-none bg-transparent text-[14px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none"
-          style={{ maxHeight: 192 }}
-        />
+        {/* Textarea with ghost text overlay */}
+        <div className="relative">
+          {/* Ghost text overlay (terminal mode only) */}
+          {isTerminal && ghostText && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 w-full resize-none text-[14px] leading-6 outline-none font-mono whitespace-pre-wrap break-words"
+              style={{ maxHeight: 192, overflow: 'hidden' }}
+            >
+              <span className="invisible">{value}</span>
+              <span className="text-text-tertiary/50">{ghostText}</span>
+            </div>
+          )}
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={placeholder}
+            rows={1}
+            autoFocus
+            className={`w-full resize-none bg-transparent text-[14px] leading-6 text-text-primary placeholder:text-text-tertiary outline-none ${isTerminal ? 'font-mono' : ''}`}
+            style={{ maxHeight: 192 }}
+          />
+        </div>
 
         <ImageAttach
           images={images}
@@ -552,100 +755,139 @@ export function ChatInput({ focused }: ChatInputProps) {
           <div className="mt-3 flex items-center justify-between gap-3">
             {/* Left controls */}
             <div className="relative flex items-center gap-1.5">
-              {/* Model selector button */}
-              <button
-                type="button"
-                onClick={() => setShowModelSelector((v) => !v)}
-                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
-                title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
-              >
-                <AgentIcon
-                  agentId={selectedAgentId}
-                  size={13}
-                  className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
-                />
-                <span className="max-w-[160px] truncate">{displayModel}</span>
-              </button>
+              {!isTerminal && (
+                <>
+                  {/* Model selector button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowModelSelector((v) => !v)}
+                    className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary"
+                    title={`Select model (${isMac ? 'Cmd' : 'Ctrl'}+Shift+M)`}
+                  >
+                    <AgentIcon
+                      agentId={selectedAgentId}
+                      size={13}
+                      className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
+                    />
+                    <span className="max-w-[160px] truncate">{displayModel}</span>
+                  </button>
 
-              <ModelSelectorDropdown
-                open={showModelSelector}
-                onClose={() => setShowModelSelector(false)}
-              />
+                  <ModelSelectorDropdown
+                    open={showModelSelector}
+                    onClose={() => setShowModelSelector(false)}
+                  />
 
-              {/* Thinking toggle */}
-              {supportsThinking && (
-                <button
-                  type="button"
-                  onClick={handleCycleThinking}
-                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
-                  title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
-                >
-                  <Brain size={12} className="text-accent" />
-                  <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
-                </button>
+                  {/* Thinking toggle */}
+                  {supportsThinking && (
+                    <button
+                      type="button"
+                      onClick={handleCycleThinking}
+                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
+                      title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
+                    >
+                      <Brain size={12} className="text-accent" />
+                      <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                    </button>
+                  )}
+                </>
+              )}
+
+              {isTerminal && (
+                /* Completion model picker in terminal mode */
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-text-tertiary">AI complete:</span>
+                  <select
+                    value={completionModel}
+                    onChange={(e) => useUiStore.getState().setCompletionModel(e.target.value)}
+                    className="rounded-md border border-border/60 bg-bg-elevated/60 px-2 py-1 text-[11px] text-text-secondary outline-none"
+                  >
+                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                    <option value="o4-mini">o4-mini</option>
+                  </select>
+                </div>
               )}
             </div>
 
             {/* Right controls */}
             <div className="flex items-center gap-1.5">
-              {/* Plan / Act segmented toggle */}
-              <div className="premium-pill flex items-center overflow-hidden text-[11px] font-medium">
-                <button
-                  type="button"
-                  onClick={() => {
-                    useUiStore.getState().setMode('plan');
-                    const t = getActiveTask();
-                    if (t) setTaskMode(t.id, 'plan');
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
-                    mode === 'plan'
-                      ? 'bg-plan text-bg-primary'
-                      : 'text-text-tertiary'
-                  }`}
-                >
-                  <ClipboardList size={11} />
-                  Plan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    useUiStore.getState().setMode('act');
-                    const t = getActiveTask();
-                    if (t) setTaskMode(t.id, 'act');
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
-                    mode === 'act'
-                      ? 'bg-accent text-bg-primary'
-                      : 'text-text-tertiary'
-                  }`}
-                >
-                  <Zap size={11} />
-                  Act
-                </button>
-              </div>
-
-              {/* Attach / subagent button */}
+              {/* Terminal toggle */}
               <button
                 type="button"
-                onClick={handleFileSelect}
-                className="premium-toolbar-button rounded-full p-2 text-text-tertiary"
-                aria-label="Attach file"
-                title="Attach image"
+                onClick={handleToggleInputMode}
+                className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors ${
+                  isTerminal
+                    ? 'border border-green-500/30 bg-green-500/10 text-green-400'
+                    : 'text-text-tertiary'
+                }`}
+                title="Toggle terminal mode"
               >
-                <Paperclip size={14} />
+                <Terminal size={12} />
               </button>
 
-              {/* + button (subagents) */}
-              <button
-                type="button"
-                onClick={() => setShowSubagentDialog((v) => !v)}
-                className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
-                aria-label="More options"
-                disabled={!canSpawnSubagents}
-                title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
-              >
-                <Plus size={14} />
-              </button>
+              {/* Plan / Act segmented toggle (chat mode only) */}
+              {!isTerminal && (
+                <div className="premium-pill flex items-center overflow-hidden text-[11px] font-medium">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      useUiStore.getState().setMode('plan');
+                      const t = getActiveTask();
+                      if (t) setTaskMode(t.id, 'plan');
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
+                      mode === 'plan'
+                        ? 'bg-plan text-bg-primary'
+                        : 'text-text-tertiary'
+                    }`}
+                  >
+                    <ClipboardList size={11} />
+                    Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      useUiStore.getState().setMode('act');
+                      const t = getActiveTask();
+                      if (t) setTaskMode(t.id, 'act');
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1.5 transition-all ${
+                      mode === 'act'
+                        ? 'bg-accent text-bg-primary'
+                        : 'text-text-tertiary'
+                    }`}
+                  >
+                    <Zap size={11} />
+                    Act
+                  </button>
+                </div>
+              )}
+
+              {/* Attach / subagent button (chat mode only) */}
+              {!isTerminal && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleFileSelect}
+                    className="premium-toolbar-button rounded-full p-2 text-text-tertiary"
+                    aria-label="Attach file"
+                    title="Attach image"
+                  >
+                    <Paperclip size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSubagentDialog((v) => !v)}
+                    className="premium-toolbar-button rounded-full p-2 text-text-tertiary disabled:opacity-40"
+                    aria-label="More options"
+                    disabled={!canSpawnSubagents}
+                    title={canSpawnSubagents ? 'Spawn subagents' : 'Start a task first'}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </>
+              )}
 
               {/* Send button (circular) */}
               <button
@@ -654,7 +896,9 @@ export function ChatInput({ focused }: ChatInputProps) {
                 disabled={!hasContent}
                 className={`flex-shrink-0 rounded-full p-2.5 transition-colors ${
                   hasContent
-                    ? mode === 'plan'
+                    ? isTerminal
+                      ? 'bg-green-600 text-white'
+                      : mode === 'plan'
                       ? 'bg-plan text-bg-primary'
                       : 'bg-accent text-bg-primary'
                     : 'bg-bg-hover text-text-tertiary cursor-not-allowed'

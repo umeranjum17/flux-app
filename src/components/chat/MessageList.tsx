@@ -26,6 +26,7 @@ import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
 import { DiffBlock } from './DiffBlock';
 import { PlanCard } from './PlanCard';
+import { ShellResultBlock } from './ShellResultBlock';
 
 const messageVariants = {
   initial: { opacity: 0, y: 14, scale: 0.985 },
@@ -457,6 +458,17 @@ function renderMessage(
           questions={msg.questions ?? []}
           allowFreeform={msg.allowFreeform}
           placeholder={msg.placeholder}
+        />
+      );
+
+    case 'shell_result':
+      return (
+        <ShellResultBlock
+          command={msg.command}
+          exitCode={msg.exitCode}
+          stdout={msg.stdout}
+          stderr={msg.stderr}
+          durationMs={msg.durationMs}
         />
       );
 

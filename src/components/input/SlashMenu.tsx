@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Settings,
   Trash2,
+  Terminal,
 } from 'lucide-react';
 
 interface SlashMenuProps {
@@ -17,6 +18,7 @@ interface SlashMenuProps {
 const commands = [
   { name: '/plan', description: 'Switch to plan mode', icon: ClipboardList },
   { name: '/act', description: 'Switch to act mode', icon: Zap },
+  { name: '/shell', description: 'Switch to terminal mode', icon: Terminal },
   { name: '/agent', description: 'Select an agent', icon: Bot },
   { name: '/session', description: 'Open session picker', icon: FolderOpen },
   { name: '/settings', description: 'Open settings', icon: Settings },
