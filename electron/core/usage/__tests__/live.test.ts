@@ -72,7 +72,7 @@ describe('LiveUsageService', () => {
                 refresh_token: 'codex-refresh',
                 account_id: 'account-123',
               },
-              last_refresh: Date.now(),
+              last_refresh: new Date().toISOString(),
             });
           }
 
