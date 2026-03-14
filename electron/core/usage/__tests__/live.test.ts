@@ -215,7 +215,7 @@ describe('LiveUsageService', () => {
     expect(claude?.message).toContain('network down');
   });
 
-  it('treats Claude as unavailable (not disconnected) when account exists but oauth token file is missing', async () => {
+  it('treats Claude as disconnected when account exists but oauth token file is missing', async () => {
     vi.doMock('../../db/connection', () => ({
       getDb: () => ({
         prepare: (_sql: string) => ({
@@ -252,7 +252,7 @@ describe('LiveUsageService', () => {
     const overview = await new LiveUsageService().getOverview();
     const claude = overview.providers.find((provider) => provider.providerId === 'claude-code');
 
-    expect(claude?.status).toBe('error');
+    expect(claude?.status).toBe('auth_missing');
     expect(claude?.message).toContain('token is unavailable');
     expect(fetchSpy).not.toHaveBeenCalled();
   });

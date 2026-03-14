@@ -361,9 +361,9 @@ export class LiveUsageService {
       return {
         providerId: 'claude-code',
         label: PROVIDER_LABELS['claude-code'],
-        status: hasClaudeAccount ? 'error' : 'auth_missing',
+        status: 'auth_missing',
         message: hasClaudeAccount
-          ? 'Claude account detected, but local OAuth usage token is unavailable.'
+          ? 'Claude account detected, but local OAuth usage token is unavailable. Run "claude auth login" to reconnect usage.'
           : `Missing Claude credentials at ${CLAUDE_CREDENTIALS_PATH}`,
         fetchedAt: null,
         windows: [],
