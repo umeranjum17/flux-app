@@ -471,7 +471,7 @@ export class LiveUsageService {
     let accessToken = tokens.access_token as string;
     const refreshToken = typeof tokens.refresh_token === 'string' ? tokens.refresh_token : null;
     const accountId = typeof tokens.account_id === 'string' ? tokens.account_id : null;
-    const lastRefresh = typeof auth.last_refresh === 'number' ? auth.last_refresh : 0;
+    const lastRefresh = parseLastRefresh(auth.last_refresh);
 
     if (refreshToken && shouldRefreshCodexToken(lastRefresh, now)) {
       const refreshed = await this.refreshCodexToken(refreshToken);
@@ -485,7 +485,7 @@ export class LiveUsageService {
             refresh_token: refreshed.refreshToken,
             id_token: refreshed.idToken ?? tokens.id_token,
           },
-          last_refresh: now,
+          last_refresh: new Date(now).toISOString(),
         });
       }
     }
@@ -511,7 +511,7 @@ export class LiveUsageService {
               refresh_token: refreshed.refreshToken,
               id_token: refreshed.idToken ?? tokens.id_token,
             },
-            last_refresh: now,
+            last_refresh: new Date(now).toISOString(),
           });
           return this.fetchCodexUsage(now);
         }
@@ -680,6 +680,15 @@ function writeJsonFile(filePath: string, value: unknown): void {
   } catch {
     // Best effort. If this fails, the current process still has fresh tokens in memory.
   }
+}
+
+function parseLastRefresh(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
+  return 0;
 }
 
 function shouldRefreshCodexToken(lastRefresh: number, now: number): boolean {
