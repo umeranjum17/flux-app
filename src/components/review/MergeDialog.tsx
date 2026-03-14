@@ -49,6 +49,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
         model: mergeInfo.model,
         mode,
         thinking: 'low',
+        skipBranchRename: true,
       });
       onClose();
     } catch {
