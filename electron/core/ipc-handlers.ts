@@ -1428,6 +1428,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
   });
 
+  ipcMain.handle('git:upstream', async () => {
+    try {
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd: currentCwd });
+      return stdout.trim() || null;
+    } catch {
+      return null;
+    }
+  });
+
   ipcMain.handle('git:status', async () => {
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: currentCwd });

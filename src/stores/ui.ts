@@ -26,6 +26,7 @@ interface UiState {
 
   // Git
   gitBranch: string | null;
+  gitUpstream: string | null;
   gitDirty: boolean;
 
   // File explorer
@@ -80,6 +81,7 @@ interface UiState {
   setOverlay(overlay: Overlay): void;
   setCwd(cwd: string): void;
   setGitBranch(branch: string | null): void;
+  setGitUpstream(upstream: string | null): void;
   setGitDirty(dirty: boolean): void;
   toggleExplorer(): void;
   setExplorerOpen(open: boolean): void;
@@ -131,6 +133,7 @@ export const useUiStore = create<UiState>()(
     cwd: '',
     projectName: '',
     gitBranch: null,
+    gitUpstream: null,
     gitDirty: false,
     explorerOpen: false,
     terminalOpen: false,
@@ -217,6 +220,12 @@ export const useUiStore = create<UiState>()(
     setGitBranch(branch) {
       set((state) => {
         state.gitBranch = branch;
+      });
+    },
+
+    setGitUpstream(upstream) {
+      set((state) => {
+        state.gitUpstream = upstream;
       });
     },
 
