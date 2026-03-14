@@ -122,6 +122,7 @@ export function filterStderrNoise(text: string): string | null {
     if (/^Debugger listening on ws:\/\//.test(trimmed)) return false;
     if (/^For help, see: https:\/\/nodejs\.org\/.*inspector/.test(trimmed)) return false;
     if (/^Debugger attached\.?$/i.test(trimmed)) return false;
+    if (/^Reading prompt from stdin/i.test(trimmed)) return false;
     if (/^Waiting for the debugger to disconnect/i.test(trimmed)) return false;
     // Rust tracing / logging output
     if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return false;

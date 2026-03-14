@@ -186,6 +186,10 @@ function isInspectorNodeOption(token: string): boolean {
     || /^--inspect-publish-uid(?:=.*)?$/.test(token);
 }
 
+function consumesNextNodeOption(token: string): boolean {
+  return token === '--inspect-port' || token === '--debug-port' || token === '--inspect-publish-uid';
+}
+
 function isVsCodeBootloader(value: string): boolean {
   const normalized = value.replace(/\\/g, '/').toLowerCase();
   return normalized.includes('js-debug/src/bootloader.js')
@@ -203,6 +207,9 @@ function sanitizeNodeOptions(nodeOptions: string | undefined): string | undefine
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
     if (isInspectorNodeOption(token)) {
+      if (consumesNextNodeOption(token) && tokens[i + 1] && !tokens[i + 1].startsWith('-')) {
+        i += 1;
+      }
       continue;
     }
 

@@ -108,6 +108,16 @@ describe('process-utils', () => {
     expect(call?.[2]?.env?.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
     expect(call?.[2]?.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
   });
+
+  it('removes inspector-only NODE_OPTIONS entirely', () => {
+    const env = extendedEnv({
+      NODE_OPTIONS: '--inspect-brk --inspect-port 9229',
+      VSCODE_INSPECTOR_OPTIONS: '{"inspectorIpc":"/tmp/node-cdp.sock"}',
+    });
+
+    expect(env.NODE_OPTIONS).toBeUndefined();
+    expect(env.VSCODE_INSPECTOR_OPTIONS).toBeUndefined();
+  });
 });
 
 describe('classifySpawnError', () => {
@@ -377,6 +387,7 @@ describe('filterStderrNoise', () => {
       'Debugger listening on ws://127.0.0.1:55693/abc',
       'For help, see: https://nodejs.org/en/docs/inspector',
       'Debugger attached.',
+      'Reading prompt from stdin...',
       'Waiting for the debugger to disconnect...',
     ].join('\n');
     expect(filterStderrNoise(input)).toBeNull();
