@@ -160,7 +160,7 @@ export function SessionPicker() {
                     <button
                       type="button"
                       onClick={() => handleResume(session.id)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-accent text-white hover:opacity-90 transition-opacity"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-success text-white hover:opacity-90 transition-opacity"
                     >
                       <Play size={12} />
                       Resume

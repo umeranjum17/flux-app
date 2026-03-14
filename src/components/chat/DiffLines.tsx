@@ -10,11 +10,11 @@ interface DiffLinesProps {
 function DiffLineRow({ line }: { line: DiffLine }) {
   if (line.type === 'hunk-header') {
     return (
-      <tr className="bg-accent/5">
+      <tr className="bg-bg-hover/50">
         <td className="px-1.5 py-0.5 text-right text-text-tertiary/40 select-none w-[1%] whitespace-nowrap text-[11px]" />
         <td className="px-1.5 py-0.5 text-right text-text-tertiary/40 select-none w-[1%] whitespace-nowrap text-[11px]" />
         <td className="w-[1px] px-1 select-none" />
-        <td className="px-2 py-0.5 text-accent/60 text-xs italic">{line.content}</td>
+        <td className="px-2 py-0.5 text-text-tertiary text-xs italic">{line.content}</td>
       </tr>
     );
   }
@@ -89,7 +89,7 @@ export function DiffLines({ hunks, maxHeight = '24rem', maxLines }: DiffLinesPro
       {isTruncated && (
         <button
           onClick={() => setShowAll(true)}
-          className="w-full text-center py-1.5 text-xs text-accent hover:text-accent-hover bg-bg-primary/50 border-t border-border/20"
+          className="w-full text-center py-1.5 text-xs text-text-secondary hover:text-text-primary bg-bg-primary/50 border-t border-border/20"
         >
           Show all ({allLines.length} lines)
         </button>

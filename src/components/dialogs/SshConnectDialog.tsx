@@ -156,7 +156,7 @@ export function SshConnectDialog() {
               {sshConnected ? (
                 <div className="space-y-3">
                   <p className="text-sm text-text-secondary">
-                    Connected to <span className="font-mono text-accent">{useUiStore.getState().sshHost}</span>
+                    Connected to <span className="font-mono text-success">{useUiStore.getState().sshHost}</span>
                   </p>
                   <button
                     onClick={handleDisconnect}
@@ -175,7 +175,7 @@ export function SshConnectDialog() {
                       onChange={(e) => setHost(e.target.value)}
                       placeholder="user@192.168.1.100"
                       autoFocus
-                      className="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors"
+                      className="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-focus transition-colors"
                     />
                   </div>
 
@@ -186,7 +186,7 @@ export function SshConnectDialog() {
                       value={remotePath}
                       onChange={(e) => setRemotePath(e.target.value)}
                       placeholder="~/projects/my-app"
-                      className="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent transition-colors"
+                      className="w-full px-3 py-2 rounded-lg bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-focus transition-colors"
                     />
                   </div>
 
@@ -200,10 +200,10 @@ export function SshConnectDialog() {
                         {recentHosts.map((r) => (
                           <div
                             key={`${r.host}:${r.remotePath}`}
-                            className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-primary border border-border text-sm cursor-pointer hover:border-accent/50 transition-colors"
+                            className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-primary border border-border text-sm cursor-pointer hover:border-border-focus/50 transition-colors"
                             onClick={() => selectRecent(r)}
                           >
-                            <span className="font-mono text-accent text-xs truncate">{r.host}</span>
+                            <span className="font-mono text-text-primary text-xs truncate">{r.host}</span>
                             <span className="text-text-tertiary text-xs truncate flex-1">{r.remotePath}</span>
                             <button
                               onClick={(e) => {
@@ -236,7 +236,7 @@ export function SshConnectDialog() {
                     <button
                       onClick={handleConnect}
                       disabled={!host.trim() || connecting}
-                      className="flex-1 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="flex-1 py-2 rounded-lg bg-success text-white text-sm font-medium hover:opacity-90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {connecting && <Loader2 size={14} className="animate-spin" />}
                       Connect

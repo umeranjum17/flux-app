@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  /* Neutral dark palette — high-contrast text, restrained accent. */
-  --color-bg-primary: hsl(220 10% 4%);
-  --color-bg-secondary: hsl(220 8% 7%);
-  --color-bg-elevated: hsl(220 7% 10%);
-  --color-bg-hover: hsl(220 6% 14%);
-  --color-bg-surface: hsl(220 9% 6%);
+  /* Warp-inspired neutral dark palette — no blue, green used sparingly. */
+  --color-bg-primary: hsl(225 14% 7%);
+  --color-bg-secondary: hsl(225 11% 10%);
+  --color-bg-elevated: hsl(225 9% 13%);
+  --color-bg-hover: hsl(225 7% 17%);
+  --color-bg-surface: hsl(225 12% 8%);
 
-  --color-text-primary: hsl(0 0% 97%);
-  --color-text-secondary: hsl(215 6% 72%);
-  --color-text-tertiary: hsl(215 5% 52%);
+  --color-text-primary: hsl(210 17% 93%);
+  --color-text-secondary: hsl(210 8% 62%);
+  --color-text-tertiary: hsl(210 6% 46%);
 
-  --color-accent: hsl(215 65% 60%);
-  --color-accent-hover: hsl(215 70% 68%);
-  --color-accent-muted: hsl(215 25% 15%);
-  --color-plan: hsl(215 60% 65%);
-  --color-plan-hover: hsl(215 65% 72%);
-  --color-plan-muted: hsl(215 22% 14%);
+  --color-accent: hsl(210 6% 52%);
+  --color-accent-hover: hsl(210 7% 62%);
+  --color-accent-muted: hsl(210 5% 13%);
+  --color-plan: hsl(210 5% 50%);
+  --color-plan-hover: hsl(210 6% 60%);
+  --color-plan-muted: hsl(210 4% 12%);
 
-  --color-success: hsl(142 52% 46%);
-  --color-error: hsl(2 73% 59%);
-  --color-warning: hsl(39 94% 62%);
-  --color-info: hsl(201 86% 60%);
+  --color-success: hsl(142 55% 49%);
+  --color-error: hsl(0 72% 55%);
+  --color-warning: hsl(39 90% 55%);
+  --color-info: hsl(210 6% 52%);
 
-  --color-border: hsl(220 8% 16%);
-  --color-border-focus: hsl(215 50% 55%);
-  --color-border-subtle: hsl(220 8% 11%);
+  --color-border: hsl(215 10% 20%);
+  --color-border-focus: hsl(210 6% 42%);
+  --color-border-subtle: hsl(215 10% 14%);
 
   /* Typography */
   --font-sans: 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
@@ -42,8 +42,8 @@
   --panel-shadow: 0 1px 3px hsl(0 0% 0% / 0.2);
   --panel-shadow-strong: 0 2px 8px hsl(0 0% 0% / 0.25);
   --focus-ring:
-    0 0 0 1px hsl(215 65% 60% / 0.56),
-    0 0 0 5px hsl(215 65% 60% / 0.14);
+    0 0 0 1px hsl(210 6% 52% / 0.56),
+    0 0 0 5px hsl(210 6% 52% / 0.14);
 }
 
 /* Light theme override */
@@ -67,8 +67,8 @@
   --panel-shadow: 0 1px 3px hsl(215 20% 20% / 0.08);
   --panel-shadow-strong: 0 2px 8px hsl(215 20% 20% / 0.12);
   --focus-ring:
-    0 0 0 1px hsl(215 50% 50% / 0.45),
-    0 0 0 5px hsl(215 50% 50% / 0.12);
+    0 0 0 1px hsl(210 6% 52% / 0.45),
+    0 0 0 5px hsl(210 6% 52% / 0.12);
 }
 
 html, body, #root {
@@ -94,7 +94,7 @@ body {
 }
 
 ::selection {
-  background: hsl(215 65% 55% / 0.24);
+  background: hsl(210 6% 52% / 0.24);
   color: var(--color-text-primary);
 }
 
@@ -261,9 +261,9 @@ button:focus-visible {
 }
 
 .classic-section-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-text-tertiary);
 }
@@ -291,7 +291,7 @@ button:focus-visible {
 
 .classic-nav-button-active {
   background: hsl(0 0% 100% / 0.06);
-  border-color: hsl(215 20% 30%);
+  border-color: hsl(0 0% 100% / 0.10);
   color: var(--color-text-primary);
 }
 
@@ -317,7 +317,7 @@ button:focus-visible {
 
 .classic-list-button-active {
   background: hsl(0 0% 100% / 0.06);
-  border-color: hsl(215 20% 30%);
+  border-color: hsl(0 0% 100% / 0.10);
 }
 
 .classic-tab-button {

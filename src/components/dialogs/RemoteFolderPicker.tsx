@@ -132,7 +132,7 @@ export function RemoteFolderPicker() {
                   value={pathInput}
                   onChange={(e) => setPathInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handlePathSubmit(); }}
-                  className="flex-1 px-2.5 py-1.5 rounded-md bg-bg-primary border border-border text-xs text-text-primary font-mono placeholder:text-text-tertiary outline-none focus:border-accent transition-colors"
+                  className="flex-1 px-2.5 py-1.5 rounded-md bg-bg-primary border border-border text-xs text-text-primary font-mono placeholder:text-text-tertiary outline-none focus:border-border-focus transition-colors"
                 />
               </div>
             </div>
@@ -160,7 +160,7 @@ export function RemoteFolderPicker() {
                   onClick={() => handleNavigate(entry.name)}
                   className="w-full flex items-center gap-2.5 px-5 py-2 text-left hover:bg-bg-hover transition-colors"
                 >
-                  <Folder size={14} className="text-accent shrink-0" />
+                  <Folder size={14} className="text-text-secondary shrink-0" />
                   <span className="text-xs text-text-primary truncate">{entry.name}</span>
                   <ChevronRight size={12} className="text-text-tertiary ml-auto shrink-0" />
                 </button>
@@ -181,7 +181,7 @@ export function RemoteFolderPicker() {
                 </button>
                 <button
                   onClick={handleSelect}
-                  className="px-4 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:opacity-90 transition-colors"
+                  className="px-4 py-1.5 rounded-lg bg-success text-white text-xs font-medium hover:opacity-90 transition-colors"
                 >
                   Open
                 </button>

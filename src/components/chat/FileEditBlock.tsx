@@ -90,7 +90,7 @@ export function FileEditBlock({ diff, filePath, toolName }: FileEditBlockProps) 
               </pre>
               <button
                 onClick={() => setShowFull(true)}
-                className="mt-2 text-xs text-accent hover:text-accent-hover transition-colors"
+                className="mt-2 text-xs text-text-secondary hover:text-text-primary transition-colors"
               >
                 Show full diff ({diffLineCount} lines)
               </button>

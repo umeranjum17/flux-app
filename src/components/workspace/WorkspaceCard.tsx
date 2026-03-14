@@ -8,10 +8,10 @@ const statusConfig: Record<WorkspaceStatus, { color: string; label: string; puls
   idle: { color: 'bg-text-tertiary', label: 'Idle' },
   running: { color: 'bg-success', label: 'Running', pulse: true },
   waiting_approval: { color: 'bg-warning', label: 'Waiting', pulse: true },
-  waiting_input: { color: 'bg-info', label: 'Question', pulse: true },
-  done: { color: 'bg-info', label: 'Done' },
+  waiting_input: { color: 'bg-text-tertiary', label: 'Question', pulse: true },
+  done: { color: 'bg-success', label: 'Done' },
   error: { color: 'bg-error', label: 'Error' },
-  merging: { color: 'bg-accent', label: 'Merging', pulse: true },
+  merging: { color: 'bg-success', label: 'Merging', pulse: true },
 };
 
 const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
@@ -54,7 +54,7 @@ export function WorkspaceCard({
         isArchived
           ? 'border-border/50 bg-bg-secondary/50 opacity-70'
           : isActive
-            ? 'border-accent/30 bg-accent-muted/30 shadow-[0_18px_34px_rgba(0,0,0,0.2)]'
+            ? 'border-border bg-bg-elevated/60 shadow-[0_18px_34px_rgba(0,0,0,0.2)]'
             : 'border-border/80 bg-bg-secondary/88 hover:border-border-focus/40 hover:bg-bg-hover/60'
       }`}
     >
@@ -63,7 +63,7 @@ export function WorkspaceCard({
           <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/50' : status.color} ${!isArchived && status.pulse ? 'animate-pulse' : ''}`} />
           <div className="min-w-0">
             <div className="truncate text-sm font-medium tracking-[0.01em] text-text-primary">{workspace.name}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-text-tertiary">
               <span className="inline-flex items-center gap-1">
                 <Bot size={11} />
                 {workspace.agentId}

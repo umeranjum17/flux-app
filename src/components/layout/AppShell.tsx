@@ -4,7 +4,6 @@ import { AlertTriangle, FolderOpen, Terminal } from 'lucide-react';
 import { TopBar } from './TopBar';
 // ActivityBar removed — navigation merged into Sidebar icon bar
 import { Sidebar } from './Sidebar';
-import { RightSidebar } from './RightSidebar';
 import { StatusLine } from './StatusLine';
 import { MessageList } from '../chat/MessageList';
 import { LiveRunHeader } from '../chat/LiveRunHeader';
@@ -33,7 +32,6 @@ import { restoreSessionMessage } from '../../lib/session-messages';
 
 export function AppShell() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
-  const rightSidebarOpen = useUiStore((s) => s.rightSidebarOpen);
   const bottomPanelOpen = useUiStore((s) => s.bottomPanelOpen);
   const theme = useUiStore((s) => s.theme);
   const cwd = useUiStore((s) => s.cwd);
@@ -374,7 +372,16 @@ export function AppShell() {
       if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
       if (meta && e.key === 'k') { e.preventDefault(); useUiStore.getState().setOverlay('command-palette'); }
-      if (meta && e.key === 'e') { e.preventDefault(); useUiStore.getState().toggleRightSidebar(); }
+      if (meta && e.key === 'e') {
+        e.preventDefault();
+        const ui = useUiStore.getState();
+        if (ui.sidebarTab === 'explorer' && ui.sidebarOpen) {
+          ui.setSidebarTab('workspaces');
+        } else {
+          ui.setSidebarTab('explorer');
+          if (!ui.sidebarOpen) ui.setSidebarOpen(true);
+        }
+      }
       if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanel(); }
 
       // Cmd+1-9: switch between workspaces first, then standalone chats
@@ -479,29 +486,29 @@ export function AppShell() {
 
                     {/* Not-a-git-repo banner */}
                     {!isGitRepo && cwd && (
-                      <div className="mx-auto mt-6 w-full max-w-[600px] px-6">
-                        <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 px-5 py-4">
-                          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-500" />
+                      <div className="mx-auto mt-4 w-full max-w-[600px] px-6">
+                        <div className="flex items-start gap-3 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3">
+                          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-text-primary">
+                            <p className="text-[14px] font-medium text-text-primary">
                               Not a Git repository
                             </p>
-                            <p className="mt-1 text-xs text-text-secondary">
-                              <span className="font-mono text-[11px] text-text-tertiary">{cwd}</span>{' '}
+                            <p className="mt-1 text-[13px] text-text-secondary">
+                              <span className="font-mono text-[13px] text-text-tertiary">{cwd}</span>{' '}
                               is not a git repository. Workspaces require git to create isolated branches.
                             </p>
-                            <p className="mt-2 text-xs text-text-tertiary">
+                            <p className="mt-2 text-[13px] text-text-tertiary">
                               Initialize it by running:
                             </p>
-                            <code className="mt-1 inline-block rounded bg-bg-secondary px-2 py-1 font-mono text-[11px] text-accent">
+                            <code className="mt-1 inline-block rounded bg-bg-secondary px-2 py-1 font-mono text-[13px] text-text-secondary">
                               git init
                             </code>
                             <div className="mt-3 flex items-center gap-2">
                               <button
                                 onClick={() => openProject()}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:bg-bg-hover transition-colors"
                               >
-                                <FolderOpen size={12} />
+                                <FolderOpen size={13} />
                                 Open Different Folder
                               </button>
                             </div>
@@ -523,7 +530,6 @@ export function AppShell() {
                 {explorerOpen && <FileExplorer />}
               </div>
 
-              <AnimatePresence>{rightSidebarOpen && <RightSidebar />}</AnimatePresence>
             </div>
 
             {bottomPanelOpen && <BottomPanel ref={termRef} />}

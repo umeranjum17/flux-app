@@ -259,8 +259,8 @@ function statusColor(status: string): string {
   switch (status) {
     case 'running': return 'bg-success';
     case 'waiting_approval': return 'bg-warning';
-    case 'waiting_input': return 'bg-info';
-    case 'done': return 'bg-info';
+    case 'waiting_input': return 'bg-text-tertiary';
+    case 'done': return 'bg-success';
     case 'error': return 'bg-error';
     default: return 'bg-text-tertiary';
   }

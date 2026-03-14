@@ -14,7 +14,8 @@ export interface RecentProject {
 
 interface UiState {
   sidebarOpen: boolean;
-  sidebarTab: 'workspaces' | 'search' | 'usage';
+  sidebarTab: 'workspaces' | 'search' | 'usage' | 'explorer';
+  explorerSubTab: 'files' | 'changes' | 'checks';
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
@@ -39,10 +40,6 @@ interface UiState {
 
   // Bottom panel mode (Warp-style)
   bottomPanelMode: 'agent' | 'terminal';
-
-  // Right sidebar (file explorer)
-  rightSidebarOpen: boolean;
-  rightSidebarTab: 'files' | 'changes' | 'checks';
 
   // Bottom panel
   bottomPanelOpen: boolean;
@@ -73,7 +70,8 @@ interface UiState {
 
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
-  setSidebarTab(tab: 'workspaces' | 'search' | 'usage'): void;
+  setSidebarTab(tab: 'workspaces' | 'search' | 'usage' | 'explorer'): void;
+  setExplorerSubTab(tab: 'files' | 'changes' | 'checks'): void;
   toggleTheme(): void;
   setTheme(theme: 'dark' | 'light'): void;
   setSendKey(sendKey: 'cmd+enter' | 'enter'): void;
@@ -109,11 +107,6 @@ interface UiState {
   addShellCommand(cmd: string): void;
   setCompletionModel(model: string): void;
 
-  // Right sidebar
-  toggleRightSidebar(): void;
-  setRightSidebarOpen(open: boolean): void;
-  setRightSidebarTab(tab: 'files' | 'changes' | 'checks'): void;
-
   // Bottom panel
   toggleBottomPanel(): void;
   setBottomPanelOpen(open: boolean): void;
@@ -128,6 +121,7 @@ export const useUiStore = create<UiState>()(
   immer((set) => ({
     sidebarOpen: true,
     sidebarTab: 'workspaces',
+    explorerSubTab: 'files',
     theme: 'dark',
     sendKey: 'cmd+enter',
     mode: 'act',
@@ -142,8 +136,6 @@ export const useUiStore = create<UiState>()(
     terminalOpen: false,
     activeTerminalId: null,
     bottomPanelMode: 'agent',
-    rightSidebarOpen: true,
-    rightSidebarTab: 'files',
     bottomPanelOpen: false,
     bottomPanelTab: 'terminal',
     sshHost: null,
@@ -173,6 +165,12 @@ export const useUiStore = create<UiState>()(
     setSidebarTab(tab) {
       set((state) => {
         state.sidebarTab = tab;
+      });
+    },
+
+    setExplorerSubTab(tab) {
+      set((state) => {
+        state.explorerSubTab = tab;
       });
     },
 
@@ -398,23 +396,6 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-    toggleRightSidebar() {
-      set((state) => {
-        state.rightSidebarOpen = !state.rightSidebarOpen;
-      });
-    },
-
-    setRightSidebarOpen(open) {
-      set((state) => {
-        state.rightSidebarOpen = open;
-      });
-    },
-
-    setRightSidebarTab(tab) {
-      set((state) => {
-        state.rightSidebarTab = tab;
-      });
-    },
 
     toggleBottomPanel() {
       set((state) => {

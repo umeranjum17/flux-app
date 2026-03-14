@@ -17,7 +17,7 @@ export function CheckpointTimeline({ checkpoints, onViewDiff, onRevert }: Checkp
           {/* Timeline line */}
           <div className="flex flex-col items-center w-4 shrink-0">
             <div className={`w-0.5 flex-1 ${idx === 0 ? 'bg-transparent' : 'bg-border'}`} />
-            <div className="w-2.5 h-2.5 rounded-full bg-accent border-2 border-bg-primary shrink-0" />
+            <div className="w-2.5 h-2.5 rounded-full bg-success border-2 border-bg-primary shrink-0" />
             <div className={`w-0.5 flex-1 ${idx === checkpoints.length - 1 ? 'bg-transparent' : 'bg-border'}`} />
           </div>
 
@@ -44,7 +44,7 @@ export function CheckpointTimeline({ checkpoints, onViewDiff, onRevert }: Checkp
             <button
               onClick={() => onViewDiff(cp)}
               title="View diff"
-              className="p-1 rounded text-text-tertiary hover:text-accent hover:bg-accent/10 transition-colors"
+              className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
             >
               <Eye size={12} />
             </button>

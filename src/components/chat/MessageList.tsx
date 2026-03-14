@@ -221,7 +221,7 @@ export function MessageList() {
             />
           )}
 
-          {taskStatus === 'done' && (diffs.size > 0 || messages.some((m) => m.type === 'result')) && (() => {
+          {taskStatus === 'done' && (() => {
             const resultMsg = [...messages].reverse().find((m) => m.type === 'result');
             const mergedDiff = diffs.size > 0
               ? Array.from(diffs.values()).reduce(
@@ -233,26 +233,36 @@ export function MessageList() {
                   { files: [] as import('../../lib/types').DiffFileEntry[], totalAdditions: 0, totalDeletions: 0 },
                 )
               : undefined;
-            return (
-              <TaskFooter
-                durationMs={resultMsg?.durationMs}
-                diff={mergedDiff}
-              />
-            );
+
+            // Show combined completion card with inline files when workspace is available
+            if (workspace && task.mode === 'act') {
+              return (
+                <CompletionCard
+                  workspace={workspace}
+                  suggestedMergeTarget={completionTarget}
+                  onContinue={() => {
+                    useUiStore.getState().setBottomPanelMode('agent');
+                  }}
+                  diff={mergedDiff}
+                  durationMs={resultMsg?.durationMs}
+                />
+              );
+            }
+
+            // Fallback to TaskFooter for non-workspace tasks
+            if (diffs.size > 0 || messages.some((m) => m.type === 'result')) {
+              return (
+                <TaskFooter
+                  durationMs={resultMsg?.durationMs}
+                  diff={mergedDiff}
+                />
+              );
+            }
+            return null;
           })()}
 
           {task.mode === 'plan' && taskId && planText && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
-          )}
-
-          {taskStatus === 'done' && workspace && task.mode === 'act' && (
-            <CompletionCard
-              workspace={workspace}
-              suggestedMergeTarget={completionTarget}
-              onContinue={() => {
-                useUiStore.getState().setBottomPanelMode('agent');
-              }}
-            />
           )}
 
           {rateLimitSuggestion && taskId && (
@@ -274,7 +284,7 @@ export function MessageList() {
                           switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
                           useAgentStore.getState().setSelectedAgent(agentId);
                         }}
-                        className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1.5 text-xs font-medium text-accent"
+                        className="premium-toolbar-button rounded-full border border-border/60 bg-bg-elevated/50 px-3 py-1.5 text-xs font-medium text-text-secondary"
                       >
                         {AGENT_LABELS[agentId] ?? agentId}
                       </button>
@@ -343,9 +353,9 @@ function PlanActionBar({ task }: { task: Task }) {
   };
 
   return (
-    <div className="rounded-lg border border-accent/20 bg-accent/5 p-3 flex items-center justify-between gap-3">
+    <div className="rounded-lg border border-border bg-bg-elevated/50 p-3 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2 text-sm text-text-secondary">
-        <ClipboardList size={14} className="text-accent" />
+        <ClipboardList size={14} className="text-text-secondary" />
         <span>Plan complete</span>
       </div>
       <div className="flex items-center gap-2">
@@ -358,7 +368,7 @@ function PlanActionBar({ task }: { task: Task }) {
         </button>
         <button
           onClick={handleImplement}
-          className="px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors flex items-center gap-1.5"
+          className="px-3 py-1.5 rounded-md text-xs font-medium bg-success text-white hover:bg-success/85 transition-colors flex items-center gap-1.5"
         >
           <Play size={12} />
           Implement Plan
