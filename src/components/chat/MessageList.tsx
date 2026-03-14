@@ -105,7 +105,7 @@ export function MessageList() {
         onScroll={handleScroll}
         className="h-full overflow-y-auto px-5 py-6"
       >
-        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-1.5">
           <AnimatePresence initial={false}>
             {(() => {
               const rendered: React.ReactNode[] = [];
@@ -358,13 +358,15 @@ function renderMessage(
   switch (msg.type) {
     case 'text':
       return (
-        <MessageBubble
-          content={msg.content}
-          role={msg.role as 'user' | 'assistant' | 'system'}
-          images={msg.images}
-          attachments={msg.attachments}
-          mode={taskMode as 'plan' | 'act' | undefined}
-        />
+        <div className="my-1.5">
+          <MessageBubble
+            content={msg.content}
+            role={msg.role as 'user' | 'assistant' | 'system'}
+            images={msg.images}
+            attachments={msg.attachments}
+            mode={taskMode as 'plan' | 'act' | undefined}
+          />
+        </div>
       );
 
     case 'status':
