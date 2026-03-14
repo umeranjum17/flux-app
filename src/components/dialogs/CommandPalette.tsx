@@ -20,7 +20,6 @@ import {
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { useWorkspaceStore } from '../../stores/workspace';
 import type { ThinkingLevel } from '../../lib/types';
 
 interface PaletteAction {
@@ -170,11 +169,12 @@ export function CommandPalette() {
       },
       {
         id: 'open-workspaces',
-        name: 'Open Workspace Dashboard',
+        name: 'Show Workspaces',
         icon: LayoutGrid,
         handler: () => {
           setOverlay(null);
-          useWorkspaceStore.getState().setDashboardOpen(true);
+          useUiStore.getState().setSidebarOpen(true);
+          useUiStore.getState().setSidebarTab('workspaces');
         },
       },
       {

@@ -5,13 +5,15 @@ import type { Workspace, WorkspaceStatus, DiffFile, Checkpoint } from '../lib/ip
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
   activeWorkspaceId: string | null;
-  dashboardOpen: boolean;
 
   // Review state
   reviewingWorkspaceId: string | null;
   diffFiles: DiffFile[];
   selectedFile: string | null;
   fileDiff: { oldContent: string; newContent: string; unified: string } | null;
+
+  // Merge state
+  mergingWorkspaceId: string | null;
 
   // Checkpoint state
   checkpoints: Map<string, Checkpoint[]>;
@@ -22,8 +24,8 @@ interface WorkspaceState {
   updateWorkspace(id: string, updates: Partial<Workspace>): void;
   removeWorkspace(id: string): void;
   setActiveWorkspace(id: string | null): void;
-  toggleDashboard(): void;
-  setDashboardOpen(open: boolean): void;
+  openMerge(workspaceId: string): void;
+  closeMerge(): void;
 
   // Review actions
   openReview(workspaceId: string): Promise<void>;
@@ -43,11 +45,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
   immer((set, get) => ({
     workspaces: new Map(),
     activeWorkspaceId: null,
-    dashboardOpen: false,
     reviewingWorkspaceId: null,
     diffFiles: [],
     selectedFile: null,
     fileDiff: null,
+    mergingWorkspaceId: null,
     checkpoints: new Map(),
 
     setWorkspaces(workspaces) {
@@ -93,15 +95,15 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       });
     },
 
-    toggleDashboard() {
+    openMerge(workspaceId) {
       set((state) => {
-        state.dashboardOpen = !state.dashboardOpen;
+        state.mergingWorkspaceId = workspaceId;
       });
     },
 
-    setDashboardOpen(open) {
+    closeMerge() {
       set((state) => {
-        state.dashboardOpen = open;
+        state.mergingWorkspaceId = null;
       });
     },
 

@@ -194,6 +194,13 @@ button:focus-visible {
   pointer-events: none;
 }
 
+/* Compact inline tool-call rows (Conductor-style) */
+.tool-call-row {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
 .premium-message-user {
   background: var(--color-bg-elevated);
   border-radius: 8px;
