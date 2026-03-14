@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  /* Warp-inspired neutral dark palette — no blue, green used sparingly. */
-  --color-bg-primary: hsl(225 14% 7%);
-  --color-bg-secondary: hsl(225 11% 10%);
-  --color-bg-elevated: hsl(225 9% 13%);
-  --color-bg-hover: hsl(225 7% 17%);
-  --color-bg-surface: hsl(225 12% 8%);
+  /* Indigo-blue dark palette — unified hue 228, real accent color. */
+  --color-bg-primary: hsl(228 14% 6%);
+  --color-bg-secondary: hsl(228 12% 10%);
+  --color-bg-elevated: hsl(228 10% 14%);
+  --color-bg-hover: hsl(228 8% 18%);
+  --color-bg-surface: hsl(228 13% 8%);
 
-  --color-text-primary: hsl(210 17% 93%);
-  --color-text-secondary: hsl(210 8% 62%);
-  --color-text-tertiary: hsl(210 6% 46%);
+  --color-text-primary: hsl(228 15% 93%);
+  --color-text-secondary: hsl(228 8% 60%);
+  --color-text-tertiary: hsl(228 6% 44%);
 
-  --color-accent: hsl(210 6% 52%);
-  --color-accent-hover: hsl(210 7% 62%);
-  --color-accent-muted: hsl(210 5% 13%);
-  --color-plan: hsl(210 5% 50%);
-  --color-plan-hover: hsl(210 6% 60%);
-  --color-plan-muted: hsl(210 4% 12%);
+  --color-accent: hsl(228 55% 60%);
+  --color-accent-hover: hsl(228 55% 68%);
+  --color-accent-muted: hsl(228 40% 14%);
+  --color-plan: hsl(228 40% 56%);
+  --color-plan-hover: hsl(228 40% 64%);
+  --color-plan-muted: hsl(228 30% 12%);
 
-  --color-success: hsl(142 55% 49%);
-  --color-error: hsl(0 72% 55%);
-  --color-warning: hsl(39 90% 55%);
-  --color-info: hsl(210 6% 52%);
+  --color-success: hsl(152 40% 46%);
+  --color-error: hsl(358 55% 55%);
+  --color-warning: hsl(42 70% 52%);
+  --color-info: hsl(228 45% 58%);
 
-  --color-border: hsl(215 10% 20%);
-  --color-border-focus: hsl(210 6% 42%);
-  --color-border-subtle: hsl(215 10% 14%);
+  --color-border: hsl(228 10% 18%);
+  --color-border-focus: hsl(228 40% 45%);
+  --color-border-subtle: hsl(228 10% 12%);
 
   /* Typography */
   --font-sans: 'SF Pro Display', 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
@@ -39,11 +39,11 @@
   --panel-strong-gradient: var(--color-bg-elevated);
   --plan-gradient: var(--color-bg-secondary);
   --tool-gradient: var(--color-bg-secondary);
-  --panel-shadow: 0 1px 3px hsl(0 0% 0% / 0.2);
-  --panel-shadow-strong: 0 2px 8px hsl(0 0% 0% / 0.25);
+  --panel-shadow: 0 1px 3px hsl(228 20% 3% / 0.35);
+  --panel-shadow-strong: 0 4px 16px hsl(228 20% 3% / 0.45);
   --focus-ring:
-    0 0 0 1px hsl(210 6% 52% / 0.56),
-    0 0 0 5px hsl(210 6% 52% / 0.14);
+    0 0 0 1px hsl(228 55% 60% / 0.56),
+    0 0 0 5px hsl(228 55% 60% / 0.14);
 }
 
 /* Light theme override */
@@ -57,7 +57,7 @@
   --color-text-secondary: hsl(215 12% 33%);
   --color-text-tertiary: hsl(215 10% 47%);
   --color-border: hsl(215 14% 80%);
-  --color-border-focus: hsl(215 50% 50%);
+  --color-border-focus: hsl(228 50% 50%);
   --color-border-subtle: hsl(215 16% 86%);
   --app-gradient: var(--color-bg-primary);
   --panel-gradient: var(--color-bg-secondary);
@@ -67,8 +67,8 @@
   --panel-shadow: 0 1px 3px hsl(215 20% 20% / 0.08);
   --panel-shadow-strong: 0 2px 8px hsl(215 20% 20% / 0.12);
   --focus-ring:
-    0 0 0 1px hsl(210 6% 52% / 0.45),
-    0 0 0 5px hsl(210 6% 52% / 0.12);
+    0 0 0 1px hsl(228 55% 60% / 0.45),
+    0 0 0 5px hsl(228 55% 60% / 0.12);
 }
 
 html, body, #root {
@@ -94,7 +94,7 @@ body {
 }
 
 ::selection {
-  background: hsl(210 6% 52% / 0.24);
+  background: hsl(228 55% 60% / 0.24);
   color: var(--color-text-primary);
 }
 
@@ -118,12 +118,12 @@ button:focus-visible {
   background: hsl(0 0% 0% / 0.08);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: hsl(228 8% 22%);
   border-radius: 99px;
   border: 1px solid transparent;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-tertiary);
+  background: hsl(228 8% 30%);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
