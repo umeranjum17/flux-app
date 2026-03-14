@@ -99,6 +99,7 @@ export function TabBar() {
                 e.stopPropagation();
                 closeTab(id);
               }}
+              title="Close tab"
               className="premium-toolbar-button ml-auto flex-shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-all group-hover:opacity-100"
             >
               <X size={11} />
@@ -110,6 +111,7 @@ export function TabBar() {
         onClick={handleNewTab}
         className="premium-toolbar-button ml-1 flex-shrink-0 rounded-lg p-2 text-text-secondary"
         aria-label="New tab"
+        title="New tab"
       >
         <Plus size={13} />
       </button>

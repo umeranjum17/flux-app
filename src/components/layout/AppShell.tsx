@@ -4,7 +4,6 @@ import { AlertTriangle, FolderOpen, Terminal } from 'lucide-react';
 import { TopBar } from './TopBar';
 // ActivityBar removed — navigation merged into Sidebar icon bar
 import { Sidebar } from './Sidebar';
-import { RightSidebar } from './RightSidebar';
 import { StatusLine } from './StatusLine';
 import { MessageList } from '../chat/MessageList';
 import { LiveRunHeader } from '../chat/LiveRunHeader';
@@ -33,7 +32,6 @@ import { restoreSessionMessage } from '../../lib/session-messages';
 
 export function AppShell() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
-  const rightSidebarOpen = useUiStore((s) => s.rightSidebarOpen);
   const bottomPanelOpen = useUiStore((s) => s.bottomPanelOpen);
   const theme = useUiStore((s) => s.theme);
   const cwd = useUiStore((s) => s.cwd);
@@ -374,7 +372,16 @@ export function AppShell() {
       if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
       if (meta && e.key === 'k') { e.preventDefault(); useUiStore.getState().setOverlay('command-palette'); }
-      if (meta && e.key === 'e') { e.preventDefault(); useUiStore.getState().toggleRightSidebar(); }
+      if (meta && e.key === 'e') {
+        e.preventDefault();
+        const ui = useUiStore.getState();
+        if (ui.sidebarTab === 'explorer' && ui.sidebarOpen) {
+          ui.setSidebarTab('workspaces');
+        } else {
+          ui.setSidebarTab('explorer');
+          if (!ui.sidebarOpen) ui.setSidebarOpen(true);
+        }
+      }
       if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanel(); }
 
       // Cmd+1-9: switch between workspaces first, then standalone chats
@@ -523,7 +530,6 @@ export function AppShell() {
                 {explorerOpen && <FileExplorer />}
               </div>
 
-              <AnimatePresence>{rightSidebarOpen && <RightSidebar />}</AnimatePresence>
             </div>
 
             {bottomPanelOpen && <BottomPanel ref={termRef} />}

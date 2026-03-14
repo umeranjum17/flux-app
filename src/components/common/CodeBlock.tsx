@@ -29,6 +29,7 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
           onClick={handleCopy}
           className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-secondary transition-colors opacity-0 group-hover:opacity-100"
           aria-label="Copy code"
+          title={copied ? 'Copied!' : 'Copy code'}
         >
           {copied ? (
             <>

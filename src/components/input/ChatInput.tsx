@@ -1045,6 +1045,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
                   }`}
                   aria-label="Send message"
+                  title="Send message"
                 >
                   <ArrowUp size={14} strokeWidth={2.5} />
                 </button>
