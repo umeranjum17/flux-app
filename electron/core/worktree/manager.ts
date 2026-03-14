@@ -232,6 +232,34 @@ export async function mergeWorktree(
     // Nothing to commit is fine
   }
 
+  // Clean up any stale merge/rebase state left by previous failed attempts
+  for (const abort of [['merge', '--abort'], ['rebase', '--abort'], ['cherry-pick', '--abort']]) {
+    try {
+      await execFileAsync('git', abort, { cwd: parentRepo, timeout: 10000 });
+    } catch {
+      // No in-progress operation — fine
+    }
+  }
+
+  // Reset the index to match HEAD so checkout doesn't fail on dirty index
+  try {
+    await execFileAsync('git', ['reset', 'HEAD'], { cwd: parentRepo, timeout: 10000 });
+  } catch {
+    // Already clean
+  }
+
+  // Remember current branch so we can restore on failure
+  let originalBranch: string | null = null;
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: parentRepo,
+      timeout: 10000,
+    });
+    originalBranch = stdout.trim();
+  } catch {
+    // Detached HEAD or other issue
+  }
+
   // Stash any uncommitted changes in the parent repo before merge
   let didStash = false;
   try {
