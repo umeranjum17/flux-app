@@ -99,9 +99,13 @@ interface ProviderFetchResult {
 }
 
 const CLAUDE_CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
+const CLAUDE_STATE_PATH = path.join(os.homedir(), '.claude.json');
 const CODEX_AUTH_PATH = path.join(os.homedir(), '.codex', 'auth.json');
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const CLAUDE_TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token';
+const CLAUDE_TOKEN_URLS = [
+  'https://console.anthropic.com/v1/oauth/token',
+  'https://platform.claude.com/v1/oauth/token',
+] as const;
 const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
 const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
@@ -345,14 +349,17 @@ export class LiveUsageService {
   }
 
   private async fetchClaudeUsage(now: number): Promise<ProviderFetchResult> {
-    const credentials = readJsonFile(CLAUDE_CREDENTIALS_PATH);
-    const oauth = credentials?.claudeAiOauth;
+    const credentialSource = readClaudeCredentialSource();
+    const oauth = credentialSource?.oauth;
     if (!oauth || typeof oauth.accessToken !== 'string') {
+      const hasClaudeAccount = hasClaudeAccountState();
       return {
         providerId: 'claude-code',
         label: PROVIDER_LABELS['claude-code'],
-        status: 'auth_missing',
-        message: `Missing Claude credentials at ${CLAUDE_CREDENTIALS_PATH}`,
+        status: hasClaudeAccount ? 'error' : 'auth_missing',
+        message: hasClaudeAccount
+          ? 'Claude account detected, but local OAuth usage token is unavailable.'
+          : `Missing Claude credentials at ${CLAUDE_CREDENTIALS_PATH}`,
         fetchedAt: null,
         windows: [],
       };
@@ -368,14 +375,11 @@ export class LiveUsageService {
         accessToken = refreshed.accessToken;
         refreshToken = refreshed.refreshToken;
         expiresAt = refreshed.expiresAt;
-        writeJsonFile(CLAUDE_CREDENTIALS_PATH, {
-          ...credentials,
-          claudeAiOauth: {
-            ...oauth,
-            accessToken,
-            refreshToken,
-            expiresAt,
-          },
+        writeClaudeCredentialSource(credentialSource, {
+          ...oauth,
+          accessToken,
+          refreshToken,
+          expiresAt,
         });
       }
     }
@@ -391,6 +395,21 @@ export class LiveUsageService {
       });
 
       if (!response.ok) {
+        if ((response.status === 401 || response.status === 403) && refreshToken) {
+          const refreshed = await this.refreshClaudeToken(refreshToken);
+          if (refreshed) {
+            accessToken = refreshed.accessToken;
+            refreshToken = refreshed.refreshToken;
+            expiresAt = refreshed.expiresAt;
+            writeClaudeCredentialSource(credentialSource, {
+              ...oauth,
+              accessToken,
+              refreshToken,
+              expiresAt,
+            });
+            return this.fetchClaudeUsage(now);
+          }
+        }
         throw new Error(`Claude usage request failed (${response.status})`);
       }
 
@@ -419,39 +438,42 @@ export class LiveUsageService {
   }
 
   private async refreshClaudeToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null> {
-    try {
-      const response = await fetch(CLAUDE_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: CLAUDE_CLIENT_ID,
-          refresh_token: refreshToken,
-        }),
-      });
+    for (const tokenUrl of CLAUDE_TOKEN_URLS) {
+      try {
+        const response = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: CLAUDE_CLIENT_ID,
+            refresh_token: refreshToken,
+          }),
+        });
 
-      if (!response.ok) {
-        return null;
+        if (!response.ok) {
+          continue;
+        }
+
+        const json = await response.json() as Record<string, any>;
+        const accessToken = typeof json.access_token === 'string' ? json.access_token : null;
+        if (!accessToken) {
+          continue;
+        }
+
+        const nextRefreshToken = typeof json.refresh_token === 'string' ? json.refresh_token : refreshToken;
+        const expiresIn = typeof json.expires_in === 'number' ? json.expires_in : 3600;
+        return {
+          accessToken,
+          refreshToken: nextRefreshToken,
+          expiresAt: Date.now() + (expiresIn * 1000),
+        };
+      } catch {
+        // Keep trying the next known endpoint.
       }
-
-      const json = await response.json() as Record<string, any>;
-      const accessToken = typeof json.access_token === 'string' ? json.access_token : null;
-      if (!accessToken) {
-        return null;
-      }
-
-      const nextRefreshToken = typeof json.refresh_token === 'string' ? json.refresh_token : refreshToken;
-      const expiresIn = typeof json.expires_in === 'number' ? json.expires_in : 3600;
-      return {
-        accessToken,
-        refreshToken: nextRefreshToken,
-        expiresAt: Date.now() + (expiresIn * 1000),
-      };
-    } catch {
-      return null;
     }
+    return null;
   }
 
   private async fetchCodexUsage(now: number): Promise<ProviderFetchResult> {
@@ -712,4 +734,98 @@ function windowOrder(windowKey: UsageWindowKey): number {
 
 function snapshotKey(providerId: UsageProviderId, windowKey: UsageWindowKey): string {
   return `${providerId}:${windowKey}`;
+}
+
+interface ClaudeOauthTokens {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: number;
+}
+
+interface ClaudeCredentialSource {
+  path: string;
+  data: Record<string, unknown>;
+  oauth: ClaudeOauthTokens | null;
+}
+
+function readClaudeCredentialSource(): ClaudeCredentialSource | null {
+  const candidates = [
+    CLAUDE_CREDENTIALS_PATH,
+    CLAUDE_STATE_PATH,
+  ];
+
+  for (const filePath of candidates) {
+    const credentials = readJsonFile(filePath);
+    if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) {
+      continue;
+    }
+    const parsed = parseClaudeOauthShape(credentials as Record<string, unknown>);
+    if (!parsed) {
+      continue;
+    }
+    return { path: filePath, data: credentials as Record<string, unknown>, oauth: parsed };
+  }
+  return null;
+}
+
+function writeClaudeCredentialSource(source: ClaudeCredentialSource | null, oauth: ClaudeOauthTokens): void {
+  if (!source) {
+    return;
+  }
+  const nextData = {
+    ...source.data,
+    claudeAiOauth: {
+      ...(typeof source.data.claudeAiOauth === 'object' && source.data.claudeAiOauth
+        ? source.data.claudeAiOauth as Record<string, unknown>
+        : {}),
+      accessToken: oauth.accessToken,
+      ...(oauth.refreshToken ? { refreshToken: oauth.refreshToken } : {}),
+      expiresAt: oauth.expiresAt,
+    },
+  };
+  writeJsonFile(source.path, nextData);
+}
+
+function parseClaudeOauthShape(raw: Record<string, unknown>): ClaudeOauthTokens | null {
+  const oauthCandidate = raw.claudeAiOauth;
+  if (!oauthCandidate || typeof oauthCandidate !== 'object' || Array.isArray(oauthCandidate)) {
+    return null;
+  }
+  const oauth = oauthCandidate as Record<string, unknown>;
+  const accessToken = pickString(oauth.accessToken, oauth.access_token, oauth.token);
+  if (!accessToken) {
+    return null;
+  }
+  return {
+    accessToken,
+    refreshToken: pickString(oauth.refreshToken, oauth.refresh_token) ?? null,
+    expiresAt: pickNumber(oauth.expiresAt, oauth.expires_at, oauth.expiry) ?? 0,
+  };
+}
+
+function hasClaudeAccountState(): boolean {
+  const state = readJsonFile(CLAUDE_STATE_PATH);
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    return false;
+  }
+  const obj = state as Record<string, unknown>;
+  return !!(obj.oauthAccount && typeof obj.oauthAccount === 'object' && !Array.isArray(obj.oauthAccount));
+}
+
+function pickString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function pickNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
 }

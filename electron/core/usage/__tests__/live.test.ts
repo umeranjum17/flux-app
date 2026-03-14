@@ -214,4 +214,46 @@ describe('LiveUsageService', () => {
     expect(claude?.windows[0]?.source).toBe('snapshot');
     expect(claude?.message).toContain('network down');
   });
+
+  it('treats Claude as unavailable (not disconnected) when account exists but oauth token file is missing', async () => {
+    vi.doMock('../../db/connection', () => ({
+      getDb: () => ({
+        prepare: (_sql: string) => ({
+          all: () => [],
+          run: () => {},
+        }),
+      }),
+    }));
+
+    vi.doMock('fs', () => ({
+      default: {
+        readFileSync: (filePath: string) => {
+          if (filePath.endsWith('.claude.json')) {
+            return JSON.stringify({
+              oauthAccount: {
+                accountUuid: 'account-1',
+              },
+            });
+          }
+          throw new Error(`Unexpected file read: ${filePath}`);
+        },
+        writeFileSync: () => {},
+      },
+    }));
+
+    const fetchSpy = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { LiveUsageService } = await import('../live');
+    const overview = await new LiveUsageService().getOverview();
+    const claude = overview.providers.find((provider) => provider.providerId === 'claude-code');
+
+    expect(claude?.status).toBe('error');
+    expect(claude?.message).toContain('token is unavailable');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

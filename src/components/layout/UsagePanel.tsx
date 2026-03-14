@@ -44,6 +44,9 @@ export function UsagePanel() {
 
   useEffect(() => {
     void loadUsage();
+    const interval = setInterval(() => {
+      void loadUsage(true);
+    }, 60_000);
     const cleanupDone = window.api.on('agent:done', () => {
       void loadUsage(true);
     });
@@ -54,6 +57,7 @@ export function UsagePanel() {
       }
     });
     return () => {
+      clearInterval(interval);
       cleanupDone();
       cleanupMessage();
     };
