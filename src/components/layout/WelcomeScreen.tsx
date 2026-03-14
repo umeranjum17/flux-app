@@ -13,7 +13,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
       <div className="w-full max-w-[480px]">
         <div className="mb-8 text-center">
           <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-text-primary">Start a conversation</h2>
-          <p className="mt-2 text-[13px] text-text-tertiary">Type a message below or press <kbd className="premium-pill px-1.5 py-0.5 text-[10px] font-mono text-text-secondary">Cmd+K</kbd> to open commands</p>
+          <p className="mt-2 text-[14px] text-text-tertiary">Type a message below or press <kbd className="premium-pill px-1.5 py-0.5 text-[12px] font-mono text-text-secondary">Cmd+K</kbd> to open commands</p>
         </div>
 
         {recentProjects.length > 0 && (
@@ -44,14 +44,14 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
     >
       <Zap size={12} className="text-text-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
-        <span className="block truncate text-[13px] font-medium text-text-primary">{project.name}</span>
-        <span className="mt-0.5 block truncate text-[10px] text-text-tertiary">{project.path}</span>
+        <span className="block truncate text-[14px] font-medium text-text-primary">{project.name}</span>
+        <span className="mt-0.5 block truncate text-[12px] text-text-tertiary">{project.path}</span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {project.isSSH && (
-          <span className="premium-pill border border-accent/25 bg-accent-muted/40 px-2 py-1 text-[9px] text-accent">SSH</span>
+          <span className="premium-pill border border-success/25 bg-success/8 px-2 py-1 text-[11px] text-success">SSH</span>
         )}
-        <span className="text-[10px] text-text-tertiary">{timeAgo}</span>
+        <span className="text-[12px] text-text-tertiary">{timeAgo}</span>
       </div>
     </button>
   );

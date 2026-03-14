@@ -36,12 +36,12 @@ class ToolContentErrorBoundary extends Component<
       return (
         <div className="pl-6 pr-2 pb-2">
           <div className="rounded-md border border-error/20 bg-error/5 p-2">
-            <div className="flex items-center gap-1.5 text-[11px] text-error font-medium">
-              <AlertTriangle size={11} />
+            <div className="flex items-center gap-1.5 text-[13px] text-error font-medium">
+              <AlertTriangle size={12} />
               Failed to render output
             </div>
             {this.props.fallbackContent && (
-              <pre className="text-[11px] font-mono text-text-tertiary whitespace-pre-wrap max-h-24 overflow-y-auto mt-1">
+              <pre className="text-[12px] font-mono text-text-tertiary whitespace-pre-wrap max-h-24 overflow-y-auto mt-1">
                 {this.props.fallbackContent.slice(0, 500)}
               </pre>
             )}
@@ -374,13 +374,13 @@ function TodoPreview({ items, expanded }: { items: TodoItem[]; expanded: boolean
               {item.content}
             </div>
             {item.activeForm && item.activeForm !== item.content && item.status === 'in_progress' && (
-              <div className="text-[11px] text-text-tertiary">{item.activeForm}</div>
+              <div className="text-[12px] text-text-tertiary">{item.activeForm}</div>
             )}
           </div>
         </div>
       ))}
       {!expanded && items.length > visibleItems.length && (
-        <div className="text-[11px] text-text-tertiary pl-5">
+        <div className="text-[12px] text-text-tertiary pl-5">
           +{items.length - visibleItems.length} more
         </div>
       )}
@@ -394,7 +394,7 @@ function QuestionPreview({ questions }: { questions: QuestionItem[] }) {
       {questions.map((question, index) => (
         <div key={`${question.question}-${index}`} className="space-y-1">
           {question.header && (
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+            <div className="text-[12px] font-semibold uppercase tracking-wider text-text-tertiary">
               {question.header}
             </div>
           )}

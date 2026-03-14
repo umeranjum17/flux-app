@@ -82,7 +82,7 @@ export function FileMention({ query, onSelect, onClose }: FileMentionProps) {
             }`}
           >
             {node.isDirectory ? (
-              <Folder size={12} className="text-accent shrink-0" />
+              <Folder size={12} className="text-text-secondary shrink-0" />
             ) : (
               <File size={12} className="text-text-tertiary shrink-0" />
             )}

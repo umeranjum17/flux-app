@@ -197,7 +197,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
       {/* Revision history dropdown */}
       {showHistory && revisions.length > 0 && (
         <div className="border-b border-border bg-bg-elevated p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+          <div className="text-[12px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
             Previous Revisions
           </div>
           <div className="space-y-2">
@@ -331,7 +331,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           </div>
           <button
             onClick={handleImplement}
-            className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-bg-primary transition-colors hover:bg-accent-hover"
+            className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-success/85"
           >
             <Play size={13} />
             Implement Plan

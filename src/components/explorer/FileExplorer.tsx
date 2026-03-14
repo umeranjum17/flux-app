@@ -112,7 +112,7 @@ export function FileExplorer() {
       {/* Header bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <FileCode2 size={14} className="text-accent shrink-0" />
+          <FileCode2 size={14} className="text-text-secondary shrink-0" />
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[12px] font-semibold text-text-primary truncate">{fileName}</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-tertiary font-mono uppercase">{lang}</span>

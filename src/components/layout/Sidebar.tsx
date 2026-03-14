@@ -339,8 +339,8 @@ function SearchTab() {
             className="classic-list-button"
           >
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] text-accent">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
-              <div className="truncate font-mono text-[11px] text-text-tertiary">{r.text}</div>
+              <div className="truncate text-[13px] text-text-primary">{r.file.split('/').pop()}<span className="text-text-tertiary">:{r.line}</span></div>
+              <div className="truncate font-mono text-[12px] text-text-tertiary">{r.text}</div>
             </div>
           </button>
         ))}

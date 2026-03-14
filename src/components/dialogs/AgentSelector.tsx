@@ -98,7 +98,7 @@ export function AgentSelector() {
                   disabled={!agent.available}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 ${
                     agent.id === selectedAgentId
-                      ? 'bg-accent/10 text-text-primary ring-1 ring-accent/20'
+                      ? 'bg-bg-elevated text-text-primary ring-1 ring-border'
                       : agent.available
                         ? 'text-text-secondary hover:bg-bg-hover'
                         : 'text-text-tertiary opacity-50 cursor-not-allowed'
@@ -134,7 +134,7 @@ export function AgentSelector() {
                     title={agent.authStatus}
                   />
                   {agent.id === selectedAgentId && (
-                    <Check size={15} className="flex-shrink-0 text-accent" />
+                    <Check size={15} className="flex-shrink-0 text-success" />
                   )}
                 </button>
               ))}
@@ -174,7 +174,7 @@ export function AgentSelector() {
                         value={selectedModel}
                         onChange={(e) => setSelectedModel(e.target.value)}
                         disabled={modelOptions.length === 0}
-                        className="w-full bg-bg-primary border border-border rounded-xl px-3 py-2.5 text-[13px] text-text-primary appearance-none outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all"
+                        className="w-full bg-bg-primary border border-border rounded-xl px-3 py-2.5 text-[13px] text-text-primary appearance-none outline-none focus:border-border-focus focus:ring-1 focus:ring-border-focus/20 transition-all"
                       >
                         {modelOptions.map((model) => (
                           <option key={model.id} value={model.id}>
@@ -203,7 +203,7 @@ export function AgentSelector() {
                           onClick={() => setSelectedThinking(level.value)}
                           className={`flex-1 px-2.5 py-2 rounded-[10px] text-[12px] font-medium transition-all duration-150 ${
                             selectedThinking === level.value
-                              ? 'bg-accent text-white shadow-sm'
+                              ? 'bg-success text-white shadow-sm'
                               : 'text-text-secondary hover:text-text-primary'
                           }`}
                         >
@@ -219,7 +219,7 @@ export function AgentSelector() {
             <button
               type="button"
               onClick={() => setOverlay(null)}
-              className="w-full mt-5 px-4 py-2.5 bg-accent text-white rounded-xl text-[13px] font-medium hover:bg-accent-hover transition-colors shadow-sm"
+              className="w-full mt-5 px-4 py-2.5 bg-success text-white rounded-xl text-[13px] font-medium hover:bg-success/85 transition-colors shadow-sm"
             >
               Done
             </button>

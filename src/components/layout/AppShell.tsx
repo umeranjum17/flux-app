@@ -486,29 +486,29 @@ export function AppShell() {
 
                     {/* Not-a-git-repo banner */}
                     {!isGitRepo && cwd && (
-                      <div className="mx-auto mt-6 w-full max-w-[600px] px-6">
-                        <div className="flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 px-5 py-4">
-                          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-500" />
+                      <div className="mx-auto mt-4 w-full max-w-[600px] px-6">
+                        <div className="flex items-start gap-3 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3">
+                          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-text-primary">
+                            <p className="text-[14px] font-medium text-text-primary">
                               Not a Git repository
                             </p>
-                            <p className="mt-1 text-xs text-text-secondary">
-                              <span className="font-mono text-[11px] text-text-tertiary">{cwd}</span>{' '}
+                            <p className="mt-1 text-[13px] text-text-secondary">
+                              <span className="font-mono text-[13px] text-text-tertiary">{cwd}</span>{' '}
                               is not a git repository. Workspaces require git to create isolated branches.
                             </p>
-                            <p className="mt-2 text-xs text-text-tertiary">
+                            <p className="mt-2 text-[13px] text-text-tertiary">
                               Initialize it by running:
                             </p>
-                            <code className="mt-1 inline-block rounded bg-bg-secondary px-2 py-1 font-mono text-[11px] text-accent">
+                            <code className="mt-1 inline-block rounded bg-bg-secondary px-2 py-1 font-mono text-[13px] text-text-secondary">
                               git init
                             </code>
                             <div className="mt-3 flex items-center gap-2">
                               <button
                                 onClick={() => openProject()}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-secondary px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:bg-bg-hover transition-colors"
                               >
-                                <FolderOpen size={12} />
+                                <FolderOpen size={13} />
                                 Open Different Folder
                               </button>
                             </div>

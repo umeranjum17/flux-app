@@ -137,7 +137,7 @@ export function ContextSettings() {
                     type="button"
                     onClick={() => updateLocal({ enabled: !localConfig.enabled })}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      localConfig.enabled ? 'bg-accent' : 'bg-bg-primary border border-border'
+                      localConfig.enabled ? 'bg-success' : 'bg-bg-primary border border-border'
                     }`}
                   >
                     <span
@@ -183,7 +183,7 @@ export function ContextSettings() {
                             onClick={() => toggleAgentEnabled(id)}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                               localConfig.perAgentEnabled[id] !== false
-                                ? 'bg-accent'
+                                ? 'bg-success'
                                 : 'bg-bg-primary border border-border'
                             }`}
                           >
@@ -265,7 +265,7 @@ export function ContextSettings() {
                         type="button"
                         onClick={() => updateLocal({ autoRefresh: !localConfig.autoRefresh })}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                          localConfig.autoRefresh ? 'bg-accent' : 'bg-bg-primary border border-border'
+                          localConfig.autoRefresh ? 'bg-success' : 'bg-bg-primary border border-border'
                         }`}
                       >
                         <span
@@ -347,7 +347,7 @@ export function ContextSettings() {
                         <button
                           type="button"
                           onClick={handlePreview}
-                          className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:opacity-90"
+                          className="px-3 py-1.5 bg-success text-white rounded-lg text-xs font-medium hover:opacity-90"
                         >
                           Go
                         </button>
@@ -365,7 +365,7 @@ export function ContextSettings() {
               <button
                 type="button"
                 onClick={handleSave}
-                className="w-full px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                className="w-full px-4 py-2 bg-success text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Save
               </button>

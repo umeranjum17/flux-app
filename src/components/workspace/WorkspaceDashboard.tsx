@@ -126,13 +126,13 @@ export function WorkspaceDashboard() {
         <div className="min-w-0">
           <div className="classic-section-label">Workspaces</div>
           <div className="mt-2 flex items-center gap-2">
-            <LayoutGrid size={16} className="text-accent" />
+            <LayoutGrid size={16} className="text-text-secondary" />
             <h2 className="truncate text-lg font-semibold tracking-[-0.02em] text-text-primary">{repositoryName}</h2>
-            <span className="premium-pill px-2 py-1 text-[10px] font-medium text-text-tertiary">
+            <span className="premium-pill px-2 py-1 text-[12px] font-medium text-text-tertiary">
               {workspaceList.length}
             </span>
           </div>
-          <p className="mt-1.5 text-[11px] text-text-tertiary">
+          <p className="mt-1.5 text-[13px] text-text-tertiary">
             Isolated branches for parallel agent work.
           </p>
         </div>
@@ -140,7 +140,7 @@ export function WorkspaceDashboard() {
           onClick={() => setShowCreate(true)}
           disabled={!isGitRepo}
           title={isGitRepo ? undefined : 'Not a git repository — run "git init" first'}
-          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2 text-xs font-medium text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={13} />
           New Workspace
@@ -162,7 +162,7 @@ export function WorkspaceDashboard() {
             {isGitRepo && (
               <button
                 onClick={() => setShowCreate(true)}
-                className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/45 px-4 py-2 text-xs font-medium text-accent"
+                className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2 text-xs font-medium text-text-secondary"
               >
                 <Plus size={13} />
                 Create First Workspace

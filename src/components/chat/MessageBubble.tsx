@@ -122,7 +122,7 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
               return <ol className="list-decimal pl-6 my-1.5">{children}</ol>;
             },
             blockquote({ children }) {
-              return <blockquote className="border-l-3 border-accent pl-4 italic text-text-secondary my-2">{children}</blockquote>;
+              return <blockquote className="border-l-3 border-border-focus pl-4 italic text-text-secondary my-2">{children}</blockquote>;
             },
           }}
         >

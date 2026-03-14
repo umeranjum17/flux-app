@@ -148,7 +148,7 @@ export function SettingsPanel() {
                             onClick={() => updateConfig({ theme: t })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                               config.theme === t
-                                ? 'bg-accent text-white'
+                                ? 'bg-success text-white'
                                 : 'bg-bg-primary text-text-secondary border border-border hover:bg-bg-hover'
                             }`}
                           >
@@ -209,7 +209,7 @@ export function SettingsPanel() {
                           onClick={() => updateConfig({ sendKey: opt.value })}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                             config.sendKey === opt.value
-                              ? 'bg-accent text-white'
+                              ? 'bg-success text-white'
                               : 'bg-bg-primary text-text-secondary border border-border hover:bg-bg-hover'
                           }`}
                         >
@@ -244,7 +244,7 @@ export function SettingsPanel() {
                             onClick={() => updateConfig({ preferredIde: opt.value })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                               (config.preferredIde ?? 'code') === opt.value
-                                ? 'bg-accent text-white'
+                                ? 'bg-success text-white'
                                 : 'bg-bg-primary text-text-secondary border border-border hover:bg-bg-hover'
                             }`}
                           >
@@ -284,7 +284,7 @@ export function SettingsPanel() {
                             onClick={() => updateConfig({ defaultThinking: opt.value })}
                             className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                               config.defaultThinking === opt.value
-                                ? 'bg-accent text-white'
+                                ? 'bg-success text-white'
                                 : 'bg-bg-primary text-text-secondary border border-border hover:bg-bg-hover'
                             }`}
                           >
@@ -357,7 +357,7 @@ export function SettingsPanel() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="w-full px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="w-full px-4 py-2 bg-success text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
                 >
                   Save
                 </button>
