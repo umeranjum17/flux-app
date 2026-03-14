@@ -302,6 +302,7 @@ export function MessageList() {
           onClick={scrollToBottom}
           className="premium-panel premium-toolbar-button absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full p-2.5"
           aria-label="Scroll to bottom"
+          title="Scroll to bottom"
         >
           <ArrowDown size={16} className="text-text-secondary" />
         </button>

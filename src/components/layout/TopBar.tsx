@@ -19,6 +19,7 @@ export function TopBar() {
           onClick={toggleSidebar}
           className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
           aria-label="Toggle sidebar"
+          title="Toggle sidebar"
         >
           <Menu size={15} />
         </button>
@@ -42,6 +43,7 @@ export function TopBar() {
           onClick={() => setOverlay('settings')}
           className="premium-toolbar-button rounded-lg p-2 text-text-secondary"
           aria-label="Settings"
+          title="Settings"
         >
           <Settings size={14} />
         </button>
