@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, ClipboardList, Zap } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, ClipboardList, Zap, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -319,6 +319,18 @@ export function ChatInput({ focused }: ChatInputProps) {
     setAttachedFiles([]);
   }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, mode, setTaskStatus, setTaskSessionId, upsertSession, isTerminal, cwd, shellHistory]);
 
+  const handleStop = useCallback(async () => {
+    const task = getActiveTask();
+    if (!task) return;
+    const isActive = task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input';
+    if (!isActive) return;
+    try {
+      await window.api.invoke('task:stop', { taskId: task.id });
+    } catch {
+      // agent:done event handles status transition
+    }
+  }, [getActiveTask]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Ghost text: Tab accepts, Escape dismisses
     if (isTerminal && ghostText) {
@@ -331,6 +343,15 @@ export function ChatInput({ focused }: ChatInputProps) {
       if (e.key === 'Escape') {
         e.preventDefault();
         setGhostText('');
+        return;
+      }
+    }
+
+    if (e.key === 'Escape') {
+      const task = getActiveTask();
+      if (task && (task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input')) {
+        e.preventDefault();
+        void handleStop();
         return;
       }
     }
@@ -541,7 +562,12 @@ export function ChatInput({ focused }: ChatInputProps) {
   }, []);
 
   const activeTask = getActiveTask();
-  const canSpawnSubagents = !!activeTask && (activeTask.status === 'running' || activeTask.status === 'waiting_approval' || activeTask.status === 'waiting_input');
+  const hasActiveRun = !!activeTask && (
+    activeTask.status === 'running' ||
+    activeTask.status === 'waiting_approval' ||
+    activeTask.status === 'waiting_input'
+  );
+  const canSpawnSubagents = hasActiveRun;
   const pendingQuestion = activeTask?.pendingQuestion;
   const placeholder = isTerminal
     ? 'Run a command...'
@@ -950,24 +976,37 @@ export function ChatInput({ focused }: ChatInputProps) {
                 </button>
               )}
 
-              {/* Send button (circular) */}
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!hasContent}
-                className={`flex-shrink-0 rounded-full p-3 transition-colors ${
-                  hasContent
-                    ? isTerminal
-                      ? 'bg-green-600 text-white'
-                      : mode === 'plan'
-                      ? 'bg-plan text-bg-primary'
-                      : 'bg-accent text-bg-primary'
-                    : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
-                }`}
-                aria-label="Send message"
-              >
-                <ArrowUp size={14} strokeWidth={2.5} />
-              </button>
+              {/* Stop button (when agent is running, non-terminal) */}
+              {hasActiveRun && !isTerminal ? (
+                <button
+                  type="button"
+                  onClick={() => void handleStop()}
+                  className="flex-shrink-0 rounded-full p-3 transition-colors bg-red-600 hover:bg-red-500 text-white"
+                  aria-label="Stop agent"
+                  title="Stop agent (Escape)"
+                >
+                  <Square size={14} fill="currentColor" />
+                </button>
+              ) : (
+                /* Send button (circular) */
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!hasContent}
+                  className={`flex-shrink-0 rounded-full p-3 transition-colors ${
+                    hasContent
+                      ? isTerminal
+                        ? 'bg-green-600 text-white'
+                        : mode === 'plan'
+                        ? 'bg-plan text-bg-primary'
+                        : 'bg-accent text-bg-primary'
+                      : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
+                  }`}
+                  aria-label="Send message"
+                >
+                  <ArrowUp size={14} strokeWidth={2.5} />
+                </button>
+              )}
             </div>
           </div>
         </div>
