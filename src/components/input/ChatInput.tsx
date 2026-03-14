@@ -784,7 +784,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               <button
                 type="button"
                 onClick={() => void handleSpawnSubagents()}
-                className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-bg-primary disabled:opacity-50"
+                className="rounded-lg bg-success px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                 disabled={!canSpawnSubagents}
               >
                 Spawn
@@ -799,12 +799,12 @@ export function ChatInput({ focused }: ChatInputProps) {
             {attachedFiles.map((file) => (
               <span
                 key={file.path}
-                className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent-muted/40 px-2.5 py-1 text-xs text-accent"
+                className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-bg-elevated/50 px-2.5 py-1 text-xs text-text-secondary"
               >
                 @{file.name}
                 <button
                   onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
-                  className="premium-toolbar-button rounded-sm p-0.5 text-accent"
+                  className="premium-toolbar-button rounded-sm p-0.5 text-text-tertiary"
                 >
                   <X size={10} />
                 </button>
@@ -892,11 +892,11 @@ export function ChatInput({ focused }: ChatInputProps) {
                     <button
                       type="button"
                       onClick={handleCycleThinking}
-                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent-muted/35 px-3 py-1.5 text-xs text-text-secondary"
+                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-3 py-1.5 text-xs text-text-secondary"
                       title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
                     >
-                      <Brain size={12} className="text-accent" />
-                      <span className="text-accent font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                      <Brain size={12} className="text-text-secondary" />
+                      <span className="text-text-primary font-medium">{THINKING_LABELS[selectedThinking]}</span>
                     </button>
                   )}
                 </>
@@ -1041,7 +1041,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                         ? 'bg-green-600 text-white'
                         : mode === 'plan'
                         ? 'bg-plan text-bg-primary'
-                        : 'bg-accent text-bg-primary'
+                        : 'bg-success text-white'
                       : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
                   }`}
                   aria-label="Send message"

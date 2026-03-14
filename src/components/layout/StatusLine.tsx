@@ -79,7 +79,7 @@ export function StatusLine() {
       <div className="flex items-center gap-0 shrink-0">
         {environment === 'wsl' && (
           <span
-            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/12 px-2.5 text-[11px] font-medium text-warning"
+            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/12 px-2.5 text-[13px] font-medium text-warning"
             title="Running inside WSL"
           >
             <Terminal size={12} />
@@ -88,7 +88,7 @@ export function StatusLine() {
         )}
         {environment === 'ssh' && !sshConnected && (
           <span
-            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-info/12 px-2.5 text-[11px] font-medium text-info"
+            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-info/12 px-2.5 text-[13px] font-medium text-info"
             title="Running inside an SSH session"
           >
             <Monitor size={12} />
@@ -97,9 +97,9 @@ export function StatusLine() {
         )}
         <button
           onClick={handleSshClick}
-          className={`premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2.5 text-[11px] font-medium ${
+          className={`premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2.5 text-[13px] font-medium ${
             sshConnected
-              ? 'border-r border-accent/20 bg-accent-muted/45 text-accent'
+              ? 'border-r border-success/20 bg-success/8 text-success'
               : 'border-r border-border text-text-tertiary'
           }`}
           title={sshConnected ? `SSH: ${sshHost} (click to manage)` : 'Connect to SSH remote'}
@@ -110,7 +110,7 @@ export function StatusLine() {
 
         <button
           onClick={handleOpenFolder}
-          className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[11px] text-text-tertiary"
+          className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[13px] text-text-tertiary"
           title="Open folder"
         >
           <FolderOpen size={12} />
@@ -118,7 +118,7 @@ export function StatusLine() {
         </button>
 
         {gitBranch && (
-          <span className="flex h-[30px] items-center gap-1.5 border-r border-border px-2.5 text-[11px] text-text-tertiary">
+          <span className="flex h-[30px] items-center gap-1.5 border-r border-border px-2.5 text-[13px] text-text-tertiary">
             <GitBranch size={12} />
             {gitBranch}
             {gitDirty && <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />}
@@ -127,7 +127,7 @@ export function StatusLine() {
 
         <button
           onClick={() => useUiStore.getState().setOverlay('context-settings')}
-          className={`premium-toolbar-button flex h-[30px] items-center gap-1 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[11px] ${
+          className={`premium-toolbar-button flex h-[30px] items-center gap-1 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[13px] ${
             !repoMapConfig.enabled
               ? 'text-text-tertiary'
             : repoMapStatus.state === 'ready'
@@ -154,7 +154,7 @@ export function StatusLine() {
       <div className="flex items-center gap-2.5 px-3 min-w-0 overflow-hidden">
         <button
           onClick={handleAgentClick}
-          className="text-[11px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          className="text-[13px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Switch agent (Ctrl+Shift+A)"
         >
           {agentName}
@@ -162,7 +162,7 @@ export function StatusLine() {
         <Dot />
         <button
           onClick={handleCycleModel}
-          className="text-[11px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          className="text-[13px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Cycle model (Ctrl+Shift+M)"
         >
           {model}
@@ -170,7 +170,7 @@ export function StatusLine() {
         <Dot />
         <button
           onClick={handleCycleThinking}
-          className="text-[11px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
+          className="text-[13px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
           title="Cycle thinking level (Ctrl+Shift+T)"
         >
           think {thinking}
@@ -178,7 +178,7 @@ export function StatusLine() {
         {qualityGate && (
           <>
             <Dot />
-            <span className={`text-[11px] font-medium ${
+            <span className={`text-[13px] font-medium ${
               qualityGate.status === 'passed' ? 'text-success' : 'text-error'
             }`}>
               checks {qualityGate.status}
@@ -188,16 +188,16 @@ export function StatusLine() {
         {rateLimit && Number.isFinite(rateLimit.utilization) && (
           <>
             <Dot />
-            <span className={`text-[11px] font-medium ${rateLimitColor(rateLimit.utilization)}`}>
+            <span className={`text-[13px] font-medium ${rateLimitColor(rateLimit.utilization)}`}>
               rl {Math.round(rateLimit.utilization * 100)}%
             </span>
           </>
         )}
         <Dot />
-        <span className="text-[11px] text-text-tertiary tabular-nums">
+        <span className="text-[13px] text-text-tertiary tabular-nums">
           ${cost.toFixed(4)}
         </span>
-        <span className="text-[11px] text-text-tertiary tabular-nums">
+        <span className="text-[13px] text-text-tertiary tabular-nums">
           {formatTokens(tokens)} tok
         </span>
       </div>
@@ -207,7 +207,7 @@ export function StatusLine() {
 
 function Dot() {
   return (
-    <span className="text-[11px] text-text-tertiary/60" aria-hidden>
+    <span className="text-[13px] text-text-tertiary/60" aria-hidden>
       &middot;
     </span>
   );

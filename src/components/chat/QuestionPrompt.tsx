@@ -106,7 +106,7 @@ export function QuestionPrompt({
               return (
                 <div key={`${question.header ?? 'question'}-${index}`} className="space-y-2">
                   {question.header && (
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                    <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                       {question.header}
                     </div>
                   )}
@@ -166,7 +166,7 @@ export function QuestionPrompt({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-success/85 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <SendHorizontal size={14} />
                 Submit answer

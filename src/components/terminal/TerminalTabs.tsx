@@ -21,7 +21,7 @@ export function TerminalTabs({ tabs, activeId, onSelect, onClose, onCreate }: Te
           key={tab.id}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-b-2 transition-colors ${
             tab.id === activeId
-              ? 'border-accent text-text-primary'
+              ? 'border-border-focus text-text-primary'
               : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
           onClick={() => onSelect(tab.id)}

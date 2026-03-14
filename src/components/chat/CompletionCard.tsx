@@ -37,7 +37,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue }: 
         </button>
         <button
           onClick={handleMerge}
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-medium text-white hover:bg-accent-hover transition-colors"
+          className="flex items-center gap-1.5 rounded-lg bg-success px-3.5 py-2 text-[13px] font-medium text-white hover:bg-success/85 transition-colors"
         >
           <GitMerge size={12} />
           Merge to {mergeTarget}

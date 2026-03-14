@@ -65,7 +65,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <GitMerge size={16} className="text-accent" />
+            <GitMerge size={16} className="text-success" />
             <h2 className="text-sm font-semibold text-text-primary">Merge Workspace</h2>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-bg-hover text-text-tertiary">
@@ -80,16 +80,16 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           </div>
 
           {/* Model badge */}
-          <div className="flex items-center gap-2 rounded-lg bg-accent/8 border border-accent/20 px-3 py-2">
-            <Zap size={12} className="text-accent shrink-0" />
-            <span className="text-[11px] text-text-secondary">
-              Using <span className="font-medium text-accent">{mergeInfo.label}</span> for merge — fast and cost-effective
+          <div className="flex items-center gap-2 rounded-lg bg-bg-elevated border border-border/60 px-3 py-2">
+            <Zap size={12} className="text-text-secondary shrink-0" />
+            <span className="text-[13px] text-text-secondary">
+              Using <span className="font-medium text-text-primary">{mergeInfo.label}</span> for merge — fast and cost-effective
             </span>
           </div>
 
           {/* Target branch */}
           <div>
-            <label className="block text-[11px] font-medium text-text-tertiary mb-1">Target Branch</label>
+            <label className="block text-[13px] font-medium text-text-tertiary mb-1">Target Branch</label>
             <input
               value={targetBranch}
               onChange={(e) => setTargetBranch(e.target.value)}
@@ -123,7 +123,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           <button
             onClick={handleMerge}
             disabled={starting || !targetBranch.trim()}
-            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {starting ? 'Starting agent...' : 'Merge'}
           </button>

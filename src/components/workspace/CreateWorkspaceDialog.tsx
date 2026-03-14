@@ -158,7 +158,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
           <button
             onClick={handleCreate}
             disabled={creating || !name.trim() || !prompt.trim()}
-            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {creating ? 'Creating...' : 'Create & Start'}
           </button>

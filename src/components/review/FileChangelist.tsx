@@ -44,7 +44,7 @@ export function FileChangelist({ files, selectedFile, onSelect, onDiscard }: Fil
             onClick={() => onSelect(file.path)}
             className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
               file.path === selectedFile
-                ? 'bg-accent/10 text-text-primary'
+                ? 'bg-bg-hover text-text-primary'
                 : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
             }`}
           >

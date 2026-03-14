@@ -23,7 +23,7 @@ export function ThinkingBlock({ content, active = false }: ThinkingBlockProps) {
         className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
         <span className="shrink-0 flex items-center justify-center w-5 h-5">
-          <Brain size={13} className={active ? 'text-accent animate-pulse' : 'text-text-tertiary'} />
+          <Brain size={13} className={active ? 'text-text-secondary animate-pulse' : 'text-text-tertiary'} />
         </span>
         <span className="text-[12px] font-medium text-text-tertiary">
           {active ? 'Thinking...' : 'Thinking'}

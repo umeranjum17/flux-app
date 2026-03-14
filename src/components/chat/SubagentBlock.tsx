@@ -25,7 +25,7 @@ function formatTokens(total: number): string {
 
 function renderStatusIcon(status: SubagentState['status']) {
   if (status === 'spawning' || status === 'running') {
-    return <Loader2 size={13} className="animate-spin text-accent shrink-0" />;
+    return <Loader2 size={13} className="animate-spin text-text-secondary shrink-0" />;
   }
   if (status === 'error') {
     return <XCircle size={13} className="text-error shrink-0" />;

@@ -274,7 +274,7 @@ export function MessageList() {
                           switchTaskAgent(taskId, agentId, agent?.models[0] ?? '');
                           useAgentStore.getState().setSelectedAgent(agentId);
                         }}
-                        className="premium-toolbar-button rounded-full border border-accent/20 bg-accent-muted/40 px-3 py-1.5 text-xs font-medium text-accent"
+                        className="premium-toolbar-button rounded-full border border-border/60 bg-bg-elevated/50 px-3 py-1.5 text-xs font-medium text-text-secondary"
                       >
                         {AGENT_LABELS[agentId] ?? agentId}
                       </button>
@@ -342,9 +342,9 @@ function PlanActionBar({ task }: { task: Task }) {
   };
 
   return (
-    <div className="rounded-lg border border-accent/20 bg-accent/5 p-3 flex items-center justify-between gap-3">
+    <div className="rounded-lg border border-border bg-bg-elevated/50 p-3 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2 text-sm text-text-secondary">
-        <ClipboardList size={14} className="text-accent" />
+        <ClipboardList size={14} className="text-text-secondary" />
         <span>Plan complete</span>
       </div>
       <div className="flex items-center gap-2">
@@ -357,7 +357,7 @@ function PlanActionBar({ task }: { task: Task }) {
         </button>
         <button
           onClick={handleImplement}
-          className="px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors flex items-center gap-1.5"
+          className="px-3 py-1.5 rounded-md text-xs font-medium bg-success text-white hover:bg-success/85 transition-colors flex items-center gap-1.5"
         >
           <Play size={12} />
           Implement Plan
