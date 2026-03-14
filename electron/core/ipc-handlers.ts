@@ -284,6 +284,43 @@ function buildStoredUserMessage(
 
 const AGENTS_WITH_NATIVE_RESUME = new Set<AgentId>(['claude-code', 'codex']);
 
+/** Extract numbered steps from the plan text in session messages. */
+function extractPlanTodoItems(sessionStore: SessionStore, sessionId: string): { label: string }[] {
+  const messages = sessionStore.getMessages(sessionId);
+  // Find the last substantial assistant message that looks like a plan
+  const planMsg = [...messages]
+    .reverse()
+    .find(m => m.role === 'assistant' && m.type === 'text' && m.content && m.content.length > 80);
+  if (!planMsg) return [];
+
+  // Try to isolate the Steps section; fall back to whole text
+  const stepsMatch = planMsg.content.match(/^#{2,3}\s+Steps?\b[^\n]*\n([\s\S]*?)(?=^#{2,3}\s|\s*$)/im);
+  const source = stepsMatch ? stepsMatch[1] : planMsg.content;
+  const items: { label: string }[] = [];
+  for (const line of source.split('\n')) {
+    const match = line.match(/^\d+\.\s+(.+)/);
+    if (match) items.push({ label: match[1].trim() });
+  }
+  return items;
+}
+
+/** Build a step-tracking instruction block for the act prompt. */
+function buildStepTrackingPrompt(steps: { label: string }[]): string {
+  if (steps.length === 0) return '';
+  const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
+  return [
+    '',
+    '## Progress tracking',
+    'Here are the plan steps. As you complete each step, output a line:',
+    '[STEP <number> DONE]',
+    'When you start working on a step, output:',
+    '[STEP <number> START]',
+    '',
+    list,
+    '',
+  ].join('\n');
+}
+
 function safeParse(input: string | null | undefined): Record<string, unknown> | null {
   if (!input) return null;
   try { return JSON.parse(input); } catch { return null; }
@@ -853,14 +890,22 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
         // If plan→act across agents, frame as plan execution
         if (existingSession.mode === 'plan' && options.mode === 'act') {
+          const planSteps = extractPlanTodoItems(sessionStore, session.id);
+          const stepTracking = buildStepTrackingPrompt(planSteps);
           spawnOptions.prompt = [
             `You are continuing work started by ${fromAgent}. The previous agent created a plan. Execute it.`,
             '',
             context,
+            stepTracking,
             '',
             `## User instruction`,
             spawnOptions.prompt,
           ].join('\n');
+
+          if (planSteps.length > 0) {
+            const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
+            sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+          }
         } else {
           spawnOptions.prompt = [
             `You are continuing a conversation previously handled by ${fromAgent}. Here is the context:`,
@@ -879,20 +924,38 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     if (existingSession && !isAgentSwitch && !hasWorkingResume) {
       const context = buildConversationContext(session.id, sessionStore);
       if (context) {
+        const isPlanToAct = existingSession.mode === 'plan' && options.mode === 'act';
+        const planSteps = isPlanToAct ? extractPlanTodoItems(sessionStore, session.id) : [];
+        const stepTracking = buildStepTrackingPrompt(planSteps);
         spawnOptions.prompt = [
-          `You are continuing a previous conversation. Here is the context:`,
+          isPlanToAct
+            ? `You are continuing a previous conversation. The previous agent created a plan. Execute it.`
+            : `You are continuing a previous conversation. Here is the context:`,
           '',
           context,
+          stepTracking,
           '',
           `## Current request`,
           spawnOptions.prompt,
         ].join('\n');
+
+        if (isPlanToAct && planSteps.length > 0) {
+          const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
+          sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+        }
       }
     }
 
     // Plan→act same-agent with native resume
     if (existingSession && !isAgentSwitch && existingSession.mode === 'plan' && options.mode === 'act' && hasWorkingResume) {
-      spawnOptions.prompt = `The user reviewed and approved the plan above. Implement each step now.\n\n${spawnOptions.prompt}`;
+      const planSteps = extractPlanTodoItems(sessionStore, session.id);
+      const stepTracking = buildStepTrackingPrompt(planSteps);
+      spawnOptions.prompt = `The user reviewed and approved the plan above. Implement each step now.${stepTracking}\n\n${spawnOptions.prompt}`;
+
+      if (planSteps.length > 0) {
+        const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
+        sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+      }
     }
 
     // Log when falling back from native resume to context injection
@@ -1100,6 +1163,26 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
+
+      // Detect step progress markers in assistant text and update todo state
+      if (message.type === 'text' && message.role === 'assistant' && message.content) {
+        const stepDoneMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi);
+        const stepStartMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi);
+        for (const m of stepStartMatches) {
+          sendToRenderer('agent:todo-update', {
+            taskId: options.taskId,
+            stepId: parseInt(m[1], 10),
+            status: 'in_progress',
+          });
+        }
+        for (const m of stepDoneMatches) {
+          sendToRenderer('agent:todo-update', {
+            taskId: options.taskId,
+            stepId: parseInt(m[1], 10),
+            status: 'done',
+          });
+        }
+      }
 
       const autoApprovePermission = Boolean(
         options.autoApprovePermissions

@@ -175,6 +175,12 @@ export interface AgentHistoryEntry {
   fromMessageIndex: number;
 }
 
+export interface TodoItem {
+  id: number;
+  label: string;
+  status: 'pending' | 'in_progress' | 'done';
+}
+
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
 export interface Task {
@@ -212,6 +218,7 @@ export interface Task {
   rateLimitSuggestion?: { agents: AgentId[] };
   diffs: Map<string, DiffData>;
   planRevisions?: string[];
+  todoItems?: TodoItem[];
   currentStatus?: string;
   currentStatusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
 }
