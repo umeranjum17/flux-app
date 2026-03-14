@@ -16,7 +16,7 @@ import { grepFiles } from './tools/grep';
 import { repoMapService } from './intelligence/repomap';
 import type { RepoMapConfig } from './config/types';
 import { WorkspaceStore } from './worktree/store';
-import { createWorktree, mergeWorktree, removeWorktree } from './worktree/manager';
+import { createWorktree, removeWorktree } from './worktree/manager';
 import { generateWorkspaceName } from './worktree/names';
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
 import { createCheckpoint, getCheckpointDiff, listCheckpoints, revertToCheckpoint } from './checkpoint/manager';
@@ -705,7 +705,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     sendToRenderer('workspace:checkpoint', { workspaceId, checkpoint });
   };
 
-  const spawnTaskRun = async (options: SpawnOptions & { agentId?: string }) => {
+  const spawnTaskRun = async (
+    options: SpawnOptions & {
+      agentId?: string;
+      autoApprovePermissions?: boolean;
+      workspaceAction?: 'merge';
+    },
+  ) => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
     const workspace = options.workspaceId
@@ -984,8 +990,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
+      const autoApprovePermission = Boolean(
+        options.autoApprovePermissions
+          && message.type === 'permission_request'
+          && message.requestId,
+      );
+
       if (workspace) {
-        if (message.type === 'permission_request') {
+        if (message.type === 'permission_request' && !autoApprovePermission) {
           updateWorkspaceTaskStatus(options.taskId, workspace.id, 'waiting_approval', { sessionId: session.id });
         } else if (message.type === 'question_request') {
           updateWorkspaceTaskStatus(options.taskId, workspace.id, 'waiting_input', { sessionId: session.id });
@@ -995,16 +1007,34 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
 
       if (message.type === 'permission_request') {
-        sendToRenderer('agent:permission', {
-          taskId: options.taskId,
-          requestId: message.requestId,
-          toolName: message.toolName ?? 'unknown',
-          description: message.content,
-          action: message.action,
-          path: message.filePath,
-        });
+        if (autoApprovePermission) {
+          handle.approve(message.requestId!);
+          const autoApprovedMessage = {
+            type: 'status',
+            role: 'system',
+            statusKind: 'progress',
+            content: `Auto-approved ${message.toolName ?? 'permission'} for workspace merge`,
+            timestamp: Date.now(),
+          } satisfies AgentMessage;
+          sessionStore.addMessage(session.id, toStoredMessage(autoApprovedMessage));
+          sendToRenderer('agent:message', {
+            taskId: options.taskId,
+            message: autoApprovedMessage,
+          });
+        } else {
+          sendToRenderer('agent:permission', {
+            taskId: options.taskId,
+            requestId: message.requestId,
+            toolName: message.toolName ?? 'unknown',
+            description: message.content,
+            action: message.action,
+            path: message.filePath,
+          });
+        }
       }
-      sendToRenderer('agent:message', { taskId: options.taskId, message });
+      if (!(message.type === 'permission_request' && autoApprovePermission)) {
+        sendToRenderer('agent:message', { taskId: options.taskId, message });
+      }
 
       // Tool-execution heartbeats to prevent false "Stalled" detection
       if (message.type === 'tool_call' && message.toolCallId) {
@@ -1181,27 +1211,31 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
             if (!finalError && options.mode === 'act') {
-              await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
-                // Checkpoints are best-effort
-              });
-
-              // Auto-advance outcome to ready_for_pr if still in_progress
-              const currentWs = workspaceStore.get(workspace.id);
-              if (currentWs && currentWs.outcome === 'in_progress') {
-                workspaceStore.update(workspace.id, { outcome: 'ready_for_pr' });
-              }
-
-              // Emit completion event so renderer can show merge prompts
-              try {
-                const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: workspace.parentRepo });
-                const suggestedMergeTarget = branchOut.trim() || 'main';
-                sendToRenderer('workspace:completion', {
-                  workspaceId: workspace.id,
-                  taskId: options.taskId,
-                  suggestedMergeTarget,
+              if (options.workspaceAction === 'merge') {
+                workspaceStore.update(workspace.id, { outcome: 'merged' });
+              } else {
+                await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
+                  // Checkpoints are best-effort
                 });
-              } catch {
-                // Best-effort
+
+                // Auto-advance outcome to ready_for_pr if still in_progress
+                const currentWs = workspaceStore.get(workspace.id);
+                if (currentWs && currentWs.outcome === 'in_progress') {
+                  workspaceStore.update(workspace.id, { outcome: 'ready_for_pr' });
+                }
+
+                // Emit completion event so renderer can show merge prompts
+                try {
+                  const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: workspace.parentRepo });
+                  const suggestedMergeTarget = branchOut.trim() || 'main';
+                  sendToRenderer('workspace:completion', {
+                    workspaceId: workspace.id,
+                    taskId: options.taskId,
+                    suggestedMergeTarget,
+                  });
+                } catch {
+                  // Best-effort
+                }
               }
             }
           }
@@ -2228,7 +2262,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         workspaceId,
         targetBranch,
         squash,
-      }: { workspaceId: string; targetBranch: string; squash?: boolean },
+        prompt,
+      }: { workspaceId: string; targetBranch: string; squash?: boolean; prompt: string },
     ) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
@@ -2236,12 +2271,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
 
       emitWorkspaceStatus(workspaceId, 'merging');
-      const result = await mergeWorktree(workspace.worktreePath, workspace.parentRepo, targetBranch, squash);
-      emitWorkspaceStatus(workspaceId, result.success ? 'done' : 'error');
-      if (result.success) {
-        workspaceStore.update(workspaceId, { outcome: 'merged' });
-      }
-      return result;
+      const taskId = crypto.randomUUID();
+      const result = await spawnTaskRun({
+        taskId,
+        workspaceId: workspace.id,
+        prompt,
+        agentId: workspace.agentId,
+        model: workspace.model,
+        mode: 'act',
+        cwd: workspace.parentRepo,
+        autoApprovePermissions: true,
+        workspaceAction: 'merge',
+      });
+      return { taskId, session: result.session };
     },
   );
 

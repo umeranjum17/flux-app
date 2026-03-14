@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X, GitMerge } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { useWorkspaceStore } from '../../stores/workspace';
-import type { Workspace, MergeResult } from '../../lib/ipc-api';
+import { startWorkspaceMerge } from '../../lib/workspace-state';
+import type { Workspace } from '../../lib/ipc-api';
 
 interface MergeDialogProps {
   workspace: Workspace;
@@ -25,24 +25,14 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     setMerging(true);
     setError(null);
     try {
-      const result = await window.api.invoke('workspace:merge', {
-        workspaceId: workspace.id,
+      await startWorkspaceMerge({
+        workspace,
         targetBranch: targetBranch.trim(),
         squash,
-      }) as MergeResult;
-
-      if (result.success) {
-        useWorkspaceStore.getState().updateWorkspace(workspace.id, { outcome: 'merged' });
-        onClose();
-      } else if (result.conflicts?.length) {
-        setError(`Merge conflicts in: ${result.conflicts.join(', ')}`);
-        setMerging(false);
-      } else {
-        setError(result.error ?? 'Merge failed');
-        setMerging(false);
-      }
+      });
+      onClose();
     } catch (err: any) {
-      setError(err.message ?? 'Merge failed');
+      setError(err.message ?? 'Failed to start merge');
       setMerging(false);
     }
   };
@@ -115,7 +105,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             disabled={merging || !targetBranch.trim()}
             className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {merging ? 'Merging...' : 'Merge'}
+            {merging ? 'Starting...' : 'Start Merge'}
           </button>
         </div>
       </div>

@@ -78,6 +78,12 @@ export interface StartWorkspaceChatOptions {
   skipBranchRename?: boolean;
 }
 
+export interface StartWorkspaceMergeOptions {
+  workspace: Workspace;
+  targetBranch: string;
+  squash: boolean;
+}
+
 function isMissingIpcHandler(error: unknown, channel: string): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes(`No handler registered for '${channel}'`);
@@ -155,36 +161,70 @@ export async function startWorkspaceChat(
     session = result.session;
   }
 
-  useChatStore.getState().createTask({
-    id: taskId,
-    title: opts.prompt.trim().slice(0, 80) || 'New chat',
-    agentId: opts.agentId,
-    model: opts.model,
-    mode: opts.mode,
-    thinking: opts.thinking,
-    cwd: opts.workspace.worktreePath,
-    sessionId: session.id,
-    workspaceId: opts.workspace.id,
-  });
-  useChatStore.getState().addUserMessage(taskId, opts.prompt, opts.images, opts.attachments);
-  useChatStore.getState().setTaskStatus(taskId, 'running');
-  useChatStore.getState().setActiveTask(taskId);
-  useWorkspaceStore.getState().setActiveWorkspace(opts.workspace.id);
-  useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, {
-    status: 'running',
-    sessionId: session.id,
-  });
-  useWorkspaceStore.getState().addWorkspaceSession(opts.workspace.id, {
-    id: 0,
-    workspaceId: opts.workspace.id,
-    sessionId: session.id,
+  registerWorkspaceTask({
     taskId,
-    position: 0,
-    createdAt: Date.now(),
+    session,
+    workspace: opts.workspace,
+    prompt: opts.prompt,
+    title: opts.prompt.trim().slice(0, 80) || 'New chat',
+    thinking: opts.thinking,
+    images: opts.images,
+    attachments: opts.attachments,
+    initialStatus: 'running',
   });
-  useSessionStore.getState().upsertSession(session);
 
   return { taskId, session };
+}
+
+export function buildWorkspaceMergePrompt(
+  workspace: Workspace,
+  targetBranch: string,
+  squash: boolean,
+): string {
+  const mergeMode = squash ? 'a squash merge' : 'a regular merge commit';
+
+  return [
+    `Merge workspace branch \`${workspace.branch}\` into \`${targetBranch}\` using ${mergeMode}.`,
+    '',
+    'Repository context:',
+    `- Parent repository: ${workspace.parentRepo}`,
+    `- Workspace worktree: ${workspace.worktreePath}`,
+    `- Workspace branch: ${workspace.branch}`,
+    `- Target branch: ${targetBranch}`,
+    '',
+    'Requirements:',
+    `1. Run the git merge from the parent repository at \`${workspace.parentRepo}\`, not from the detached worktree metadata.`,
+    '2. Inspect and clean up stale git state if it blocks the merge, including in-progress merge/rebase/cherry-pick state or a dirty index.',
+    `3. Make sure the workspace branch is ready to merge, then merge it into \`${targetBranch}\` with ${mergeMode}.`,
+    '4. Resolve straightforward conflicts if you can do so safely. If manual product decisions are required, stop and explain exactly what needs input.',
+    '5. Verify the final repo state with git status and a concise summary of what landed.',
+    '',
+    'You are expected to manage the git workflow directly and report the final result in this chat.',
+  ].join('\n');
+}
+
+export async function startWorkspaceMerge(
+  opts: StartWorkspaceMergeOptions,
+): Promise<{ taskId: string; session: Session }> {
+  const prompt = buildWorkspaceMergePrompt(opts.workspace, opts.targetBranch, opts.squash);
+  const result = await window.api.invoke('workspace:merge', {
+    workspaceId: opts.workspace.id,
+    targetBranch: opts.targetBranch,
+    squash: opts.squash,
+    prompt,
+  }) as { taskId: string; session: Session };
+
+  registerWorkspaceTask({
+    taskId: result.taskId,
+    session: result.session,
+    workspace: opts.workspace,
+    prompt,
+    title: `Merge ${opts.workspace.branch} -> ${opts.targetBranch}`.slice(0, 80),
+    thinking: 'medium',
+    initialStatus: 'merging',
+  });
+
+  return result;
 }
 
 export async function createWorkspaceAndChat(
@@ -219,4 +259,45 @@ export async function createWorkspaceAndChat(
   });
 
   return { workspace, taskId, session };
+}
+
+function registerWorkspaceTask(opts: {
+  taskId: string;
+  session: Session;
+  workspace: Workspace;
+  prompt: string;
+  title: string;
+  thinking: ThinkingLevel;
+  images?: string[];
+  attachments?: FileAttachment[];
+  initialStatus: Workspace['status'];
+}): void {
+  useChatStore.getState().createTask({
+    id: opts.taskId,
+    title: opts.title,
+    agentId: opts.session.agentId as AgentId,
+    model: opts.session.model,
+    mode: opts.session.mode,
+    thinking: opts.thinking,
+    cwd: opts.session.cwd,
+    sessionId: opts.session.id,
+    workspaceId: opts.workspace.id,
+  });
+  useChatStore.getState().addUserMessage(opts.taskId, opts.prompt, opts.images, opts.attachments);
+  useChatStore.getState().setTaskStatus(opts.taskId, 'running');
+  useChatStore.getState().setActiveTask(opts.taskId);
+  useWorkspaceStore.getState().setActiveWorkspace(opts.workspace.id);
+  useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, {
+    status: opts.initialStatus,
+    sessionId: opts.session.id,
+  });
+  useWorkspaceStore.getState().addWorkspaceSession(opts.workspace.id, {
+    id: 0,
+    workspaceId: opts.workspace.id,
+    sessionId: opts.session.id,
+    taskId: opts.taskId,
+    position: 0,
+    createdAt: Date.now(),
+  });
+  useSessionStore.getState().upsertSession(opts.session);
 }
