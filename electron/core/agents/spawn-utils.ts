@@ -118,6 +118,11 @@ export function filterStderrNoise(text: string): string | null {
   const lines = text.split('\n').filter((line) => {
     const trimmed = line.trim();
     if (!trimmed) return false;
+    // Node/VS Code inspector auto-attach noise
+    if (/^Debugger listening on ws:\/\//.test(trimmed)) return false;
+    if (/^For help, see: https:\/\/nodejs\.org\/.*inspector/.test(trimmed)) return false;
+    if (/^Debugger attached\.?$/i.test(trimmed)) return false;
+    if (/^Waiting for the debugger to disconnect/i.test(trimmed)) return false;
     // Rust tracing / logging output
     if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return false;
     if (/^\s*(DEBUG|TRACE|INFO)\s/.test(trimmed)) return false;

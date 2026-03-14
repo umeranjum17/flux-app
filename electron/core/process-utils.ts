@@ -159,8 +159,110 @@ function listCommandExtensions(env: NodeJS.ProcessEnv): string[] {
     .filter(Boolean);
 }
 
+function splitNodeOptions(value: string): string[] {
+  const tokens = value.match(/"([^"\\]|\\.)*"|'[^']*'|\S+/g) ?? [];
+  return tokens.map((token) => {
+    if (token.startsWith('"') && token.endsWith('"')) {
+      return token.slice(1, -1)
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+    }
+    if (token.startsWith('\'') && token.endsWith('\'')) {
+      return token.slice(1, -1);
+    }
+    return token;
+  });
+}
+
+function formatNodeOption(token: string): string {
+  if (!/[\s"'\\]/.test(token)) {
+    return token;
+  }
+  return `"${token.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function isInspectorNodeOption(token: string): boolean {
+  return /^(--inspect(?:-brk|-port)?|--debug(?:-brk)?)(=.*)?$/.test(token)
+    || /^--inspect-publish-uid(?:=.*)?$/.test(token);
+}
+
+function isVsCodeBootloader(value: string): boolean {
+  const normalized = value.replace(/\\/g, '/').toLowerCase();
+  return normalized.includes('js-debug/src/bootloader.js')
+    || (normalized.includes('ms-vscode.js-debug') && normalized.includes('bootloader.js'));
+}
+
+function sanitizeNodeOptions(nodeOptions: string | undefined): string | undefined {
+  if (!nodeOptions?.trim()) {
+    return undefined;
+  }
+
+  const tokens = splitNodeOptions(nodeOptions);
+  const kept: string[] = [];
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (isInspectorNodeOption(token)) {
+      continue;
+    }
+
+    if (token === '--require' || token === '-r' || token === '--import') {
+      const next = tokens[i + 1];
+      if (next && isVsCodeBootloader(next)) {
+        i += 1;
+        continue;
+      }
+      kept.push(token);
+      if (next) {
+        kept.push(next);
+        i += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith('--require=')) {
+      const requiredModule = token.slice('--require='.length);
+      if (isVsCodeBootloader(requiredModule)) {
+        continue;
+      }
+    }
+
+    if (token.startsWith('--import=')) {
+      const importedModule = token.slice('--import='.length);
+      if (isVsCodeBootloader(importedModule)) {
+        continue;
+      }
+    }
+
+    kept.push(token);
+  }
+
+  if (kept.length === 0) {
+    return undefined;
+  }
+
+  return kept.map(formatNodeOption).join(' ');
+}
+
+function sanitizeDebuggerEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const sanitized = { ...env };
+  const nodeOptions = sanitizeNodeOptions(sanitized.NODE_OPTIONS);
+
+  if (nodeOptions) {
+    sanitized.NODE_OPTIONS = nodeOptions;
+  } else {
+    delete sanitized.NODE_OPTIONS;
+  }
+
+  delete sanitized.VSCODE_INSPECTOR_OPTIONS;
+  delete sanitized.ELECTRON_RUN_AS_NODE;
+  delete sanitized.NODE_INSPECT_RESUME_ON_START;
+
+  return sanitized;
+}
+
 export function extendedEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const merged = { ...process.env, ...env };
+  const merged = sanitizeDebuggerEnv({ ...process.env, ...env });
   const pathEntries = listPathEntries(merged);
   return {
     ...merged,
