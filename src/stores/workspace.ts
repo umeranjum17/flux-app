@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Workspace, WorkspaceStatus, DiffFile, Checkpoint } from '../lib/ipc-api';
+import type { Workspace, WorkspaceStatus, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
 
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
   activeWorkspaceId: string | null;
+
+  // Multi-chat sessions per workspace
+  workspaceSessions: Map<string, WorkspaceSession[]>; // workspaceId → sessions
 
   // Review state
   reviewingWorkspaceId: string | null;
@@ -36,6 +39,11 @@ interface WorkspaceState {
   // Checkpoint actions
   loadCheckpoints(workspaceId: string): Promise<void>;
   addCheckpoint(workspaceId: string, checkpoint: Checkpoint): void;
+
+  // Workspace session (multi-chat) actions
+  setWorkspaceSessions(workspaceId: string, sessions: WorkspaceSession[]): void;
+  addWorkspaceSession(workspaceId: string, session: WorkspaceSession): void;
+  loadWorkspaceSessions(workspaceId: string): Promise<void>;
 }
 
 let reviewRequestVersion = 0;
@@ -51,6 +59,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     fileDiff: null,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
+    workspaceSessions: new Map(),
 
     setWorkspaces(workspaces) {
       set((state) => {
@@ -77,6 +86,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       set((state) => {
         state.workspaces.delete(id);
         state.checkpoints.delete(id);
+        state.workspaceSessions.delete(id);
         if (state.activeWorkspaceId === id) {
           state.activeWorkspaceId = null;
         }
@@ -206,6 +216,36 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         existing.push(checkpoint);
         state.checkpoints.set(workspaceId, existing);
       });
+    },
+
+    setWorkspaceSessions(workspaceId, sessions) {
+      set((state) => {
+        state.workspaceSessions.set(workspaceId, sessions);
+      });
+    },
+
+    addWorkspaceSession(workspaceId, session) {
+      set((state) => {
+        const existing = state.workspaceSessions.get(workspaceId) ?? [];
+        const idx = existing.findIndex((s) => s.sessionId === session.sessionId);
+        if (idx >= 0) {
+          existing[idx] = session;
+        } else {
+          existing.push(session);
+        }
+        state.workspaceSessions.set(workspaceId, existing);
+      });
+    },
+
+    async loadWorkspaceSessions(workspaceId) {
+      try {
+        const sessions = await window.api.invoke('workspace:list-chats', { workspaceId }) as WorkspaceSession[];
+        set((state) => {
+          state.workspaceSessions.set(workspaceId, sessions);
+        });
+      } catch {
+        // Failed to load workspace sessions
+      }
     },
   })),
 );

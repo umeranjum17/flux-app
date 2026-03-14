@@ -40,6 +40,8 @@ function requireFields(obj: Record<string, unknown>, ...fields: string[]): void 
 console.log('[ipc-handlers] module loaded');
 const activeTasks = new Map<string, AgentHandle>();
 const taskSessions = new Map<string, string>();
+const taskWorkspaceMap = new Map<string, string>(); // taskId → workspaceId
+const taskWorkspaceStatusMap = new Map<string, WorkspaceStatus>();
 const cleaningUp = new Set<string>();
 const taskIdleHeartbeats = new Map<string, NodeJS.Timeout>();
 const activeTerminals = new Map<string, ChildProcess>();
@@ -534,6 +536,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:list',
     'workspace:create',
     'workspace:spawn',
+    'workspace:spawn-chat',
+    'workspace:list-chats',
     'workspace:stop',
     'workspace:delete',
     'workspace:merge',
@@ -550,6 +554,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'repomap:preview',
     'shell:exec',
     'completion:suggest',
+    'completion:providers',
   ];
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
@@ -581,6 +586,42 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       ...(extra?.sessionId ? { sessionId: extra.sessionId } : {}),
     });
     sendToRenderer('workspace:status', { workspaceId, status });
+  };
+
+  const aggregateWorkspaceStatus = (workspaceId: string): WorkspaceStatus => {
+    const statuses = [...taskWorkspaceMap.entries()]
+      .filter(([, mappedWorkspaceId]) => mappedWorkspaceId === workspaceId)
+      .map(([taskId]) => taskWorkspaceStatusMap.get(taskId))
+      .filter((status): status is WorkspaceStatus => !!status);
+
+    if (statuses.includes('running')) return 'running';
+    if (statuses.includes('waiting_approval')) return 'waiting_approval';
+    if (statuses.includes('waiting_input')) return 'waiting_input';
+    if (statuses.includes('error')) return 'error';
+    if (statuses.length > 0 && statuses.every((status) => status === 'done')) return 'done';
+    return 'done';
+  };
+
+  const updateWorkspaceTaskStatus = (
+    taskId: string,
+    workspaceId: string,
+    status: WorkspaceStatus,
+    extra?: { sessionId?: string },
+  ) => {
+    taskWorkspaceMap.set(taskId, workspaceId);
+    taskWorkspaceStatusMap.set(taskId, status);
+    emitWorkspaceStatus(workspaceId, aggregateWorkspaceStatus(workspaceId), extra);
+  };
+
+  const releaseWorkspaceTask = (taskId: string, fallbackStatus: WorkspaceStatus = 'done') => {
+    const workspaceId = taskWorkspaceMap.get(taskId);
+    taskWorkspaceStatusMap.delete(taskId);
+    taskWorkspaceMap.delete(taskId);
+    if (workspaceId) {
+      const remaining = [...taskWorkspaceMap.values()].some((mappedWorkspaceId) => mappedWorkspaceId === workspaceId);
+      emitWorkspaceStatus(workspaceId, remaining ? aggregateWorkspaceStatus(workspaceId) : fallbackStatus);
+    }
+    return workspaceId;
   };
 
   const resolveQualityGateCommands = async (cwd: string): Promise<string[]> => {
@@ -669,7 +710,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const spawnTaskRun = async (options: SpawnOptions & { agentId?: string }) => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
-    const workspace = workspaceStore.get(options.taskId);
+    const workspace = options.workspaceId
+      ? workspaceStore.get(options.workspaceId)
+      : workspaceStore.get(options.taskId);
     if (activeTasks.has(options.taskId)) {
       // Defensive cleanup: the renderer may have fired task:stop but it hasn't
       // completed yet (race). Stop the stale handle and wait for process exit
@@ -687,6 +730,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       staleHandle.removeAllListeners();
       activeTasks.delete(options.taskId);
       taskSessions.delete(options.taskId);
+      taskWorkspaceStatusMap.delete(options.taskId);
+      taskWorkspaceMap.delete(options.taskId);
       cleaningUp.delete(options.taskId);
       if (taskIdleHeartbeats.has(options.taskId)) {
         clearInterval(taskIdleHeartbeats.get(options.taskId)!);
@@ -852,7 +897,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
 
     if (workspace) {
-      emitWorkspaceStatus(workspace.id, 'running', { sessionId: session.id });
+      updateWorkspaceTaskStatus(options.taskId, workspace.id, 'running', { sessionId: session.id });
     }
 
     if (options.prompt !== '[Resuming previous session]') {
@@ -864,6 +909,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
     activeTasks.set(options.taskId, handle);
     taskSessions.set(options.taskId, session.id);
+    if (workspace) {
+      taskWorkspaceMap.set(options.taskId, workspace.id);
+      taskWorkspaceStatusMap.set(options.taskId, 'running');
+      workspaceStore.addSession(workspace.id, session.id, options.taskId);
+    }
 
     // Idle heartbeat: emit periodic status while no tool heartbeat is active,
     // preventing false "Stalled" detection between tool executions.
@@ -928,11 +978,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
       if (workspace) {
         if (message.type === 'permission_request') {
-          emitWorkspaceStatus(workspace.id, 'waiting_approval', { sessionId: session.id });
+          updateWorkspaceTaskStatus(options.taskId, workspace.id, 'waiting_approval', { sessionId: session.id });
         } else if (message.type === 'question_request') {
-          emitWorkspaceStatus(workspace.id, 'waiting_input', { sessionId: session.id });
+          updateWorkspaceTaskStatus(options.taskId, workspace.id, 'waiting_input', { sessionId: session.id });
         } else if (message.type !== 'rate_limit') {
-          emitWorkspaceStatus(workspace.id, 'running', { sessionId: session.id });
+          updateWorkspaceTaskStatus(options.taskId, workspace.id, 'running', { sessionId: session.id });
         }
       }
 
@@ -1044,7 +1094,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
-            emitWorkspaceStatus(workspace.id, nextStatus, { sessionId: session.id });
+            updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
             if (!finalError && options.mode === 'act') {
               await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
                 // Checkpoints are best-effort
@@ -1055,6 +1105,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           handle.removeAllListeners();
           activeTasks.delete(options.taskId);
           taskSessions.delete(options.taskId);
+          taskWorkspaceStatusMap.delete(options.taskId);
+          taskWorkspaceMap.delete(options.taskId);
           cleaningUp.delete(options.taskId);
         }
       })();
@@ -1094,10 +1146,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     taskSessions.delete(taskId);
     cleaningUp.delete(taskId);
     sendToRenderer('agent:done', { taskId, error: undefined });
-    const workspace = workspaceStore.get(taskId);
-    if (workspace) {
-      emitWorkspaceStatus(workspace.id, 'done');
-    }
+    releaseWorkspaceTask(taskId, 'done');
   });
 
   ipcMain.handle('subagent:spawn', async (_event, options: {
@@ -1297,9 +1346,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       emitTaskMessage(taskId, sessionId, buildUserMessagePayload(response));
     }
 
-    const workspace = workspaceStore.get(taskId);
-    if (workspace) {
-      emitWorkspaceStatus(workspace.id, 'running', sessionId ? { sessionId } : undefined);
+    const workspaceId = taskWorkspaceMap.get(taskId);
+    if (workspaceId) {
+      updateWorkspaceTaskStatus(taskId, workspaceId, 'running', sessionId ? { sessionId } : undefined);
     }
 
     handle.answerQuestion(requestId, response);
@@ -1781,8 +1830,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      return spawnTaskRun({
-        taskId: workspace.id,
+      const taskId = crypto.randomUUID();
+      const result = await spawnTaskRun({
+        taskId,
+        workspaceId: workspace.id,
         prompt,
         agentId: workspace.agentId,
         model: workspace.model,
@@ -1790,17 +1841,82 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         cwd: workspace.worktreePath,
         sessionId: workspace.sessionId,
       });
+      return { taskId, session: result.session };
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:spawn-chat',
+    async (_event, { workspaceId, prompt, mode = 'act', agentId: overrideAgentId, model: overrideModel, images, attachments }: {
+      workspaceId: string;
+      prompt: string;
+      mode?: SpawnOptions['mode'];
+      agentId?: string;
+      model?: string;
+      images?: string[];
+      attachments?: FileAttachment[];
+    }) => {
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) {
+        throw new Error(`Workspace ${workspaceId} not found`);
+      }
+
+      const taskId = crypto.randomUUID();
+      const result = await spawnTaskRun({
+        taskId,
+        workspaceId: workspace.id,
+        prompt,
+        agentId: (overrideAgentId ?? workspace.agentId) as any,
+        model: overrideModel ?? workspace.model,
+        mode,
+        cwd: workspace.worktreePath,
+        images,
+        attachments,
+      });
+      return { taskId, session: result.session };
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:list-chats',
+    async (_event, { workspaceId }: { workspaceId: string }) => {
+      return workspaceStore.listSessions(workspaceId);
     },
   );
 
   ipcMain.handle('workspace:stop', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const handle = activeTasks.get(workspaceId);
-    if (handle) {
-      handle.stop();
-      handle.removeAllListeners();
-      activeTasks.delete(workspaceId);
+    const taskIds = [...taskWorkspaceMap.entries()]
+      .filter(([, wsId]) => wsId === workspaceId)
+      .map(([taskId]) => taskId);
+
+    for (const taskId of taskIds) {
+      if (cleaningUp.has(taskId)) continue;
+      cleaningUp.add(taskId);
+      for (const [subId, sub] of activeSubagents.entries()) {
+        if (sub.parentTaskId !== taskId) continue;
+        await sub.handle.stop();
+        sub.handle.removeAllListeners();
+        activeSubagents.delete(subId);
+        activeTasks.delete(subId);
+        taskSessions.delete(subId);
+      }
+      const handle = activeTasks.get(taskId);
+      if (handle) {
+        handle.stop();
+        handle.removeAllListeners();
+        activeTasks.delete(taskId);
+      }
+      if (taskIdleHeartbeats.has(taskId)) {
+        clearInterval(taskIdleHeartbeats.get(taskId)!);
+        taskIdleHeartbeats.delete(taskId);
+      }
+      taskSessions.delete(taskId);
+      taskWorkspaceStatusMap.delete(taskId);
+      taskWorkspaceMap.delete(taskId);
+      cleaningUp.delete(taskId);
+      sendToRenderer('agent:done', { taskId, error: undefined });
     }
-    taskSessions.delete(workspaceId);
+
     emitWorkspaceStatus(workspaceId, 'done');
   });
 
@@ -1808,12 +1924,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) return;
 
-    const handle = activeTasks.get(workspaceId);
-    if (handle) {
-      handle.stop();
-      handle.removeAllListeners();
-      activeTasks.delete(workspaceId);
-      taskSessions.delete(workspaceId);
+    const taskIds = [...taskWorkspaceMap.entries()]
+      .filter(([, wsId]) => wsId === workspaceId)
+      .map(([taskId]) => taskId);
+
+    for (const taskId of taskIds) {
+      const handle = activeTasks.get(taskId);
+      if (handle) {
+        handle.stop();
+        handle.removeAllListeners();
+        activeTasks.delete(taskId);
+      }
+      taskSessions.delete(taskId);
+      taskWorkspaceStatusMap.delete(taskId);
+      taskWorkspaceMap.delete(taskId);
     }
 
     await removeWorktree(workspace.parentRepo, workspace.worktreePath);

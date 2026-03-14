@@ -128,7 +128,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const handleImplement = useCallback(async () => {
     if (showCheckpoint) {
       try {
-        await window.api.invoke('checkpoint:list', { workspaceId: task.id });
+        await window.api.invoke('checkpoint:list', { workspaceId: task.workspaceId ?? task.id });
         toast.success('Checkpoint created');
       } catch {
         // Checkpoint not available for this workspace — proceed anyway
@@ -140,6 +140,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
     setTaskStatus(task.id, 'running');
     await window.api.invoke('task:spawn', {
       taskId: task.id,
+      workspaceId: task.workspaceId,
       prompt: 'Implement the plan above.',
       agentId: task.agentId,
       model: task.model,

@@ -66,20 +66,56 @@ beforeEach(() => {
 });
 
 describe('ChatInput', () => {
-  it('spawns new tasks with the selected agent instead of the default fallback', async () => {
+  const getChatInput = () =>
+    screen.getByPlaceholderText('Ask to make changes, @mention files, run /commands');
+
+  it('creates workspace-backed chats with the selected agent by default', async () => {
     const user = userEvent.setup();
+    mockApi.invoke.mockImplementation((channel: string) => {
+      if (channel === 'completion:providers') {
+        return Promise.resolve({ providers: [] });
+      }
+      if (channel === 'workspace:create') {
+        return Promise.resolve({
+          id: 'ws-1',
+          name: 'Fix the bug',
+          parentRepo: '/workspace',
+          branch: 'flux/fix-the-bug-abcd',
+          status: 'idle',
+          createdAt: 1,
+          updatedAt: 1,
+          agentId: 'codex',
+          model: 'o4-mini',
+          worktreePath: '/workspace/.flux-worktrees/ws-1',
+        });
+      }
+      if (channel === 'workspace:spawn-chat') {
+        return Promise.resolve({ taskId: 'task-1', session: { id: 'session-1' } });
+      }
+      return Promise.resolve(undefined);
+    });
+
     render(<ChatInput />);
 
-    await user.type(screen.getByPlaceholderText(defaultPromptPlaceholder), 'Fix the bug');
+    await user.type(getChatInput(), 'Fix the bug');
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
-        'task:spawn',
+        'workspace:create',
         expect.objectContaining({
           agentId: 'codex',
           model: 'o4-mini',
-          cwd: '/workspace',
+          parentRepo: '/workspace',
+        }),
+      );
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'workspace:spawn-chat',
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          prompt: 'Fix the bug',
+          agentId: 'codex',
+          model: 'o4-mini',
         }),
       );
     });
@@ -101,7 +137,7 @@ describe('ChatInput', () => {
 
     render(<ChatInput />);
 
-    await user.type(screen.getByPlaceholderText(defaultPromptPlaceholder), 'Continue');
+    await user.type(getChatInput(), 'Continue');
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() => {
@@ -122,10 +158,20 @@ describe('ChatInput', () => {
   it('sends attachments as structured metadata instead of mutating the prompt text', async () => {
     const user = userEvent.setup();
     useUiStore.getState().setPendingMention({ path: '/workspace/src/app.ts', name: 'app.ts' });
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Existing task',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+      sessionId: 'session-1',
+    });
 
     render(<ChatInput />);
 
-    await user.type(screen.getByPlaceholderText(defaultPromptPlaceholder), 'Review this');
+    await user.type(getChatInput(), 'Review this');
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
     await waitFor(() => {

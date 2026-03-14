@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { getDb } from '../db/connection';
-import type { Workspace, WorkspaceStatus } from './types';
+import type { Workspace, WorkspaceSession, WorkspaceStatus } from './types';
 
 interface CreateWorkspaceInput {
   id: string;
@@ -108,8 +108,41 @@ export class WorkspaceStore {
 
   delete(id: string): void {
     const db = getDb();
+    db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
     db.prepare('DELETE FROM checkpoints WHERE workspace_id = ?').run(id);
     db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
+  }
+
+  addSession(workspaceId: string, sessionId: string, taskId?: string, label?: string): void {
+    const db = getDb();
+    const maxPos = (db.prepare('SELECT MAX(position) as p FROM workspace_sessions WHERE workspace_id = ?').get(workspaceId) as any)?.p ?? -1;
+    db.prepare(
+      `INSERT OR IGNORE INTO workspace_sessions (workspace_id, session_id, task_id, label, position, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(workspaceId, sessionId, taskId ?? null, label ?? null, maxPos + 1, Date.now());
+    // Update task_id if row already existed (session_id+workspace_id unique)
+    if (taskId) {
+      db.prepare('UPDATE workspace_sessions SET task_id = ? WHERE workspace_id = ? AND session_id = ?').run(taskId, workspaceId, sessionId);
+    }
+  }
+
+  listSessions(workspaceId: string): WorkspaceSession[] {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM workspace_sessions WHERE workspace_id = ? ORDER BY position ASC').all(workspaceId) as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      workspaceId: row.workspace_id,
+      sessionId: row.session_id,
+      taskId: row.task_id ?? undefined,
+      label: row.label ?? undefined,
+      position: row.position,
+      createdAt: row.created_at,
+    }));
+  }
+
+  removeSession(workspaceId: string, sessionId: string): void {
+    const db = getDb();
+    db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ? AND session_id = ?').run(workspaceId, sessionId);
   }
 }
 

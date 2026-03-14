@@ -28,6 +28,7 @@ interface ChatState {
     thinking: ThinkingLevel;
     cwd: string;
     sessionId?: string;
+    workspaceId?: string;
   }): void;
   removeTask(taskId: string): void;
   setActiveTask(taskId: string | null): void;
@@ -97,6 +98,7 @@ export const useChatStore = create<ChatState>()(
           outputTokens: 0,
           cwd: opts.cwd,
           sessionId: opts.sessionId,
+          workspaceId: opts.workspaceId,
           subagents: new Map(),
           agentHistory: [],
           diffs: new Map(),

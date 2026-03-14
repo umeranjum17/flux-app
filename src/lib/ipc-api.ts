@@ -61,6 +61,11 @@ export interface IpcChannels {
     result: Workspace;
   };
   'workspace:spawn': { args: [{ workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
+  'workspace:spawn-chat': {
+    args: [{ workspaceId: string; prompt: string; mode?: TaskMode; agentId?: string; model?: string; images?: string[]; attachments?: FileAttachment[] }];
+    result: { taskId: string; session: Session };
+  };
+  'workspace:list-chats': { args: [{ workspaceId: string }]; result: WorkspaceSession[] };
   'workspace:stop': { args: [{ workspaceId: string }]; result: void };
   'workspace:delete': { args: [{ workspaceId: string }]; result: void };
   'workspace:merge': {
@@ -214,6 +219,16 @@ export interface Workspace {
   model: string;
   worktreePath: string;
   sessionId?: string;
+}
+
+export interface WorkspaceSession {
+  id: number;
+  workspaceId: string;
+  sessionId: string;
+  taskId?: string;
+  label?: string;
+  position: number;
+  createdAt: number;
 }
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';

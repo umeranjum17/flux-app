@@ -7,6 +7,7 @@ import {
   CREATE_USAGE_WINDOW_SNAPSHOTS_TABLE,
   CREATE_WORKSPACES_TABLE,
   CREATE_CHECKPOINTS_TABLE,
+  CREATE_WORKSPACE_SESSIONS_TABLE,
   CREATE_MIGRATIONS_TABLE,
 } from './schema';
 
@@ -19,6 +20,12 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
   { name: '006_create_workspaces', sql: CREATE_WORKSPACES_TABLE },
   { name: '007_create_checkpoints', sql: CREATE_CHECKPOINTS_TABLE },
   { name: '008_create_usage_window_snapshots', sql: CREATE_USAGE_WINDOW_SNAPSHOTS_TABLE },
+  { name: '009_create_workspace_sessions', sql: CREATE_WORKSPACE_SESSIONS_TABLE },
+  {
+    name: '009_backfill_workspace_sessions',
+    sql: `INSERT OR IGNORE INTO workspace_sessions (workspace_id, session_id, position, created_at)
+SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NULL`,
+  },
 ];
 
 export function runMigrations(): void {

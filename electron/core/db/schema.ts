@@ -89,6 +89,19 @@ CREATE TABLE IF NOT EXISTS checkpoints (
   created_at INTEGER NOT NULL
 )`;
 
+export const CREATE_WORKSPACE_SESSIONS_TABLE = `
+CREATE TABLE IF NOT EXISTS workspace_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  task_id TEXT,
+  label TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ws_sessions_workspace ON workspace_sessions(workspace_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ws_sessions_pair ON workspace_sessions(workspace_id, session_id)`;
+
 export const CREATE_MIGRATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS migrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
