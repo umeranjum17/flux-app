@@ -74,6 +74,8 @@ export interface StartWorkspaceChatOptions {
   thinking: ThinkingLevel;
   images?: string[];
   attachments?: FileAttachment[];
+  /** Skip auto-renaming the branch (e.g. during merge where the prompt references the current name). */
+  skipBranchRename?: boolean;
 }
 
 function isMissingIpcHandler(error: unknown, channel: string): boolean {
@@ -106,7 +108,7 @@ export async function startWorkspaceChat(
   let session: Session;
 
   // If the workspace still has an auto-generated fun name, rename the branch based on the prompt
-  if (FUN_BRANCH_PATTERN.test(opts.workspace.branch)) {
+  if (!opts.skipBranchRename && FUN_BRANCH_PATTERN.test(opts.workspace.branch)) {
     try {
       const slug = opts.prompt.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20);
       const hash = Math.random().toString(36).slice(2, 6);
