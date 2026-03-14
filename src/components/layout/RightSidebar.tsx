@@ -176,19 +176,55 @@ function ChecksTab() {
     const id = s.activeTaskId;
     return id ? s.tasks.get(id) : undefined;
   });
-  const qualityGate = activeTask?.lastQualityGate;
+
+  // Collect the latest quality gate message per command (skip intermediate retries)
+  const gateMessages = activeTask?.messages
+    .filter((m) => m.type === 'quality_gate' && m.command)
+    .reduce((acc, m) => {
+      acc.set(m.command!, m);
+      return acc;
+    }, new Map<string, typeof activeTask.messages[number]>());
+
+  const checks = gateMessages ? Array.from(gateMessages.values()) : [];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
-      {qualityGate ? (
-        <div className="flex items-center gap-2">
-          <CheckCircle2 size={14} className={qualityGate.status === 'passed' ? 'text-success' : 'text-error'} />
-          <span className={`text-xs font-medium ${qualityGate.status === 'passed' ? 'text-success' : 'text-error'}`}>
-            Checks {qualityGate.status}
-          </span>
+    <div className="flex min-h-0 flex-1 flex-col px-4 py-4 overflow-y-auto">
+      {checks.length > 0 ? (
+        <div className="space-y-2">
+          {checks.map((check, i) => {
+            const passed = check.passed;
+            const isPreExisting = check.isPreExisting;
+            const statusColor = passed
+              ? 'text-success'
+              : isPreExisting
+                ? 'text-warning'
+                : 'text-error';
+            return (
+              <div key={i} className="rounded-lg border border-border/50 bg-bg-surface/50 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={13} className={statusColor} />
+                  <code className="flex-1 truncate text-[11px] text-text-secondary">{check.command}</code>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2 pl-[21px]">
+                  <span className={`text-[10px] font-medium ${statusColor}`}>
+                    {passed ? 'Passed' : isPreExisting ? 'Pre-existing failure' : 'Failed'}
+                  </span>
+                  {typeof check.exitCode === 'number' && !passed && (
+                    <span className="text-[10px] text-text-tertiary">exit {check.exitCode}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
-        <p className="text-[11px] text-text-tertiary text-center py-6">No checks run yet</p>
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <CheckCircle2 size={20} className="text-text-tertiary/50" />
+          <p className="text-[11px] text-text-tertiary">No checks run yet</p>
+          <p className="text-[10px] text-text-tertiary/70">
+            Configure commands in Settings → Quality Gates
+          </p>
+        </div>
       )}
     </div>
   );

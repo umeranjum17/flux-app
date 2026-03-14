@@ -637,27 +637,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     return workspaceId;
   };
 
-  const resolveQualityGateCommands = async (cwd: string): Promise<string[]> => {
-    const configured = configManager.get().qualityGateCommands
+  const resolveQualityGateCommands = async (_cwd: string): Promise<string[]> => {
+    return configManager.get().qualityGateCommands
       .map((command) => command.trim())
       .filter(Boolean);
-    if (configured.length > 0) return configured;
-    if (sshHost) return [];
-
-    const packageJsonPath = path.join(cwd, 'package.json');
-    if (!fs.existsSync(packageJsonPath)) return [];
-
-    try {
-      const parsed = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
-        scripts?: Record<string, string>;
-      };
-      if (parsed.scripts?.typecheck) return ['npm run typecheck'];
-      if (parsed.scripts?.lint) return ['npm run lint'];
-    } catch {
-      // Fall through to no-op
-    }
-
-    return [];
   };
 
   const emitQualityGateMessage = (taskId: string, sessionId: string, message: AgentMessage) => {
