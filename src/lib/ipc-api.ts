@@ -83,7 +83,7 @@ export interface IpcChannels {
   'repomap:preview': { args: [{ prompt: string }]; result: string };
   'diff:get': { args: [{ taskId: string; sessionId: string }]; result: DiffData | null };
   'shell:exec': { args: [{ command: string; cwd: string; timeout?: number }]; result: { stdout: string; stderr: string; exitCode: number; durationMs: number } };
-  'completion:suggest': { args: [{ prefix: string; cwd: string; recentCommands: string[]; model?: string }]; result: { suggestion: string } };
+  'completion:suggest': { args: [{ prefix: string; cwd: string; recentCommands: string[]; model?: string }]; result: { suggestion: string; error?: string } };
   'completion:providers': { args: []; result: { providers: string[] } };
 }
 

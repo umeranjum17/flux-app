@@ -59,13 +59,24 @@ export function ChatInput({ focused }: ChatInputProps) {
 
   const isTerminal = inputMode === 'terminal';
 
-  // Fetch available completion providers once
+  // Fetch available completion providers and auto-select a working model
   useEffect(() => {
     window.api.invoke('completion:providers').then((res) => {
       const typed = res as { providers: string[] };
       setCompletionProviders(typed.providers);
+
+      // If the current model's provider isn't available, switch to one that is
+      const currentProvider = (() => {
+        if (['haiku', 'sonnet', 'opus'].includes(completionModel) || completionModel.startsWith('claude-')) return 'anthropic';
+        if (completionModel.startsWith('gemini-')) return 'google';
+        return 'openai';
+      })();
+      if (typed.providers.length > 0 && !typed.providers.includes(currentProvider)) {
+        const fallback: Record<string, string> = { anthropic: 'haiku', openai: 'gpt-4o-mini', google: 'gemini-2.0-flash' };
+        useUiStore.getState().setCompletionModel(fallback[typed.providers[0]] ?? 'haiku');
+      }
     }).catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isMac = window.api?.platform === 'darwin';
 
@@ -107,11 +118,13 @@ export function ChatInput({ focused }: ChatInputProps) {
     };
   }, []);
 
+  const completionErrorShown = useRef(false);
+
   const scheduleCompletion = useCallback((prefix: string) => {
     if (completionTimer.current) clearTimeout(completionTimer.current);
     setGhostText('');
 
-    if (!prefix.trim() || prefix === '$ ') return;
+    if (!prefix.trim()) return;
 
     completionTimer.current = setTimeout(async () => {
       try {
@@ -120,7 +133,12 @@ export function ChatInput({ focused }: ChatInputProps) {
           cwd: cwd || '.',
           recentCommands: shellHistory,
           model: completionModel,
-        }) as { suggestion: string };
+        }) as { suggestion: string; error?: string };
+
+        if (result.error === 'no_api_key' && !completionErrorShown.current) {
+          completionErrorShown.current = true;
+          toast.error('No API key configured for autocomplete. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY.');
+        }
         setGhostText(result.suggestion ?? '');
       } catch {
         setGhostText('');
@@ -733,7 +751,7 @@ export function ChatInput({ focused }: ChatInputProps) {
           {isTerminal && ghostText && (
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 w-full resize-none text-[15px] leading-6 outline-none font-mono whitespace-pre-wrap break-words"
+              className="pointer-events-none absolute inset-0 w-full resize-none text-[15px] leading-6 outline-none font-mono whitespace-pre-wrap break-words p-[1px]"
               style={{ minHeight: 72, maxHeight: 192, overflow: 'hidden' }}
             >
               <span className="invisible">{value}</span>
@@ -808,9 +826,13 @@ export function ChatInput({ focused }: ChatInputProps) {
                   <button
                     type="button"
                     onClick={() => setShowCompletionPicker((v) => !v)}
-                    className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-bg-elevated/60 px-2 py-1 text-[11px] text-text-secondary outline-none hover:bg-bg-elevated/90 transition-colors"
+                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors ${
+                      completionProviders.length === 0
+                        ? 'border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                        : 'border-border/60 bg-bg-elevated/60 text-text-secondary hover:bg-bg-elevated/90'
+                    }`}
                   >
-                    <span>{completionModel}</span>
+                    <span>{completionProviders.length === 0 ? 'no key' : completionModel}</span>
                     <ChevronDown size={10} className="text-text-tertiary" />
                   </button>
 

@@ -82,7 +82,10 @@ async function completeWithAnthropic(
     signal,
   });
 
-  if (!res.ok) return '';
+  if (!res.ok) {
+    console.error(`[completion] Anthropic API ${res.status}: ${await res.text().catch(() => '')}`);
+    return '';
+  }
 
   const data = (await res.json()) as {
     content: Array<{ type: string; text?: string }>;
@@ -114,7 +117,10 @@ async function completeWithGoogle(
     },
   );
 
-  if (!res.ok) return '';
+  if (!res.ok) {
+    console.error(`[completion] Google API ${res.status}: ${await res.text().catch(() => '')}`);
+    return '';
+  }
 
   const data = (await res.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -148,13 +154,41 @@ async function completeWithOpenAI(
   return response.choices[0]?.message?.content?.trim() ?? '';
 }
 
+export interface CompletionResult {
+  suggestion: string;
+  error?: string;
+}
+
+/** Pick the first available provider that has an API key. */
+function pickAvailableProvider(preferred: Provider): { provider: Provider; model: string } | null {
+  const keyCheck: Record<Provider, () => boolean> = {
+    anthropic: () => !!process.env.ANTHROPIC_API_KEY,
+    openai: () => !!process.env.OPENAI_API_KEY,
+    google: () => !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY),
+  };
+  const fallbackModels: Record<Provider, string> = {
+    anthropic: 'haiku',
+    openai: 'gpt-4o-mini',
+    google: 'gemini-2.0-flash',
+  };
+
+  // Try preferred first
+  if (keyCheck[preferred]()) return { provider: preferred, model: fallbackModels[preferred] };
+
+  // Fallback to any available provider
+  for (const p of (['anthropic', 'openai', 'google'] as const)) {
+    if (keyCheck[p]()) return { provider: p, model: fallbackModels[p] };
+  }
+  return null;
+}
+
 export async function suggestCompletion(
   prefix: string,
   cwd: string,
   recentCommands: string[],
   model = 'haiku',
-): Promise<string> {
-  if (!prefix.trim()) return '';
+): Promise<CompletionResult> {
+  if (!prefix.trim()) return { suggestion: '' };
 
   // Cancel prior in-flight request
   if (activeAbort) {
@@ -163,22 +197,34 @@ export async function suggestCompletion(
   activeAbort = new AbortController();
   const { signal } = activeAbort;
 
+  const preferredProvider = detectProvider(model);
+  const resolved = pickAvailableProvider(preferredProvider);
+  if (!resolved) {
+    return { suggestion: '', error: 'no_api_key' };
+  }
+
+  // Use the resolved provider/model (may differ from requested if fallback was needed)
+  const effectiveModel = resolved.provider === preferredProvider ? model : resolved.model;
+  const effectiveProvider = resolved.provider;
+
   const [dirListing] = await Promise.all([getDirListing(cwd)]);
   const recentHistory = recentCommands.slice(0, 20).join('\n');
   const systemPrompt = buildSystemPrompt(cwd, dirListing, recentHistory);
-  const provider = detectProvider(model);
 
   try {
-    if (provider === 'anthropic') {
-      return await completeWithAnthropic(model, systemPrompt, prefix, signal);
-    } else if (provider === 'google') {
-      return await completeWithGoogle(model, systemPrompt, prefix, signal);
+    let suggestion = '';
+    if (effectiveProvider === 'anthropic') {
+      suggestion = await completeWithAnthropic(effectiveModel, systemPrompt, prefix, signal);
+    } else if (effectiveProvider === 'google') {
+      suggestion = await completeWithGoogle(effectiveModel, systemPrompt, prefix, signal);
     } else {
-      return await completeWithOpenAI(model, systemPrompt, prefix, signal);
+      suggestion = await completeWithOpenAI(effectiveModel, systemPrompt, prefix, signal);
     }
+    return { suggestion };
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'AbortError') return '';
-    return '';
+    if (err instanceof Error && err.name === 'AbortError') return { suggestion: '' };
+    console.error('[completion] API error:', err);
+    return { suggestion: '', error: 'api_error' };
   } finally {
     if (activeAbort?.signal === signal) activeAbort = null;
   }

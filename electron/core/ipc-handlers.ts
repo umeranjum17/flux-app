@@ -1945,8 +1945,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.handle('completion:suggest', async (_event, { prefix, cwd, recentCommands, model }: { prefix: string; cwd: string; recentCommands: string[]; model?: string }) => {
-    const suggestion = await suggestCompletion(prefix, cwd, recentCommands, model);
-    return { suggestion };
+    const result = await suggestCompletion(prefix, cwd, recentCommands, model);
+    return result;
   });
 
   ipcMain.handle('completion:providers', () => {
