@@ -24,7 +24,7 @@ import { ResultBlock } from './ResultBlock';
 import { StreamingCursor } from './StreamingCursor';
 import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
-import { DiffBlock } from './DiffBlock';
+import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
 import { ShellResultBlock } from './ShellResultBlock';
 
@@ -209,15 +209,25 @@ export function MessageList() {
             />
           )}
 
-          {diffs.size > 0 && (taskStatus === 'done' || taskStatus === 'error') && (
-            <>
-              {Array.from(diffs.entries()).map(([key, diff]) => (
-                <div key={`diff-${key}`} className="mt-2">
-                  <DiffBlock diff={diff} />
-                </div>
-              ))}
-            </>
-          )}
+          {(taskStatus === 'done' || taskStatus === 'error') && (diffs.size > 0 || messages.some((m) => m.type === 'result')) && (() => {
+            const resultMsg = [...messages].reverse().find((m) => m.type === 'result');
+            const mergedDiff = diffs.size > 0
+              ? Array.from(diffs.values()).reduce(
+                  (acc, d) => ({
+                    files: [...acc.files, ...d.files],
+                    totalAdditions: acc.totalAdditions + d.totalAdditions,
+                    totalDeletions: acc.totalDeletions + d.totalDeletions,
+                  }),
+                  { files: [] as import('../../lib/types').DiffFileEntry[], totalAdditions: 0, totalDeletions: 0 },
+                )
+              : undefined;
+            return (
+              <TaskFooter
+                durationMs={resultMsg?.durationMs}
+                diff={mergedDiff}
+              />
+            );
+          })()}
 
           {task.mode === 'plan' && taskId && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={isStreaming && task.mode === 'plan'} />
