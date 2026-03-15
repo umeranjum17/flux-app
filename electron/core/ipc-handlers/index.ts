@@ -200,6 +200,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const ws = workspaceStore.get(workspaceId);
     if (ws) {
       const from = ws.status;
+      if (from === status && !extra?.sessionId) {
+        // No-op: skip redundant status emissions to reduce noise
+        return;
+      }
       if (from !== status && !validStatusTransitions[from]?.includes(status)) {
         console.warn(`[workspace] Invalid status transition: ${from} → ${status} for workspace ${workspaceId}`);
       }

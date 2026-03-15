@@ -308,7 +308,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       sendToRenderer('agent:done', { taskId, error: undefined });
     }
 
-    emitWorkspaceStatus(workspaceId, 'done');
+    emitWorkspaceStatus(workspaceId, 'idle');
   });
 
   ipcMain.handle('workspace:delete', async (_event, { workspaceId }: { workspaceId: string }) => {
