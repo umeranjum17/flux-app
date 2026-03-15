@@ -131,19 +131,20 @@ export function WorkspaceDashboard() {
 
   return (
     <div className="chrome-stage flex flex-1 flex-col overflow-hidden">
+      {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-6 py-5">
         <div className="min-w-0">
-          <div className="classic-section-label">Workspaces</div>
-          <div className="mt-2 flex items-center gap-2">
-            <LayoutGrid size={16} className="text-text-secondary" />
-            <h2 className="truncate text-lg font-semibold tracking-[-0.02em] text-text-primary">{repositoryName}</h2>
-            <span className="premium-pill px-2 py-1 text-[12px] font-medium text-text-tertiary">
-              {workspaceList.length}
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-bg-elevated/80 text-text-secondary">
+              <LayoutGrid size={18} />
+            </div>
+            <div>
+              <h2 className="truncate text-lg font-semibold tracking-[-0.02em] text-text-primary">{repositoryName}</h2>
+              <p className="text-[12px] text-text-tertiary">
+                {workspaceList.length} workspace{workspaceList.length !== 1 ? 's' : ''} · Isolated branches for parallel agent work
+              </p>
+            </div>
           </div>
-          <p className="mt-1.5 text-[13px] text-text-tertiary">
-            Isolated branches for parallel agent work.
-          </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -156,22 +157,25 @@ export function WorkspaceDashboard() {
         </button>
       </div>
 
+      {/* Workspace list */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
         {workspaceList.length === 0 && archivedList.length === 0 ? (
-          <div className="premium-panel flex h-full flex-col items-center justify-center px-6 text-center">
-            <LayoutGrid size={34} className="mb-3 text-text-tertiary/40" />
-            <p className="text-sm text-text-secondary">
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated/60">
+              <LayoutGrid size={28} className="text-text-tertiary/50" />
+            </div>
+            <p className="mt-4 text-sm font-medium text-text-secondary">
               {isGitRepo ? 'No workspaces yet' : 'Not a git repository'}
             </p>
-            <p className="mt-1 text-xs text-text-tertiary">
+            <p className="mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-text-tertiary">
               {isGitRepo
                 ? 'Create a workspace to run agents on isolated branches.'
-                : 'Workspaces require a git repository. Run "git init" in this folder to get started.'}
+                : 'Workspaces require a git repository. Run "git init" to get started.'}
             </p>
             {isGitRepo && (
               <button
                 onClick={() => setShowCreate(true)}
-                className="premium-toolbar-button mt-4 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2 text-xs font-medium text-text-secondary"
+                className="premium-toolbar-button mt-5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2.5 text-xs font-medium text-text-secondary"
               >
                 <Plus size={13} />
                 Create First Workspace
@@ -196,14 +200,14 @@ export function WorkspaceDashboard() {
             ))}
 
             {archivedList.length > 0 && (
-              <div className="pt-3">
+              <div className="pt-4">
                 <button
                   onClick={() => useWorkspaceStore.getState().setShowArchived(!showArchived)}
-                  className="flex w-full items-center gap-2 py-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
                 >
                   {showArchived ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                   <Archive size={13} />
-                  <span>Archived ({archivedList.length})</span>
+                  <span className="font-medium">Archived ({archivedList.length})</span>
                 </button>
                 {showArchived && (
                   <div className="mt-2 space-y-3">

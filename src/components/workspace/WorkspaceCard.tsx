@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ArchiveRestore, ChevronDown } from 'lucide-react';
+import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ArchiveRestore, ChevronDown, GitBranch } from 'lucide-react';
 import type { Workspace, WorkspaceOutcome } from '../../lib/ipc-api';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -36,62 +36,86 @@ export function WorkspaceCard({
   const lifecycleState = getWorkspaceLifecycleState(workspace);
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
   const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
-  const outcome = workspaceOutcomeConfig[workspace.outcome ?? 'in_progress'];
 
   return (
     <button
       onClick={isArchived ? undefined : onSelect}
-      className={`w-full rounded-[22px] border px-5 py-4 text-left transition-colors ${
+      className={`lifecycle-card group w-full text-left transition-all ${lifecycle.cardTint} ${
         isArchived
-          ? 'border-border/45 bg-bg-secondary/40 opacity-70'
+          ? 'lifecycle-card-archived'
           : isActive
-            ? 'border-border-focus/60 bg-bg-elevated/82 shadow-[0_20px_42px_rgba(0,0,0,0.34)]'
-            : 'border-border/70 bg-bg-secondary/78 hover:border-border-focus/34 hover:bg-bg-hover/74'
+            ? 'lifecycle-card-active'
+            : ''
       }`}
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/50' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium tracking-[0.01em] text-text-primary">{workspace.name}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-text-tertiary">
-              <span className="inline-flex items-center gap-1">
-                <Bot size={11} />
-                {workspace.agentId}
-              </span>
-              <span>{workspace.model}</span>
-              <span>{workspace.branch}</span>
-              {isArchived && workspace.archivedAt && (
-                <span>archived {new Date(workspace.archivedAt).toLocaleDateString()}</span>
-              )}
-            </div>
+      {/* Left accent stripe */}
+      <div className={`lifecycle-accent ${isArchived ? 'bg-text-tertiary/30' : lifecycle.accentColor} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
+
+      <div className="relative px-5 py-4 pl-6">
+        {/* Row 1: Name + lifecycle badge */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[14px] font-semibold tracking-[-0.01em] text-text-primary">
+              {workspace.name}
+            </h3>
+            <p className="mt-0.5 text-[11px] text-text-tertiary">{lifecycle.detail}</p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <span className={`lifecycle-badge ${isArchived ? 'bg-bg-secondary text-text-tertiary' : lifecycle.badgeClass}`}>
+              <span className={`inline-block h-[6px] w-[6px] rounded-full ${isArchived ? 'bg-text-tertiary/50' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
+              {isArchived ? 'Archived' : lifecycle.label}
+            </span>
+            {!isArchived && <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className={`premium-pill px-2.5 py-1 text-[10px] font-medium ${isArchived ? 'text-text-tertiary' : lifecycle.badgeClass}`}>
-            {isArchived ? 'Archived' : lifecycle.label}
+
+        {/* Row 2: Metadata */}
+        <div className="mt-2.5 flex items-center gap-3 text-[11px] text-text-tertiary">
+          <span className="inline-flex items-center gap-1">
+            <Bot size={11} className="opacity-60" />
+            <span className="font-medium">{workspace.agentId}</span>
           </span>
-          {!isArchived && <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />}
+          <span className="opacity-40">·</span>
+          <span>{workspace.model}</span>
+          <span className="opacity-40">·</span>
+          <span className="inline-flex items-center gap-1">
+            <GitBranch size={10} className="opacity-60" />
+            <span className="font-mono">{workspace.branch}</span>
+          </span>
+          {isArchived && workspace.archivedAt && (
+            <>
+              <span className="opacity-40">·</span>
+              <span>archived {new Date(workspace.archivedAt).toLocaleDateString()}</span>
+            </>
+          )}
         </div>
-        <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-        {isArchived ? (
-          <>
-            {onUnarchive && <ActionButton icon={<ArchiveRestore size={12} />} label="Unarchive" onClick={onUnarchive} />}
-            <ActionButton icon={<Trash2 size={12} />} label="Delete" onClick={onDelete} variant="danger" />
-          </>
-        ) : (
-          <>
-            {isRunning && (
-              <ActionButton icon={<Square size={12} />} label="Stop" onClick={onStop} variant="warning" />
-            )}
-            <ActionButton icon={<MessageSquare size={12} />} label="Chat" onClick={onSelect} />
-            <ActionButton icon={<ExternalLink size={12} />} label="Open IDE" onClick={onOpenIde} />
-            <ActionButton icon={<Eye size={12} />} label="Review" onClick={onReview} />
-            <ActionButton icon={<GitMerge size={12} />} label="Merge" onClick={onMerge} />
-            {onArchive && <ActionButton icon={<Trash2 size={12} />} label="Archive" onClick={onArchive} />}
-            <ActionButton icon={<Trash2 size={12} />} label="Delete" onClick={onDelete} variant="danger" />
-          </>
-        )}
+
+        {/* Row 3: Actions — revealed on hover */}
+        <div
+          className={`mt-3 flex items-center gap-1 border-t border-border/40 pt-2.5 transition-opacity ${
+            isArchived ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isArchived ? (
+            <>
+              {onUnarchive && <CardAction icon={<ArchiveRestore size={13} />} label="Unarchive" onClick={onUnarchive} />}
+              <CardAction icon={<Trash2 size={13} />} label="Delete" onClick={onDelete} variant="danger" />
+            </>
+          ) : (
+            <>
+              {isRunning && (
+                <CardAction icon={<Square size={13} />} label="Stop" onClick={onStop} variant="warning" />
+              )}
+              <CardAction icon={<MessageSquare size={13} />} label="Chat" onClick={onSelect} />
+              <CardAction icon={<ExternalLink size={13} />} label="Open IDE" onClick={onOpenIde} />
+              <CardAction icon={<Eye size={13} />} label="Review" onClick={onReview} />
+              <CardAction icon={<GitMerge size={13} />} label="Merge" onClick={onMerge} />
+              <div className="flex-1" />
+              {onArchive && <CardAction icon={<Trash2 size={13} />} label="Archive" onClick={onArchive} variant="danger" />}
+            </>
+          )}
         </div>
       </div>
     </button>
@@ -123,13 +147,13 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`premium-pill inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium ${config.color} hover:opacity-80 transition-opacity`}
+        className={`lifecycle-badge items-center gap-1 ${config.color} hover:opacity-80 transition-opacity`}
       >
         {config.label}
         <ChevronDown size={10} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-xl border border-border/80 bg-bg-secondary py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[150px] rounded-xl border border-border/80 bg-bg-secondary py-1 shadow-xl">
           {outcomeOptions.map((opt) => {
             const optConfig = workspaceOutcomeConfig[opt];
             return (
@@ -137,7 +161,7 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
                 key={opt}
                 onClick={() => handleSelect(opt)}
                 className={`w-full px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-bg-hover ${
-                  opt === outcome ? 'font-medium' : ''
+                  opt === outcome ? 'font-semibold' : ''
                 } ${optConfig.color}`}
               >
                 {optConfig.label}
@@ -150,7 +174,7 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
   );
 }
 
-function ActionButton({ icon, label, onClick, variant }: {
+function CardAction({ icon, label, onClick, variant }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
@@ -166,9 +190,10 @@ function ActionButton({ icon, label, onClick, variant }: {
     <button
       onClick={onClick}
       title={label}
-      className={`premium-toolbar-button rounded-xl p-2 text-text-tertiary transition-colors ${colors}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-text-tertiary transition-colors ${colors}`}
     >
       {icon}
+      <span>{label}</span>
     </button>
   );
 }

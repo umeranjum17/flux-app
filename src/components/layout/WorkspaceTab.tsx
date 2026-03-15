@@ -154,6 +154,7 @@ export function WorkspaceTab() {
           const lifecycleState = getWorkspaceLifecycleState(ws);
           const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
           const isActive = ws.id === activeWorkspaceId;
+          const isLive = lifecycle.pulse;
 
           return (
             <button
@@ -166,15 +167,19 @@ export function WorkspaceTab() {
               title={lifecycle.detail}
               className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
             >
-              <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''}`} />
+              <div className="relative mt-0.5 shrink-0">
+                <span className={`lifecycle-dot ${lifecycle.color} ${isLive ? 'animate-pulse lifecycle-dot-glow' : ''}`} />
+              </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-text-primary">{ws.name}</div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
-                  <GitBranch size={10} />
-                  <span className="truncate font-mono">{ws.branch}</span>
-                  <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${lifecycle.badgeClass}`}>
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-[13px] font-medium text-text-primary">{ws.name}</span>
+                  <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${lifecycle.badgeClass}`}>
                     {lifecycle.label}
                   </span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
+                  <GitBranch size={10} className="opacity-50" />
+                  <span className="truncate font-mono">{ws.branch}</span>
                 </div>
               </div>
               <span
@@ -211,7 +216,7 @@ export function WorkspaceTab() {
                   onClick={() => handleSelectStandaloneChat(task.id)}
                   className={`classic-list-button ${isChatActive ? 'classic-list-button-active' : ''}`}
                 >
-                  <span className={`mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusColor(task.status)}`} />
+                  <span className={`lifecycle-dot ${statusColor(task.status)}`} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium text-text-primary">{task.title || 'Untitled'}</div>
                   </div>
@@ -227,7 +232,7 @@ export function WorkspaceTab() {
         <>
           <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)} />
           <div
-            className="fixed z-50 min-w-[160px] rounded-lg border border-border bg-bg-primary py-1 shadow-xl"
+            className="fixed z-50 min-w-[160px] rounded-xl border border-border/80 bg-bg-primary py-1 shadow-xl"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             <ContextItem icon={<Eye size={12} />} label="Review Changes" onClick={() => handleContextAction('review', contextMenu.ws)} />

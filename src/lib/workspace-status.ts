@@ -31,65 +31,91 @@ export type WorkspaceLifecycleState =
 
 export const workspaceLifecycleConfig: Record<
   WorkspaceLifecycleState,
-  { color: string; label: string; pulse?: boolean; detail: string; badgeClass: string }
+  {
+    color: string;
+    label: string;
+    pulse?: boolean;
+    detail: string;
+    badgeClass: string;
+    accentColor: string;
+    cardTint: string;
+  }
 > = {
   idle: {
     color: 'bg-text-tertiary',
     label: 'Idle',
-    detail: 'Workspace is waiting for the next task.',
+    detail: 'Waiting for the next task.',
     badgeClass: 'bg-bg-secondary text-text-tertiary',
+    accentColor: 'bg-text-tertiary/40',
+    cardTint: '',
   },
   coding: {
     color: 'bg-accent',
     label: 'Coding',
     pulse: true,
-    detail: 'Agent is actively writing or editing code.',
+    detail: 'Agent is writing code.',
     badgeClass: 'bg-accent/12 text-accent',
+    accentColor: 'bg-accent',
+    cardTint: 'lifecycle-tint-coding',
   },
   awaiting_approval: {
     color: 'bg-warning',
     label: 'Needs Approval',
     pulse: true,
-    detail: 'Agent is paused and waiting for permission approval.',
+    detail: 'Paused — waiting for your approval.',
     badgeClass: 'bg-warning/12 text-warning',
+    accentColor: 'bg-warning',
+    cardTint: 'lifecycle-tint-warning',
   },
   awaiting_input: {
     color: 'bg-info',
     label: 'Needs Input',
     pulse: true,
-    detail: 'Agent asked a question and is waiting for your input.',
+    detail: 'Agent asked a question.',
     badgeClass: 'bg-info/12 text-info',
+    accentColor: 'bg-info',
+    cardTint: 'lifecycle-tint-info',
   },
   ready_for_review: {
     color: 'bg-info',
     label: 'Ready for Review',
-    detail: 'Coding pass finished and changes are ready to review.',
+    detail: 'Changes are ready to review.',
     badgeClass: 'bg-info/12 text-info',
+    accentColor: 'bg-info',
+    cardTint: 'lifecycle-tint-info',
   },
   ready_to_merge: {
     color: 'bg-success',
     label: 'Ready to Merge',
-    detail: 'Review is complete and this workspace can be merged.',
+    detail: 'Reviewed and ready to merge.',
     badgeClass: 'bg-success/12 text-success',
+    accentColor: 'bg-success',
+    cardTint: 'lifecycle-tint-success',
   },
   merging: {
     color: 'bg-accent',
     label: 'Merging',
     pulse: true,
-    detail: 'Merge workflow is running.',
+    detail: 'Merge in progress.',
     badgeClass: 'bg-accent/12 text-accent',
+    accentColor: 'bg-accent',
+    cardTint: 'lifecycle-tint-coding',
   },
   merged: {
     color: 'bg-success',
     label: 'Merged',
-    detail: 'Workspace changes have been merged successfully.',
+    detail: 'Successfully merged.',
     badgeClass: 'bg-success/12 text-success',
+    accentColor: 'bg-success',
+    cardTint: 'lifecycle-tint-success',
   },
   blocked: {
     color: 'bg-error',
     label: 'Blocked',
-    detail: 'Last run failed and needs attention.',
+    detail: 'Last run failed — needs attention.',
     badgeClass: 'bg-error/12 text-error',
+    accentColor: 'bg-error',
+    cardTint: 'lifecycle-tint-error',
   },
 };
 

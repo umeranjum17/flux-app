@@ -52,12 +52,12 @@ export function WorkspaceActionBar() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-bg-secondary/35 px-3 py-1">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/35 px-3 py-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <GitBranch size={13} className="shrink-0 text-text-tertiary" />
         <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${lifecycle.badgeClass}`}>
-          <span className={`inline-block h-1.5 w-1.5 rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''}`} />
+        <span className={`lifecycle-badge ${lifecycle.badgeClass}`}>
+          <span className={`inline-block h-[5px] w-[5px] rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''}`} />
           {lifecycle.label}
         </span>
       </div>

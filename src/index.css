@@ -446,6 +446,119 @@ button:focus-visible {
   background: var(--color-bg-hover);
 }
 
+/* Lifecycle-tinted workspace cards */
+.lifecycle-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--surface-border-soft);
+  background: var(--panel-gradient);
+  box-shadow: var(--panel-shadow);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.lifecycle-card:hover {
+  border-color: var(--surface-border-strong);
+  box-shadow: var(--panel-shadow-strong);
+}
+
+.lifecycle-card-active {
+  border-color: var(--color-border-focus);
+  box-shadow:
+    0 0 0 1px var(--color-border-focus),
+    0 8px 24px hsl(0 0% 0% / 0.3);
+}
+
+.lifecycle-card-archived {
+  opacity: 0.55;
+  filter: saturate(0.5);
+}
+
+/* Subtle left accent stripe */
+.lifecycle-accent {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  transition: opacity 180ms ease;
+}
+
+/* Background tint per lifecycle state — very subtle wash */
+.lifecycle-tint-coding {
+  background: linear-gradient(135deg, hsl(0 0% 80% / 0.03) 0%, transparent 60%);
+}
+
+.lifecycle-tint-warning {
+  background: linear-gradient(135deg, hsl(41 78% 60% / 0.04) 0%, transparent 60%);
+}
+
+.lifecycle-tint-info {
+  background: linear-gradient(135deg, hsl(200 62% 64% / 0.04) 0%, transparent 60%);
+}
+
+.lifecycle-tint-success {
+  background: linear-gradient(135deg, hsl(148 42% 54% / 0.04) 0%, transparent 60%);
+}
+
+.lifecycle-tint-error {
+  background: linear-gradient(135deg, hsl(358 70% 63% / 0.04) 0%, transparent 60%);
+}
+
+/* Light theme overrides for lifecycle tints */
+.theme-light .lifecycle-tint-coding {
+  background: linear-gradient(135deg, hsl(86 42% 42% / 0.04) 0%, transparent 60%);
+}
+
+.theme-light .lifecycle-tint-warning {
+  background: linear-gradient(135deg, hsl(41 78% 50% / 0.06) 0%, transparent 60%);
+}
+
+.theme-light .lifecycle-tint-info {
+  background: linear-gradient(135deg, hsl(200 62% 54% / 0.06) 0%, transparent 60%);
+}
+
+.theme-light .lifecycle-tint-success {
+  background: linear-gradient(135deg, hsl(148 42% 44% / 0.06) 0%, transparent 60%);
+}
+
+.theme-light .lifecycle-tint-error {
+  background: linear-gradient(135deg, hsl(358 70% 53% / 0.06) 0%, transparent 60%);
+}
+
+/* Lifecycle badge — refined pill */
+.lifecycle-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+/* Sidebar lifecycle dot — slightly larger, with glow for active states */
+.lifecycle-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: box-shadow 200ms ease;
+}
+
+.lifecycle-dot-glow {
+  box-shadow: 0 0 6px 1px currentColor;
+}
+
 /* Drag region for frameless window */
 .drag-region {
   -webkit-app-region: drag;
