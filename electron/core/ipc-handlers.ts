@@ -188,6 +188,77 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+type NormalizedTodoItem = {
+  id: number;
+  label: string;
+  status: 'pending' | 'in_progress' | 'done';
+};
+
+function normalizeTodoStatus(value: unknown): NormalizedTodoItem['status'] {
+  if (typeof value === 'boolean') {
+    return value ? 'done' : 'pending';
+  }
+
+  if (typeof value !== 'string') return 'pending';
+  const normalized = value.toLowerCase().trim();
+  if (normalized === 'completed' || normalized === 'complete' || normalized === 'done' || normalized === 'finished') {
+    return 'done';
+  }
+  if (normalized === 'in_progress' || normalized === 'in-progress' || normalized === 'active' || normalized === 'doing') {
+    return 'in_progress';
+  }
+  return 'pending';
+}
+
+function normalizeTodoLabel(value: Record<string, unknown>): string {
+  for (const key of ['content', 'title', 'label', 'text', 'task', 'step']) {
+    const raw = value[key];
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      return raw.trim();
+    }
+  }
+  return '';
+}
+
+function extractTodoArrayFromPayload(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (!isRecord(payload)) return [];
+
+  for (const key of ['todos', 'items', 'tasks', 'steps']) {
+    const value = payload[key];
+    if (Array.isArray(value)) return value;
+  }
+
+  if (isRecord(payload.data)) {
+    return extractTodoArrayFromPayload(payload.data);
+  }
+
+  return [];
+}
+
+function extractTodoItemsFromPayload(payload: unknown): NormalizedTodoItem[] {
+  const rawItems = extractTodoArrayFromPayload(payload);
+  return rawItems
+    .map((item, i): NormalizedTodoItem | null => {
+      if (typeof item === 'string') {
+        const label = item.trim();
+        if (!label) return null;
+        return { id: i + 1, label, status: 'pending' };
+      }
+      if (!isRecord(item)) return null;
+
+      const label = normalizeTodoLabel(item);
+      if (!label) return null;
+
+      const status = normalizeTodoStatus(
+        item.status ?? item.state ?? item.done ?? item.completed,
+      );
+
+      return { id: i + 1, label, status };
+    })
+    .filter((item): item is NormalizedTodoItem => !!item);
+}
+
 function readAgentSessionId(metadata: Record<string, unknown> | undefined, agentId: AgentId): string | undefined {
   if (!metadata) return undefined;
   const agentSessions = metadata.agentSessions;
@@ -626,32 +697,32 @@ function buildWorkspaceSystemContext(
       '- Do NOT push to remote or create pull requests — the user will merge via the UI.',
       '- After committing, summarize what you changed.',
     );
-
-    // Agent-specific progress tracking instructions
-    if (agentId === 'claude-code') {
-      lines.push(
-        '',
-        '## Progress tracking',
-        'For multi-step tasks, use the `TodoWrite` tool to track your progress:',
-        '- Create a todo list at the start with all steps.',
-        '- Mark each step `in_progress` when you begin, `completed` when done.',
-        '- This keeps the user informed of your progress in real time.',
-      );
-    } else if (agentId === 'codex') {
-      lines.push(
-        '',
-        '## Progress tracking',
-        'For multi-step tasks, track your progress by outputting markers:',
-        '- `[STEP <number> START]` when you begin a step.',
-        '- `[STEP <number> DONE]` when you complete a step.',
-      );
-    }
   } else if (mode === 'plan') {
     lines.push(
       '',
       '## Instructions',
       '- Analyze the codebase and create a detailed plan.',
       '- Do NOT modify files or run destructive commands.',
+    );
+  }
+
+  // Agent-specific progress tracking instructions (all modes)
+  if (agentId === 'claude-code') {
+    lines.push(
+      '',
+      '## Progress tracking',
+      'When your work has multiple steps, use the `TodoWrite` tool to track progress:',
+      '- Create a todo list at the start with all steps.',
+      '- Mark each step `in_progress` when you begin, `completed` when done.',
+      '- This keeps the user informed in real time.',
+    );
+  } else if (agentId === 'codex') {
+    lines.push(
+      '',
+      '## Progress tracking',
+      'When your work has multiple steps, report progress markers:',
+      '- `[STEP <number> START]` when you begin a step.',
+      '- `[STEP <number> DONE]` when you complete a step.',
     );
   }
 
@@ -1297,21 +1368,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Track whether the agent used TodoWrite to manage its own progress.
     // When true, we skip the brittle [STEP N DONE] regex matching.
     let agentUsedTodoWrite = false;
+    const knownTodoStepIds = new Set<number>();
+
+    const emitTodoItems = (todoItems: NormalizedTodoItem[]) => {
+      if (todoItems.length === 0) return;
+      knownTodoStepIds.clear();
+      for (const item of todoItems) knownTodoStepIds.add(item.id);
+      sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+    };
 
     // Listen for TodoWrite events emitted by the SDK adapter's canUseTool
     // interceptor. Forward parsed todos to the renderer's TodoBar.
-    handle.on('agent-todo', (payload: { todos: any[] }) => {
+    handle.on('agent-todo', (payload: unknown) => {
       agentUsedTodoWrite = true;
-      const todoItems = (payload.todos ?? [])
-        .filter((t: any) => t && typeof t === 'object' && typeof t.content === 'string')
-        .map((t: any, i: number) => ({
-          id: i + 1,
-          label: t.content,
-          status: t.status === 'completed' ? 'done' as const
-            : t.status === 'in_progress' ? 'in_progress' as const
-            : 'pending' as const,
-        }));
-      sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+      emitTodoItems(extractTodoItemsFromPayload(payload));
     });
 
     const toolHeartbeats = new Map<string, NodeJS.Timeout>();
@@ -1357,8 +1427,27 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       // Detect step progress markers in assistant text and update todo state.
       // Skip if the agent is using TodoWrite natively (which provides structured updates).
       if (!agentUsedTodoWrite && message.type === 'text' && message.role === 'assistant' && message.content) {
-        const stepDoneMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi);
-        const stepStartMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi);
+        const stepDoneMatches = Array.from(message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi));
+        const stepStartMatches = Array.from(message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi));
+        const matchedSteps = [...stepStartMatches, ...stepDoneMatches]
+          .map((match) => parseInt(match[1], 10))
+          .filter((stepId) => Number.isFinite(stepId) && stepId > 0);
+
+        if (knownTodoStepIds.size === 0 && matchedSteps.length > 0) {
+          const maxStep = Math.max(...matchedSteps);
+          const started = new Set(stepStartMatches.map((match) => parseInt(match[1], 10)));
+          const done = new Set(stepDoneMatches.map((match) => parseInt(match[1], 10)));
+          const seededItems: NormalizedTodoItem[] = [];
+          for (let step = 1; step <= maxStep; step++) {
+            seededItems.push({
+              id: step,
+              label: `Step ${step}`,
+              status: done.has(step) ? 'done' : started.has(step) ? 'in_progress' : 'pending',
+            });
+          }
+          emitTodoItems(seededItems);
+        }
+
         for (const m of stepStartMatches) {
           sendToRenderer('agent:todo-update', {
             taskId: options.taskId,
@@ -1381,27 +1470,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         && message.toolName
         && message.toolName.toLowerCase().includes('todo')
         && message.toolInput
-        && Array.isArray(message.toolInput.todos)
       ) {
-        const todoItems = (message.toolInput.todos as Array<Record<string, unknown>>)
-          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-          .map((item, i) => {
-            const label = typeof item.content === 'string'
-              ? item.content
-              : typeof item.title === 'string'
-                ? item.title
-                : String(item.text ?? '');
-            const rawStatus = typeof item.status === 'string' ? item.status : 'pending';
-            const status: 'pending' | 'in_progress' | 'done' =
-              rawStatus === 'completed' ? 'done'
-                : rawStatus === 'in_progress' ? 'in_progress'
-                  : 'pending';
-            return { id: i + 1, label, status };
-          })
-          .filter((item) => item.label.trim().length > 0);
+        const todoItems = extractTodoItemsFromPayload(message.toolInput);
 
         if (todoItems.length > 0) {
-          sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+          emitTodoItems(todoItems);
         }
       }
 
