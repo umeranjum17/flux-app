@@ -5,6 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
+import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv, resolveSshCommand } from '../process-utils';
 import type { SessionStore } from '../session/store';
 import type { Workspace } from '../worktree/types';
@@ -937,11 +938,27 @@ export function normalizeRateLimitInfo(
           ? raw.percent_capacity / 100
           : 0;
 
+  const resetsAt = raw.resetsAt ?? raw.resets_at ?? raw.resetAt ?? 0;
+  const rateLimitType = raw.rateLimitType ?? raw.rate_limit_type ?? raw.type ?? 'unknown';
+
+  logDiagnostic('usage', `normalizeRateLimitInfo(${providerId}): stream event`, {
+    rawKeys: Object.keys(raw),
+    rawUtilization: raw.utilization,
+    rawUsedPercent: raw.used_percent,
+    rawPercentCapacity: raw.percentCapacity,
+    rawStatus: raw.status,
+    rawResetsAt: raw.resetsAt ?? raw.resets_at ?? raw.resetAt,
+    rawRateLimitType: raw.rateLimitType ?? raw.rate_limit_type ?? raw.type,
+    computedUtilization: utilization,
+    computedResetsAt: resetsAt,
+    computedRateLimitType: rateLimitType,
+  });
+
   return {
     providerId,
     status: raw.status ?? (utilization >= 1 ? 'rejected' : utilization >= 0.8 ? 'allowed_warning' : 'allowed'),
-    resetsAt: raw.resetsAt ?? raw.resets_at ?? raw.resetAt ?? 0,
-    rateLimitType: raw.rateLimitType ?? raw.rate_limit_type ?? raw.type ?? 'unknown',
+    resetsAt,
+    rateLimitType,
     utilization,
     ...(raw.fetchedAt ? { fetchedAt: raw.fetchedAt } : {}),
     ...(raw.overageStatus ? { overageStatus: raw.overageStatus } : {}),

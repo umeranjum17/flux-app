@@ -5,6 +5,7 @@ import { agentManager } from '../agents/manager';
 import { findLatestCodexSession } from '../agents/codex-utils';
 import type { AgentHandle, AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
 import { isInteractiveToolName } from '../agents/claude';
+import { logDiagnostic } from '../diagnostics/logger';
 import { StallMonitor } from '../agents/stall-monitor';
 import { repoMapService } from '../intelligence/repomap';
 import { createCheckpoint, listCheckpoints } from '../checkpoint/manager';
@@ -701,6 +702,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
 
       if (message.type === 'rate_limit') {
+        logDiagnostic('usage', `rate_limit stream event from agent=${agentId}`, {
+          rawRateLimitInfo: message.rateLimitInfo ? JSON.stringify(message.rateLimitInfo).slice(0, 500) : null,
+        });
         const normalized = (agentId === 'claude-code' || agentId === 'codex')
           ? normalizeRateLimitInfo(
             message.rateLimitInfo as Record<string, any> | undefined,
@@ -709,7 +713,19 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           : null;
         if (normalized) {
           normalized.fetchedAt = Date.now();
-          cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
+          const cacheKey = `${normalized.providerId}:${normalized.rateLimitType}`;
+          const previous = cachedRateLimits.get(cacheKey);
+          logDiagnostic('usage', `rate_limit cached: ${cacheKey}`, {
+            utilization: normalized.utilization,
+            status: normalized.status,
+            resetsAt: normalized.resetsAt,
+            rateLimitType: normalized.rateLimitType,
+            previousUtilization: previous?.utilization ?? null,
+            previousStatus: previous?.status ?? null,
+          });
+          cachedRateLimits.set(cacheKey, normalized);
+        } else {
+          logDiagnostic('usage', `rate_limit stream event ignored`, { agentId, reason: agentId !== 'claude-code' && agentId !== 'codex' ? 'unsupported_agent' : 'normalization_returned_null' });
         }
       }
 

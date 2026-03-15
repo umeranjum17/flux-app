@@ -6,6 +6,7 @@ import path from 'path';
 
 import { agentManager } from '../agents/manager';
 import type { AgentHandle } from '../agents/types';
+import { logDiagnostic } from '../diagnostics/logger';
 import { ConfigManager } from '../config/config';
 import type { RepoMapConfig } from '../config/types';
 import { WorkspaceStore } from '../worktree/store';
@@ -144,17 +145,57 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   ipcMain.handle('usage:rate-limits', async () => {
     const RATE_LIMIT_TTL_MS = 5 * 60 * 1000; // 5 minutes
     const now = Date.now();
+    const evicted: string[] = [];
     // Evict stale entries and return only fresh ones
     for (const [key, info] of cachedRateLimits) {
       if (info.fetchedAt && now - info.fetchedAt > RATE_LIMIT_TTL_MS) {
+        evicted.push(key);
         cachedRateLimits.delete(key);
       }
     }
-    return Array.from(cachedRateLimits.values());
+    const result = Array.from(cachedRateLimits.values());
+    logDiagnostic('usage', 'IPC usage:rate-limits response', {
+      evicted,
+      returnedCount: result.length,
+      entries: result.map((r) => ({
+        key: `${r.providerId}:${r.rateLimitType}`,
+        utilization: r.utilization,
+        status: r.status,
+        resetsAt: r.resetsAt,
+        fetchedAt: r.fetchedAt,
+        ageMs: r.fetchedAt ? now - r.fetchedAt : null,
+      })),
+    });
+    return result;
   });
 
   ipcMain.handle('usage:live', async () => {
-    return liveUsageService.getOverview(Array.from(cachedRateLimits.values()));
+    const cached = Array.from(cachedRateLimits.values());
+    logDiagnostic('usage', 'IPC usage:live invoked', {
+      cachedRateLimitCount: cached.length,
+      cachedKeys: cached.map((r) => `${r.providerId}:${r.rateLimitType}`),
+    });
+    const overview = await liveUsageService.getOverview(cached);
+    logDiagnostic('usage', 'IPC usage:live response', {
+      providerCount: overview.providers.length,
+      providers: overview.providers.map((p) => ({
+        providerId: p.providerId,
+        status: p.status,
+        source: p.source,
+        windowCount: p.windows.length,
+        windows: p.windows.map((w) => ({
+          windowKey: w.windowKey,
+          usedPercent: w.usedPercent,
+          status: w.status,
+          resetsAt: w.resetsAt,
+          remainingMs: w.remainingMs,
+          isStale: w.isStale,
+          isExpired: w.isExpired,
+          source: w.source,
+        })),
+      })),
+    });
+    return overview;
   });
 
   ipcMain.handle('cwd:get', async () => {

@@ -3,6 +3,7 @@ import type { ChildProcess } from 'child_process';
 
 import { agentManager } from '../agents/manager';
 import type { AgentHandle, AgentId, AgentMessage } from '../agents/types';
+import { logDiagnostic } from '../diagnostics/logger';
 import { SessionStore } from '../session/store';
 import { ConfigManager } from '../config/config';
 import { UsageTracker } from '../usage/tracker';
@@ -281,7 +282,21 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   function schedulePoll(delayMs: number): void {
     usagePollTimer = setTimeout(async () => {
       try {
-        const result = await liveUsageService.getOverview(Array.from(cachedRateLimits.values()));
+        const cached = Array.from(cachedRateLimits.values());
+        logDiagnostic('usage', 'usage-poller: poll start', {
+          cachedCount: cached.length,
+          cachedKeys: cached.map((r) => `${r.providerId}:${r.rateLimitType}`),
+        });
+        const result = await liveUsageService.getOverview(cached);
+        logDiagnostic('usage', 'usage-poller: poll complete', {
+          providerCount: result.providers.length,
+          providers: result.providers.map((p) => ({
+            providerId: p.providerId,
+            status: p.status,
+            source: p.source,
+            windowCount: p.windows.length,
+          })),
+        });
         sendToRenderer('usage:live-update', result);
       } catch (err) {
         console.warn('[usage-poller] fetch failed:', err instanceof Error ? err.message : String(err));

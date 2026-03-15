@@ -165,8 +165,24 @@ export class LiveUsageService {
     cachedRateLimits: CachedRateLimitInfo[],
     now: number,
   ): LiveUsageProvider {
+    logDiagnostic('usage', `resolveProvider(${result.providerId}): start`, {
+      fetchStatus: result.status,
+      fetchMessage: result.message,
+      liveWindowCount: result.windows.length,
+      snapshotKeys: [...latestSnapshots.keys()].filter((k) => k.startsWith(result.providerId)),
+      cachedRateLimitKeys: cachedRateLimits.filter((r) => r.providerId === result.providerId).map((r) => r.rateLimitType),
+    });
     const liveWindows = result.windows.map((window) => this.toLiveWindow(result, window, false, now));
     if (liveWindows.length > 0) {
+      logDiagnostic('usage', `resolveProvider(${result.providerId}): using live data`, {
+        windows: liveWindows.map((w) => ({
+          windowKey: w.windowKey,
+          usedPercent: w.usedPercent,
+          status: w.status,
+          resetsAt: w.resetsAt,
+          remainingMs: w.remainingMs,
+        })),
+      });
       return {
         providerId: result.providerId,
         label: result.label,
@@ -184,6 +200,17 @@ export class LiveUsageService {
     const snapshotWindows = snapshotRows.map((row) => this.snapshotRowToWindow(result, row, now));
 
     if (snapshotWindows.length > 0) {
+      logDiagnostic('usage', `resolveProvider(${result.providerId}): falling back to snapshots`, {
+        windows: snapshotWindows.map((w) => ({
+          windowKey: w.windowKey,
+          usedPercent: w.usedPercent,
+          status: w.status,
+          resetsAt: w.resetsAt,
+          isExpired: w.isExpired,
+          isStale: w.isStale,
+          fetchedAt: w.fetchedAt,
+        })),
+      });
       // Persist anchor snapshots so the trend chart accumulates points during outages.
       this.persistSnapshots(snapshotRows
         .filter((row) => !row.resets_at || row.resets_at > now)
@@ -214,6 +241,17 @@ export class LiveUsageService {
     const fallbackWindows = cachedRateLimits
       .filter((item) => item.providerId === result.providerId)
       .map((item) => this.cachedRateLimitToWindow(item, now));
+
+    logDiagnostic('usage', `resolveProvider(${result.providerId}): using stream_fallback`, {
+      fallbackCount: fallbackWindows.length,
+      windows: fallbackWindows.map((w) => ({
+        windowKey: w.windowKey,
+        usedPercent: w.usedPercent,
+        status: w.status,
+        resetsAt: w.resetsAt,
+        isExpired: w.isExpired,
+      })),
+    });
 
     if (fallbackWindows.length > 0) {
       this.persistSnapshots(fallbackWindows.map((w) => ({
@@ -492,6 +530,7 @@ export class LiveUsageService {
       }
 
       const json = await response.json() as Record<string, any>;
+      logDiagnostic('usage', 'claude usage API raw response', { body: JSON.stringify(json).slice(0, 2000) });
       const windows = normalizeClaudeWindows(json, now);
       logDiagnostic('usage', 'claude usage API success', { windowCount: windows.length });
 
@@ -706,21 +745,61 @@ function normalizeClaudeWindows(json: Record<string, any>, now: number): Interna
   // Support both top-level shape (json.five_hour / json.seven_day)
   // and nested shape (json.rate_limit?.five_hour / json.usage?.five_hour).
   const root = json.rate_limit ?? json.rate_limits ?? json.usage ?? json;
-  return [
+  const selectedKey = json.rate_limit ? 'rate_limit' : json.rate_limits ? 'rate_limits' : json.usage ? 'usage' : 'root';
+  logDiagnostic('usage', 'claude normalizeWindows: root selection', {
+    selectedKey,
+    topLevelKeys: Object.keys(json),
+    rootKeys: root ? Object.keys(root) : [],
+    hasFiveHour: !!root?.five_hour,
+    hasSevenDay: !!root?.seven_day,
+    rawFiveHour: root?.five_hour ? JSON.stringify(root.five_hour).slice(0, 500) : null,
+    rawSevenDay: root?.seven_day ? JSON.stringify(root.seven_day).slice(0, 500) : null,
+  });
+  const windows = [
     normalizeClaudeWindow('five_hour', root.five_hour, now),
     normalizeClaudeWindow('seven_day', root.seven_day, now),
   ].filter((window): window is InternalWindow => !!window);
+  logDiagnostic('usage', 'claude normalizeWindows: result', {
+    windowCount: windows.length,
+    windows: windows.map((w) => ({
+      windowKey: w.windowKey,
+      usedPercent: w.usedPercent,
+      status: w.status,
+      resetsAt: w.resetsAt,
+    })),
+  });
+  return windows;
 }
 
 function normalizeClaudeWindow(windowKey: UsageWindowKey, raw: any, now: number): InternalWindow | null {
   if (!raw || typeof raw !== 'object') {
+    logDiagnostic('usage', `claude normalizeWindow(${windowKey}): skipped`, { raw: raw === null ? 'null' : typeof raw });
     return null;
   }
 
-  const usedPercent = clampPercent(normalizePercent(
-    raw.utilization ?? raw.used_percent ?? raw.percent_capacity ?? raw.percentCapacity,
-  ));
-  const resetsAt = parseClaudeTimestamp(raw.resets_at ?? raw.resetsAt ?? raw.reset_at);
+  const rawUtilization = raw.utilization ?? raw.used_percent ?? raw.percent_capacity ?? raw.percentCapacity;
+  const normalizedPercent = normalizePercent(rawUtilization);
+  const usedPercent = clampPercent(normalizedPercent);
+  const rawResetsAt = raw.resets_at ?? raw.resetsAt ?? raw.reset_at;
+  const resetsAt = parseClaudeTimestamp(rawResetsAt);
+
+  logDiagnostic('usage', `claude normalizeWindow(${windowKey}): parsed`, {
+    rawFields: {
+      utilization: raw.utilization,
+      used_percent: raw.used_percent,
+      percent_capacity: raw.percent_capacity,
+      percentCapacity: raw.percentCapacity,
+      resets_at: raw.resets_at,
+      resetsAt: raw.resetsAt,
+      reset_at: raw.reset_at,
+    },
+    rawUtilization,
+    normalizedPercent,
+    usedPercent,
+    rawResetsAt,
+    resetsAt,
+    allRawKeys: Object.keys(raw),
+  });
 
   return {
     providerId: 'claude-code',
@@ -782,10 +861,12 @@ function parseClaudeTimestamp(value: unknown): number | null {
 
 function normalizePercent(value: unknown): number {
   if (typeof value !== 'number' || Number.isNaN(value)) {
+    logDiagnostic('usage', 'normalizePercent: non-numeric input', { value, type: typeof value });
     return 0;
   }
 
   if (value > 1) {
+    logDiagnostic('usage', 'normalizePercent: dividing by 100', { rawValue: value, result: value / 100 });
     return value / 100;
   }
 
