@@ -648,6 +648,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           )
           : null;
         if (normalized) {
+          normalized.fetchedAt = Date.now();
           cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
         }
       }
@@ -774,14 +775,16 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     handle.on('done', (result) => {
+      // Always clear tool heartbeats immediately, regardless of cleaningUp state,
+      // to prevent leaked intervals if this handler returns early or throws.
+      for (const interval of toolHeartbeats.values()) clearInterval(interval);
+      toolHeartbeats.clear();
+
       void (async () => {
         if (cleaningUp.has(options.taskId)) return;
 
         stallMonitor.dispose();
         taskStallMonitors.delete(options.taskId);
-
-        for (const interval of toolHeartbeats.values()) clearInterval(interval);
-        toolHeartbeats.clear();
 
         if (taskIdleHeartbeats.has(options.taskId)) {
           clearInterval(taskIdleHeartbeats.get(options.taskId)!);
@@ -826,8 +829,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         try {
           let finalError = result?.error;
 
-          for (const interval of toolHeartbeats.values()) clearInterval(interval);
-          toolHeartbeats.clear();
           if (taskIdleHeartbeats.has(options.taskId)) {
             clearInterval(taskIdleHeartbeats.get(options.taskId)!);
             taskIdleHeartbeats.delete(options.taskId);
@@ -1272,6 +1273,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   });
 
   ipcMain.handle('subagent:stop', async (_event, { subagentId, parentTaskId }: { subagentId?: string; parentTaskId?: string }) => {
+    const SUBAGENT_STOP_TIMEOUT_MS = 10_000;
     const targets = subagentId
       ? [subagentId]
       : Array.from(activeSubagents.entries())
@@ -1281,7 +1283,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     for (const targetId of targets) {
       const subagent = activeSubagents.get(targetId);
       if (!subagent) continue;
-      await subagent.handle.stop();
+      // Use a timeout to prevent hanging indefinitely on a wedged subagent
+      await Promise.race([
+        subagent.handle.stop(),
+        new Promise<void>(resolve => setTimeout(resolve, SUBAGENT_STOP_TIMEOUT_MS)),
+      ]);
       subagent.handle.removeAllListeners();
       activeSubagents.delete(targetId);
       activeTasks.delete(targetId);
@@ -1347,6 +1353,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const handle = activeTasks.get(taskId);
     if (!handle) {
       return { steerFailed: true, reason: 'task_finished' };
+    }
+
+    if (!handle.isAlive()) {
+      return { steerFailed: true, reason: 'process_exited' };
     }
 
     const effectivePrompt = await buildPromptWithAttachments(prompt, attachments, getSshHost());

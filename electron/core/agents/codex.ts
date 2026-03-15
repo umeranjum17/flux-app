@@ -23,6 +23,38 @@ import type { McpServerConfig } from './claude-sdk';
 export const CODEX_STARTUP_TIMEOUT_MS = 30_000;
 
 /**
+ * Map a Codex CLI exit code + stderr into a user-friendly error message.
+ */
+function classifyCodexExit(code: number | null, stderr: string): string {
+  const s = stderr.toLowerCase();
+  if (s.includes('rate limit') || s.includes('rate_limit') || s.includes('429')) {
+    return 'Rate limited by OpenAI API. Wait a few minutes or switch to a different model.';
+  }
+  if (s.includes('authentication') || s.includes('unauthorized') || s.includes('api key') || s.includes('invalid_api_key')) {
+    return 'Authentication failed. Check your OpenAI API key or run "codex auth" in your terminal.';
+  }
+  if (s.includes('context') && (s.includes('length') || s.includes('window') || s.includes('tokens'))) {
+    return 'Context window exceeded. Start a new session or use a model with larger context.';
+  }
+  if (s.includes('econnrefused') || s.includes('enotfound') || s.includes('network') || s.includes('fetch failed')) {
+    return 'Network connectivity issue. Check your internet connection.';
+  }
+  if (s.includes('command not found') || s.includes('not recognized')) {
+    return 'Codex CLI not found. Install it with "npm install -g @openai/codex".';
+  }
+  if (code === 137 || code === 9) {
+    return 'Process was killed (likely out of memory). Try reducing the scope of your request.';
+  }
+  if (code === 143 || code === 15) {
+    return 'Process was terminated.';
+  }
+  // Show last meaningful stderr lines for unknown errors
+  const lines = stderr.split('\n').filter(l => l.trim()).slice(-3);
+  const hint = lines.length > 0 ? `: ${lines.join(' | ')}` : '';
+  return `Codex exited with code ${code}${hint}`;
+}
+
+/**
  * Spawn a Codex CLI subprocess and parse its JSONL output.
  */
 export function spawnCodex(
@@ -304,15 +336,13 @@ export function spawnCodex(
         // ignore
       }
     }
+    const exitError = timeoutError ?? (stopped || code === 0 || code === null
+      ? undefined
+      : classifyCodexExit(code, lastStderrError));
+
     finish({
       code,
-      ...(timeoutError || stopped || code === 0 || code === null
-        ? (timeoutError ? { error: timeoutError } : {})
-        : {
-          error: lastStderrError
-            ? `Codex exited with code ${code}: ${lastStderrError}`
-            : `Codex exited with code ${code}`,
-        }),
+      ...(exitError ? { error: exitError } : {}),
     });
   });
 
