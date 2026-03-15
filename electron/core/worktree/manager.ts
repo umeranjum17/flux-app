@@ -89,32 +89,57 @@ export async function createWorktree(
 }
 
 export async function removeWorktree(parentRepo: string, worktreePath: string): Promise<void> {
-  let branchName: string | null = null;
+  // Check if parentRepo is still a valid git repo before running git commands
+  let isGitRepo = false;
   try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-      cwd: worktreePath,
-      timeout: 10000,
+    await execFileAsync('git', ['rev-parse', '--git-dir'], {
+      cwd: parentRepo,
+      timeout: 5000,
     });
-    branchName = stdout.trim();
+    isGitRepo = true;
   } catch {
-    branchName = null;
+    // parentRepo doesn't exist or isn't a git repo
   }
 
-  await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
-    cwd: parentRepo,
-    timeout: 30000,
-  });
-
-  // Also delete the branch
-  if (branchName && branchName !== 'HEAD') {
+  let branchName: string | null = null;
+  if (isGitRepo) {
     try {
-      await execFileAsync('git', ['branch', '-D', branchName], {
-        cwd: parentRepo,
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: worktreePath,
         timeout: 10000,
       });
+      branchName = stdout.trim();
     } catch {
-      // Branch may already be gone
+      branchName = null;
     }
+
+    try {
+      await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
+        cwd: parentRepo,
+        timeout: 30000,
+      });
+    } catch {
+      // Worktree may already be gone or parentRepo may have become invalid
+    }
+
+    // Also delete the branch
+    if (branchName && branchName !== 'HEAD') {
+      try {
+        await execFileAsync('git', ['branch', '-D', branchName], {
+          cwd: parentRepo,
+          timeout: 10000,
+        });
+      } catch {
+        // Branch may already be gone
+      }
+    }
+  }
+
+  // Always clean up the worktree directory on disk if it still exists
+  try {
+    await fs.promises.rm(worktreePath, { recursive: true, force: true });
+  } catch {
+    // Directory may already be gone
   }
 }
 
