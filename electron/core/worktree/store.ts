@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { getDb } from '../db/connection';
 import type { Workspace, WorkspaceOutcome, WorkspaceSession, WorkspaceStatus } from './types';
+import type { TaskMode } from '../agents/types';
 
 interface CreateWorkspaceInput {
   id: string;
@@ -10,6 +11,7 @@ interface CreateWorkspaceInput {
   branch: string;
   agentId: string;
   model: string;
+  mode?: TaskMode;
   status?: WorkspaceStatus;
   outcome?: WorkspaceOutcome;
   sessionId?: string;
@@ -49,6 +51,7 @@ export class WorkspaceStore {
       branch: input.branch,
       agentId: input.agentId as any,
       model: input.model,
+      mode: input.mode ?? 'act',
       status: input.status ?? 'idle',
       outcome: input.outcome ?? 'in_progress',
       createdAt: now,
@@ -58,8 +61,8 @@ export class WorkspaceStore {
 
     db.prepare(
       `INSERT INTO workspaces (
-        id, name, parent_repo, worktree_path, branch, agent_id, model, status, outcome, created_at, updated_at, session_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, parent_repo, worktree_path, branch, agent_id, model, mode, status, outcome, created_at, updated_at, session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       workspace.id,
       workspace.name,
@@ -68,6 +71,7 @@ export class WorkspaceStore {
       workspace.branch,
       workspace.agentId,
       workspace.model,
+      workspace.mode,
       workspace.status,
       workspace.outcome,
       workspace.createdAt,
@@ -93,7 +97,7 @@ export class WorkspaceStore {
 
     db.prepare(
       `UPDATE workspaces
-       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, agent_id = ?, model = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
+       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, agent_id = ?, model = ?, mode = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
        WHERE id = ?`,
     ).run(
       next.name,
@@ -102,6 +106,7 @@ export class WorkspaceStore {
       next.branch,
       next.agentId,
       next.model,
+      next.mode,
       next.status,
       next.outcome,
       next.updatedAt,
@@ -172,6 +177,7 @@ function rowToWorkspace(row: any): Workspace {
     branch: row.branch,
     agentId: row.agent_id,
     model: row.model,
+    mode: row.mode ?? 'act',
     status: row.status,
     outcome: row.outcome ?? 'in_progress',
     createdAt: row.created_at,

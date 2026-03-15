@@ -255,8 +255,8 @@ export function AppShell() {
     return () => { unsub(); unsubOutcome(); unsubCheckpoint(); };
   }, []);
 
-  // Sync model selector when the active workspace changes so each workspace
-  // shows and uses its own agent/model in the chat input dropdown.
+  // Sync model selector and mode when the active workspace changes so each
+  // workspace shows and uses its own agent/model/mode in the chat input.
   // When switching away from a workspace (back to standalone chats), restore
   // the global config defaults so workspace settings don't leak out.
   useEffect(() => {
@@ -267,6 +267,7 @@ export function AppShell() {
         workspace.agentId as import('../../lib/types').AgentId,
         workspace.model,
       );
+      useUiStore.getState().setMode(workspace.mode ?? 'act');
     } else {
       // Restore global defaults when leaving a workspace
       window.api.invoke('config:get').then((raw) => {
@@ -275,6 +276,7 @@ export function AppShell() {
         const agentId = (config.defaultAgent || agentStore.selectedAgentId) as import('../../lib/types').AgentId;
         const model = config.defaultModel || agentStore.selectedModel;
         agentStore.syncToWorkspace(agentId, model);
+        useUiStore.getState().setMode(config.defaultMode ?? 'act');
       }).catch(() => {});
     }
   }, [activeWorkspaceId]);
@@ -406,14 +408,21 @@ export function AppShell() {
     return () => { clearTimeout(timeout); unsub(); };
   }, []);
 
-  // Auto-persist mode and autoApprove changes
+  // Auto-persist mode and autoApprove changes.
+  // Mode changes are scoped to the workspace when one is active (like agent/model).
   useEffect(() => {
     let prevMode = useUiStore.getState().mode;
     let prevAutoApprove = useUiStore.getState().autoApprove;
     const unsub = useUiStore.subscribe((state) => {
       if (state.mode !== prevMode) {
         prevMode = state.mode;
-        window.api.invoke('config:set', { defaultMode: state.mode }).catch(() => {});
+        const wsId = useWorkspaceStore.getState().activeWorkspaceId;
+        if (wsId) {
+          window.api.invoke('workspace:update', { workspaceId: wsId, mode: state.mode }).catch(() => {});
+          useWorkspaceStore.getState().updateWorkspace(wsId, { mode: state.mode });
+        } else {
+          window.api.invoke('config:set', { defaultMode: state.mode }).catch(() => {});
+        }
       }
       if (state.autoApprove !== prevAutoApprove) {
         prevAutoApprove = state.autoApprove;

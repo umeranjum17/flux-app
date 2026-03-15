@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   branch TEXT NOT NULL,
   agent_id TEXT NOT NULL,
   model TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'act',
   status TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,

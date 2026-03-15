@@ -193,6 +193,7 @@ describe('ChatInput', () => {
           updatedAt: 1,
           agentId: 'codex',
           model: 'o4-mini',
+          mode: 'act',
           worktreePath: '/workspace/.flux-worktrees/c62ee4fd',
         }],
       ]),
