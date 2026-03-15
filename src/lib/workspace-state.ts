@@ -93,7 +93,7 @@ function buildWorkspaceMergePrompt(
   const mergeCommand = squash
     ? `git merge --squash ${workspace.branch}`
     : `git merge ${workspace.branch} --no-edit`;
-  const commitCommand = `git commit -m "merge(${targetBranch}): ${workspace.branch}"`;
+  const commitCommand = `git commit -m "merge(${targetBranch}): ${workspace.name}"`;
   const pushCommand = `git push origin ${targetBranch}`;
 
   return [
@@ -316,7 +316,7 @@ export async function startWorkspaceMerge(
     session: result.session,
     workspace: opts.workspace,
     prompt,
-    title: `Merge ${opts.workspace.branch} -> ${opts.targetBranch}`.slice(0, 80),
+    title: `Merge ${opts.workspace.name} -> ${opts.targetBranch}`.slice(0, 80),
     thinking: 'medium',
     initialStatus: 'merging',
   });

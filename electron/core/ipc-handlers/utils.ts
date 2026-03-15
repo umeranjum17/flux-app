@@ -534,6 +534,9 @@ export function buildWorkspaceSystemContext(
       '- Commit your changes with clear, descriptive commit messages when you are done.',
       '- Do NOT push to remote or create pull requests — the user will merge via the UI.',
       '- After committing, summarize what you changed.',
+      '- At the very end of your final response, include exactly one line in this format:',
+      '  WORKSPACE_NAME: <short 3-5 word name describing what was done>',
+      '  Example: WORKSPACE_NAME: Fix Token Refresh Logic',
     );
 
     if (agentId === 'claude-code') {
@@ -564,6 +567,46 @@ export function buildWorkspaceSystemContext(
   }
 
   return lines.join('\n');
+}
+
+const WORKSPACE_NAME_PATTERN = /WORKSPACE_NAME:\s*(.+)/i;
+
+/**
+ * Extract a workspace name suggested by the agent from its session messages.
+ * Looks for `WORKSPACE_NAME: <name>` in result or assistant text messages (last → first).
+ * Falls back to the first line of the last commit message in the worktree.
+ */
+export function extractAgentWorkspaceName(
+  sessionStore: SessionStore,
+  sessionId: string,
+): string | null {
+  const messages = sessionStore.getMessages(sessionId);
+  // Search from the end — the name should be near the final response
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== 'assistant') continue;
+    if (m.type !== 'result' && m.type !== 'text') continue;
+    if (!m.content) continue;
+    const match = m.content.match(WORKSPACE_NAME_PATTERN);
+    if (match) {
+      return match[1].trim().slice(0, 50);
+    }
+  }
+  return null;
+}
+
+/**
+ * Build a clean branch name from a human-readable label.
+ * Produces `flux/<slug>` without a random suffix.
+ */
+export function branchNameFromLabel(label: string): string {
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'workspace';
+  return `flux/${slug}`;
 }
 
 export function extractFullPlanText(sessionStore: SessionStore, sessionId: string): string {

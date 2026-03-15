@@ -69,7 +69,11 @@ export function WorkspaceDashboard() {
       const { workspaceId, checkpoint } = data as any;
       useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
     });
-    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); };
+    const unsubUpdated = window.api.on('workspace:updated', (data: unknown) => {
+      const { workspaceId, changes } = data as { workspaceId: string; changes: Record<string, unknown> };
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, changes as any);
+    });
+    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); unsubUpdated(); };
   }, []);
 
   const handleStop = useCallback(async (ws: Workspace) => {
