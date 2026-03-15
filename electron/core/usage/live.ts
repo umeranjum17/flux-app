@@ -130,6 +130,9 @@ const CLAUDE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const CODEX_REFRESH_INTERVAL_MS = 8 * 24 * 60 * 60 * 1000;
 
 export class LiveUsageService {
+  // In-memory cache for refreshed Claude tokens (persisting to disk fails for keychain sources).
+  private claudeTokenCache: { accessToken: string; refreshToken: string; expiresAt: number } | null = null;
+
   async getOverview(cachedRateLimits: CachedRateLimitInfo[] = []): Promise<LiveUsageOverview> {
     const now = Date.now();
     const [claude, codex] = await Promise.all([
@@ -385,16 +388,24 @@ export class LiveUsageService {
       };
     }
 
-    let accessToken = oauth.accessToken as string;
-    let refreshToken = typeof oauth.refreshToken === 'string' ? oauth.refreshToken : null;
-    let expiresAt = typeof oauth.expiresAt === 'number' ? oauth.expiresAt : 0;
+    // Prefer in-memory cached tokens (covers keychain sources where disk writes are no-ops).
+    const cached = this.claudeTokenCache;
+    let accessToken = (cached && cached.expiresAt - now > CLAUDE_REFRESH_BUFFER_MS)
+      ? cached.accessToken
+      : oauth.accessToken as string;
+    let refreshToken = cached?.refreshToken
+      ?? (typeof oauth.refreshToken === 'string' ? oauth.refreshToken : null);
+    let expiresAt = cached?.expiresAt
+      ?? (typeof oauth.expiresAt === 'number' ? oauth.expiresAt : 0);
 
-    if (refreshToken && expiresAt > 0 && expiresAt - now <= CLAUDE_REFRESH_BUFFER_MS) {
+    // Refresh proactively when expiresAt is unknown (0) or within the buffer window.
+    if (refreshToken && (expiresAt === 0 || expiresAt - now <= CLAUDE_REFRESH_BUFFER_MS)) {
       const refreshed = await this.refreshClaudeToken(refreshToken);
       if (refreshed) {
         accessToken = refreshed.accessToken;
         refreshToken = refreshed.refreshToken;
         expiresAt = refreshed.expiresAt;
+        this.claudeTokenCache = refreshed;
         writeClaudeCredentialSource(credentialSource, {
           ...oauth,
           accessToken,
@@ -405,31 +416,25 @@ export class LiveUsageService {
     }
 
     try {
-      const response = await fetch(CLAUDE_USAGE_URL, {
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-          'anthropic-beta': 'oauth-2025-04-20',
-        },
-      });
+      let response = await this.fetchClaudeUsageApi(accessToken);
+
+      // On auth failure, try one token refresh + retry (without recursing).
+      if ((response.status === 401 || response.status === 403) && refreshToken) {
+        const refreshed = await this.refreshClaudeToken(refreshToken);
+        if (refreshed) {
+          accessToken = refreshed.accessToken;
+          this.claudeTokenCache = refreshed;
+          writeClaudeCredentialSource(credentialSource, {
+            ...oauth,
+            accessToken,
+            refreshToken: refreshed.refreshToken,
+            expiresAt: refreshed.expiresAt,
+          });
+          response = await this.fetchClaudeUsageApi(accessToken);
+        }
+      }
 
       if (!response.ok) {
-        if ((response.status === 401 || response.status === 403) && refreshToken) {
-          const refreshed = await this.refreshClaudeToken(refreshToken);
-          if (refreshed) {
-            accessToken = refreshed.accessToken;
-            refreshToken = refreshed.refreshToken;
-            expiresAt = refreshed.expiresAt;
-            writeClaudeCredentialSource(credentialSource, {
-              ...oauth,
-              accessToken,
-              refreshToken,
-              expiresAt,
-            });
-            return this.fetchClaudeUsage(now);
-          }
-        }
         throw new Error(`Claude usage request failed (${response.status})`);
       }
 
@@ -440,10 +445,7 @@ export class LiveUsageService {
         status: 'connected',
         message: null,
         fetchedAt: now,
-        windows: [
-          normalizeClaudeWindow('five_hour', json.five_hour, now),
-          normalizeClaudeWindow('seven_day', json.seven_day, now),
-        ].filter((window): window is InternalWindow => !!window),
+        windows: normalizeClaudeWindows(json, now),
       };
     } catch (error) {
       return {
@@ -455,6 +457,17 @@ export class LiveUsageService {
         windows: [],
       };
     }
+  }
+
+  private fetchClaudeUsageApi(accessToken: string): Promise<Response> {
+    return fetch(CLAUDE_USAGE_URL, {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+      },
+    });
   }
 
   private async refreshClaudeToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null> {
@@ -620,13 +633,25 @@ export class LiveUsageService {
   }
 }
 
+function normalizeClaudeWindows(json: Record<string, any>, now: number): InternalWindow[] {
+  // Support both top-level shape (json.five_hour / json.seven_day)
+  // and nested shape (json.rate_limit?.five_hour / json.usage?.five_hour).
+  const root = json.rate_limit ?? json.rate_limits ?? json.usage ?? json;
+  return [
+    normalizeClaudeWindow('five_hour', root.five_hour, now),
+    normalizeClaudeWindow('seven_day', root.seven_day, now),
+  ].filter((window): window is InternalWindow => !!window);
+}
+
 function normalizeClaudeWindow(windowKey: UsageWindowKey, raw: any, now: number): InternalWindow | null {
   if (!raw || typeof raw !== 'object') {
     return null;
   }
 
-  const usedPercent = clampPercent(normalizePercent(raw.utilization));
-  const resetsAt = parseClaudeTimestamp(raw.resets_at);
+  const usedPercent = clampPercent(normalizePercent(
+    raw.utilization ?? raw.used_percent ?? raw.percent_capacity ?? raw.percentCapacity,
+  ));
+  const resetsAt = parseClaudeTimestamp(raw.resets_at ?? raw.resetsAt ?? raw.reset_at);
 
   return {
     providerId: 'claude-code',
@@ -823,20 +848,31 @@ function writeClaudeCredentialSource(source: ClaudeCredentialSource | null, oaut
 }
 
 function parseClaudeOauthShape(raw: Record<string, unknown>): ClaudeOauthTokens | null {
-  const oauthCandidate = raw.claudeAiOauth;
-  if (!oauthCandidate || typeof oauthCandidate !== 'object' || Array.isArray(oauthCandidate)) {
-    return null;
+  // Try known wrapper keys (claudeAiOauth, oauthTokens) and root-level shape.
+  const candidates = [
+    raw.claudeAiOauth,
+    raw.oauthTokens,
+    raw.oauth,
+    raw,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      continue;
+    }
+    const oauth = candidate as Record<string, unknown>;
+    const accessToken = pickString(oauth.accessToken, oauth.access_token, oauth.token);
+    if (!accessToken) {
+      continue;
+    }
+    return {
+      accessToken,
+      refreshToken: pickString(oauth.refreshToken, oauth.refresh_token) ?? null,
+      expiresAt: pickNumber(oauth.expiresAt, oauth.expires_at, oauth.expiry) ?? 0,
+    };
   }
-  const oauth = oauthCandidate as Record<string, unknown>;
-  const accessToken = pickString(oauth.accessToken, oauth.access_token, oauth.token);
-  if (!accessToken) {
-    return null;
-  }
-  return {
-    accessToken,
-    refreshToken: pickString(oauth.refreshToken, oauth.refresh_token) ?? null,
-    expiresAt: pickNumber(oauth.expiresAt, oauth.expires_at, oauth.expiry) ?? 0,
-  };
+
+  return null;
 }
 
 function readClaudeOauthFromKeychain(): ClaudeOauthTokens | null {
