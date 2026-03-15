@@ -256,6 +256,7 @@ export async function mergeWorktree(
   parentRepo: string,
   targetBranch: string,
   squash = false,
+  workspaceName?: string,
 ): Promise<MergeResult> {
   // Get the branch name of the worktree
   const { stdout: branchRaw } = await execFileAsync(
@@ -270,7 +271,7 @@ export async function mergeWorktree(
     await execFileAsync('git', ['add', '-A'], { cwd: worktreePath, timeout: 10000 });
     await execFileAsync(
       'git',
-      ['commit', '-m', `[flux] Final changes from workspace ${path.basename(worktreePath)}`],
+      ['commit', '-m', `[flux] Final changes from workspace ${workspaceName || path.basename(worktreePath)}`],
       { cwd: worktreePath, timeout: 10000 },
     );
   } catch {
@@ -338,7 +339,7 @@ export async function mergeWorktree(
       // Squash merge needs a manual commit
       await execFileAsync(
         'git',
-        ['commit', '-m', `[flux] Merge workspace: ${branch}`],
+        ['commit', '-m', `[flux] Merge workspace: ${workspaceName || branch}`],
         { cwd: parentRepo, timeout: 10000 },
       );
     }

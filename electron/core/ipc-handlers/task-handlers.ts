@@ -38,6 +38,8 @@ import {
   isWorkspaceBranchMerged,
   parseStepMarkers,
   getStepTrackableContent,
+  extractAgentWorkspaceName,
+  branchNameFromLabel,
 } from './utils';
 
 import { execFile } from 'child_process';
@@ -1022,6 +1024,62 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                     if (hasPendingChanges) {
                       emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
                     }
+                  }
+                }
+
+                // Agent-driven workspace rename: let the agent's output determine the name
+                if (!finalError && workspace.branch.startsWith('flux/')) {
+                  try {
+                    let agentName = extractAgentWorkspaceName(sessionStore, session.id);
+
+                    // Fallback: use the most recent commit message from the worktree
+                    if (!agentName) {
+                      try {
+                        const { stdout: logOut } = await execFileAsync(
+                          'git', ['log', '-1', '--format=%s'],
+                          { cwd: workspace.worktreePath, timeout: 5000 },
+                        );
+                        const commitMsg = logOut.trim();
+                        if (commitMsg && !commitMsg.startsWith('[flux]')) {
+                          agentName = commitMsg.slice(0, 50);
+                        }
+                      } catch {
+                        // No commits — skip
+                      }
+                    }
+
+                    if (agentName) {
+                      const newBranch = branchNameFromLabel(agentName);
+                      if (newBranch !== workspace.branch) {
+                        try {
+                          await execFileAsync(
+                            'git', ['branch', '-m', workspace.branch, newBranch],
+                            { cwd: workspace.worktreePath, timeout: 10000 },
+                          );
+                        } catch {
+                          // Branch rename failed (e.g. name collision) — keep old branch
+                        }
+                        workspaceStore.update(workspace.id, {
+                          name: agentName,
+                          branch: newBranch,
+                        });
+                        sendToRenderer('workspace:updated', {
+                          workspaceId: workspace.id,
+                          name: agentName,
+                          branch: newBranch,
+                        });
+                      } else {
+                        // Branch already matches — just update the display name
+                        workspaceStore.update(workspace.id, { name: agentName });
+                        sendToRenderer('workspace:updated', {
+                          workspaceId: workspace.id,
+                          name: agentName,
+                          branch: workspace.branch,
+                        });
+                      }
+                    }
+                  } catch {
+                    // Rename is best-effort — don't block completion
                   }
                 }
 
