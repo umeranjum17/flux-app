@@ -516,6 +516,56 @@ async function readAttachmentPreview(
   }
 }
 
+/**
+ * Move a git worktree directory to a new path derived from the given name,
+ * handling collisions by appending `-2`, `-3`, etc.
+ * Returns the new worktree path, or the original path if the move failed or was unnecessary.
+ */
+export async function moveWorktreeDirectory(
+  parentRepo: string,
+  currentWorktreePath: string,
+  newDirName: string,
+): Promise<string> {
+  const sanitized = newDirName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  if (!sanitized) return currentWorktreePath;
+
+  const worktreeDir = path.dirname(currentWorktreePath);
+  let candidatePath = path.join(worktreeDir, sanitized);
+
+  if (candidatePath === currentWorktreePath) return currentWorktreePath;
+
+  if (fs.existsSync(candidatePath)) {
+    let found = false;
+    for (let i = 2; i <= 999; i += 1) {
+      const suffix = `-${i}`;
+      const base = sanitized.slice(0, Math.max(1, 64 - suffix.length));
+      const candidate = path.join(worktreeDir, `${base}${suffix}`);
+      if (!fs.existsSync(candidate)) {
+        candidatePath = candidate;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return currentWorktreePath;
+  }
+
+  try {
+    await execFileAsync('git', ['worktree', 'move', currentWorktreePath, candidatePath], {
+      cwd: parentRepo,
+      timeout: 30000,
+    });
+    return candidatePath;
+  } catch (error) {
+    console.warn('[moveWorktreeDirectory] failed to move worktree', error);
+    return currentWorktreePath;
+  }
+}
+
 const AUTO_BRANCH_PATTERNS = [
   /^flux\/[a-z]+-[a-z]+$/,                     // fun names like flux/zagreb-lima
   /^flux\/workspace-[a-z0-9-]+$/,              // flux/workspace-20260315-abc123

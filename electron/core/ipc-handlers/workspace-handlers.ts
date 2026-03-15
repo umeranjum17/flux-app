@@ -12,7 +12,7 @@ import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile } from '../worktree/diff';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
-import { requireFields, commandExists, workspaceHasPendingChanges, isWorkspaceBranchMerged } from './utils';
+import { requireFields, commandExists, workspaceHasPendingChanges, isWorkspaceBranchMerged, moveWorktreeDirectory } from './utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -140,6 +140,25 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle(
+    'workspace:get-commit-subject',
+    async (_event, { workspaceId }: { workspaceId: string }) => {
+      requireFields({ workspaceId }, 'workspaceId');
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+      try {
+        const { stdout } = await execFileAsync(
+          'git', ['log', '-1', '--format=%s'],
+          { cwd: workspace.worktreePath, timeout: 5000 },
+        );
+        const subject = stdout.trim();
+        return subject && !subject.startsWith('[flux]') ? subject : null;
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  ipcMain.handle(
     'workspace:rename-branch',
     async (
       _event,
@@ -155,39 +174,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
       const trimmedName = newName?.trim();
-      const trimmedWorktreeName = newWorktreeName
-        ?.trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9._-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 64);
 
       let nextWorktreePath = workspace.worktreePath;
-      if (trimmedWorktreeName) {
-        const worktreeDir = path.dirname(workspace.worktreePath);
-        let candidatePath = path.join(worktreeDir, trimmedWorktreeName);
-        if (candidatePath !== workspace.worktreePath && fs.existsSync(candidatePath)) {
-          for (let i = 2; i <= 999; i += 1) {
-            const suffix = `-${i}`;
-            const base = trimmedWorktreeName.slice(0, Math.max(1, 64 - suffix.length));
-            const candidate = path.join(worktreeDir, `${base}${suffix}`);
-            if (!fs.existsSync(candidate)) {
-              candidatePath = candidate;
-              break;
-            }
-          }
-        }
-        if (candidatePath !== workspace.worktreePath) {
-          try {
-            await execFileAsync('git', ['worktree', 'move', workspace.worktreePath, candidatePath], {
-              cwd: workspace.parentRepo,
-              timeout: 30000,
-            });
-            nextWorktreePath = candidatePath;
-          } catch (error) {
-            console.warn('[workspace:rename-branch] failed to move worktree path', error);
-          }
-        }
+      if (newWorktreeName?.trim()) {
+        nextWorktreePath = await moveWorktreeDirectory(
+          workspace.parentRepo,
+          workspace.worktreePath,
+          newWorktreeName,
+        );
       }
 
       let nextBranch = workspace.branch;
