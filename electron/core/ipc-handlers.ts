@@ -2825,12 +2825,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
     const files = await getChangedFiles(workspace.worktreePath, workspace.parentRepo);
-    if (
-      files.length > 0
-      && (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
-    ) {
-      emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
-    }
     return files;
   });
 

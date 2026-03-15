@@ -10,6 +10,7 @@ export function WorkspaceActionBar() {
   const workspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
 
   const isRunning = workspace?.status === 'running' || workspace?.status === 'waiting_approval' || workspace?.status === 'waiting_input';
+  const isMerged = workspace?.outcome === 'merged' || workspace?.outcome === 'ready_to_archive';
   const hasChanges = useWorkspaceHasChanges(workspace?.id, {
     pollMs: isRunning ? 2000 : 4000,
   });
@@ -40,6 +41,11 @@ export function WorkspaceActionBar() {
     }
   };
 
+  const handleArchive = async () => {
+    await window.api.invoke('workspace:archive', { workspaceId: workspace.id });
+    useWorkspaceStore.getState().archiveWorkspace(workspace.id);
+  };
+
   const handleOpenIde = async () => {
     await window.api.invoke('workspace:open-ide', { workspaceId: workspace.id });
   };
@@ -59,13 +65,17 @@ export function WorkspaceActionBar() {
           <ActionBtn icon={<Square size={12} />} label="Stop" onClick={handleStop} />
         )}
         <ActionBtn icon={<ExternalLink size={12} />} label="Open IDE" onClick={handleOpenIde} />
-        {hasChanges && (
+        {hasChanges && !isMerged && (
           <>
             <ActionBtn icon={<Eye size={12} />} label="Review Changes" onClick={() => useWorkspaceStore.getState().toggleChangesPanel(workspace.id)} />
             <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
           </>
         )}
-        <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
+        {isMerged ? (
+          <ActionBtn icon={<Trash2 size={12} />} label="Archive" onClick={handleArchive} danger />
+        ) : (
+          <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
+        )}
       </div>
     </div>
   );
