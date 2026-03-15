@@ -24,6 +24,7 @@ import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
 import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { ChangesPanel } from '../review/ChangesPanel';
@@ -656,12 +657,16 @@ export function AppShell() {
 
                     <div className="flex flex-1 min-h-0 overflow-hidden">
                       <div className="flex-1 min-w-0 flex flex-col">
-                        {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                        <ErrorBoundary>
+                          {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                        </ErrorBoundary>
                         <div className="shrink-0">
                           <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">
                             <LiveRunHeader />
                             <TodoBar />
-                            <ChatInput focused />
+                            <ErrorBoundary>
+                              <ChatInput focused />
+                            </ErrorBoundary>
                           </div>
                         </div>
                       </div>

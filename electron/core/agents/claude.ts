@@ -438,6 +438,15 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     if (sessionIdConflict && !stopped) {
       watchdog.clear();
 
+      // Clean up internal state from the failed process to prevent leaks.
+      // The old stdout/stderr listeners are already detached since the process
+      // closed, but clear accumulated buffers to free memory.
+      buffer = '';
+      toolInputBuffers.clear();
+      emittedToolCallIds.clear();
+      pendingAgentNamesByParentTool.clear();
+      parentToolToSubagent.clear();
+
       // Attempt a more aggressive repair now that we know the session is locked,
       // then retry WITH the session ID first before giving up on native resume.
       if (options.resumeSessionId) {
