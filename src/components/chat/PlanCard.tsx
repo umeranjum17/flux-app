@@ -147,6 +147,10 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   }, [task, setTaskMode, setTaskStatus, showCheckpoint]);
 
   const isDone = task.status === 'done';
+  // Show action bar whenever plan text is available — the SDK may not call
+  // ExitPlanMode, leaving the task stuck in 'running'. This ensures the user
+  // can always proceed to implementation once plan content is detected.
+  const canAct = planText.length > 0;
 
   return (
     <div className={`premium-plan-card overflow-hidden rounded-lg ${
@@ -165,7 +169,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
           )}
         </div>
-        {isDone && (
+        {canAct && !isStreaming && (
           <div className="flex items-center gap-1">
             {revisions.length > 0 && (
               <button
@@ -317,7 +321,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
       )}
 
       {/* Action bar */}
-      {isDone && !editing && (
+      {canAct && !editing && (
         <div className="flex items-center justify-between border-t border-border px-4 py-3">
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">

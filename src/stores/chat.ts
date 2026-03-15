@@ -501,6 +501,18 @@ function applyLiveMessage(task: Task, message: AgentMessage): void {
     return;
   }
 
+  // Result message means the agent completed its work. Transition to done
+  // immediately as a safety net — the agent:done IPC event may be delayed
+  // or never arrive if the SDK's async iterator cleanup hangs.
+  if (message.type === 'result') {
+    task.status = 'done';
+    task.currentStatus = undefined;
+    task.currentStatusKind = undefined;
+    task.pendingApproval = undefined;
+    task.activeRun = undefined;
+    return;
+  }
+
   const nextPhase = getRunPhaseForMessage(message);
   if (nextPhase) {
     ensureActiveRun(task, nextPhase, message);
@@ -539,7 +551,7 @@ function applyLiveMessage(task: Task, message: AgentMessage): void {
     task.pendingApproval = undefined;
   }
 
-  if (message.type !== 'rate_limit' && message.type !== 'permission_request' && message.type !== 'question_request') {
+  if (message.type !== 'rate_limit' && message.type !== 'permission_request' && message.type !== 'question_request' && message.type !== 'result') {
     if (task.status !== 'waiting_approval' && task.status !== 'waiting_input') {
       task.status = 'running';
     }
