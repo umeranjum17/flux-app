@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
-import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers';
+import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers/index';
 import { runMigrations } from './core/db/migrations';
 import { ConfigManager } from './core/config/config';
 import { isIgnorableStreamWriteError } from './core/process-utils';
