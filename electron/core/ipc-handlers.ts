@@ -1287,6 +1287,36 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         }
       }
 
+      // Intercept TodoWrite tool calls and sync them to the TodoBar
+      if (
+        message.type === 'tool_call'
+        && message.toolName
+        && message.toolName.toLowerCase().includes('todo')
+        && message.toolInput
+        && Array.isArray(message.toolInput.todos)
+      ) {
+        const todoItems = (message.toolInput.todos as Array<Record<string, unknown>>)
+          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+          .map((item, i) => {
+            const label = typeof item.content === 'string'
+              ? item.content
+              : typeof item.title === 'string'
+                ? item.title
+                : String(item.text ?? '');
+            const rawStatus = typeof item.status === 'string' ? item.status : 'pending';
+            const status: 'pending' | 'in_progress' | 'done' =
+              rawStatus === 'completed' ? 'done'
+                : rawStatus === 'in_progress' ? 'in_progress'
+                  : 'pending';
+            return { id: i + 1, label, status };
+          })
+          .filter((item) => item.label.trim().length > 0);
+
+        if (todoItems.length > 0) {
+          sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+        }
+      }
+
       const autoApprovePermission = Boolean(
         options.autoApprovePermissions
           && message.type === 'permission_request'
