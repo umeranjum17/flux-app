@@ -328,6 +328,7 @@ export interface LiveUsageWindow {
   fetchedAt: number;
   source: 'live' | 'stream_fallback' | 'snapshot';
   isStale: boolean;
+  isExpired: boolean;
   usedValue: number | null;
   limitValue: number | null;
   remainingValue: number | null;

@@ -139,13 +139,14 @@ export function UsagePanel() {
 function UsageWindowBar({ window: w }: { window: LiveUsageWindow }) {
   const usedPct = Math.round(Math.max(0, Math.min(1, w.usedPercent)) * 100);
   const remainingPct = Math.max(0, 100 - usedPct);
-  const barWidth = remainingPct === 0 ? 0 : Math.max(6, remainingPct);
+  const barWidth = usedPct === 0 ? 0 : Math.max(6, usedPct);
+  const staleTag = w.isExpired ? ' · reset' : w.isStale ? ' · stale' : '';
 
   return (
     <div className={`rounded-lg border border-border-subtle bg-bg-primary/55 px-2.5 py-2 shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.04)] ${w.isStale ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] text-text-secondary font-medium">{w.windowLabel}</span>
-        <span className="text-sm font-semibold text-text-primary tabular-nums">{remainingPct}%</span>
+        <span className="text-sm font-semibold text-text-primary tabular-nums">{usedPct}%</span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-bg-hover/90">
         <div
@@ -157,7 +158,7 @@ function UsageWindowBar({ window: w }: { window: LiveUsageWindow }) {
         />
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
-        <span>{usedPct}% used{w.isStale ? ' · stale' : ''}</span>
+        <span>{remainingPct}% remaining{staleTag}</span>
         {w.resetsAt ? <span>resets in {formatTimeUntil(w.resetsAt)}</span> : <span>no reset</span>}
       </div>
     </div>
