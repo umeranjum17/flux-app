@@ -477,9 +477,13 @@ function renderMessage(
       );
 
     case 'tool_call': {
-      // TodoWrite is shown in the sticky TodoBar above input — skip inline rendering
+      // Todo-style tool calls are shown in the sticky TodoBar above input.
       const toolNameLower = (msg.toolName ?? '').toLowerCase();
-      if (toolNameLower.includes('todo')) return null;
+      const hasStructuredTodoPayload = Boolean(
+        msg.toolInput
+        && (Array.isArray(msg.toolInput.todos) || Array.isArray(msg.toolInput.plan)),
+      );
+      if (toolNameLower.includes('todo') || toolNameLower === 'update_plan' || hasStructuredTodoPayload) return null;
 
       return (
         <ToolCallBlock

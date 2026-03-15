@@ -480,14 +480,26 @@ function QuestionPreview({ questions }: { questions: QuestionItem[] }) {
 }
 
 function parseTodoItems(toolName: string, toolInput?: Record<string, unknown>): TodoItem[] {
-  if (!toolInput || !toolName.toLowerCase().includes('todo')) return [];
-  if (!Array.isArray(toolInput.todos)) return [];
+  if (!toolInput) return [];
+  const lowerToolName = toolName.toLowerCase();
+  const supportsTodoPayload = lowerToolName.includes('todo') || lowerToolName === 'update_plan';
+  if (!supportsTodoPayload) return [];
 
-  return toolInput.todos
+  const rawItems = Array.isArray(toolInput.todos)
+    ? toolInput.todos
+    : Array.isArray(toolInput.plan)
+      ? toolInput.plan
+      : [];
+
+  if (!Array.isArray(rawItems)) return [];
+
+  return rawItems
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
     .map((item) => ({
       content: typeof item.content === 'string'
         ? item.content
+        : typeof item.step === 'string'
+          ? item.step
         : typeof item.title === 'string'
           ? item.title
           : String(item.text ?? ''),
