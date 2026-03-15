@@ -32,6 +32,7 @@ export interface LiveUsageWindow {
   fetchedAt: number;
   source: UsageWindowSource;
   isStale: boolean;
+  isExpired: boolean;
   usedValue: number | null;
   limitValue: number | null;
   remainingValue: number | null;
@@ -140,7 +141,7 @@ export class LiveUsageService {
       this.fetchCodexUsage(now),
     ]);
 
-    this.persistSnapshots([...claude.windows, ...codex.windows].filter((window) => window.source === 'live'));
+    this.persistSnapshots([...claude.windows, ...codex.windows].filter((window) => window.source === 'live' || window.source === 'stream_fallback'));
 
     const latestSnapshots = this.getLatestSnapshots();
     const providers = [
@@ -182,13 +183,16 @@ export class LiveUsageService {
       .map((row) => this.snapshotRowToWindow(result, row, now));
 
     if (snapshotWindows.length > 0) {
+      const fallbackMessage = result.message
+        ? `${result.message}. Showing last known usage.`
+        : 'Showing last known usage';
       return {
         providerId: result.providerId,
         label: result.label,
         status: result.status,
         fetchedAt: snapshotWindows[0]?.fetchedAt ?? null,
         source: 'snapshot',
-        message: result.message ?? 'Showing last known usage',
+        message: fallbackMessage,
         windows: sortWindows(snapshotWindows),
       };
     }
@@ -196,6 +200,18 @@ export class LiveUsageService {
     const fallbackWindows = cachedRateLimits
       .filter((item) => item.providerId === result.providerId)
       .map((item) => this.cachedRateLimitToWindow(item, now));
+
+    if (fallbackWindows.length > 0) {
+      this.persistSnapshots(fallbackWindows.map((w) => ({
+        providerId: w.providerId,
+        windowKey: w.windowKey,
+        status: w.status,
+        usedPercent: w.usedPercent,
+        resetsAt: w.resetsAt,
+        fetchedAt: w.fetchedAt,
+        source: w.source,
+      })));
+    }
 
     return {
       providerId: result.providerId,
@@ -311,39 +327,45 @@ export class LiveUsageService {
   }
 
   private snapshotRowToWindow(result: ProviderFetchResult, row: UsageSnapshotRow, now: number): LiveUsageWindow {
+    const isExpired = row.resets_at !== null && row.resets_at <= now;
+    const usedPercent = isExpired ? 0 : clampPercent(row.used_percent);
     return {
       providerId: result.providerId,
       providerLabel: result.label,
       windowKey: row.window_key,
       windowLabel: WINDOW_LABELS[row.window_key],
-      status: mapStatus(row.used_percent),
-      usedPercent: clampPercent(row.used_percent),
+      status: isExpired ? 'allowed' : mapStatus(row.used_percent),
+      usedPercent,
       resetsAt: row.resets_at,
       remainingMs: row.resets_at ? Math.max(0, row.resets_at - now) : null,
       fetchedAt: row.sampled_at,
       source: 'snapshot',
       isStale: true,
-      usedValue: row.used_value,
+      isExpired,
+      usedValue: isExpired ? null : row.used_value,
       limitValue: row.limit_value,
-      remainingValue: row.remaining_value,
+      remainingValue: isExpired ? null : row.remaining_value,
       unit: row.unit,
     };
   }
 
   private cachedRateLimitToWindow(item: CachedRateLimitInfo, now: number): LiveUsageWindow {
     const windowKey = toUsageWindowKey(item.rateLimitType);
+    const isExpired = !!item.resetsAt && item.resetsAt <= now;
+    const usedPercent = isExpired ? 0 : clampPercent(item.utilization);
     return {
       providerId: item.providerId,
       providerLabel: PROVIDER_LABELS[item.providerId],
       windowKey,
       windowLabel: WINDOW_LABELS[windowKey],
-      status: item.status,
-      usedPercent: clampPercent(item.utilization),
+      status: isExpired ? 'allowed' : item.status,
+      usedPercent,
       resetsAt: item.resetsAt || null,
       remainingMs: item.resetsAt ? Math.max(0, item.resetsAt - now) : null,
       fetchedAt: item.fetchedAt ?? now,
       source: 'stream_fallback',
       isStale: true,
+      isExpired,
       usedValue: null,
       limitValue: null,
       remainingValue: null,
@@ -364,6 +386,7 @@ export class LiveUsageService {
       fetchedAt: window.fetchedAt,
       source: window.source,
       isStale,
+      isExpired: false,
       usedValue: window.usedValue ?? null,
       limitValue: window.limitValue ?? null,
       remainingValue: window.remainingValue ?? null,

@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 
 describe('UsagePanel', () => {
-  it('renders provider gauges with percentage remaining', async () => {
+  it('renders provider gauges with used percentage', async () => {
     const now = Date.now();
     const usageData = {
       summary: { costUsd: 1.234, inputTokens: 1200, outputTokens: 600, requests: 4 },
@@ -34,8 +34,8 @@ describe('UsagePanel', () => {
           source: 'live',
           message: null,
           windows: [
-            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed_warning', usedPercent: 0.82, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed', usedPercent: 0.42, resetsAt: now + 86_400_000, remainingMs: 86_400_000, fetchedAt: now, source: 'live', isStale: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed_warning', usedPercent: 0.82, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed', usedPercent: 0.42, resetsAt: now + 86_400_000, remainingMs: 86_400_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
           ],
         },
         {
@@ -46,8 +46,8 @@ describe('UsagePanel', () => {
           source: 'live',
           message: null,
           windows: [
-            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 120_000, remainingMs: 120_000, fetchedAt: now, source: 'live', isStale: false, usedValue: 33, limitValue: 100, remainingValue: 67, unit: 'percent' },
-            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed_warning', usedPercent: 0.88, resetsAt: now + 172_800_000, remainingMs: 172_800_000, fetchedAt: now, source: 'live', isStale: false, usedValue: 88, limitValue: 100, remainingValue: 12, unit: 'percent' },
+            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 120_000, remainingMs: 120_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: 33, limitValue: 100, remainingValue: 67, unit: 'percent' },
+            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed_warning', usedPercent: 0.88, resetsAt: now + 172_800_000, remainingMs: 172_800_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: 88, limitValue: 100, remainingValue: 12, unit: 'percent' },
           ],
         },
       ],
@@ -64,13 +64,13 @@ describe('UsagePanel', () => {
     render(<UsagePanel />);
 
     await waitFor(() => {
-      expect(screen.getByText('18%')).not.toBeNull();
+      expect(screen.getByText('82%')).not.toBeNull();
     });
 
-    // Remaining percentages: 100 - 82 = 18, 100 - 42 = 58, 100 - 33 = 67, 100 - 88 = 12
-    expect(screen.getByText('58%')).not.toBeNull();
-    expect(screen.getByText('67%')).not.toBeNull();
-    expect(screen.getByText('12%')).not.toBeNull();
+    // Used percentages shown as main numbers: 82, 42, 33, 88
+    expect(screen.getByText('42%')).not.toBeNull();
+    expect(screen.getByText('33%')).not.toBeNull();
+    expect(screen.getByText('88%')).not.toBeNull();
 
     // Provider names
     expect(screen.getByText('Claude Code')).not.toBeNull();
@@ -151,7 +151,7 @@ describe('UsagePanel', () => {
               source: 'snapshot',
               message: 'Showing last known usage',
               windows: [
-                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.45, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now - (10 * 60_000), source: 'snapshot', isStale: true, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.45, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now - (10 * 60_000), source: 'snapshot', isStale: true, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
               ],
             },
           ],
@@ -198,7 +198,7 @@ describe('UsagePanel', () => {
               source: 'live',
               message: null,
               windows: [
-                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
               ],
             },
           ],
@@ -221,6 +221,43 @@ describe('UsagePanel', () => {
     });
 
     expect(screen.getAllByText('last 7d').length).toBeGreaterThan(0);
+  });
+
+  it('shows 0% used for expired windows', async () => {
+    const now = Date.now();
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'usage:get') {
+        return { summary: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 }, providers: [], daily: [], windowDays: 7, updatedAt: now };
+      }
+      if (channel === 'usage:live') {
+        return {
+          providers: [
+            {
+              providerId: 'claude-code',
+              label: 'Claude Code',
+              status: 'error',
+              fetchedAt: now - 60_000,
+              source: 'snapshot',
+              message: 'Showing last known usage',
+              windows: [
+                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0, resetsAt: now - 1000, remainingMs: 0, fetchedAt: now - 60_000, source: 'snapshot', isStale: true, isExpired: true, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+              ],
+            },
+          ],
+          history: [],
+          updatedAt: now,
+        };
+      }
+      return null;
+    });
+
+    render(<UsagePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('0%')).not.toBeNull();
+    });
+
+    expect(screen.getByText(/100% remaining · reset/)).not.toBeNull();
   });
 
   it('shows empty state when no data', async () => {
