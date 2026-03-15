@@ -10,7 +10,6 @@ import { repoMapService } from '../intelligence/repomap';
 import { createCheckpoint, listCheckpoints } from '../checkpoint/manager';
 import { extendedEnv, resolveSshCommand, classifySpawnError } from '../process-utils';
 import type { WorkspaceStatus } from '../worktree/types';
-import { transitionWorkspaceOutcome } from '../worktree/outcome';
 import type { BaseIpcContext, SpawnTaskRunOptions } from './types';
 import {
   MAX_AUTO_RETRIES,
@@ -52,6 +51,7 @@ const execFileAsync = promisify(execFile);
 
 export function registerTaskHandlers(ctx: BaseIpcContext): {
   spawnTaskRun: (options: SpawnTaskRunOptions) => Promise<{ taskId: string; session: any }>;
+  releaseTask: (taskId: string) => void;
 } {
   const {
     mainWindow,
@@ -60,14 +60,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     usageTracker,
     workspaceStore,
     sendToRenderer,
-    emitWorkspaceStatus,
-    emitWorkspaceOutcome,
-    updateWorkspaceTaskStatus,
-    releaseWorkspaceTask,
+    lifecycleManager,
     activeTasks,
     taskSessions,
-    taskWorkspaceMap,
-    taskWorkspaceStatusMap,
     cleaningUp,
     taskIdleHeartbeats,
     taskStallMonitors,
@@ -145,26 +140,52 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     sendToRenderer('workspace:checkpoint', { workspaceId, checkpoint });
   };
 
-  /** Clean up a task's resources without emitting agent:done (used by stall monitor). */
-  const cleanupTask = (taskId: string) => {
+  // -----------------------------------------------------------------------
+  // Canonical task cleanup — ONE function that ALL paths use
+  // -----------------------------------------------------------------------
+
+  /**
+   * Stop agent process + subagents, clear all timers, remove from shared
+   * state maps. Does NOT touch lifecycle manager state (callers do that).
+   * Idempotent: safe to call multiple times for the same taskId.
+   */
+  const releaseTask = (taskId: string): void => {
+    // Stop subagents first
+    for (const [subId, sub] of activeSubagents.entries()) {
+      if (sub.parentTaskId !== taskId) continue;
+      sub.handle.stop();
+      sub.handle.removeAllListeners();
+      activeSubagents.delete(subId);
+      activeTasks.delete(subId);
+      taskSessions.delete(subId);
+    }
+
+    // Stop main agent
     const handle = activeTasks.get(taskId);
     if (handle) {
       handle.removeAllListeners();
       void handle.stop();
     }
     activeTasks.delete(taskId);
-    taskSessions.delete(taskId);
-    // Use releaseWorkspaceTask so the workspace status transitions to 'error'
-    // instead of silently staying stuck as 'running'.
-    releaseWorkspaceTask(taskId, 'error');
-    taskRetryCounts.delete(taskId);
-    taskStallMonitors.get(taskId)?.dispose();
-    taskStallMonitors.delete(taskId);
+
+    // Clear timers
     if (taskIdleHeartbeats.has(taskId)) {
       clearInterval(taskIdleHeartbeats.get(taskId)!);
       taskIdleHeartbeats.delete(taskId);
     }
+    taskStallMonitors.get(taskId)?.dispose();
+    taskStallMonitors.delete(taskId);
+    taskRetryCounts.delete(taskId);
+    taskSessions.delete(taskId);
     cleaningUp.delete(taskId);
+  };
+
+  /** Clean up a task's resources without emitting agent:done (used by stall monitor). */
+  const cleanupTask = (taskId: string) => {
+    releaseTask(taskId);
+    // Release with 'error' so the workspace status transitions correctly
+    // instead of silently staying stuck as 'running'.
+    lifecycleManager.taskReleasedWithStatus(taskId, 'error');
   };
 
   /** Stop the current agent and respawn with conversation context. */
@@ -191,6 +212,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       timestamp: Date.now(),
     });
 
+    // Use releaseTask for cleanup but preserve lifecycle state
+    // (the task is being restarted, not truly released)
     const handle = activeTasks.get(taskId);
     if (handle) {
       await handle.stop();
@@ -205,6 +228,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
 
+    // Guard: if workspace:stop cleaned up while we awaited, bail
+    if (!lifecycleManager.isTaskActive(taskId)) return;
+
     try {
       const context = buildConversationContext(sessionId, sessionStore);
       await spawnTaskRun({
@@ -218,7 +244,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         taskId,
         error: `Recovery failed: ${err instanceof Error ? err.message : String(err)}`,
       });
-      cleanupTask(taskId);
+      releaseTask(taskId);
+      lifecycleManager.taskReleasedWithStatus(taskId, 'error');
     }
   };
 
@@ -233,27 +260,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       ? workspaceStore.get(options.workspaceId)
       : workspaceStore.get(options.taskId);
     if (activeTasks.has(options.taskId)) {
-      for (const [subagentId, subagent] of activeSubagents.entries()) {
-        if (subagent.parentTaskId !== options.taskId) continue;
-        await subagent.handle.stop();
-        subagent.handle.removeAllListeners();
-        activeSubagents.delete(subagentId);
-        activeTasks.delete(subagentId);
-        taskSessions.delete(subagentId);
-      }
-      const staleHandle = activeTasks.get(options.taskId)!;
-      await staleHandle.stop();
-      await new Promise(resolve => setTimeout(resolve, 500));
-      staleHandle.removeAllListeners();
-      activeTasks.delete(options.taskId);
-      taskSessions.delete(options.taskId);
-      taskWorkspaceStatusMap.delete(options.taskId);
-      taskWorkspaceMap.delete(options.taskId);
-      cleaningUp.delete(options.taskId);
-      if (taskIdleHeartbeats.has(options.taskId)) {
-        clearInterval(taskIdleHeartbeats.get(options.taskId)!);
-        taskIdleHeartbeats.delete(options.taskId);
-      }
+      releaseTask(options.taskId);
+      lifecycleManager.clearTask(options.taskId);
     }
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
@@ -475,13 +483,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     const initialStatus: WorkspaceStatus = options.workspaceAction === 'merge' ? 'merging' : 'running';
     if (workspace) {
-      updateWorkspaceTaskStatus(options.taskId, workspace.id, initialStatus, { sessionId: session.id });
+      lifecycleManager.taskStarted(options.taskId, workspace.id, initialStatus, session.id);
       if (
         options.workspaceAction !== 'merge'
         && options.mode === 'act'
         && (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
       ) {
-        emitWorkspaceOutcome(workspace.id, 'in_progress');
+        lifecycleManager.setOutcome(workspace.id, 'in_progress', { force: true });
       }
     }
 
@@ -495,8 +503,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     activeTasks.set(options.taskId, handle);
     taskSessions.set(options.taskId, session.id);
     if (workspace) {
-      taskWorkspaceMap.set(options.taskId, workspace.id);
-      taskWorkspaceStatusMap.set(options.taskId, initialStatus);
       workspaceStore.addSession(workspace.id, session.id, options.taskId);
     }
 
@@ -550,7 +556,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       taskId: options.taskId,
       maxAutoRestarts: Math.max(0, MAX_AUTO_RETRIES - priorRetries),
       onStallDetected: (info) => {
-        const currentStatus = taskWorkspaceStatusMap.get(options.taskId);
+        const currentStatus = lifecycleManager.getTaskStatus(options.taskId);
         if (currentStatus === 'waiting_input' || currentStatus === 'waiting_approval') {
           stallMonitor.pause();
           return;
@@ -685,11 +691,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       if (workspace) {
         if (message.type === 'permission_request' && !autoApprovePermission) {
-          updateWorkspaceTaskStatus(options.taskId, workspace.id, 'waiting_approval', { sessionId: session.id });
+          lifecycleManager.taskStatusChanged(options.taskId, 'waiting_approval', { sessionId: session.id });
         } else if (message.type === 'question_request') {
-          updateWorkspaceTaskStatus(options.taskId, workspace.id, 'waiting_input', { sessionId: session.id });
+          lifecycleManager.taskStatusChanged(options.taskId, 'waiting_input', { sessionId: session.id });
         } else if (message.type !== 'rate_limit') {
-          updateWorkspaceTaskStatus(options.taskId, workspace.id, 'running', { sessionId: session.id });
+          lifecycleManager.taskStatusChanged(options.taskId, 'running', { sessionId: session.id });
         }
       }
 
@@ -757,13 +763,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     handle.on('done', (result) => {
-      // Always clear tool heartbeats immediately, regardless of cleaningUp state,
-      // to prevent leaked intervals if this handler returns early or throws.
+      // Always clear tool heartbeats immediately to prevent leaked intervals.
       for (const interval of toolHeartbeats.values()) clearInterval(interval);
       toolHeartbeats.clear();
 
       void (async () => {
-        if (cleaningUp.has(options.taskId)) return;
+        // ── Guard: bail if task was already cleaned up by stop/cleanup ──
+        if (!lifecycleManager.isTaskActive(options.taskId)) return;
 
         stallMonitor.dispose();
         taskStallMonitors.delete(options.taskId);
@@ -773,9 +779,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           taskIdleHeartbeats.delete(options.taskId);
         }
 
+        // ── Auto-retry on crash ──
         const retryCount = taskRetryCounts.get(options.taskId) ?? 0;
         const shouldAutoRetry = result?.error
-          && !cleaningUp.has(options.taskId)
+          && lifecycleManager.isTaskActive(options.taskId)
           && retryCount < MAX_AUTO_RETRIES
           && !result.error.includes('authentication')
           && !result.error.includes('rate limit')
@@ -793,6 +800,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           activeTasks.delete(options.taskId);
           taskSessions.delete(options.taskId);
           await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
+          // Guard after await — stop may have fired during delay
+          if (!lifecycleManager.isTaskActive(options.taskId)) return;
           try {
             const context = buildConversationContext(session.id, sessionStore);
             await spawnTaskRun({
@@ -807,14 +816,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           }
         }
 
+        // ── Normal completion ──
         cleaningUp.add(options.taskId);
         try {
           let finalError = result?.error;
-
-          if (taskIdleHeartbeats.has(options.taskId)) {
-            clearInterval(taskIdleHeartbeats.get(options.taskId)!);
-            taskIdleHeartbeats.delete(options.taskId);
-          }
 
           if (agentId === 'codex' && !detectedCodexSessionId) {
             const detectedSession = findLatestCodexSession(options.cwd, startedAt);
@@ -824,15 +829,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             }
           }
 
+          // ── Quality gates (with cancellation guards) ──
           if (!finalError && options.mode === 'act') {
             const commands = await resolveQualityGateCommands(options.cwd);
             const maxRetries = configManager.get().qualityGateMaxRetries ?? 2;
 
             for (const command of commands) {
+              // Guard: stop may have fired during previous gate
+              if (!lifecycleManager.isTaskActive(options.taskId)) return;
+
               let passed = false;
               let lastResult: { stdout: string; stderr: string; exitCode: number } = { stdout: '', stderr: '', exitCode: 0 };
 
               for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                if (!lifecycleManager.isTaskActive(options.taskId)) return;
+
                 const gateResult = await runShellCommand(command, options.cwd, sshHost);
                 passed = gateResult.exitCode === 0;
                 lastResult = gateResult;
@@ -923,6 +934,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             }
           }
 
+          // Guard: stop may have fired during quality gates
+          if (!lifecycleManager.isTaskActive(options.taskId)) return;
+
+          // ── Diff capture ──
           if (preRunRef && !sshHost) {
             try {
               const diffData = await captureGitDiff(options.cwd, preRunRef);
@@ -942,14 +957,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             }
           }
 
+          // Guard: stop may have fired during diff capture
+          if (!lifecycleManager.isTaskActive(options.taskId)) return;
+
+          // ── Emit done + update workspace lifecycle ──
           sendToRenderer('agent:done', { taskId: options.taskId, error: finalError });
 
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
-            updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
+            lifecycleManager.taskCompleted(options.taskId, nextStatus, { sessionId: session.id });
 
-            // Detect if the agent renamed the branch (e.g. via `git branch -m`)
-            // and sync the workspace record so the UI shows the correct name.
+            // Detect if the agent renamed the branch
             try {
               const { stdout: actualBranch } = await execFileAsync(
                 'git', ['branch', '--show-current'],
@@ -958,8 +976,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               const trimmedBranch = actualBranch.trim();
               if (trimmedBranch && trimmedBranch !== workspace.branch) {
                 const nameSlug = trimmedBranch
-                  .replace(/^[^/]*\//, '')       // strip prefix like flux/ or user/
-                  .replace(/-[a-z0-9]{4,8}$/, '') // strip trailing random suffix
+                  .replace(/^[^/]*\//, '')
+                  .replace(/-[a-z0-9]{4,8}$/, '')
                   .replace(/[_-]+/g, ' ')
                   .trim();
                 const newName = nameSlug
@@ -980,29 +998,25 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               if (options.workspaceAction === 'merge') {
                 if (!finalError) {
                   const freshMergeWs = workspaceStore.get(workspace.id) ?? workspace;
-                  await transitionWorkspaceOutcome(freshMergeWs, 'task_completed_merge', emitWorkspaceOutcome);
+                  await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
                 }
               } else {
                 if (!finalError) {
                   await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
                 }
 
-                // Determine outcome from actual git state using a fresh read
-                // of the workspace to avoid stale data from the spawn-time capture.
                 const freshWs = workspaceStore.get(workspace.id);
                 if (freshWs) {
                   const trigger = finalError ? 'task_error' : 'task_completed';
-                  await transitionWorkspaceOutcome(freshWs, trigger, emitWorkspaceOutcome);
+                  await lifecycleManager.transitionOutcome(freshWs, trigger);
                 }
 
-                // Agent-driven workspace rename: let the agent's output determine the name
+                // Agent-driven workspace rename
                 if (!finalError && workspace.branch.startsWith('flux/')) {
                   try {
-                    // Re-read workspace to get the latest worktreePath (may have been moved earlier)
                     const currentWs = workspaceStore.get(workspace.id) ?? workspace;
                     let agentName = extractAgentWorkspaceName(sessionStore, session.id);
 
-                    // Fallback: use the most recent commit message from the worktree
                     if (!agentName) {
                       try {
                         const { stdout: logOut } = await execFileAsync(
@@ -1029,10 +1043,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                             { cwd: currentWs.worktreePath, timeout: 10000 },
                           );
                         } catch {
-                          // Branch rename failed (e.g. name collision) — keep old branch
+                          // Branch rename failed — keep old branch
                         }
 
-                        // Move the worktree directory to match the new branch name
                         const newDirName = newBranch.replace(/^flux\//, '');
                         nextWorktreePath = await moveWorktreeDirectory(
                           currentWs.parentRepo,
@@ -1052,7 +1065,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                           worktreePath: nextWorktreePath,
                         });
                       } else {
-                        // Branch already matches — just update the display name
                         workspaceStore.update(workspace.id, { name: agentName });
                         sendToRenderer('workspace:updated', {
                           workspaceId: workspace.id,
@@ -1062,7 +1074,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                       }
                     }
                   } catch {
-                    // Rename is best-effort — don't block completion
+                    // Rename is best-effort
                   }
                 }
 
@@ -1081,18 +1093,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             }
           }
         } finally {
-          handle.removeAllListeners();
-          activeTasks.delete(options.taskId);
-          taskSessions.delete(options.taskId);
-          // Use releaseWorkspaceTask as the single cleanup path — it deletes
-          // from both maps and emits the correct aggregated status.
-          // Read the last status *before* releasing so error states survive.
-          const lastTaskStatus = taskWorkspaceStatusMap.get(options.taskId) ?? 'done';
-          releaseWorkspaceTask(options.taskId, lastTaskStatus);
-          cleaningUp.delete(options.taskId);
-          taskRetryCounts.delete(options.taskId);
-          taskStallMonitors.get(options.taskId)?.dispose();
-          taskStallMonitors.delete(options.taskId);
+          // Canonical cleanup — releaseTask is idempotent so safe even if
+          // stop already cleaned up during an earlier guard check.
+          releaseTask(options.taskId);
+          lifecycleManager.taskReleased(options.taskId);
         }
       })();
     });
@@ -1114,33 +1118,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
   ipcMain.handle('task:stop', async (_event, { taskId }: { taskId: string }) => {
     requireFields({ taskId }, 'taskId');
-    if (cleaningUp.has(taskId)) return;
-    cleaningUp.add(taskId);
-    for (const [subagentId, subagent] of activeSubagents.entries()) {
-      if (subagent.parentTaskId !== taskId) continue;
-      await subagent.handle.stop();
-      subagent.handle.removeAllListeners();
-      activeSubagents.delete(subagentId);
-      activeTasks.delete(subagentId);
-      taskSessions.delete(subagentId);
-    }
-    const handle = activeTasks.get(taskId);
-    if (handle) {
-      await handle.stop();
-      handle.removeAllListeners();
-      activeTasks.delete(taskId);
-    }
-    if (taskIdleHeartbeats.has(taskId)) {
-      clearInterval(taskIdleHeartbeats.get(taskId)!);
-      taskIdleHeartbeats.delete(taskId);
-    }
-    taskStallMonitors.get(taskId)?.dispose();
-    taskStallMonitors.delete(taskId);
-    taskRetryCounts.delete(taskId);
-    taskSessions.delete(taskId);
-    cleaningUp.delete(taskId);
+    if (!lifecycleManager.isTaskActive(taskId) && !activeTasks.has(taskId)) return;
+    releaseTask(taskId);
     sendToRenderer('agent:done', { taskId, error: undefined });
-    releaseWorkspaceTask(taskId, 'done');
+    lifecycleManager.taskReleasedWithStatus(taskId, 'done');
   });
 
   ipcMain.handle('task:restart', async (_event, { taskId }: { taskId: string }) => {
@@ -1150,20 +1131,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const session = sessionStore.get(sessionId);
     if (!session) throw new Error('Session not found');
 
-    taskStallMonitors.get(taskId)?.dispose();
-    taskStallMonitors.delete(taskId);
-    const handle = activeTasks.get(taskId);
-    if (handle) {
-      await handle.stop();
-      handle.removeAllListeners();
-    }
-    activeTasks.delete(taskId);
-    if (taskIdleHeartbeats.has(taskId)) {
-      clearInterval(taskIdleHeartbeats.get(taskId)!);
-      taskIdleHeartbeats.delete(taskId);
-    }
-    taskSessions.delete(taskId);
-    taskRetryCounts.delete(taskId);
+    // Clean up current run but preserve lifecycle manager state
+    // (the task is being restarted, not truly released)
+    releaseTask(taskId);
 
     await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
 
@@ -1384,9 +1354,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       emitTaskMessage(taskId, sessionId, buildUserMessagePayload(response));
     }
 
-    const workspaceId = taskWorkspaceMap.get(taskId);
+    const workspaceId = lifecycleManager.getWorkspaceForTask(taskId);
     if (workspaceId) {
-      updateWorkspaceTaskStatus(taskId, workspaceId, 'running', sessionId ? { sessionId } : undefined);
+      lifecycleManager.taskStatusChanged(taskId, 'running', sessionId ? { sessionId } : undefined);
     }
 
     handle.answerQuestion(requestId, response);
@@ -1416,5 +1386,5 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     return { steerFailed: false };
   });
 
-  return { spawnTaskRun };
+  return { spawnTaskRun, releaseTask };
 }

@@ -10,7 +10,7 @@ import type { SdkAgentHandle } from '../agents/claude-sdk';
 import { ConfigManager } from '../config/config';
 import type { RepoMapConfig } from '../config/types';
 import { WorkspaceStore } from '../worktree/store';
-import type { WorkspaceStatus } from '../worktree/types';
+import type { WorkspaceLifecycleManager } from '../worktree/lifecycle';
 import { SessionStore } from '../session/store';
 import { UsageTracker } from '../usage/tracker';
 import { LiveUsageService } from '../usage/live';
@@ -49,7 +49,7 @@ type AuxiliaryIpcDeps = {
   liveUsageService: LiveUsageService;
   workspaceStore: WorkspaceStore;
   sendToRenderer: (channel: string, payload: unknown) => boolean;
-  emitWorkspaceStatus: (workspaceId: string, status: WorkspaceStatus) => void;
+  lifecycleManager: WorkspaceLifecycleManager;
   activeTasks: Map<string, AgentHandle>;
   activeTerminals: Map<string, ChildProcess>;
   cachedRateLimits: Map<string, RateLimitInfo>;
@@ -75,7 +75,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     liveUsageService,
     workspaceStore,
     sendToRenderer,
-    emitWorkspaceStatus,
+    lifecycleManager,
     activeTasks,
     activeTerminals,
     cachedRateLimits,
@@ -541,7 +541,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
     await revertToCheckpoint(workspace.worktreePath, checkpointId);
-    emitWorkspaceStatus(workspaceId, 'done');
+    lifecycleManager.setStatus(workspaceId, 'done');
   });
 
   ipcMain.handle('repomap:get-config', async () => {

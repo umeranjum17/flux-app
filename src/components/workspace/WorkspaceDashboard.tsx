@@ -55,30 +55,12 @@ export function WorkspaceDashboard() {
     })();
   }, [cwd, openProjects]);
 
-  // Listen for workspace status updates
-  useEffect(() => {
-    const unsub = window.api.on('workspace:status', (data: unknown) => {
-      const { workspaceId, status } = data as { workspaceId: string; status: string };
-      useWorkspaceStore.getState().updateWorkspace(workspaceId, { status: status as any });
-    });
-    const unsubOutcome = window.api.on('workspace:outcome', (data: unknown) => {
-      const { workspaceId, outcome } = data as { workspaceId: string; outcome: string };
-      useWorkspaceStore.getState().updateWorkspace(workspaceId, { outcome: outcome as any });
-    });
-    const unsubCheckpoint = window.api.on('workspace:checkpoint', (data: unknown) => {
-      const { workspaceId, checkpoint } = data as any;
-      useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
-    });
-    const unsubUpdated = window.api.on('workspace:updated', (data: unknown) => {
-      const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
-      useWorkspaceStore.getState().updateWorkspace(workspaceId, { branch, name });
-    });
-    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); unsubUpdated(); };
-  }, []);
+  // Workspace status/outcome listeners are registered once in AppShell.
+  // No duplicate listeners needed here.
 
   const handleStop = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:stop', { workspaceId: ws.id });
-    useWorkspaceStore.getState().updateWorkspace(ws.id, { status: 'done' });
+    // No optimistic override — the main process emits correct status via IPC.
     const chatStore = useChatStore.getState();
     for (const task of chatStore.tasks.values()) {
       if (task.workspaceId === ws.id) {

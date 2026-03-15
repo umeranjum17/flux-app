@@ -2215,7 +2215,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     liveUsageService,
     workspaceStore,
     sendToRenderer,
-    emitWorkspaceStatus,
+    lifecycleManager: null as any, // Legacy file — lifecycle manager not wired here
     activeTasks,
     activeTerminals,
     cachedRateLimits,

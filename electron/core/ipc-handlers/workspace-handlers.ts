@@ -7,7 +7,6 @@ import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
 import type { WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
-import { transitionWorkspaceOutcome } from '../worktree/outcome';
 import { createWorktree, removeWorktree } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile } from '../worktree/diff';
@@ -22,17 +21,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     configManager,
     workspaceStore,
     sendToRenderer,
-    emitWorkspaceStatus,
-    emitWorkspaceOutcome,
-    activeTasks,
-    taskSessions,
-    activeSubagents,
-    cleaningUp,
-    taskIdleHeartbeats,
-    taskWorkspaceMap,
-    taskWorkspaceStatusMap,
+    lifecycleManager,
     getSshHost,
     spawnTaskRun,
+    releaseTask,
   } = ctx;
 
   ipcMain.handle('workspace:list', async (_event, { parentRepo, includeArchived }: { parentRepo: string; includeArchived?: boolean }) => {
@@ -271,79 +263,50 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle('workspace:stop', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const taskIds = [...taskWorkspaceMap.entries()]
-      .filter(([, wsId]) => wsId === workspaceId)
-      .map(([taskId]) => taskId);
+    await lifecycleManager.serialized(workspaceId, async () => {
+      const taskIds = lifecycleManager.getActiveTaskIds(workspaceId);
 
-    for (const taskId of taskIds) {
-      if (cleaningUp.has(taskId)) continue;
-      cleaningUp.add(taskId);
-      for (const [subId, sub] of activeSubagents.entries()) {
-        if (sub.parentTaskId !== taskId) continue;
-        await sub.handle.stop();
-        sub.handle.removeAllListeners();
-        activeSubagents.delete(subId);
-        activeTasks.delete(subId);
-        taskSessions.delete(subId);
+      for (const taskId of taskIds) {
+        releaseTask(taskId);
+        lifecycleManager.clearTask(taskId);
+        sendToRenderer('agent:done', { taskId, error: undefined });
       }
-      const handle = activeTasks.get(taskId);
-      if (handle) {
-        handle.stop();
-        handle.removeAllListeners();
-        activeTasks.delete(taskId);
-      }
-      if (taskIdleHeartbeats.has(taskId)) {
-        clearInterval(taskIdleHeartbeats.get(taskId)!);
-        taskIdleHeartbeats.delete(taskId);
-      }
-      taskSessions.delete(taskId);
-      taskWorkspaceStatusMap.delete(taskId);
-      taskWorkspaceMap.delete(taskId);
-      cleaningUp.delete(taskId);
-      sendToRenderer('agent:done', { taskId, error: undefined });
-    }
 
-    emitWorkspaceStatus(workspaceId, 'idle');
-
-    // Sync outcome from git state after stop so the UI reflects any work the agent completed
-    const stoppedWs = workspaceStore.get(workspaceId);
-    if (stoppedWs) {
-      try {
-        await transitionWorkspaceOutcome(stoppedWs, 'agent_stopped', emitWorkspaceOutcome);
-      } catch {
-        // Best-effort — don't block stop
+      // Sync outcome from git state FIRST so the UI sees consistent state
+      const stoppedWs = workspaceStore.get(workspaceId);
+      if (stoppedWs) {
+        try {
+          await lifecycleManager.transitionOutcome(stoppedWs, 'agent_stopped');
+        } catch {
+          // Best-effort — don't block stop
+        }
       }
-    }
+
+      // Set status AFTER outcome transition so renderer sees consistent state
+      lifecycleManager.setStatus(workspaceId, 'idle');
+    });
   });
 
   ipcMain.handle('workspace:delete', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) return;
+    await lifecycleManager.serialized(workspaceId, async () => {
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) return;
 
-    const taskIds = [...taskWorkspaceMap.entries()]
-      .filter(([, wsId]) => wsId === workspaceId)
-      .map(([taskId]) => taskId);
-
-    for (const taskId of taskIds) {
-      const handle = activeTasks.get(taskId);
-      if (handle) {
-        handle.stop();
-        handle.removeAllListeners();
-        activeTasks.delete(taskId);
+      const taskIds = lifecycleManager.getActiveTaskIds(workspaceId);
+      for (const taskId of taskIds) {
+        releaseTask(taskId);
+        lifecycleManager.clearTask(taskId);
       }
-      taskSessions.delete(taskId);
-      taskWorkspaceStatusMap.delete(taskId);
-      taskWorkspaceMap.delete(taskId);
-    }
 
-    await removeWorktree(workspace.parentRepo, workspace.worktreePath);
-    workspaceStore.delete(workspaceId);
+      await removeWorktree(workspace.parentRepo, workspace.worktreePath);
+      workspaceStore.delete(workspaceId);
+    });
   });
 
   ipcMain.handle(
     'workspace:set-outcome',
     async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
-      emitWorkspaceOutcome(workspaceId, outcome as WorkspaceOutcome);
+      lifecycleManager.setOutcome(workspaceId, outcome as WorkspaceOutcome, { force: true });
     },
   );
 
@@ -359,19 +322,19 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       await Promise.all(
         workspaces.map(async (ws) => {
           // Skip workspaces with active tasks — their outcome will be set on completion
-          const hasActiveTask = [...taskWorkspaceMap.entries()].some(([, wsId]) => wsId === ws.id);
+          const hasActiveTask = lifecycleManager.hasActiveTasks(ws.id);
           if (!hasActiveTask) {
             // Reset stale statuses left over from a crashed or force-quit session
             const activeStatuses: WorkspaceStatus[] = ['running', 'merging', 'waiting_approval', 'waiting_input'];
             if (activeStatuses.includes(ws.status as WorkspaceStatus)) {
               const resetStatus = ws.outcome === 'in_progress' ? 'idle' : 'done';
-              emitWorkspaceStatus(ws.id, resetStatus);
+              lifecycleManager.setStatus(ws.id, resetStatus);
             }
           }
           if (hasActiveTask) return;
 
           try {
-            await transitionWorkspaceOutcome(ws, 'sync', emitWorkspaceOutcome);
+            await lifecycleManager.transitionOutcome(ws, 'sync');
           } catch {
             // Best-effort — don't block workspace loading
           }
@@ -393,34 +356,26 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle('workspace:archive', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) return;
+    await lifecycleManager.serialized(workspaceId, async () => {
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) return;
 
-    const taskIds = [...taskWorkspaceMap.entries()]
-      .filter(([, wsId]) => wsId === workspaceId)
-      .map(([taskId]) => taskId);
-
-    for (const taskId of taskIds) {
-      const handle = activeTasks.get(taskId);
-      if (handle) {
-        handle.stop();
-        handle.removeAllListeners();
-        activeTasks.delete(taskId);
+      const taskIds = lifecycleManager.getActiveTaskIds(workspaceId);
+      for (const taskId of taskIds) {
+        releaseTask(taskId);
+        lifecycleManager.clearTask(taskId);
       }
-      taskSessions.delete(taskId);
-      taskWorkspaceStatusMap.delete(taskId);
-      taskWorkspaceMap.delete(taskId);
-    }
 
-    // Remove worktree — gracefully handles missing/non-git parentRepo
-    try {
-      await removeWorktree(workspace.parentRepo, workspace.worktreePath);
-    } catch {
-      // Worktree may already be gone or parentRepo may not be a git repo
-    }
+      // Remove worktree — gracefully handles missing/non-git parentRepo
+      try {
+        await removeWorktree(workspace.parentRepo, workspace.worktreePath);
+      } catch {
+        // Worktree may already be gone or parentRepo may not be a git repo
+      }
 
-    workspaceStore.archive(workspaceId);
-    emitWorkspaceStatus(workspaceId, 'idle');
+      workspaceStore.archive(workspaceId);
+      lifecycleManager.setStatus(workspaceId, 'idle');
+    });
   });
 
   ipcMain.handle('workspace:unarchive', async (_event, { workspaceId }: { workspaceId: string }) => {
@@ -437,7 +392,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
     // Sync outcome from git state — it may have changed while archived
     try {
-      await transitionWorkspaceOutcome(restored, 'unarchived', emitWorkspaceOutcome);
+      await lifecycleManager.transitionOutcome(restored, 'unarchived');
     } catch {
       // Best-effort
     }
