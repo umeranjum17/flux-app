@@ -343,7 +343,7 @@ export function ToolCallBlock({
           </span>
         )}
         {hasExpandableContent && (
-          <span className="shrink-0 text-text-tertiary/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="shrink-0 text-text-tertiary/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
             {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </span>
         )}
