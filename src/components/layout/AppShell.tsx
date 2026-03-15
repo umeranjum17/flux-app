@@ -501,6 +501,8 @@ export function AppShell() {
               <div className="relative flex min-w-0 flex-1 flex-col">
                 {reviewingWorkspaceId ? (
                   <CodeReviewPanel />
+                ) : changesPanelOpen ? (
+                  <ChangesPanel />
                 ) : (
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
@@ -551,8 +553,6 @@ export function AppShell() {
 
                 {explorerOpen && <FileExplorer />}
               </div>
-
-              {changesPanelOpen && <ChangesPanel />}
             </div>
 
             {bottomPanelOpen && <BottomPanel ref={termRef} />}
