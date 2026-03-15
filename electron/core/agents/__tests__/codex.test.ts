@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { spawnCodex } from '../codex';
 import { spawnAgentProcess } from '../spawn-utils';
+import type { McpServerConfig } from '../claude-sdk';
 
 vi.mock('../spawn-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../spawn-utils')>();
@@ -362,5 +363,35 @@ describe('spawnCodex', () => {
 
     proc.emit('close', 0);
     void handle.stop();
+  });
+
+  it('passes MCP server config to codex as config overrides', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const mcpServers: Record<string, McpServerConfig> = {
+      todo: {
+        name: 'todo',
+        command: 'node',
+        args: ['scripts/todo-mcp.js'],
+        env: { TODO_TOKEN: 'abc123' },
+        cwd: '/workspace',
+      },
+    };
+
+    spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/workspace',
+    }, mcpServers);
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+
+    expect(args).toContain('-c');
+    expect(args).toContain('mcp_servers.todo.command="node"');
+    expect(args).toContain('mcp_servers.todo.args=["scripts/todo-mcp.js"]');
+    expect(args).toContain('mcp_servers.todo.env={TODO_TOKEN="abc123"}');
+    expect(args).toContain('mcp_servers.todo.cwd="/workspace"');
   });
 });

@@ -72,7 +72,7 @@ const AGENT_DEFS: Record<
 
 const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle> = {
   'claude-code': spawnClaude,
-  codex: spawnCodex,
+  codex: (opts) => spawnCodex(opts),
   gemini: spawnGemini,
   openai: spawnOpenAI,
   ollama: spawnOllama,
@@ -168,6 +168,9 @@ class AgentManager {
     }
 
     const opts = { ...options, binaryPath: agent.path || undefined };
+    const mcpServers = (id === 'claude-code' || id === 'codex')
+      ? loadMcpServers(options.cwd)
+      : undefined;
 
     // OpenAI supports session resume via message replay
     if (id === 'openai' && resumeMessages?.length) {
@@ -176,8 +179,11 @@ class AgentManager {
 
     // Use Agent SDK for local Claude sessions when enabled
     if (id === 'claude-code' && !options.sshHost && shouldUseClaudeSdk()) {
-      const mcpServers = loadMcpServers(options.cwd);
       return spawnClaudeSdk(opts, mcpServers);
+    }
+
+    if (id === 'codex') {
+      return spawnCodex(opts, mcpServers);
     }
 
     const spawner = spawners[id];

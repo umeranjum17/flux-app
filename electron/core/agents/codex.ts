@@ -18,13 +18,17 @@ import {
   inferCodexProfile,
   mapCodexReasoningEffort,
 } from './codex-utils';
+import type { McpServerConfig } from './claude-sdk';
 
 export const CODEX_STARTUP_TIMEOUT_MS = 30_000;
 
 /**
  * Spawn a Codex CLI subprocess and parse its JSONL output.
  */
-export function spawnCodex(options: SpawnOptions): AgentHandle {
+export function spawnCodex(
+  options: SpawnOptions,
+  mcpServers?: Record<string, McpServerConfig>,
+): AgentHandle {
   const isResume = !!options.resumeSessionId;
   const args: string[] = isResume ? ['exec', 'resume'] : ['exec'];
   let imageDir: string | null = null;
@@ -57,6 +61,8 @@ export function spawnCodex(options: SpawnOptions): AgentHandle {
   if (reasoningEffort) {
     args.push('-c', `model_reasoning_effort="${reasoningEffort}"`);
   }
+
+  addCodexMcpConfigArgs(args, mcpServers);
 
   if (options.images?.length) {
     if (options.sshHost) {
@@ -851,4 +857,54 @@ function readCodexString(...values: unknown[]): string {
   }
 
   return '';
+}
+
+function addCodexMcpConfigArgs(
+  args: string[],
+  mcpServers?: Record<string, McpServerConfig>,
+): void {
+  if (!mcpServers) return;
+
+  for (const server of Object.values(mcpServers)) {
+    if (!server || typeof server.command !== 'string' || !server.command.trim()) {
+      continue;
+    }
+
+    const keyPath = `mcp_servers.${formatTomlKeyPathSegment(server.name)}`;
+    args.push('-c', `${keyPath}.command=${formatTomlString(server.command)}`);
+
+    if (Array.isArray(server.args) && server.args.length > 0) {
+      args.push('-c', `${keyPath}.args=${formatTomlStringArray(server.args)}`);
+    }
+
+    if (server.env && typeof server.env === 'object') {
+      const envEntries = Object.entries(server.env)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+      if (envEntries.length > 0) {
+        args.push('-c', `${keyPath}.env=${formatTomlInlineStringTable(envEntries)}`);
+      }
+    }
+
+    if (typeof server.cwd === 'string' && server.cwd.trim().length > 0) {
+      args.push('-c', `${keyPath}.cwd=${formatTomlString(server.cwd)}`);
+    }
+  }
+}
+
+function formatTomlKeyPathSegment(segment: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(segment)
+    ? segment
+    : formatTomlString(segment);
+}
+
+function formatTomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function formatTomlStringArray(values: string[]): string {
+  return `[${values.map(formatTomlString).join(', ')}]`;
+}
+
+function formatTomlInlineStringTable(entries: Array<[string, string]>): string {
+  return `{${entries.map(([key, value]) => `${formatTomlKeyPathSegment(key)}=${formatTomlString(value)}`).join(', ')}}`;
 }
