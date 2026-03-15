@@ -14,9 +14,6 @@ function getBasename(path: string): string {
 
 function FileChip({ file, onClick }: { file: DiffFileEntry; onClick: () => void }) {
   const basename = getBasename(file.path);
-  const net = file.additions - file.deletions;
-  const label = net > 0 ? `+${net}` : net < 0 ? `${net}` : '±0';
-  const color = net > 0 ? 'text-success' : net < 0 ? 'text-error' : 'text-text-tertiary';
 
   return (
     <button
@@ -25,7 +22,11 @@ function FileChip({ file, onClick }: { file: DiffFileEntry; onClick: () => void 
       title={file.path}
     >
       <span className="font-medium">{basename}</span>
-      <span className={`text-[11px] ${color}`}>{label}</span>
+      <span className="inline-flex items-center gap-1 text-[11px]">
+        {file.additions > 0 && <span className="text-success">+{file.additions}</span>}
+        {file.deletions > 0 && <span className="text-error">-{file.deletions}</span>}
+        {file.additions === 0 && file.deletions === 0 && <span className="text-text-tertiary">±0</span>}
+      </span>
     </button>
   );
 }
