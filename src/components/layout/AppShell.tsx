@@ -70,6 +70,7 @@ export function AppShell() {
   useEffect(() => {
     async function init() {
       useAgentStore.getState().setDetecting(true);
+      let restoredProjectPath: string | null = null;
       try {
         let config: FluxConfig | null = null;
 
@@ -90,6 +91,7 @@ export function AppShell() {
             useUiStore.getState().setOpenProjects(config.openProjects);
             // Restore active project (if saved) or use the first open project
             if (config.activeProjectPath && config.openProjects.includes(config.activeProjectPath)) {
+              restoredProjectPath = config.activeProjectPath;
               useUiStore.getState().setActiveProject(config.activeProjectPath);
             }
           }
@@ -129,8 +131,13 @@ export function AppShell() {
         }
 
         try {
-          const cwdResult = await window.api.invoke('cwd:get') as string;
-          useUiStore.getState().setCwd(cwdResult);
+          if (restoredProjectPath) {
+            // Sync the restored project path to the backend so git checks use it
+            await window.api.invoke('cwd:set', { cwd: restoredProjectPath });
+          } else {
+            const cwdResult = await window.api.invoke('cwd:get') as string;
+            useUiStore.getState().setCwd(cwdResult);
+          }
         } catch (err) {
           console.error('CWD fetch failed:', err);
         }
@@ -291,6 +298,10 @@ export function AppShell() {
     if (!cwd) return;
     let cancelled = false;
     (async () => {
+      // Sync backend cwd so git checks run against the correct directory
+      await window.api.invoke('cwd:set', { cwd }).catch(() => {});
+      if (cancelled) return;
+
       // Check if the folder is a git repository first
       try {
         const isRepo = await window.api.invoke('git:is-repo') as boolean;
@@ -537,6 +548,11 @@ export function AppShell() {
           const item = unified[idx];
           if (item.type === 'ws') {
             wsStore.setActiveWorkspace(item.id);
+            // Update active project to match workspace's parent repo
+            const workspace = wsStore.workspaces.get(item.id);
+            if (workspace) {
+              useUiStore.getState().setActiveProject(workspace.parentRepo);
+            }
             // Select the most recent task for this workspace
             const wsTask = Array.from(chatStore.tasks.values())
               .filter((t) => t.workspaceId === item.id)

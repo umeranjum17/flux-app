@@ -61,6 +61,13 @@ export function WorkspaceTab() {
     const wsStore = useWorkspaceStore.getState();
     const chatStore = useChatStore.getState();
     wsStore.setActiveWorkspace(wsId);
+
+    // Update active project to match workspace's parent repo
+    const workspace = wsStore.workspaces.get(wsId);
+    if (workspace) {
+      useUiStore.getState().setActiveProject(workspace.parentRepo);
+    }
+
     const wsTask = Array.from(chatStore.tasks.values())
       .filter((t) => t.workspaceId === wsId)
       .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
