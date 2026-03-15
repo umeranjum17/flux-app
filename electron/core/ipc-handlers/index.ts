@@ -39,6 +39,10 @@ const taskRetryCounts = new Map<string, number>();
 const activeSubagents = new Map<string, SubagentEntry>();
 const cachedRateLimits = new Map<string, RateLimitInfo>();
 
+const USAGE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const USAGE_POLL_INITIAL_DELAY_MS = 5 * 1000;  // 5s after startup
+let usagePollTimer: NodeJS.Timeout | null = null;
+
 let currentCwd = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
 let localCwd = currentCwd;
 let sshHost: string | null = null;
@@ -271,9 +275,30 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   repoMapService.onStatusChange((status) => {
     sendToRenderer('repomap:status', status);
   });
+
+  // Start background usage poller — independent of any agent or chat activity.
+  // Fires once after a short delay, then every 2 minutes.
+  function schedulePoll(delayMs: number): void {
+    usagePollTimer = setTimeout(async () => {
+      try {
+        const result = await liveUsageService.getOverview(Array.from(cachedRateLimits.values()));
+        sendToRenderer('usage:live-update', result);
+      } catch (err) {
+        console.warn('[usage-poller] fetch failed:', err instanceof Error ? err.message : String(err));
+      }
+      schedulePoll(USAGE_POLL_INTERVAL_MS);
+    }, delayMs);
+  }
+  schedulePoll(USAGE_POLL_INITIAL_DELAY_MS);
 }
 
 export function cleanupProcesses(): void {
+  // Stop background usage poller
+  if (usagePollTimer) {
+    clearTimeout(usagePollTimer);
+    usagePollTimer = null;
+  }
+
   // Dispose stall monitors to prevent stale callbacks during shutdown
   for (const [, monitor] of taskStallMonitors) {
     try { monitor.dispose(); } catch {}

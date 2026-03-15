@@ -153,6 +153,7 @@ export interface IpcEvents {
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;
+  'usage:live-update': LiveUsageOverview;
 }
 
 export interface RepoMapIpcConfig {

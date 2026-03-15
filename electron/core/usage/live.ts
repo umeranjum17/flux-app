@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import { getDb } from '../db/connection';
 import { logDiagnostic } from '../diagnostics/logger';
 
@@ -410,7 +410,7 @@ export class LiveUsageService {
 
   private async fetchClaudeUsage(now: number): Promise<ProviderFetchResult> {
     const hasClaudeAccount = hasClaudeAccountState();
-    const credentialSource = readClaudeCredentialSource({ includeKeychain: !hasClaudeAccount });
+    const credentialSource = readClaudeCredentialSource();
     const oauth = credentialSource?.oauth;
     logDiagnostic('usage', 'claude credential source', {
       source: credentialSource?.path ?? 'none',
@@ -637,11 +637,15 @@ export class LiveUsageService {
       }
 
       if (!response.ok) {
+        let body = '';
+        try { body = await response.text(); } catch { /* best effort */ }
+        logDiagnostic('usage', 'codex usage API error', { status: response.status, body: body.slice(0, 500) });
         throw new Error(`Codex usage request failed (${response.status})`);
       }
 
       const json = await response.json() as Record<string, any>;
       const windows = normalizeCodexWindows(json, now);
+      logDiagnostic('usage', 'codex usage API success', { windowCount: windows.length, rawKeys: Object.keys(json) });
       return {
         providerId: 'codex',
         label: PROVIDER_LABELS.codex,
@@ -651,6 +655,7 @@ export class LiveUsageService {
         windows,
       };
     } catch (error) {
+      logDiagnostic('usage', 'codex usage fetch error', { error: error instanceof Error ? error.message : String(error) });
       return {
         providerId: 'codex',
         label: PROVIDER_LABELS.codex,
@@ -960,15 +965,23 @@ function readClaudeOauthFromKeychain(): ClaudeOauthTokens | null {
 }
 
 function readMacKeychainService(service: string): string | null {
-  try {
-    return execFileSync(
-      'security',
-      ['find-generic-password', '-s', service, '-w'],
-      { encoding: 'utf-8' },
-    ).trim();
-  } catch {
+  // Use spawnSync so we can capture stderr and exit code for diagnostics.
+  const result = spawnSync(
+    '/usr/bin/security',
+    ['find-generic-password', '-s', service, '-w'],
+    { encoding: 'utf-8', timeout: 5000 },
+  );
+  if (result.error || result.status !== 0) {
+    logDiagnostic('usage', 'keychain read failed', {
+      service,
+      status: result.status,
+      stderr: result.stderr?.trim().slice(0, 300) ?? '',
+      error: result.error ? String(result.error) : null,
+    });
     return null;
   }
+  const output = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+  return output || null;
 }
 
 function parseClaudeKeychainOutput(raw: string): ClaudeOauthTokens | null {
