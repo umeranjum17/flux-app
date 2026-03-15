@@ -127,6 +127,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:stop',
     'workspace:delete',
     'workspace:set-outcome',
+    'workspace:sync-outcomes',
     'workspace:update',
     'workspace:archive',
     'workspace:unarchive',
