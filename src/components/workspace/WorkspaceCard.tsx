@@ -1,18 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ArchiveRestore, ChevronDown } from 'lucide-react';
-import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from '../../lib/ipc-api';
-import { workspaceOutcomeConfig } from '../../lib/workspace-status';
+import type { Workspace, WorkspaceOutcome } from '../../lib/ipc-api';
+import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
-
-const statusConfig: Record<WorkspaceStatus, { color: string; label: string; pulse?: boolean }> = {
-  idle: { color: 'bg-text-tertiary', label: 'Idle' },
-  running: { color: 'bg-success', label: 'Running', pulse: true },
-  waiting_approval: { color: 'bg-warning', label: 'Waiting', pulse: true },
-  waiting_input: { color: 'bg-text-tertiary', label: 'Question', pulse: true },
-  done: { color: 'bg-success', label: 'Done' },
-  error: { color: 'bg-error', label: 'Error' },
-  merging: { color: 'bg-success', label: 'Merging', pulse: true },
-};
 
 const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
 
@@ -43,7 +33,8 @@ export function WorkspaceCard({
   onArchive,
   onUnarchive,
 }: WorkspaceCardProps) {
-  const status = statusConfig[workspace.status] ?? statusConfig.idle;
+  const lifecycleState = getWorkspaceLifecycleState(workspace);
+  const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
   const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
   const outcome = workspaceOutcomeConfig[workspace.outcome ?? 'in_progress'];
 
@@ -60,7 +51,7 @@ export function WorkspaceCard({
     >
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/50' : status.color} ${!isArchived && status.pulse ? 'animate-pulse' : ''}`} />
+          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/50' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
           <div className="min-w-0">
             <div className="truncate text-sm font-medium tracking-[0.01em] text-text-primary">{workspace.name}</div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-text-tertiary">
@@ -77,8 +68,8 @@ export function WorkspaceCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className="premium-pill px-2.5 py-1 text-[10px] font-medium text-text-tertiary">
-            {isArchived ? 'Archived' : status.label}
+          <span className={`premium-pill px-2.5 py-1 text-[10px] font-medium ${isArchived ? 'text-text-tertiary' : lifecycle.badgeClass}`}>
+            {isArchived ? 'Archived' : lifecycle.label}
           </span>
           {!isArchived && <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />}
         </div>

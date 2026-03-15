@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { workspaceStatusConfig } from '../../lib/workspace-status';
+import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
 import { toast } from 'sonner';
@@ -151,7 +151,8 @@ export function WorkspaceTab() {
           </div>
         )}
         {workspaceList.map((ws, idx) => {
-          const status = workspaceStatusConfig[ws.status] ?? workspaceStatusConfig.idle;
+          const lifecycleState = getWorkspaceLifecycleState(ws);
+          const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
           const isActive = ws.id === activeWorkspaceId;
 
           return (
@@ -162,14 +163,18 @@ export function WorkspaceTab() {
                 e.preventDefault();
                 setContextMenu({ x: e.clientX, y: e.clientY, ws });
               }}
+              title={lifecycle.detail}
               className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
             >
-              <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
+              <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''}`} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-medium text-text-primary">{ws.name}</div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
                   <GitBranch size={10} />
                   <span className="truncate font-mono">{ws.branch}</span>
+                  <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${lifecycle.badgeClass}`}>
+                    {lifecycle.label}
+                  </span>
                 </div>
               </div>
               <span

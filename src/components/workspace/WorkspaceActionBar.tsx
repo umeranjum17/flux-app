@@ -2,7 +2,7 @@ import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink } from 'lucide-r
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { useChatStore } from '../../stores/chat';
-import { workspaceStatusConfig } from '../../lib/workspace-status';
+import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 
 export function WorkspaceActionBar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -17,7 +17,8 @@ export function WorkspaceActionBar() {
 
   if (!workspace) return null;
 
-  const status = workspaceStatusConfig[workspace.status] ?? workspaceStatusConfig.idle;
+  const lifecycleState = getWorkspaceLifecycleState(workspace);
+  const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
 
   const handleStop = async () => {
     await window.api.invoke('workspace:stop', { workspaceId: workspace.id });
@@ -55,9 +56,9 @@ export function WorkspaceActionBar() {
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <GitBranch size={13} className="shrink-0 text-text-tertiary" />
         <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${status.color}/15 text-text-tertiary`}>
-          <span className={`inline-block h-1.5 w-1.5 rounded-full ${status.color} ${status.pulse ? 'animate-pulse' : ''}`} />
-          {status.label}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${lifecycle.badgeClass}`}>
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''}`} />
+          {lifecycle.label}
         </span>
       </div>
       <div className="flex items-center gap-1">
