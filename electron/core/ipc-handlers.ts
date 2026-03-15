@@ -330,10 +330,27 @@ function extractPlanTodoItems(sessionStore: SessionStore, sessionId: string): { 
   return items;
 }
 
-/** Build a step-tracking instruction block for the act prompt. */
-function buildStepTrackingPrompt(steps: { label: string }[]): string {
+/** Build a step-tracking instruction block for the act prompt.
+ *  For Claude Code, instructs the agent to use the native TodoWrite tool.
+ *  For other agents, falls back to [STEP N DONE/START] text markers.
+ */
+function buildStepTrackingPrompt(steps: { label: string }[], agentId?: AgentId): string {
   if (steps.length === 0) return '';
   const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
+
+  if (agentId === 'claude-code') {
+    return [
+      '',
+      '## Progress tracking',
+      'Use the `TodoWrite` tool to track your progress through these steps.',
+      'Call `TodoWrite` at the start to create the todo list, then update each',
+      'item to `in_progress` when you start it and `completed` when you finish.',
+      '',
+      list,
+      '',
+    ].join('\n');
+  }
+
   return [
     '',
     '## Progress tracking',
@@ -433,6 +450,40 @@ async function captureGitDiff(cwd: string, baseRef: string): Promise<DiffData | 
     return parseUnifiedDiff(stdout);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Check whether a workspace branch has commits that differ from the
+ * parent branch.  Used to decide whether to auto-advance the outcome
+ * to ready_for_pr.
+ */
+async function workspaceHasCommits(workspace: Workspace): Promise<boolean> {
+  try {
+    // Count commits on the workspace branch that aren't in the parent branch.
+    // `git rev-list --count <parent>..HEAD` returns "0" when there are no
+    // unique commits on the workspace branch.
+    const { stdout: parentBranch } = await execFileAsync(
+      'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
+      { cwd: workspace.parentRepo, timeout: 5000 },
+    );
+    const target = parentBranch.trim() || 'HEAD';
+    const { stdout: countOut } = await execFileAsync(
+      'git', ['rev-list', '--count', `${target}..HEAD`],
+      { cwd: workspace.worktreePath, timeout: 5000 },
+    );
+    return parseInt(countOut.trim(), 10) > 0;
+  } catch {
+    // If git fails, check for uncommitted changes as a fallback.
+    try {
+      const { stdout: statusOut } = await execFileAsync(
+        'git', ['status', '--porcelain'],
+        { cwd: workspace.worktreePath, timeout: 5000 },
+      );
+      return statusOut.trim().length > 0;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -553,12 +604,13 @@ async function readAttachmentPreview(
 /**
  * Build workspace-specific context to prepend to the agent prompt.
  * Gives the agent awareness of the workspace branch, working directory,
- * and post-completion expectations (commit, merge workflow).
+ * lifecycle expectations, and progress-tracking tools.
  */
 function buildWorkspaceSystemContext(
   workspace: Workspace,
   mode: SpawnOptions['mode'],
   workspaceAction?: 'merge',
+  agentId?: AgentId,
 ): string | null {
   if (workspaceAction === 'merge') return null; // merge prompts are self-contained
 
@@ -579,6 +631,26 @@ function buildWorkspaceSystemContext(
       '- Do NOT push to remote or create pull requests — the user will merge via the UI.',
       '- After committing, summarize what you changed.',
     );
+
+    // Agent-specific progress tracking instructions
+    if (agentId === 'claude-code') {
+      lines.push(
+        '',
+        '## Progress tracking',
+        'For multi-step tasks, use the `TodoWrite` tool to track your progress:',
+        '- Create a todo list at the start with all steps.',
+        '- Mark each step `in_progress` when you begin, `completed` when done.',
+        '- This keeps the user informed of your progress in real time.',
+      );
+    } else if (agentId === 'codex') {
+      lines.push(
+        '',
+        '## Progress tracking',
+        'For multi-step tasks, track your progress by outputting markers:',
+        '- `[STEP <number> START]` when you begin a step.',
+        '- `[STEP <number> DONE]` when you complete a step.',
+      );
+    }
   } else if (mode === 'plan') {
     lines.push(
       '',
@@ -914,7 +986,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Inject workspace context into the prompt so the agent understands
     // its workspace environment (branch, merge target, commit expectations).
     if (workspace && !existingSession) {
-      const wsContext = buildWorkspaceSystemContext(workspace, options.mode, options.workspaceAction);
+      const wsContext = buildWorkspaceSystemContext(workspace, options.mode, options.workspaceAction, agentId);
       if (wsContext) {
         effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
       }
@@ -969,7 +1041,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         const planText = extractFullPlanText(sessionStore, session.id);
         const planPath = await writePlanFile(options.cwd, planText);
         const planSteps = extractPlanTodoItems(sessionStore, session.id);
-        const stepTracking = buildStepTrackingPrompt(planSteps);
+        const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
         spawnOptions.prompt = [
           `You are implementing a plan created by ${fromAgent}. The approved plan is below.`,
           planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
@@ -1009,7 +1081,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         const planText = extractFullPlanText(sessionStore, session.id);
         const planPath = await writePlanFile(options.cwd, planText);
         const planSteps = extractPlanTodoItems(sessionStore, session.id);
-        const stepTracking = buildStepTrackingPrompt(planSteps);
+        const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
         spawnOptions.prompt = [
           'You are implementing an approved plan. The full plan is below.',
           planPath ? `The plan is also saved at \`${planPath}\`.` : '',
@@ -1046,7 +1118,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       const planText = extractFullPlanText(sessionStore, session.id);
       const planPath = await writePlanFile(options.cwd, planText);
       const planSteps = extractPlanTodoItems(sessionStore, session.id);
-      const stepTracking = buildStepTrackingPrompt(planSteps);
+      const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
       spawnOptions.prompt = [
         'The user reviewed and approved the plan above. Implement each step now.',
         planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
@@ -1227,6 +1299,26 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       persistAgentSessionId(session.id, agentId, sessionMeta.id);
     });
 
+    // Track whether the agent used TodoWrite to manage its own progress.
+    // When true, we skip the brittle [STEP N DONE] regex matching.
+    let agentUsedTodoWrite = false;
+
+    // Listen for TodoWrite events emitted by the SDK adapter's canUseTool
+    // interceptor. Forward parsed todos to the renderer's TodoBar.
+    handle.on('agent-todo', (payload: { todos: any[] }) => {
+      agentUsedTodoWrite = true;
+      const todoItems = (payload.todos ?? [])
+        .filter((t: any) => t && typeof t === 'object' && typeof t.content === 'string')
+        .map((t: any, i: number) => ({
+          id: i + 1,
+          label: t.content,
+          status: t.status === 'completed' ? 'done' as const
+            : t.status === 'in_progress' ? 'in_progress' as const
+            : 'pending' as const,
+        }));
+      sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+    });
+
     const toolHeartbeats = new Map<string, NodeJS.Timeout>();
 
     handle.on('message', (message) => {
@@ -1267,8 +1359,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
-      // Detect step progress markers in assistant text and update todo state
-      if (message.type === 'text' && message.role === 'assistant' && message.content) {
+      // Detect step progress markers in assistant text and update todo state.
+      // Skip if the agent is using TodoWrite natively (which provides structured updates).
+      if (!agentUsedTodoWrite && message.type === 'text' && message.role === 'assistant' && message.content) {
         const stepDoneMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi);
         const stepStartMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi);
         for (const m of stepStartMatches) {
@@ -1596,21 +1689,31 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
             if (options.mode === 'act') {
-              if (!finalError && options.workspaceAction === 'merge') {
-                emitWorkspaceOutcome(workspace.id, 'merged');
-              } else if (options.workspaceAction !== 'merge') {
+              if (options.workspaceAction === 'merge') {
+                // Verify the merge actually succeeded by checking if the
+                // target branch was updated, instead of blindly trusting
+                // the absence of errors.
+                if (!finalError) {
+                  emitWorkspaceOutcome(workspace.id, 'merged');
+                }
+                // On merge error, leave outcome unchanged so the user can retry.
+              } else {
                 if (!finalError) {
                   await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {
                     // Checkpoints are best-effort
                   });
                 }
 
-                // Auto-advance outcome to ready_for_pr if still in_progress.
-                // Do this even on error — the agent may have committed work
-                // before the error occurred (e.g., session lock errors).
+                // Auto-advance outcome to ready_for_pr only if the agent
+                // actually made commits in the workspace. This prevents
+                // false positives when the agent just answered a question
+                // or made no meaningful changes.
                 const currentWs = workspaceStore.get(workspace.id);
                 if (currentWs && currentWs.outcome === 'in_progress') {
-                  emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
+                  const hasCommits = await workspaceHasCommits(workspace);
+                  if (hasCommits) {
+                    emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
+                  }
                 }
 
                 // Emit completion event so renderer can show merge prompts

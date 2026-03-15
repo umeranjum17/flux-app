@@ -24,6 +24,7 @@ const INTERACTIVE_TOOL_NAMES = new Set([
   'ExitPlanMode',
   'EnterPlanMode',
   'DiffComment',
+  'TodoWrite',
 ]);
 
 /** Tools that require user interaction and should pause stall detection. */

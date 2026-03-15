@@ -98,11 +98,19 @@ function buildWorkspaceMergePrompt(
   return [
     `Merge branch \`${workspace.branch}\` into \`${targetBranch}\`.`,
     `Run the merge from the parent repo at \`${workspace.parentRepo}\`, not the worktree path.`,
-    `Checkout \`${targetBranch}\`, run \`${mergeCommand}\`, and handle straightforward conflicts if they come up.`,
-    `If the merge does not create a commit automatically (for example after \`--squash\`), create one with \`${commitCommand}\`.`,
-    `Push the updated \`${targetBranch}\` branch with \`${pushCommand}\` once the merge commit is ready.`,
-    'If the merge needs a human decision, stop and report exactly what is blocked.',
-    'Finish with `git status` and a short summary of what landed.',
+    '',
+    '## Steps',
+    `1. \`git checkout ${targetBranch}\``,
+    `2. \`${mergeCommand}\``,
+    `3. If the merge does not create a commit automatically (e.g. after --squash), create one with: \`${commitCommand}\``,
+    `4. Handle straightforward conflicts if they come up. If the merge needs a human decision, stop and report exactly what is blocked.`,
+    `5. Push with: \`${pushCommand}\``,
+    `6. Run \`git status\` and confirm the merge landed.`,
+    '',
+    '## Important',
+    '- If any step fails with an error you cannot resolve, stop immediately and report the exact error.',
+    '- Do NOT silently continue past failures.',
+    '- Finish with a short summary of what landed (commit hash, files changed).',
   ].join('\n');
 }
 

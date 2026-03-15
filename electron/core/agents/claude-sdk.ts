@@ -216,6 +216,14 @@ export function spawnClaudeSdk(
       return { behavior: 'allow' as const };
     }
 
+    // TodoWrite: auto-approve and emit parsed todos so ipc-handlers can
+    // forward them to the renderer's TodoBar.
+    if (baseName === 'TodoWrite') {
+      const todos = Array.isArray(input.todos) ? input.todos : [];
+      emitter.emit('agent-todo', { todos });
+      return { behavior: 'allow' as const };
+    }
+
     // Bypass mode: auto-approve everything
     if (options.dangerouslyBypassPermissions) {
       return { behavior: 'allow' as const };
