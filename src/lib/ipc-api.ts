@@ -271,6 +271,8 @@ export interface Workspace {
   name: string;
   parentRepo: string;
   branch: string;
+  /** The branch that was checked out in the parent repo when this workspace was created. */
+  baseBranch?: string;
   status: WorkspaceStatus;
   outcome: WorkspaceOutcome;
   createdAt: number;

@@ -72,6 +72,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         );
       }
 
+      // Capture the currently checked-out branch so merges default back to it
+      let baseBranch: string | undefined;
+      try {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
+        baseBranch = stdout.trim() || undefined;
+      } catch { /* best-effort */ }
+
       const worktree = await createWorktree(parentRepo, branch, branch);
       return workspaceStore.create({
         id: worktree.id,
@@ -79,6 +86,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         parentRepo,
         worktreePath: worktree.path,
         branch: worktree.branch,
+        baseBranch,
         agentId,
         model,
         mode,
@@ -106,6 +114,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         );
       }
 
+      // Capture the currently checked-out branch so merges default back to it
+      let baseBranch: string | undefined;
+      try {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
+        baseBranch = stdout.trim() || undefined;
+      } catch { /* best-effort */ }
+
       const workspaceName = generateWorkspaceName();
       const branch = `flux/${workspaceName}`;
       const worktree = await createWorktree(parentRepo, branch, workspaceName);
@@ -115,6 +130,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         parentRepo,
         worktreePath: worktree.path,
         branch: worktree.branch,
+        baseBranch,
         agentId,
         model,
         mode,

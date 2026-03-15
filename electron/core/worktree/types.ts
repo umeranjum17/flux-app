@@ -44,6 +44,8 @@ export interface Workspace {
   parentRepo: string;
   worktreePath: string;
   branch: string;
+  /** The branch that was checked out in the parent repo when this workspace was created. */
+  baseBranch?: string;
   agentId: AgentId;
   model: string;
   mode: TaskMode;

@@ -302,11 +302,14 @@ export async function workspaceHasPendingChanges(workspace: Workspace): Promise<
 
   // 1. Check for commits ahead of the merge-base with the parent branch
   try {
-    const { stdout: parentBranch } = await execFileAsync(
-      'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
-      { cwd: workspace.parentRepo, timeout: 5000 },
-    );
-    const target = parentBranch.trim() || 'HEAD';
+    let target = workspace.baseBranch?.trim() || '';
+    if (!target) {
+      const { stdout: parentBranch } = await execFileAsync(
+        'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
+        { cwd: workspace.parentRepo, timeout: 5000 },
+      );
+      target = parentBranch.trim() || 'HEAD';
+    }
 
     // Use merge-base for an accurate divergence point
     const { stdout: mergeBaseOut } = await execFileAsync(
@@ -368,11 +371,14 @@ export async function workspaceHasCommits(workspace: Workspace): Promise<boolean
  */
 export async function isWorkspaceBranchMerged(workspace: Workspace): Promise<boolean> {
   try {
-    const { stdout: parentBranch } = await execFileAsync(
-      'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
-      { cwd: workspace.parentRepo, timeout: 5000 },
-    );
-    const target = parentBranch.trim() || 'HEAD';
+    let target = workspace.baseBranch?.trim() || '';
+    if (!target) {
+      const { stdout: parentBranch } = await execFileAsync(
+        'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
+        { cwd: workspace.parentRepo, timeout: 5000 },
+      );
+      target = parentBranch.trim() || 'HEAD';
+    }
 
     // Get the workspace branch tip from the worktree
     const { stdout: branchTip } = await execFileAsync(
