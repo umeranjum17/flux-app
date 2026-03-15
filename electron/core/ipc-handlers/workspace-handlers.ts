@@ -318,26 +318,28 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     async (_event, { parentRepo }: { parentRepo: string }) => {
       const workspaces = workspaceStore.list(parentRepo);
 
-      // Run all checks in parallel for speed
+      // Serialize per workspace to prevent races with stop/archive/other syncs
       await Promise.all(
         workspaces.map(async (ws) => {
-          // Skip workspaces with active tasks — their outcome will be set on completion
-          const hasActiveTask = lifecycleManager.hasActiveTasks(ws.id);
-          if (!hasActiveTask) {
-            // Reset stale statuses left over from a crashed or force-quit session
-            const activeStatuses: WorkspaceStatus[] = ['running', 'merging', 'waiting_approval', 'waiting_input'];
-            if (activeStatuses.includes(ws.status as WorkspaceStatus)) {
-              const resetStatus = ws.outcome === 'in_progress' ? 'idle' : 'done';
-              lifecycleManager.setStatus(ws.id, resetStatus);
+          await lifecycleManager.serialized(ws.id, async () => {
+            // Skip workspaces with active tasks — their outcome will be set on completion
+            const hasActiveTask = lifecycleManager.hasActiveTasks(ws.id);
+            if (!hasActiveTask) {
+              // Reset stale statuses left over from a crashed or force-quit session
+              const activeStatuses: WorkspaceStatus[] = ['running', 'merging', 'waiting_approval', 'waiting_input'];
+              if (activeStatuses.includes(ws.status as WorkspaceStatus)) {
+                const resetStatus = ws.outcome === 'in_progress' ? 'idle' : 'done';
+                lifecycleManager.setStatus(ws.id, resetStatus);
+              }
             }
-          }
-          if (hasActiveTask) return;
+            if (hasActiveTask) return;
 
-          try {
-            await lifecycleManager.transitionOutcome(ws, 'sync');
-          } catch {
-            // Best-effort — don't block workspace loading
-          }
+            try {
+              await lifecycleManager.transitionOutcome(ws, 'sync');
+            } catch (err) {
+              console.error(`[sync-outcomes] Failed for workspace ${ws.id}:`, err);
+            }
+          });
         }),
       );
     },

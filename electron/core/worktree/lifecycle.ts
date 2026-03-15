@@ -96,6 +96,47 @@ export class WorkspaceLifecycleManager {
   }
 
   // -----------------------------------------------------------------------
+  // Startup reconciliation
+  // -----------------------------------------------------------------------
+
+  /**
+   * Self-heal workspace state on app startup. Must run in the main process
+   * BEFORE accepting renderer connections.
+   *
+   * Phase 1: Reset impossible statuses (running/merging/waiting_* with no
+   *          active task) — synchronous, immediate.
+   * Phase 2: Sync outcomes from git — async, best-effort per workspace.
+   */
+  async reconcileOnStartup(): Promise<void> {
+    const allWorkspaces = this.workspaceStore.list();
+
+    const activeStatuses: WorkspaceStatus[] = ['running', 'merging', 'waiting_approval', 'waiting_input'];
+
+    // Phase 1: Reset impossible statuses (no tasks survive a restart)
+    for (const ws of allWorkspaces) {
+      if (activeStatuses.includes(ws.status)) {
+        const resetStatus = ws.outcome === 'in_progress' ? 'idle' : 'done';
+        console.log(`[lifecycle:reconcile] ${ws.id}: status ${ws.status} → ${resetStatus} (no active task)`);
+        this.workspaceStore.update(ws.id, { status: resetStatus });
+      }
+    }
+
+    // Phase 2: Sync outcomes from git (async, best-effort per workspace)
+    await Promise.allSettled(
+      allWorkspaces
+        .filter(ws => !ws.archivedAt)
+        .map(ws => this.serialized(ws.id, async () => {
+          try {
+            const fresh = this.workspaceStore.get(ws.id);
+            if (fresh) await this.transitionOutcome(fresh, 'sync');
+          } catch (err) {
+            console.warn(`[lifecycle:reconcile] Failed to sync outcome for ${ws.id}:`, err);
+          }
+        }))
+    );
+  }
+
+  // -----------------------------------------------------------------------
   // Task lifecycle
   // -----------------------------------------------------------------------
 
@@ -190,12 +231,17 @@ export class WorkspaceLifecycleManager {
   /** Transition outcome via the state machine (resolves git state, computes next). */
   async transitionOutcome(workspace: Workspace, trigger: WorkspaceOutcomeTrigger): Promise<void> {
     const gitState = await resolveGitState(workspace);
-    const next = computeNextOutcome(workspace.outcome, trigger, gitState);
-    if (next !== null && next !== workspace.outcome) {
+
+    // Re-read current outcome from DB — it may have changed during git ops
+    const fresh = this.workspaceStore.get(workspace.id);
+    if (!fresh) return;
+
+    const next = computeNextOutcome(fresh.outcome, trigger, gitState);
+    if (next !== null && next !== fresh.outcome) {
       getLogDiagnostic()('outcome', 'workspace outcome transition', {
         workspaceId: workspace.id,
         trigger,
-        from: workspace.outcome,
+        from: fresh.outcome,
         to: next,
       });
       this.setOutcome(workspace.id, next);
@@ -277,7 +323,8 @@ export class WorkspaceLifecycleManager {
         return;
       }
       if (from !== status && !validStatusTransitions[from]?.includes(status)) {
-        console.warn(`[workspace] Invalid status transition: ${from} → ${status} for workspace ${workspaceId}`);
+        console.error(`[workspace] Blocked invalid status transition: ${from} → ${status} for ${workspaceId}`);
+        return; // Don't corrupt the DB
       }
     }
     this.workspaceStore.update(workspaceId, {

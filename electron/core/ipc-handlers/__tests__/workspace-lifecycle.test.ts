@@ -22,7 +22,7 @@ function createMockWorkspaceStore(initial?: Partial<Workspace>) {
     _data: data,
     _set: (id: string, ws: Partial<Workspace>) => { data[id] = ws; },
     // Unused by lifecycle manager but needed for type compatibility
-    list: vi.fn(() => []),
+    list: vi.fn((): any[] => []),
     create: vi.fn(),
     archive: vi.fn(),
     unarchive: vi.fn(),
@@ -235,6 +235,8 @@ describe('WorkspaceLifecycleManager', () => {
     });
 
     it('returns done when all tasks are done', () => {
+      // Start from running so the idle→done transition is valid
+      store._set(WS_ID, makeWorkspace({ status: 'running' }));
       manager.taskStarted('t1', WS_ID, 'done');
       manager.taskStarted('t2', WS_ID, 'done');
       expect(emissions.some(e => e.channel === 'workspace:status' && (e.payload as any).status === 'done')).toBe(true);
@@ -497,6 +499,100 @@ describe('WorkspaceLifecycleManager', () => {
       // But if it somehow didn't, taskCompleted is a no-op:
       manager.taskCompleted('t1', 'done');
       expect(emissions).toHaveLength(0); // No workspace found for task
+    });
+  });
+
+  describe('invalid status transitions are blocked', () => {
+    it('blocks idle → done (not a valid transition)', () => {
+      store._set(WS_ID, makeWorkspace({ status: 'idle' }));
+      emissions.length = 0;
+
+      manager.setStatus(WS_ID, 'done');
+
+      // Should NOT have emitted or updated the store
+      expect(emissions).toHaveLength(0);
+      expect(store._data[WS_ID]!.status).toBe('idle');
+    });
+
+    it('blocks idle → error', () => {
+      store._set(WS_ID, makeWorkspace({ status: 'idle' }));
+      emissions.length = 0;
+
+      manager.setStatus(WS_ID, 'error');
+
+      expect(emissions).toHaveLength(0);
+      expect(store._data[WS_ID]!.status).toBe('idle');
+    });
+
+    it('allows valid transition idle → running', () => {
+      store._set(WS_ID, makeWorkspace({ status: 'idle' }));
+      emissions.length = 0;
+
+      manager.setStatus(WS_ID, 'running');
+
+      expect(emissions).toHaveLength(1);
+      expect((emissions[0].payload as any).status).toBe('running');
+    });
+  });
+
+  describe('reconcileOnStartup', () => {
+    it('resets stale running status to idle when outcome is in_progress', async () => {
+      store._set(WS_ID, makeWorkspace({ status: 'running', outcome: 'in_progress' }));
+      store.list.mockReturnValue([store._data[WS_ID] as any]);
+
+      await manager.reconcileOnStartup();
+
+      // Phase 1 should have reset status via workspaceStore.update
+      expect(store.update).toHaveBeenCalledWith(WS_ID, expect.objectContaining({ status: 'idle' }));
+    });
+
+    it('resets stale running status to done when outcome is terminal', async () => {
+      store._set(WS_ID, makeWorkspace({ status: 'running', outcome: 'ready_for_pr' }));
+      store.list.mockReturnValue([store._data[WS_ID] as any]);
+
+      await manager.reconcileOnStartup();
+
+      expect(store.update).toHaveBeenCalledWith(WS_ID, expect.objectContaining({ status: 'done' }));
+    });
+
+    it('resets waiting_approval to idle', async () => {
+      store._set(WS_ID, makeWorkspace({ status: 'waiting_approval', outcome: 'in_progress' }));
+      store.list.mockReturnValue([store._data[WS_ID] as any]);
+
+      await manager.reconcileOnStartup();
+
+      expect(store.update).toHaveBeenCalledWith(WS_ID, expect.objectContaining({ status: 'idle' }));
+    });
+
+    it('does not reset idle or done statuses', async () => {
+      store._set(WS_ID, makeWorkspace({ status: 'idle', outcome: 'in_progress' }));
+      store.list.mockReturnValue([store._data[WS_ID] as any]);
+      store.update.mockClear();
+
+      await manager.reconcileOnStartup();
+
+      // Phase 1 should not have called update for idle status
+      const phase1Calls = store.update.mock.calls.filter(
+        ([, updates]: [string, any]) => 'status' in updates && (updates.status === 'idle' || updates.status === 'done')
+      );
+      // The only update calls should be from transitionOutcome (phase 2), not phase 1 resets
+      // Since status is already idle, phase 1 skips it
+      expect(phase1Calls).toHaveLength(0);
+    });
+
+    it('skips archived workspaces in phase 2', async () => {
+      const archivedWs = makeWorkspace({ status: 'idle', archivedAt: Date.now() });
+      store._set(WS_ID, archivedWs);
+      store.list.mockReturnValue([archivedWs as any]);
+
+      await manager.reconcileOnStartup();
+
+      // transitionOutcome should not have been called for archived workspace
+      // (no outcome-related update calls)
+      const outcomeCalls = store.update.mock.calls.filter(
+        ([, updates]: [string, any]) => 'outcome' in updates
+      );
+      expect(outcomeCalls).toHaveLength(0);
     });
   });
 });

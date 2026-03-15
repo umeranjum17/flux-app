@@ -250,6 +250,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   registerWorkspaceHandlers(fullCtx);
 
+  // Self-heal workspace state before renderer connects.
+  // Fire-and-forget but log errors — must not block handler registration.
+  lifecycleManager.reconcileOnStartup().catch(err => {
+    console.error('[lifecycle] Startup reconciliation failed:', err);
+  });
+
   const projectGroupStore = new ProjectGroupStore();
   registerProjectGroupHandlers({ projectGroupStore, workspaceStore });
 
