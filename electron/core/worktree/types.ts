@@ -22,6 +22,8 @@ export interface MergeResult {
   success: boolean;
   conflicts?: string[];
   error?: string;
+  /** True when git stash pop failed after merge — stashed changes still exist and need manual recovery. */
+  stashConflict?: boolean;
 }
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';

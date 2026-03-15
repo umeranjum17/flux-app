@@ -980,8 +980,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             if (options.mode === 'act') {
               if (options.workspaceAction === 'merge') {
                 if (!finalError) {
-                  const actuallyMerged = await isWorkspaceBranchMerged(workspace);
-                  emitWorkspaceOutcome(workspace.id, actuallyMerged ? 'merged' : 'ready_for_pr');
+                  // Use fresh workspace read to avoid stale data from spawn-time capture
+                  const freshMergeWs = workspaceStore.get(workspace.id);
+                  const currentMergeOutcome = freshMergeWs?.outcome ?? 'in_progress';
+                  // Don't downgrade user-promoted outcomes (e.g. ready_to_archive)
+                  const userPromotedMergeOutcomes = new Set(['ready_to_archive']);
+                  if (!userPromotedMergeOutcomes.has(currentMergeOutcome)) {
+                    const actuallyMerged = await isWorkspaceBranchMerged(freshMergeWs ?? workspace);
+                    emitWorkspaceOutcome(workspace.id, actuallyMerged ? 'merged' : 'ready_for_pr');
+                  }
                 }
               } else {
                 if (!finalError) {

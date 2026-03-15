@@ -345,15 +345,17 @@ export async function mergeWorktree(
     }
 
     // Restore stashed changes after successful merge
+    let stashConflict = false;
     if (didStash) {
       try {
         await execFileAsync('git', ['stash', 'pop'], { cwd: parentRepo, timeout: 10000 });
       } catch {
         // Stash pop conflict — leave stash in place, user can resolve later
+        stashConflict = true;
       }
     }
 
-    return { success: true };
+    return { success: true, ...(stashConflict && { stashConflict }) };
   } catch (err: any) {
     // Check for merge conflicts
     try {

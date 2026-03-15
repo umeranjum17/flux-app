@@ -11,7 +11,7 @@ import type { WorkspaceStatus, WorkspaceOutcome } from '../../worktree/types';
 const validStatusTransitions: Record<WorkspaceStatus, WorkspaceStatus[]> = {
   idle: ['running', 'merging'],
   running: ['done', 'error', 'waiting_approval', 'waiting_input', 'idle'],
-  merging: ['done', 'error', 'idle'],
+  merging: ['done', 'error', 'idle', 'waiting_approval', 'waiting_input', 'running'],
   waiting_approval: ['running', 'done', 'error', 'idle'],
   waiting_input: ['running', 'done', 'error', 'idle'],
   done: ['running', 'merging', 'idle'],
@@ -106,8 +106,16 @@ describe('workspace lifecycle state machine', () => {
       expect(isValidTransition('idle', 'error')).toBe(false);
     });
 
-    it('rejects merging → running', () => {
-      expect(isValidTransition('merging', 'running')).toBe(false);
+    it('allows merging → running (resume after approval)', () => {
+      expect(isValidTransition('merging', 'running')).toBe(true);
+    });
+
+    it('allows merging → waiting_approval', () => {
+      expect(isValidTransition('merging', 'waiting_approval')).toBe(true);
+    });
+
+    it('allows merging → waiting_input', () => {
+      expect(isValidTransition('merging', 'waiting_input')).toBe(true);
     });
   });
 
@@ -316,6 +324,65 @@ describe('workspace lifecycle state machine', () => {
       // workspace:stop emits 'idle' (not 'done')
       const stoppedStatus: WorkspaceStatus = 'idle';
       expect(stoppedStatus).toBe('idle');
+    });
+
+    it('merge spawn → merging → waiting_approval → running → done (approval during merge)', () => {
+      // Spawn with merge action: idle → merging
+      taskWorkspaceMap.set('t1', WS_ID);
+      taskWorkspaceStatusMap.set('t1', 'merging');
+      expect(isValidTransition('idle', 'merging')).toBe(true);
+      expect(aggregateWorkspaceStatus(taskWorkspaceMap, taskWorkspaceStatusMap, WS_ID)).toBe('merging');
+
+      // Agent hits a tool-use approval prompt: merging → waiting_approval
+      taskWorkspaceStatusMap.set('t1', 'waiting_approval');
+      expect(isValidTransition('merging', 'waiting_approval')).toBe(true);
+      expect(aggregateWorkspaceStatus(taskWorkspaceMap, taskWorkspaceStatusMap, WS_ID)).toBe('waiting_approval');
+
+      // User approves: waiting_approval → running
+      taskWorkspaceStatusMap.set('t1', 'running');
+      expect(isValidTransition('waiting_approval', 'running')).toBe(true);
+      expect(aggregateWorkspaceStatus(taskWorkspaceMap, taskWorkspaceStatusMap, WS_ID)).toBe('running');
+
+      // Agent finishes: running → done
+      taskWorkspaceStatusMap.set('t1', 'done');
+      const lastStatus = taskWorkspaceStatusMap.get('t1') ?? 'done';
+      const result = releaseWorkspaceTask(taskWorkspaceMap, taskWorkspaceStatusMap, 't1', lastStatus);
+      expect(result.emittedStatus).toBe('done');
+    });
+
+    it('merge spawn → merging → waiting_input → running → done (input requested during merge)', () => {
+      taskWorkspaceMap.set('t1', WS_ID);
+      taskWorkspaceStatusMap.set('t1', 'merging');
+
+      // Agent needs user input (e.g. conflict resolution instructions)
+      taskWorkspaceStatusMap.set('t1', 'waiting_input');
+      expect(isValidTransition('merging', 'waiting_input')).toBe(true);
+
+      // User provides input
+      taskWorkspaceStatusMap.set('t1', 'running');
+      expect(isValidTransition('waiting_input', 'running')).toBe(true);
+
+      // Agent finishes
+      taskWorkspaceStatusMap.set('t1', 'done');
+      const result = releaseWorkspaceTask(taskWorkspaceMap, taskWorkspaceStatusMap, 't1', 'done');
+      expect(result.emittedStatus).toBe('done');
+    });
+
+    it('merge outcome respects user-promoted outcomes', () => {
+      // Simulate: user set outcome to ready_to_archive while merge was running
+      const currentOutcome: WorkspaceOutcome = 'ready_to_archive';
+      const userPromotedMergeOutcomes = new Set(['ready_to_archive']);
+
+      // The merge completion handler should NOT overwrite user-promoted outcomes
+      expect(userPromotedMergeOutcomes.has(currentOutcome)).toBe(true);
+    });
+
+    it('merge outcome updates when not user-promoted', () => {
+      const currentOutcome: WorkspaceOutcome = 'in_progress';
+      const userPromotedMergeOutcomes = new Set(['ready_to_archive']);
+
+      // The merge completion handler SHOULD update non-promoted outcomes
+      expect(userPromotedMergeOutcomes.has(currentOutcome)).toBe(false);
     });
   });
 

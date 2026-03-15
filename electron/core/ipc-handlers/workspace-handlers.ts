@@ -303,6 +303,26 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     }
 
     emitWorkspaceStatus(workspaceId, 'idle');
+
+    // Sync outcome from git state after stop so the UI reflects any work the agent completed
+    const stoppedWs = workspaceStore.get(workspaceId);
+    if (stoppedWs && stoppedWs.outcome !== 'merged' && stoppedWs.outcome !== 'ready_to_archive') {
+      try {
+        const merged = await isWorkspaceBranchMerged(stoppedWs);
+        if (merged) {
+          emitWorkspaceOutcome(workspaceId, 'merged');
+        } else if (stoppedWs.outcome !== 'ready_to_merge') {
+          const { hasPendingChanges } = await workspaceHasPendingChanges(stoppedWs);
+          if (hasPendingChanges && stoppedWs.outcome === 'in_progress') {
+            emitWorkspaceOutcome(workspaceId, 'ready_for_pr');
+          } else if (!hasPendingChanges && stoppedWs.outcome === 'ready_for_pr') {
+            emitWorkspaceOutcome(workspaceId, 'in_progress');
+          }
+        }
+      } catch {
+        // Best-effort — don't block stop
+      }
+    }
   });
 
   ipcMain.handle('workspace:delete', async (_event, { workspaceId }: { workspaceId: string }) => {
@@ -444,6 +464,17 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
     const restored = workspaceStore.unarchive(workspaceId);
     if (!restored) throw new Error('Failed to unarchive workspace');
+
+    // Sync outcome from git state — it may have changed while archived
+    try {
+      const merged = await isWorkspaceBranchMerged(restored);
+      if (merged && restored.outcome !== 'merged') {
+        emitWorkspaceOutcome(workspaceId, 'merged');
+      }
+    } catch {
+      // Best-effort
+    }
+
     return restored;
   });
 

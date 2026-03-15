@@ -189,7 +189,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const validStatusTransitions: Record<WorkspaceStatus, WorkspaceStatus[]> = {
     idle: ['running', 'merging'],
     running: ['done', 'error', 'waiting_approval', 'waiting_input', 'idle'],
-    merging: ['done', 'error', 'idle'],
+    merging: ['done', 'error', 'idle', 'waiting_approval', 'waiting_input', 'running'],
     waiting_approval: ['running', 'done', 'error', 'idle'],
     waiting_input: ['running', 'done', 'error', 'idle'],
     done: ['running', 'merging', 'idle'],
