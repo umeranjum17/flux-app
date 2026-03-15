@@ -457,8 +457,9 @@ export function spawnClaudeSdk(
         continue;
       }
 
-      // Result message — task complete. Break out of the loop since
-      // nothing meaningful follows a result and the stream may hang.
+      // Result message — task complete. Emit done BEFORE breaking so
+      // that the completion signal fires even if the async iterator
+      // cleanup (triggered by break) hangs waiting on the SDK.
       if (msg.type === 'result') {
         const result = msg as any;
         const sessionId = result.session_id;
@@ -477,6 +478,12 @@ export function spawnClaudeSdk(
           outputTokens: result.total_output_tokens,
           durationMs: result.duration_ms,
         });
+        // Signal completion before breaking — the break triggers the
+        // async iterator's return() which may hang on SDK cleanup.
+        if (!finished) {
+          finished = true;
+          emitter.emit('done', { error: null });
+        }
         break;
       }
 
@@ -519,9 +526,12 @@ export function spawnClaudeSdk(
 
       await processQueryMessages(q);
 
-      // Query finished normally
-      finished = true;
-      emitter.emit('done', { error: null });
+      // Query finished normally — emit done if not already sent
+      // (result handler emits done eagerly to avoid iterator cleanup hangs).
+      if (!finished) {
+        finished = true;
+        emitter.emit('done', { error: null });
+      }
     } catch (err: any) {
       // Phase 3: Session lock detection — retry with fallback context
       if (isSessionLockError(err) && options.resumeSessionId && !abortController.signal.aborted) {

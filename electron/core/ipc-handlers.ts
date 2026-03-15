@@ -284,6 +284,32 @@ function buildStoredUserMessage(
 
 const AGENTS_WITH_NATIVE_RESUME = new Set<AgentId>(['claude-code', 'codex']);
 
+/** Extract the full plan text from the most recent plan-like assistant message. */
+function extractFullPlanText(sessionStore: SessionStore, sessionId: string): string {
+  const messages = sessionStore.getMessages(sessionId);
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'assistant' && m.type === 'text' && m.content && m.content.length > 80) {
+      return m.content;
+    }
+  }
+  return '';
+}
+
+/** Write the plan to .context/plan.md for clean handover between plan and act agents. */
+async function writePlanFile(cwd: string, planText: string): Promise<string | null> {
+  if (!planText) return null;
+  try {
+    const contextDir = path.join(cwd, '.context');
+    await fs.promises.mkdir(contextDir, { recursive: true });
+    const planPath = path.join(contextDir, 'plan.md');
+    await fs.promises.writeFile(planPath, planText, 'utf-8');
+    return planPath;
+  } catch {
+    return null;
+  }
+}
+
 /** Extract numbered steps from the plan text in session messages. */
 function extractPlanTodoItems(sessionStore: SessionStore, sessionId: string): { label: string }[] {
   const messages = sessionStore.getMessages(sessionId);
@@ -935,28 +961,31 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Agent switch: inject structured conversation context when switching to a different agent
     const isAgentSwitch = existingSession && existingSession.agentId !== agentId;
     if (isAgentSwitch) {
-      const context = buildConversationContext(session.id, sessionStore);
-      if (context) {
-        const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
-        // If plan→act across agents, frame as plan execution
-        if (existingSession.mode === 'plan' && options.mode === 'act') {
-          const planSteps = extractPlanTodoItems(sessionStore, session.id);
-          const stepTracking = buildStepTrackingPrompt(planSteps);
-          spawnOptions.prompt = [
-            `You are continuing work started by ${fromAgent}. The previous agent created a plan. Execute it.`,
-            '',
-            context,
-            stepTracking,
-            '',
-            `## User instruction`,
-            spawnOptions.prompt,
-          ].join('\n');
+      const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
+      // If plan→act across agents, pass the full plan (not truncated context)
+      if (existingSession.mode === 'plan' && options.mode === 'act') {
+        const planText = extractFullPlanText(sessionStore, session.id);
+        const planPath = await writePlanFile(options.cwd, planText);
+        const planSteps = extractPlanTodoItems(sessionStore, session.id);
+        const stepTracking = buildStepTrackingPrompt(planSteps);
+        spawnOptions.prompt = [
+          `You are implementing a plan created by ${fromAgent}. The approved plan is below.`,
+          planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
+          '',
+          planText ? `## Approved Plan\n\n${planText}` : '',
+          stepTracking,
+          '',
+          `## User instruction`,
+          spawnOptions.prompt,
+        ].filter(Boolean).join('\n');
 
-          if (planSteps.length > 0) {
-            const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
-            sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
-          }
-        } else {
+        if (planSteps.length > 0) {
+          const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
+          sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+        }
+      } else {
+        const context = buildConversationContext(session.id, sessionStore);
+        if (context) {
           spawnOptions.prompt = [
             `You are continuing a conversation previously handled by ${fromAgent}. Here is the context:`,
             '',
@@ -972,35 +1001,57 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Context forwarding for continuations without working native resume
     const hasWorkingResume = AGENTS_WITH_NATIVE_RESUME.has(agentId) && !!spawnOptions.resumeSessionId;
     if (existingSession && !isAgentSwitch && !hasWorkingResume) {
-      const context = buildConversationContext(session.id, sessionStore);
-      if (context) {
-        const isPlanToAct = existingSession.mode === 'plan' && options.mode === 'act';
-        const planSteps = isPlanToAct ? extractPlanTodoItems(sessionStore, session.id) : [];
+      const isPlanToAct = existingSession.mode === 'plan' && options.mode === 'act';
+      if (isPlanToAct) {
+        // Plan→act: pass the full plan text (not truncated context)
+        const planText = extractFullPlanText(sessionStore, session.id);
+        const planPath = await writePlanFile(options.cwd, planText);
+        const planSteps = extractPlanTodoItems(sessionStore, session.id);
         const stepTracking = buildStepTrackingPrompt(planSteps);
         spawnOptions.prompt = [
-          isPlanToAct
-            ? `You are continuing a previous conversation. The previous agent created a plan. Execute it.`
-            : `You are continuing a previous conversation. Here is the context:`,
+          'You are implementing an approved plan. The full plan is below.',
+          planPath ? `The plan is also saved at \`${planPath}\`.` : '',
           '',
-          context,
+          planText ? `## Approved Plan\n\n${planText}` : '',
           stepTracking,
           '',
           `## Current request`,
           spawnOptions.prompt,
-        ].join('\n');
+        ].filter(Boolean).join('\n');
 
-        if (isPlanToAct && planSteps.length > 0) {
+        if (planSteps.length > 0) {
           const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
           sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+        }
+      } else {
+        const context = buildConversationContext(session.id, sessionStore);
+        if (context) {
+          spawnOptions.prompt = [
+            `You are continuing a previous conversation. Here is the context:`,
+            '',
+            context,
+            '',
+            `## Current request`,
+            spawnOptions.prompt,
+          ].join('\n');
         }
       }
     }
 
-    // Plan→act same-agent with native resume
+    // Plan→act same-agent with native resume — session history has the plan,
+    // but also write it to .context/plan.md for reference and resilience.
     if (existingSession && !isAgentSwitch && existingSession.mode === 'plan' && options.mode === 'act' && hasWorkingResume) {
+      const planText = extractFullPlanText(sessionStore, session.id);
+      const planPath = await writePlanFile(options.cwd, planText);
       const planSteps = extractPlanTodoItems(sessionStore, session.id);
       const stepTracking = buildStepTrackingPrompt(planSteps);
-      spawnOptions.prompt = `The user reviewed and approved the plan above. Implement each step now.${stepTracking}\n\n${spawnOptions.prompt}`;
+      spawnOptions.prompt = [
+        'The user reviewed and approved the plan above. Implement each step now.',
+        planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
+        stepTracking,
+        '',
+        spawnOptions.prompt,
+      ].filter(Boolean).join('\n');
 
       if (planSteps.length > 0) {
         const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
