@@ -151,8 +151,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     }
     activeTasks.delete(taskId);
     taskSessions.delete(taskId);
-    taskWorkspaceStatusMap.delete(taskId);
-    taskWorkspaceMap.delete(taskId);
+    // Use releaseWorkspaceTask so the workspace status transitions to 'error'
+    // instead of silently staying stuck as 'running'.
+    releaseWorkspaceTask(taskId, 'error');
     taskRetryCounts.delete(taskId);
     taskStallMonitors.get(taskId)?.dispose();
     taskStallMonitors.delete(taskId);
@@ -1105,7 +1106,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           taskSessions.delete(options.taskId);
           // Use releaseWorkspaceTask as the single cleanup path — it deletes
           // from both maps and emits the correct aggregated status.
-          releaseWorkspaceTask(options.taskId);
+          // Read the last status *before* releasing so error states survive.
+          const lastTaskStatus = taskWorkspaceStatusMap.get(options.taskId) ?? 'done';
+          releaseWorkspaceTask(options.taskId, lastTaskStatus);
           cleaningUp.delete(options.taskId);
           taskRetryCounts.delete(options.taskId);
           taskStallMonitors.get(options.taskId)?.dispose();
