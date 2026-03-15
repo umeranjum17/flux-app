@@ -14,7 +14,7 @@ vi.mock('../spawn-utils', async (importOriginal) => {
 
 class FakeReadable extends EventEmitter {}
 
-class FakeWritable {
+class FakeWritable extends EventEmitter {
   writable = true;
   writes: string[] = [];
 

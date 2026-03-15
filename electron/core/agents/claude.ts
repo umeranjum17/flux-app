@@ -1,16 +1,8 @@
 import { ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
-import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
+import { AgentHandle, SpawnOptions, AgentMessage, PLAN_FORMAT_PREAMBLE } from './types';
+import { createCliAgentHandle, CliAgentContext } from './cli-agent';
+import { safeWriteToChildStdin } from '../process-utils';
 import {
-  spawnAgentProcess,
-  createStartupWatchdog,
-  filterStderrNoise,
-  isMeaningfulMessage,
-  terminateAgentProcess,
-} from './spawn-utils';
-import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
-import {
-  extractMcpToolBaseName as _extractMcpToolBaseName,
   isQuestionToolName as _isQuestionToolName,
   isInteractiveToolName as _isInteractiveToolName,
   normalizeClaudeQuestions as _normalizeClaudeQuestions,
@@ -19,6 +11,13 @@ import {
 import { repairSessionQueue } from './session-repair';
 
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
+
+// Re-export for backward compatibility
+export const isInteractiveToolName = _isInteractiveToolName;
+
+const isQuestionToolName = _isQuestionToolName;
+const normalizeClaudeQuestions = _normalizeClaudeQuestions;
+const mapClaudeEffort = _mapClaudeEffort;
 
 /**
  * Map a Claude CLI exit code + stderr into a user-friendly error message.
@@ -43,129 +42,21 @@ function classifyClaudeExit(code: number | null, stderr: string): string {
   if (code === 143 || code === 15) {
     return 'Process was terminated.';
   }
-  // Show last meaningful stderr lines for unknown errors
   const lines = stderr.split('\n').filter(l => l.trim()).slice(-3);
   const hint = lines.length > 0 ? `: ${lines.join(' | ')}` : '';
   return `Claude exited with code ${code}${hint}`;
 }
 
-// Session queue repair utilities are now in session-repair.ts
-
 /**
  * Spawn a Claude Code CLI subprocess and parse its NDJSON stream output.
  */
 export function spawnClaude(options: SpawnOptions): AgentHandle {
-  // Proactively repair orphaned queue entries before spawning to prevent
-  // "Session ID already in use" errors from lingering after killed processes.
+  // Proactively repair orphaned queue entries before spawning
   if (options.resumeSessionId && !options.sshHost) {
     repairSessionQueue(options.resumeSessionId, options.cwd);
   }
 
-  const args: string[] = [
-    '-p',
-    '--output-format', 'stream-json',
-    '--input-format', 'stream-json',
-    '--permission-prompt-tool', 'stdio',
-    '--no-chrome',
-    '--include-partial-messages',
-    '--verbose',
-  ];
-
-  if (options.model) {
-    args.push('--model', options.model);
-  }
-
-  if (options.dangerouslyBypassPermissions) {
-    args.push('--dangerously-skip-permissions');
-  } else if (options.mode === 'plan') {
-    args.push('--permission-mode', 'plan');
-  }
-
-  if (options.thinking) {
-    args.push('--effort', mapClaudeEffort(options.thinking));
-  }
-
-  if (options.resumeSessionId) {
-    args.push('--session-id', options.resumeSessionId);
-  }
-
-  const proc: ChildProcess = spawnAgentProcess({
-    command: options.binaryPath || 'claude',
-    args,
-    cwd: options.cwd,
-    sshHost: options.sshHost,
-    remoteCwd: options.remoteCwd,
-  });
-  attachChildStdinErrorHandler(proc, 'claude');
-
-  const emitter = new EventEmitter() as AgentHandle;
-  emitter.setMaxListeners(20);
-  emitter.taskId = options.taskId;
-  emitter.agentId = 'claude-code';
-  emitter.pid = proc.pid;
-
-  let stopped = false;
-  let finished = false;
-  let timeoutError: string | undefined;
-  let shutdownPromise: Promise<void> | null = null;
-  let sessionIdConflict = false;
-
-  const requestShutdown = () => {
-    shutdownPromise ??= terminateAgentProcess(proc);
-    return shutdownPromise;
-  };
-
-  const finish = (result: { code: number | null; error?: string }) => {
-    if (finished) return;
-    finished = true;
-    watchdog.clear();
-    emitter.emit('done', result);
-  };
-
-  const watchdog = createStartupWatchdog({
-    timeoutMs: CLAUDE_STARTUP_TIMEOUT_MS,
-    label: 'Claude',
-    sshHost: options.sshHost,
-    remoteCwd: options.remoteCwd,
-    cwd: options.cwd,
-    onTimeout: (error) => {
-      if (finished || stopped) return;
-      timeoutError = error;
-      emitMessage({
-        type: 'error',
-        role: 'system',
-        content: error,
-        timestamp: Date.now(),
-      });
-      void requestShutdown().finally(() => finish({ code: 1, error }));
-    },
-  });
-
-  const emitMessage = (message: AgentMessage) => {
-    if (isMeaningfulMessage(message)) {
-      watchdog.markProgress();
-    }
-    emitter.emit('message', message);
-  };
-
-  if (options.sshHost) {
-    setTimeout(() => {
-      emitMessage({
-        type: 'status',
-        role: 'system',
-        statusKind: 'spawn',
-        content: `[SSH] Spawning claude on ${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`,
-        timestamp: Date.now(),
-      } satisfies AgentMessage);
-    }, 0);
-  }
-
-  proc.stdout?.on('data', () => watchdog.resetProgress());
-
-  let buffer = '';
-  const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
-
-  // Streaming tool input accumulation (Phase 1.4)
+  // --- Claude-specific streaming & subagent tracking state ---
   const toolInputBuffers = new Map<number, { name: string; id: string; json: string }>();
   const emittedToolCallIds = new Set<string>();
   const pendingAgentNamesByParentTool = new Map<string, string>();
@@ -173,12 +64,12 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
   const startedSubagentIds = new Set<string>();
   const finishedSubagentIds = new Set<string>();
   const subagentNames = new Map<string, string>();
+  let sessionIdConflict = false;
 
-  const emitSubagentLifecycle = (opts: {
-    subagentId: string;
-    subagentName: string;
-    status: 'spawning' | 'done' | 'error';
-  }) => {
+  const emitSubagentLifecycle = (
+    emitMessage: (msg: AgentMessage) => void,
+    opts: { subagentId: string; subagentName: string; status: 'spawning' | 'done' | 'error' },
+  ) => {
     if (opts.status === 'spawning') {
       if (startedSubagentIds.has(opts.subagentId)) return;
       startedSubagentIds.add(opts.subagentId);
@@ -223,7 +114,14 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     return resolved;
   };
 
-  const emitWrappedSubagentProgress = (event: Record<string, any>): boolean => {
+  /**
+   * Handle wrapped subagent progress events from Claude's Agent tool.
+   * Returns true if the event was a subagent progress event (handled or not).
+   */
+  const handleSubagentProgress = (
+    event: Record<string, any>,
+    emitMessage: (msg: AgentMessage) => void,
+  ): boolean => {
     const progressPayload = unwrapClaudeAgentProgress(event);
     if (!progressPayload) return false;
 
@@ -254,7 +152,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       promptHint: progressPayload.promptHint,
     });
 
-    emitSubagentLifecycle({ subagentId, subagentName, status: 'spawning' });
+    emitSubagentLifecycle(emitMessage, { subagentId, subagentName, status: 'spawning' });
 
     if (progressPayload.messageEvent) {
       const mapped = mapClaudeEvent(progressPayload.messageEvent);
@@ -275,7 +173,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     }
 
     if (progressPayload.isTerminal) {
-      emitSubagentLifecycle({
+      emitSubagentLifecycle(emitMessage, {
         subagentId,
         subagentName,
         status: progressPayload.hasError ? 'error' : 'done',
@@ -285,13 +183,17 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     return true;
   };
 
-  const emitMapped = (event: Record<string, any>) => {
-    // Wrapped subagent progress stream from Claude's Agent tool
-    if (emitWrappedSubagentProgress(event)) {
+  /**
+   * Full Claude event processing — handles subagent progress, streaming
+   * tool input accumulation, deduplication, and maps through mapClaudeEvent.
+   */
+  const processClaudeEvent = (event: Record<string, any>, ctx: CliAgentContext): void => {
+    // 1. Wrapped subagent progress stream from Claude's Agent tool
+    if (handleSubagentProgress(event, ctx.emitMessage)) {
       return;
     }
 
-    // Handle content_block_start for tool_use — begin streaming accumulation
+    // 2. Handle content_block_start for tool_use — begin streaming accumulation
     if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
       const block = event.content_block;
       if (isQuestionToolName(block.name)) {
@@ -299,7 +201,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
         const result = mapClaudeEvent(event);
         if (result) {
           const msgs = Array.isArray(result) ? result : [result];
-          for (const m of msgs) emitMessage(m);
+          for (const m of msgs) ctx.emitMessage(m);
         }
       } else {
         // Start accumulating tool input
@@ -312,7 +214,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       return;
     }
 
-    // Handle input_json_delta — accumulate streaming tool input fragments
+    // 3. Handle input_json_delta — accumulate streaming tool input fragments
     if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
       const idx = event.index ?? 0;
       const buf = toolInputBuffers.get(idx);
@@ -322,7 +224,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       return;
     }
 
-    // Handle content_block_stop — emit complete tool_call with accumulated input
+    // 4. Handle content_block_stop — emit complete tool_call with accumulated input
     if (event.type === 'content_block_stop') {
       const idx = event.index ?? 0;
       const buf = toolInputBuffers.get(idx);
@@ -338,7 +240,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
         if (isAgentToolName(buf.name)) {
           pendingAgentNamesByParentTool.set(buf.id, extractAgentSubagentName(parsedInput));
         }
-        emitMessage({
+        ctx.emitMessage({
           type: 'tool_call',
           role: 'assistant',
           content: `Using tool: ${buf.name}`,
@@ -352,6 +254,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       return;
     }
 
+    // 5. Default mapping with post-processing (dedup + subagent lifecycle)
     const result = mapClaudeEvent(event);
     if (result) {
       const msgs = Array.isArray(result) ? result : [result];
@@ -367,226 +270,180 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
           }
         }
         if (m.type === 'tool_result' && m.toolCallId) {
-          const subagentId = parentToolToSubagent.get(m.toolCallId);
-          if (subagentId) {
-            const subagentName = subagentNames.get(subagentId) ?? `Subagent ${subagentId.slice(0, 8)}`;
-            emitSubagentLifecycle({
-              subagentId,
-              subagentName,
+          const sid = parentToolToSubagent.get(m.toolCallId);
+          if (sid) {
+            const sname = subagentNames.get(sid) ?? `Subagent ${sid.slice(0, 8)}`;
+            emitSubagentLifecycle(ctx.emitMessage, {
+              subagentId: sid,
+              subagentName: sname,
               status: m.isError ? 'error' : 'done',
             });
             parentToolToSubagent.delete(m.toolCallId);
           }
         }
-        emitMessage(m);
+        ctx.emitMessage(m);
       }
     }
   };
 
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    buffer += chunk.toString('utf-8');
-    if (buffer.length > MAX_BUFFER) {
-      buffer = '';
-      emitMessage({
-        type: 'error',
-        role: 'system',
-        content: 'Stream buffer overflow - cleared',
-        timestamp: Date.now(),
-      });
-      return;
-    }
+  return createCliAgentHandle(options, {
+    agentId: 'claude-code',
+    label: 'Claude',
+    defaultCommand: 'claude',
+    startupTimeoutMs: CLAUDE_STARTUP_TIMEOUT_MS,
 
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+    buildArgs(opts) {
+      const args: string[] = [
+        '-p',
+        '--output-format', 'stream-json',
+        '--input-format', 'stream-json',
+        '--permission-prompt-tool', 'stdio',
+        '--no-chrome',
+        '--include-partial-messages',
+        '--verbose',
+      ];
 
-    for (const line of lines) {
-      const event = parseClaudeEvent(line);
-      if (!event) continue;
-
-      if (event.session_id || event.sessionId) {
-        emitter.emit('session-meta', { id: event.session_id ?? event.sessionId });
+      if (opts.model) {
+        args.push('--model', opts.model);
       }
 
-      emitMapped(event);
-    }
-  });
-
-  let lastStderrError = '';
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString('utf-8').trim();
-    if (!text) return;
-
-    // Detect "Session ID already in use" — will retry in close handler
-    if (text.includes('already in use') && options.resumeSessionId && !sessionIdConflict) {
-      sessionIdConflict = true;
-      return;
-    }
-
-    const actionable = filterStderrNoise(text);
-    if (!actionable) return;
-
-    lastStderrError = actionable;
-    emitMessage({
-      type: 'error',
-      role: 'system',
-      content: actionable,
-      timestamp: Date.now(),
-    });
-  });
-
-  proc.on('close', (code: number | null) => {
-    // Retry transparently when session lock collision is detected
-    if (sessionIdConflict && !stopped) {
-      watchdog.clear();
-
-      // Clean up internal state from the failed process to prevent leaks.
-      // The old stdout/stderr listeners are already detached since the process
-      // closed, but clear accumulated buffers to free memory.
-      buffer = '';
-      toolInputBuffers.clear();
-      emittedToolCallIds.clear();
-      pendingAgentNamesByParentTool.clear();
-      parentToolToSubagent.clear();
-
-      // Attempt a more aggressive repair now that we know the session is locked,
-      // then retry WITH the session ID first before giving up on native resume.
-      if (options.resumeSessionId) {
-        repairSessionQueue(options.resumeSessionId, options.cwd);
+      if (opts.dangerouslyBypassPermissions) {
+        args.push('--dangerously-skip-permissions');
+      } else if (opts.mode === 'plan') {
+        args.push('--permission-mode', 'plan');
       }
 
-      // Build the retry options: inject conversation context if native resume
-      // must be dropped so the agent still knows what happened before.
-      const retryOptions = { ...options };
-      if (options.fallbackContext) {
-        retryOptions.resumeSessionId = undefined;
-        retryOptions.prompt = [
-          'You are continuing a previous conversation. Here is the context:',
-          '',
-          options.fallbackContext,
-          '',
-          '## Current request',
-          options.prompt,
-        ].join('\n');
-        emitMessage({
-          type: 'status',
-          role: 'system',
-          statusKind: 'progress',
-          content: 'Session lock detected — continuing with conversation context...',
-          timestamp: Date.now(),
+      if (opts.thinking) {
+        args.push('--effort', mapClaudeEffort(opts.thinking));
+      }
+
+      if (opts.resumeSessionId) {
+        args.push('--session-id', opts.resumeSessionId);
+      }
+
+      return args;
+    },
+
+    mapEvent: mapClaudeEvent,
+    classifyExit: classifyClaudeExit,
+
+    controls: {
+      approve(proc, requestId) {
+        writeClaudeControlResponse(proc, requestId, { behavior: 'allow' });
+      },
+      deny(proc, requestId) {
+        writeClaudeControlResponse(proc, requestId, {
+          behavior: 'deny',
+          message: 'User denied permission',
         });
-      } else {
-        retryOptions.resumeSessionId = undefined;
-        emitMessage({
-          type: 'status',
-          role: 'system',
-          statusKind: 'progress',
-          content: 'Session lock detected — retrying with fresh session...',
-          timestamp: Date.now(),
-        });
-      }
+      },
+      steer(proc, prompt, images) {
+        writeClaudeUserMessage(proc, prompt, images);
+      },
+      answerQuestion(proc, requestId, response) {
+        writeClaudeQuestionResponse(proc, requestId, response);
+      },
+    },
 
-      const retryHandle = spawnClaude(retryOptions);
-      // Forward all events from retry to the original emitter
-      retryHandle.on('message', (msg: AgentMessage) => emitter.emit('message', msg));
-      retryHandle.on('done', (result: { code: number | null; error?: string }) => emitter.emit('done', result));
-      retryHandle.on('session-meta', (meta: unknown) => emitter.emit('session-meta', meta));
-      // Rewire control methods to the retry handle
-      emitter.stop = () => retryHandle.stop();
-      emitter.approve = (id: string) => retryHandle.approve(id);
-      emitter.deny = (id: string) => retryHandle.deny(id);
-      emitter.steer = (p: string, i?: string[]) => retryHandle.steer(p, i);
-      emitter.answerQuestion = (id: string, r: string) => retryHandle.answerQuestion(id, r);
-      emitter.isAlive = () => retryHandle.isAlive();
-      return;
-    }
+    hooks: {
+      extractSessionMeta(event) {
+        if (event.session_id || event.sessionId) {
+          return { id: event.session_id ?? event.sessionId };
+        }
+        return null;
+      },
 
-    if (buffer.trim()) {
-      const event = parseClaudeEvent(buffer);
-      if (event) {
-        emitMapped(event);
-      }
-    }
+      // Claude's event processing is complex (subagent tracking, streaming
+      // accumulation, dedup) — handle everything here, bypass default mapEvent.
+      onEvent(event, ctx) {
+        processClaudeEvent(event, ctx);
+        return true;
+      },
 
-    const exitError = timeoutError ?? (stopped || code === 0 || code === null
-      ? undefined
-      : classifyClaudeExit(code, lastStderrError));
+      onStderr(text, _ctx) {
+        // Detect "Session ID already in use" — will retry in onBeforeFinish
+        if (text.includes('already in use') && options.resumeSessionId && !sessionIdConflict) {
+          sessionIdConflict = true;
+          return true; // suppress
+        }
+        return false; // default handling
+      },
 
-    finish({
-      code,
-      ...(exitError ? { error: exitError } : {}),
-    });
+      onBeforeFinish(_code, ctx) {
+        // Retry transparently when session lock collision is detected
+        if (sessionIdConflict && !ctx.isStopped()) {
+          // Clean up internal state from the failed process
+          toolInputBuffers.clear();
+          emittedToolCallIds.clear();
+          pendingAgentNamesByParentTool.clear();
+          parentToolToSubagent.clear();
+
+          // Attempt more aggressive repair now that we know the session is locked
+          if (options.resumeSessionId) {
+            repairSessionQueue(options.resumeSessionId, options.cwd);
+          }
+
+          // Build retry options: inject conversation context if native resume
+          // must be dropped so the agent still knows what happened before.
+          const retryOptions = { ...options };
+          if (options.fallbackContext) {
+            retryOptions.resumeSessionId = undefined;
+            retryOptions.prompt = [
+              'You are continuing a previous conversation. Here is the context:',
+              '',
+              options.fallbackContext,
+              '',
+              '## Current request',
+              options.prompt,
+            ].join('\n');
+            ctx.emitMessage({
+              type: 'status',
+              role: 'system',
+              statusKind: 'progress',
+              content: 'Session lock detected — continuing with conversation context...',
+              timestamp: Date.now(),
+            });
+          } else {
+            retryOptions.resumeSessionId = undefined;
+            ctx.emitMessage({
+              type: 'status',
+              role: 'system',
+              statusKind: 'progress',
+              content: 'Session lock detected — retrying with fresh session...',
+              timestamp: Date.now(),
+            });
+          }
+
+          const retryHandle = spawnClaude(retryOptions);
+          const emitter = ctx.emitter;
+          // Forward all events from retry to the original emitter
+          retryHandle.on('message', (msg: AgentMessage) => emitter.emit('message', msg));
+          retryHandle.on('done', (result: { code: number | null; error?: string }) => emitter.emit('done', result));
+          retryHandle.on('session-meta', (meta: unknown) => emitter.emit('session-meta', meta));
+          // Rewire control methods to the retry handle
+          emitter.stop = () => retryHandle.stop();
+          emitter.approve = (id: string) => retryHandle.approve(id);
+          emitter.deny = (id: string) => retryHandle.deny(id);
+          emitter.steer = (p: string, i?: string[]) => retryHandle.steer(p, i);
+          emitter.answerQuestion = (id: string, r: string) => retryHandle.answerQuestion(id, r);
+          emitter.isAlive = () => retryHandle.isAlive();
+          return true; // prevent default finish
+        }
+
+        return false; // proceed with default finish
+      },
+
+      sendInitialPrompt(proc) {
+        const promptText = options.mode === 'plan'
+          ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
+          : options.prompt;
+        writeClaudeUserMessage(proc, promptText, options.images);
+      },
+    },
   });
-
-  proc.on('error', (err: Error) => {
-    try { proc.kill(); } catch {}
-    const info = classifySpawnError(err, { command: 'claude', sshHost: options.sshHost });
-    const content = `Failed to start Claude: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
-    emitMessage({
-      type: 'error',
-      role: 'system',
-      content,
-      timestamp: Date.now(),
-    });
-    finish({ code: 1, error: content });
-  });
-
-  let exitPromise: Promise<void> | null = null;
-  emitter.stop = () => {
-    if (exitPromise) return exitPromise;
-    stopped = true;
-    watchdog.clear();
-    if (finished) {
-      exitPromise = Promise.resolve();
-      return exitPromise;
-    }
-    exitPromise = requestShutdown();
-    return exitPromise;
-  };
-
-  emitter.approve = (requestId: string) => {
-    writeClaudeControlResponse(proc, requestId, { behavior: 'allow' });
-  };
-
-  emitter.deny = (requestId: string) => {
-    writeClaudeControlResponse(proc, requestId, {
-      behavior: 'deny',
-      message: 'User denied permission',
-    });
-  };
-
-  emitter.steer = (prompt: string, images?: string[]) => {
-    writeClaudeUserMessage(proc, prompt, images);
-  };
-
-  emitter.answerQuestion = (requestId: string, response: string) => {
-    writeClaudeQuestionResponse(proc, requestId, response);
-  };
-
-  emitter.isAlive = () => !finished && !stopped && proc.stdin?.writable === true;
-
-  const promptText = options.mode === 'plan'
-    ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
-    : options.prompt;
-  writeClaudeUserMessage(proc, promptText, options.images);
-
-  return emitter;
 }
 
-function parseClaudeEvent(line: string): Record<string, any> | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, any>;
-    }
-  } catch {
-    // Ignore malformed lines.
-  }
-
-  return null;
-}
+// ---- Stdin protocol helpers ----
 
 function writeClaudeUserMessage(proc: ChildProcess, prompt: string, images?: string[]): void {
   if (!proc.stdin?.writable) return;
@@ -662,11 +519,10 @@ function toClaudeImageBlock(image: string): Record<string, unknown> | null {
   };
 }
 
-const mapClaudeEffort = _mapClaudeEffort;
+// ---- Event mapping ----
 
 /**
  * Normalize tool result content from Claude's structured format to a plain string.
- * Claude tool results may contain `[{type: "text", text: "..."}]` arrays.
  */
 function normalizeToolResultContent(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -867,7 +723,7 @@ function mapClaudeEvent(event: Record<string, any>): AgentMessage | AgentMessage
       };
     }
 
-    // input_json_delta is handled by spawnClaude's streaming accumulation, not here
+    // input_json_delta is handled by streaming accumulation in onEvent, not here
   }
 
   if (event.type === 'tool_use' || (event.type === 'content_block_start' && event.content_block?.type === 'tool_use')) {
@@ -875,7 +731,7 @@ function mapClaudeEvent(event: Record<string, any>): AgentMessage | AgentMessage
     if (isQuestionToolName(tool.name)) {
       return mapClaudeQuestionRequest(tool, now);
     }
-    // content_block_start for tool_use is handled by streaming accumulation in spawnClaude
+    // content_block_start for tool_use is handled by streaming accumulation in onEvent
     // Only emit here for non-streaming top-level tool_use events
     if (event.type === 'tool_use') {
       return {
@@ -966,12 +822,6 @@ function mapClaudeEvent(event: Record<string, any>): AgentMessage | AgentMessage
   return null;
 }
 
-// Re-export shared utilities for backward compatibility
-const extractMcpToolBaseName = _extractMcpToolBaseName;
-const isQuestionToolName = _isQuestionToolName;
-const normalizeClaudeQuestions = _normalizeClaudeQuestions;
-export const isInteractiveToolName = _isInteractiveToolName;
-
 function mapClaudeQuestionRequest(tool: Record<string, any>, timestamp: number): AgentMessage | null {
   const input = tool.input && typeof tool.input === 'object' ? tool.input : {};
   const questions = normalizeClaudeQuestions(input);
@@ -996,8 +846,6 @@ function mapClaudeQuestionRequest(tool: Record<string, any>, timestamp: number):
     placeholder: firstQuestion.placeholder,
   };
 }
-
-// normalizeClaudeQuestions is now in claude-utils.ts
 
 function mapClaudeSystemEvent(event: Record<string, any>, timestamp: number): AgentMessage | null {
   if (event.subtype === 'hook_started') {

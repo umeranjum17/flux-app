@@ -1,17 +1,9 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
-import {
-  spawnAgentProcess,
-  createStartupWatchdog,
-  filterStderrNoise,
-  isMeaningfulMessage,
-  terminateAgentProcess,
-} from './spawn-utils';
-import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
+import { createCliAgentHandle } from './cli-agent';
+import { safeWriteToChildStdin } from '../process-utils';
 import {
   extractCodexSessionMeta,
   hasCodexProfile,
@@ -48,7 +40,6 @@ function classifyCodexExit(code: number | null, stderr: string): string {
   if (code === 143 || code === 15) {
     return 'Process was terminated.';
   }
-  // Show last meaningful stderr lines for unknown errors
   const lines = stderr.split('\n').filter(l => l.trim()).slice(-3);
   const hint = lines.length > 0 ? `: ${lines.join(' | ')}` : '';
   return `Codex exited with code ${code}${hint}`;
@@ -61,41 +52,15 @@ export function spawnCodex(
   options: SpawnOptions,
   mcpServers?: Record<string, McpServerConfig>,
 ): AgentHandle {
-  const isResume = !!options.resumeSessionId;
-  const args: string[] = isResume ? ['exec', 'resume'] : ['exec'];
   let imageDir: string | null = null;
   let imageWarning: string | null = null;
-  const inferredProfile = inferCodexProfile(options);
-  const reasoningEffort = mapCodexReasoningEffort(options.thinking);
+  let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
 
-  if (options.mode === 'act') {
-    if (options.dangerouslyBypassPermissions) {
-      args.push('--dangerously-bypass-approvals-and-sandbox');
-    } else {
-      args.push('--full-auto');
-    }
-  } else if (options.mode === 'plan' && !isResume) {
-    // `codex exec resume` does not accept `--sandbox` on recent CLIs.
-    // Keep plan-mode read-only sandboxing for fresh sessions.
-    args.push('--sandbox', 'read-only');
-  }
+  // Capture first 2KB of raw stderr for diagnostics on timeout
+  let stderrCapture = '';
+  const STDERR_CAPTURE_LIMIT = 2048;
 
-  args.push('--skip-git-repo-check');
-
-  if (!isResume && !options.sshHost && hasCodexProfile(inferredProfile)) {
-    args.push('--profile', inferredProfile);
-  }
-
-  if (options.model) {
-    args.push('--model', options.model);
-  }
-
-  if (reasoningEffort) {
-    args.push('-c', `model_reasoning_effort="${reasoningEffort}"`);
-  }
-
-  addCodexMcpConfigArgs(args, mcpServers);
-
+  // Prepare images
   if (options.images?.length) {
     if (options.sshHost) {
       imageWarning = 'Codex image attachments are not supported over SSH yet. They were skipped.';
@@ -103,47 +68,13 @@ export function spawnCodex(
       try {
         const persisted = persistImages(options.images);
         imageDir = persisted.directory;
-        for (const imagePath of persisted.paths) {
-          args.push('--image', imagePath);
-        }
+        // Store paths for use in buildArgs — we attach them via closure
+        (options as any)._codexImagePaths = persisted.paths;
       } catch (err: any) {
         imageWarning = `Codex image attachments could not be prepared: ${err.message ?? String(err)}`;
       }
     }
   }
-
-  args.push('--json');
-  if (isResume) {
-    args.push(options.resumeSessionId!);
-  }
-
-  // End option parsing before the prompt. This prevents Codex's variadic
-  // `--image <FILE>...` flag from greedily consuming the prompt argument.
-  const prompt = options.mode === 'plan'
-    ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
-    : options.prompt;
-  args.push('--', prompt);
-
-  const proc: ChildProcess = spawnAgentProcess({
-    command: options.binaryPath || 'codex',
-    args,
-    cwd: options.cwd,
-    sshHost: options.sshHost,
-    remoteCwd: options.remoteCwd,
-  });
-  attachChildStdinErrorHandler(proc, 'codex');
-
-  const emitter = new EventEmitter() as AgentHandle;
-  emitter.setMaxListeners(20);
-  emitter.taskId = options.taskId;
-  emitter.agentId = 'codex';
-  emitter.pid = proc.pid;
-  let stopped = false;
-  let finished = false;
-  let heartbeatInterval: ReturnType<typeof setInterval>;
-  let timeoutError: string | undefined;
-  let shutdownPromise: Promise<void> | null = null;
-  let lastStderrError = '';
 
   const cleanupPersistedImages = (() => {
     let cleaned = false;
@@ -154,250 +85,158 @@ export function spawnCodex(
     };
   })();
 
-  const requestShutdown = () => {
-    shutdownPromise ??= terminateAgentProcess(proc);
-    return shutdownPromise;
-  };
+  const isResume = !!options.resumeSessionId;
+  const inferredProfile = inferCodexProfile(options);
+  const reasoningEffort = mapCodexReasoningEffort(options.thinking);
 
-  const finish = (result: { code: number | null; error?: string }) => {
-    if (finished) return;
-    finished = true;
-    clearInterval(heartbeatInterval);
-    watchdog.clear();
-    cleanupPersistedImages();
-    emitter.emit('done', result);
-  };
-
-  // Capture first 2KB of raw stderr for diagnostics on timeout
-  let stderrCapture = '';
-  const STDERR_CAPTURE_LIMIT = 2048;
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    if (stderrCapture.length < STDERR_CAPTURE_LIMIT) {
-      stderrCapture += chunk.toString('utf-8').slice(0, STDERR_CAPTURE_LIMIT - stderrCapture.length);
-    }
-  });
-
-  const watchdog = createStartupWatchdog({
-    timeoutMs: CODEX_STARTUP_TIMEOUT_MS,
+  return createCliAgentHandle(options, {
+    agentId: 'codex',
     label: 'Codex',
-    sshHost: options.sshHost,
-    remoteCwd: options.remoteCwd,
-    cwd: options.cwd,
-    onTimeout: (error) => {
-      if (finished || stopped) return;
-      clearInterval(heartbeatInterval);
-      const detail = stderrCapture.trim()
-        ? `${error}\n\nStderr output:\n${stderrCapture.trim()}`
-        : error;
-      timeoutError = detail;
-      emitMessage({
-        type: 'error',
-        role: 'system',
-        content: detail,
-        timestamp: Date.now(),
-      });
-      void requestShutdown().finally(() => finish({ code: 1, error: detail }));
+    defaultCommand: 'codex',
+    startupTimeoutMs: CODEX_STARTUP_TIMEOUT_MS,
+
+    buildArgs(opts) {
+      const args: string[] = isResume ? ['exec', 'resume'] : ['exec'];
+
+      if (opts.mode === 'act') {
+        if (opts.dangerouslyBypassPermissions) {
+          args.push('--dangerously-bypass-approvals-and-sandbox');
+        } else {
+          args.push('--full-auto');
+        }
+      } else if (opts.mode === 'plan' && !isResume) {
+        args.push('--sandbox', 'read-only');
+      }
+
+      args.push('--skip-git-repo-check');
+
+      if (!isResume && !opts.sshHost && hasCodexProfile(inferredProfile)) {
+        args.push('--profile', inferredProfile);
+      }
+
+      if (opts.model) {
+        args.push('--model', opts.model);
+      }
+
+      if (reasoningEffort) {
+        args.push('-c', `model_reasoning_effort="${reasoningEffort}"`);
+      }
+
+      addCodexMcpConfigArgs(args, mcpServers);
+
+      const imagePaths = (opts as any)._codexImagePaths as string[] | undefined;
+      if (imagePaths) {
+        for (const imagePath of imagePaths) {
+          args.push('--image', imagePath);
+        }
+      }
+
+      args.push('--json');
+      if (isResume) {
+        args.push(opts.resumeSessionId!);
+      }
+
+      const prompt = opts.mode === 'plan'
+        ? `${PLAN_FORMAT_PREAMBLE}\n\n${opts.prompt}`
+        : opts.prompt;
+      args.push('--', prompt);
+
+      return args;
+    },
+
+    mapEvent: mapCodexEvent,
+    classifyExit: classifyCodexExit,
+
+    controls: {
+      // Codex in --full-auto mode handles permissions automatically
+      steer(proc, prompt) {
+        safeWriteToChildStdin(proc, prompt + '\n', 'codex');
+      },
+      answerQuestion(proc, _requestId, response) {
+        safeWriteToChildStdin(proc, response + '\n', 'codex');
+      },
+    },
+
+    hooks: {
+      extractSessionMeta(event) {
+        const sessionMeta = extractCodexSessionMeta(event);
+        if (sessionMeta) return sessionMeta;
+        if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
+          return {
+            id: event.thread_id,
+            cwd: options.cwd,
+            createdAt: Date.now(),
+          };
+        }
+        return null;
+      },
+
+      onAfterSpawn(proc, ctx) {
+        // Capture early stderr for timeout diagnostics
+        proc.stderr?.on('data', (chunk: Buffer) => {
+          if (stderrCapture.length < STDERR_CAPTURE_LIMIT) {
+            stderrCapture += chunk.toString('utf-8').slice(0, STDERR_CAPTURE_LIMIT - stderrCapture.length);
+          }
+        });
+
+        // Emit image warning
+        if (imageWarning) {
+          setTimeout(() => {
+            ctx.emitMessage({
+              type: 'text',
+              role: 'system',
+              content: imageWarning!,
+              timestamp: Date.now(),
+            } satisfies AgentMessage);
+          }, 0);
+        }
+
+        // Startup heartbeats every 10s to prevent UI showing "Stalled"
+        heartbeatInterval = setInterval(() => {
+          if (ctx.isFinished() || ctx.isStopped()) {
+            clearInterval(heartbeatInterval);
+            return;
+          }
+          ctx.emitter.emit('message', {
+            type: 'status',
+            role: 'system',
+            statusKind: 'progress',
+            content: 'Starting Codex…',
+            timestamp: Date.now(),
+          } satisfies AgentMessage);
+        }, 10_000);
+      },
+
+      onTimeout(error, ctx) {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        const detail = stderrCapture.trim()
+          ? `${error}\n\nStderr output:\n${stderrCapture.trim()}`
+          : error;
+        ctx.emitMessage({
+          type: 'error',
+          role: 'system',
+          content: detail,
+          timestamp: Date.now(),
+        });
+        void ctx.requestShutdown().finally(() => ctx.finish({ code: 1, error: detail }));
+        return true; // suppress default timeout handling
+      },
+
+      onBeforeFinish(_code, _ctx) {
+        cleanupPersistedImages();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        return false; // proceed with default finish
+      },
+
+      onCleanup() {
+        cleanupPersistedImages();
+      },
+
+      onStop() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+      },
     },
   });
-
-  // Emit startup heartbeats every 10s to prevent UI showing "Stalled"
-  heartbeatInterval = setInterval(() => {
-    if (finished || stopped) {
-      clearInterval(heartbeatInterval);
-      return;
-    }
-    emitter.emit('message', {
-      type: 'status',
-      role: 'system',
-      statusKind: 'progress',
-      content: 'Starting Codex…',
-      timestamp: Date.now(),
-    } satisfies AgentMessage);
-  }, 10_000);
-
-  const emitMessage = (message: AgentMessage) => {
-    if (isMeaningfulMessage(message)) {
-      clearInterval(heartbeatInterval);
-      watchdog.markProgress();
-    }
-    emitter.emit('message', message);
-  };
-
-  if (options.sshHost) {
-    setTimeout(() => {
-      emitMessage({
-        type: 'status',
-        role: 'system',
-        statusKind: 'spawn',
-        content: `[SSH] Spawning codex on ${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`,
-        timestamp: Date.now(),
-      } satisfies AgentMessage);
-    }, 0);
-  }
-
-  if (imageWarning) {
-    setTimeout(() => {
-      emitMessage({
-        type: 'text',
-        role: 'system',
-        content: imageWarning!,
-        timestamp: Date.now(),
-      } satisfies AgentMessage);
-    }, 0);
-  }
-
-  // Reset watchdog on stdout (actual JSONL output), but NOT on stderr
-  proc.stdout?.on('data', () => watchdog.resetProgress());
-
-  const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
-  let buffer = '';
-
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    buffer += chunk.toString('utf-8');
-    if (buffer.length > MAX_BUFFER) {
-      buffer = '';
-      emitMessage({
-        type: 'error',
-        role: 'system',
-        content: 'Stream buffer overflow - cleared',
-        timestamp: Date.now(),
-      });
-      return;
-    }
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      let event: any;
-      try {
-        event = JSON.parse(trimmed);
-      } catch {
-        // Plain text output — emit as text
-        emitMessage({
-          type: 'text',
-          role: 'assistant',
-          content: trimmed,
-          timestamp: Date.now(),
-        } satisfies AgentMessage);
-        continue;
-      }
-
-      const sessionMeta = extractCodexSessionMeta(event);
-      if (sessionMeta) {
-        emitter.emit('session-meta', sessionMeta);
-      } else if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
-        emitter.emit('session-meta', {
-          id: event.thread_id,
-          cwd: options.cwd,
-          createdAt: Date.now(),
-        });
-      }
-
-      const message = mapCodexEvent(event);
-      if (message) {
-        emitMessage(message);
-      }
-    }
-  });
-
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString('utf-8').trim();
-    if (!text) return;
-
-    const actionable = filterStderrNoise(text);
-    if (!actionable) return;
-    lastStderrError = actionable;
-
-    const msg: AgentMessage = {
-      type: 'error',
-      role: 'system',
-      content: actionable,
-      timestamp: Date.now(),
-    };
-    emitMessage(msg);
-  });
-
-  proc.on('close', (code: number | null) => {
-    cleanupPersistedImages();
-    if (buffer.trim()) {
-      try {
-        const event = JSON.parse(buffer.trim());
-        const sessionMeta = extractCodexSessionMeta(event);
-        if (sessionMeta) {
-          emitter.emit('session-meta', sessionMeta);
-        }
-        const message = mapCodexEvent(event);
-        if (message) {
-          emitMessage(message);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    const exitError = timeoutError ?? (stopped || code === 0 || code === null
-      ? undefined
-      : classifyCodexExit(code, lastStderrError));
-
-    finish({
-      code,
-      ...(exitError ? { error: exitError } : {}),
-    });
-  });
-
-  proc.on('error', (err: Error) => {
-    cleanupPersistedImages();
-    try { proc.kill(); } catch {}
-    const info = classifySpawnError(err, { command: 'codex', sshHost: options.sshHost });
-    const content = `Failed to start Codex: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
-    emitMessage({
-      type: 'error',
-      role: 'system',
-      content,
-      timestamp: Date.now(),
-    });
-    finish({ code: 1, error: content });
-  });
-
-  let exitPromise: Promise<void> | null = null;
-  emitter.stop = () => {
-    if (exitPromise) return exitPromise;
-    clearInterval(heartbeatInterval);
-    watchdog.clear();
-    stopped = true;
-    if (finished) {
-      cleanupPersistedImages();
-      exitPromise = Promise.resolve();
-      return exitPromise;
-    }
-    exitPromise = requestShutdown().finally(() => {
-      cleanupPersistedImages();
-    });
-    return exitPromise;
-  };
-
-  emitter.approve = (_requestId: string) => {
-    // Codex in --full-auto mode handles permissions automatically.
-    // In sandbox mode, no approvals are needed.
-  };
-
-  emitter.deny = (_requestId: string) => {
-    // Not applicable for Codex in auto/sandbox modes
-  };
-
-  emitter.steer = (prompt: string) => {
-    safeWriteToChildStdin(proc, prompt + '\n', 'codex');
-  };
-
-  emitter.answerQuestion = (_requestId: string, response: string) => {
-    emitter.steer(response);
-  };
-
-  emitter.isAlive = () => !finished && !stopped;
-
-  return emitter;
 }
 
 function persistImages(images: string[]): { directory: string; paths: string[] } {

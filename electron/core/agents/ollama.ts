@@ -1,217 +1,125 @@
-import { ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
-import { spawnAgentProcess, createStartupWatchdog, isMeaningfulMessage } from './spawn-utils';
-import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
-
-const OLLAMA_STARTUP_TIMEOUT_MS = 30_000;
+import { createCliAgentHandle } from './cli-agent';
+import { safeWriteToChildStdin } from '../process-utils';
 
 /**
  * Spawn an Ollama CLI subprocess for local model inference.
- * Ollama outputs plain text (or JSON with --format json), so we
- * stream text line by line as AgentMessage events.
+ * Ollama outputs plain text, so we stream text as AgentMessage events.
  */
 export function spawnOllama(options: SpawnOptions): AgentHandle {
   const model = options.model ?? 'llama3';
-
-  const args: string[] = ['run', model];
-
-  const proc: ChildProcess = spawnAgentProcess({
-    command: options.binaryPath || 'ollama',
-    args,
-    cwd: options.cwd,
-    sshHost: options.sshHost,
-    remoteCwd: options.remoteCwd,
-  });
-  attachChildStdinErrorHandler(proc, 'ollama');
-
-  const emitter = new EventEmitter() as AgentHandle;
-  emitter.setMaxListeners(20);
-  emitter.taskId = options.taskId;
-  emitter.agentId = 'ollama';
-  emitter.pid = proc.pid;
-  let stopped = false;
-  let finished = false;
-
-  const finish = (result: { code: number | null; error?: string }) => {
-    if (finished) return;
-    finished = true;
-    watchdog.clear();
-    emitter.emit('done', result);
-  };
-
-  const watchdog = createStartupWatchdog({
-    timeoutMs: OLLAMA_STARTUP_TIMEOUT_MS,
-    label: 'Ollama',
-    sshHost: options.sshHost,
-    remoteCwd: options.remoteCwd,
-    cwd: options.cwd,
-    onTimeout: (error) => {
-      if (finished || stopped) return;
-      try { proc.kill('SIGTERM'); } catch {}
-      emitMessage({
-        type: 'error',
-        role: 'system',
-        content: error,
-        timestamp: Date.now(),
-      });
-      finish({ code: 1, error });
-    },
-  });
-
-  const emitMessage = (message: AgentMessage) => {
-    if (isMeaningfulMessage(message)) {
-      watchdog.markProgress();
-    }
-    emitter.emit('message', message);
-  };
-
-  if (options.images?.length) {
-    setTimeout(() => {
-      emitMessage({
-        type: 'text',
-        role: 'system',
-        content: 'Note: Images were attached but Ollama does not support image input. They will be ignored.',
-        timestamp: Date.now(),
-      } satisfies AgentMessage);
-    }, 0);
-  }
-
-  proc.stdout?.on('data', () => watchdog.resetProgress());
-  proc.stderr?.on('data', () => watchdog.resetProgress());
-
   const startTime = Date.now();
   let fullText = '';
   let idleTimer: NodeJS.Timeout | null = null;
   const IDLE_TIMEOUT_MS = 3000;
 
-  const resetIdleTimer = () => {
+  const resetIdleTimer = (proc: import('child_process').ChildProcess) => {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      // Ollama finished responding — send /bye to exit gracefully
       safeWriteToChildStdin(proc, '/bye\n', 'ollama');
     }, IDLE_TIMEOUT_MS);
   };
 
-  // Send the prompt via stdin since `ollama run` reads from stdin
-  safeWriteToChildStdin(proc, options.prompt + '\n', 'ollama');
+  return createCliAgentHandle(options, {
+    agentId: 'ollama',
+    label: 'Ollama',
+    defaultCommand: 'ollama',
+    startupTimeoutMs: 30_000,
 
-  const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
-  let buffer = '';
+    buildArgs() {
+      return ['run', model];
+    },
 
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString('utf-8');
-    buffer += text;
-    fullText += text;
+    // Ollama doesn't output JSON events — raw lines are handled via onRawLine
+    mapEvent() {
+      return null;
+    },
 
-    if (buffer.length > MAX_BUFFER) {
-      buffer = '';
-      emitMessage({
-        type: 'error',
-        role: 'system',
-        content: 'Stream buffer overflow - cleared',
-        timestamp: Date.now(),
-      });
-      return;
-    }
+    classifyExit(code) {
+      return `Ollama exited with code ${code}`;
+    },
 
-    resetIdleTimer();
+    controls: {
+      steer(proc, prompt) {
+        if (idleTimer) clearTimeout(idleTimer);
+        safeWriteToChildStdin(proc, prompt + '\n', 'ollama');
+      },
+      answerQuestion(proc, _requestId, response) {
+        if (idleTimer) clearTimeout(idleTimer);
+        safeWriteToChildStdin(proc, response + '\n', 'ollama');
+      },
+    },
 
-    emitMessage({
-      type: 'text',
-      role: 'assistant',
-      content: text,
-      timestamp: Date.now(),
-    });
+    hooks: {
+      onAfterSpawn(proc, ctx) {
+        // Warn about unsupported images
+        if (options.images?.length) {
+          setTimeout(() => {
+            ctx.emitMessage({
+              type: 'text',
+              role: 'system',
+              content: 'Note: Images were attached but Ollama does not support image input. They will be ignored.',
+              timestamp: Date.now(),
+            } satisfies AgentMessage);
+          }, 0);
+        }
+
+        // Also reset watchdog on stderr
+        proc.stderr?.on('data', () => ctx.watchdog.resetProgress());
+      },
+
+      sendInitialPrompt(proc) {
+        safeWriteToChildStdin(proc, options.prompt + '\n', 'ollama');
+      },
+
+      // Ollama streams raw text, not JSON
+      onRawLine(line, ctx) {
+        fullText += line + '\n';
+        resetIdleTimer(ctx.proc);
+        ctx.emitMessage({
+          type: 'text',
+          role: 'assistant',
+          content: line + '\n',
+          timestamp: Date.now(),
+        });
+        return true;
+      },
+
+      // Custom stderr: Ollama emits progress info (model loading) on stderr
+      onStderr(text, ctx) {
+        const isProgress = text.includes('pulling') ||
+          text.includes('verifying') ||
+          text.includes('writing') ||
+          text.includes('%');
+
+        ctx.emitMessage({
+          type: isProgress ? 'text' : 'error',
+          role: 'system',
+          content: text,
+          timestamp: Date.now(),
+        });
+        return true; // always handled
+      },
+
+      onBeforeFinish(_code, ctx) {
+        if (idleTimer) clearTimeout(idleTimer);
+
+        // Emit a result message with the full accumulated text
+        const durationMs = Date.now() - startTime;
+        ctx.emitMessage({
+          type: 'result',
+          role: 'assistant',
+          content: fullText.trim(),
+          timestamp: Date.now(),
+          durationMs,
+        });
+
+        return false; // proceed with default finish
+      },
+
+      onStop() {
+        if (idleTimer) clearTimeout(idleTimer);
+      },
+    },
   });
-
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString('utf-8').trim();
-    if (!text) return;
-
-    // Ollama may emit progress info (model loading) on stderr
-    const isProgress = text.includes('pulling') ||
-      text.includes('verifying') ||
-      text.includes('writing') ||
-      text.includes('%');
-
-    emitMessage({
-      type: isProgress ? 'text' : 'error',
-      role: 'system',
-      content: text,
-      timestamp: Date.now(),
-    });
-  });
-
-  proc.on('close', (code: number | null) => {
-    if (idleTimer) clearTimeout(idleTimer);
-    const durationMs = Date.now() - startTime;
-
-    emitMessage({
-      type: 'result',
-      role: 'assistant',
-      content: fullText.trim(),
-      timestamp: Date.now(),
-      durationMs,
-    });
-    finish({
-      code,
-      ...(stopped || code === 0 || code === null ? {} : { error: `Ollama exited with code ${code}` }),
-    });
-  });
-
-  proc.on('error', (err: Error) => {
-    if (idleTimer) clearTimeout(idleTimer);
-    try { proc.kill(); } catch {}
-    const info = classifySpawnError(err, { command: 'ollama', sshHost: options.sshHost });
-    const content = `Failed to start Ollama: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
-    emitMessage({
-      type: 'error',
-      role: 'system',
-      content,
-      timestamp: Date.now(),
-    });
-    finish({ code: 1, error: content });
-  });
-
-  let exitPromise: Promise<void> | null = null;
-  emitter.stop = () => {
-    if (exitPromise) return exitPromise;
-    stopped = true;
-    watchdog.clear();
-    if (idleTimer) clearTimeout(idleTimer);
-    exitPromise = new Promise<void>((resolve) => {
-      if (finished) { resolve(); return; }
-      proc.once('close', () => resolve());
-      try { proc.kill('SIGTERM'); } catch {}
-      const forceKillTimer = setTimeout(() => {
-        try { proc.kill('SIGKILL'); } catch {}
-        resolve();
-      }, 5000);
-      proc.once('close', () => clearTimeout(forceKillTimer));
-    });
-    return exitPromise;
-  };
-
-  emitter.approve = (_requestId: string) => {
-    // Ollama has no permission model
-  };
-
-  emitter.deny = (_requestId: string) => {
-    // Not applicable
-  };
-
-  emitter.steer = (prompt: string) => {
-    // Reset idle timer for follow-up messages
-    if (idleTimer) clearTimeout(idleTimer);
-    safeWriteToChildStdin(proc, prompt + '\n', 'ollama');
-  };
-
-  emitter.answerQuestion = (_requestId: string, response: string) => {
-    emitter.steer(response);
-  };
-
-  emitter.isAlive = () => !finished && !stopped;
-
-  return emitter;
 }
