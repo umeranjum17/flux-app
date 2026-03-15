@@ -61,7 +61,7 @@ export function WorkspaceActionBar() {
         <ActionBtn icon={<ExternalLink size={12} />} label="Open IDE" onClick={handleOpenIde} />
         {hasChanges && (
           <>
-            <ActionBtn icon={<Eye size={12} />} label="Review" onClick={() => useWorkspaceStore.getState().openReview(workspace.id)} />
+            <ActionBtn icon={<Eye size={12} />} label="Review Changes" onClick={() => useWorkspaceStore.getState().toggleChangesPanel(workspace.id)} />
             <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
           </>
         )}

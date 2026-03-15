@@ -51,7 +51,7 @@ export function WorkspaceTab() {
     setContextMenu(null);
     switch (action) {
       case 'review':
-        useWorkspaceStore.getState().openReview(ws.id);
+        useWorkspaceStore.getState().toggleChangesPanel(ws.id);
         break;
       case 'merge':
         useWorkspaceStore.getState().openMerge(ws.id);

@@ -52,7 +52,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const hasChanges = hasInlineDiff || hasWorkspaceChanges;
 
   const handleReview = () => {
-    useWorkspaceStore.getState().openReview(workspace.id);
+    useWorkspaceStore.getState().toggleChangesPanel(workspace.id);
   };
 
   const handleMerge = () => {
@@ -66,10 +66,10 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
 
   const handleFileClick = async (filePath: string) => {
     const store = useWorkspaceStore.getState();
-    await store.openReview(workspace.id);
+    await store.openChangesPanel(workspace.id);
     // Small delay to ensure diff files are loaded before selecting
     setTimeout(() => {
-      useWorkspaceStore.getState().selectFile(filePath);
+      useWorkspaceStore.getState().changesPanelSelectFile(filePath);
     }, 100);
   };
 

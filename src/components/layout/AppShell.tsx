@@ -25,6 +25,7 @@ import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, W
 import { useWorkspaceStore } from '../../stores/workspace';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { CodeReviewPanel } from '../review/CodeReviewPanel';
+import { ChangesPanel } from '../review/ChangesPanel';
 import { MergeDialog } from '../review/MergeDialog';
 import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
@@ -41,6 +42,7 @@ export function AppShell() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
+  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const termRef = useRef<TerminalPanelHandle>(null);
 
@@ -550,6 +552,7 @@ export function AppShell() {
                 {explorerOpen && <FileExplorer />}
               </div>
 
+              {changesPanelOpen && <ChangesPanel />}
             </div>
 
             {bottomPanelOpen && <BottomPanel ref={termRef} />}

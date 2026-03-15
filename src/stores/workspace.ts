@@ -47,6 +47,18 @@ interface WorkspaceState {
   selectFile(path: string): Promise<void>;
   refreshDiffFiles(): Promise<void>;
 
+  // Changes panel (quick side-panel review)
+  changesPanelOpen: boolean;
+  changesPanelWorkspaceId: string | null;
+  changesPanelFiles: DiffFile[];
+  changesPanelSelectedFile: string | null;
+  changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
+  openChangesPanel(workspaceId: string): Promise<void>;
+  closeChangesPanel(): void;
+  toggleChangesPanel(workspaceId: string): void;
+  changesPanelSelectFile(path: string): Promise<void>;
+  refreshChangesPanelFiles(): Promise<void>;
+
   // Checkpoint actions
   loadCheckpoints(workspaceId: string): Promise<void>;
   addCheckpoint(workspaceId: string, checkpoint: Checkpoint): void;
@@ -59,6 +71,8 @@ interface WorkspaceState {
 
 let reviewRequestVersion = 0;
 let fileDiffRequestVersion = 0;
+let changesPanelRequestVersion = 0;
+let changesPanelFileDiffVersion = 0;
 
 export const useWorkspaceStore = create<WorkspaceState>()(
   immer((set, get) => ({
@@ -73,6 +87,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceSessions: new Map(),
+    changesPanelOpen: false,
+    changesPanelWorkspaceId: null,
+    changesPanelFiles: [],
+    changesPanelSelectedFile: null,
+    changesPanelFileDiff: null,
 
     setWorkspaces(workspaces) {
       set((state) => {
@@ -299,6 +318,102 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }
         state.workspaceSessions.set(workspaceId, existing);
       });
+    },
+
+    async openChangesPanel(workspaceId) {
+      const requestVersion = ++changesPanelRequestVersion;
+      set((state) => {
+        state.changesPanelOpen = true;
+        state.changesPanelWorkspaceId = workspaceId;
+        state.changesPanelFiles = [];
+        state.changesPanelSelectedFile = null;
+        state.changesPanelFileDiff = null;
+      });
+
+      try {
+        const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
+        set((state) => {
+          if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
+          state.changesPanelFiles = files;
+          // Auto-select first file
+          if (files.length > 0) {
+            state.changesPanelSelectedFile = files[0].path;
+          }
+        });
+        // Auto-load first file's diff
+        const currentState = get();
+        if (currentState.changesPanelSelectedFile && requestVersion === changesPanelRequestVersion) {
+          await get().changesPanelSelectFile(currentState.changesPanelSelectedFile);
+        }
+      } catch {
+        // Failed to load diff files
+      }
+    },
+
+    closeChangesPanel() {
+      changesPanelRequestVersion += 1;
+      changesPanelFileDiffVersion += 1;
+      set((state) => {
+        state.changesPanelOpen = false;
+        state.changesPanelWorkspaceId = null;
+        state.changesPanelFiles = [];
+        state.changesPanelSelectedFile = null;
+        state.changesPanelFileDiff = null;
+      });
+    },
+
+    toggleChangesPanel(workspaceId) {
+      const { changesPanelOpen, changesPanelWorkspaceId } = get();
+      if (changesPanelOpen && changesPanelWorkspaceId === workspaceId) {
+        get().closeChangesPanel();
+      } else {
+        get().openChangesPanel(workspaceId);
+      }
+    },
+
+    async changesPanelSelectFile(filePath) {
+      const workspaceId = get().changesPanelWorkspaceId;
+      if (!workspaceId) return;
+      const requestVersion = ++changesPanelFileDiffVersion;
+
+      set((state) => {
+        state.changesPanelSelectedFile = filePath;
+        state.changesPanelFileDiff = null;
+      });
+
+      try {
+        const diff = await window.api.invoke('workspace:file-diff', { workspaceId, filePath }) as {
+          oldContent: string;
+          newContent: string;
+          unified: string;
+        };
+        set((state) => {
+          if (
+            requestVersion !== changesPanelFileDiffVersion ||
+            state.changesPanelWorkspaceId !== workspaceId ||
+            state.changesPanelSelectedFile !== filePath
+          ) return;
+          state.changesPanelFileDiff = diff;
+        });
+      } catch {
+        // Failed to load file diff
+      }
+    },
+
+    async refreshChangesPanelFiles() {
+      const workspaceId = get().changesPanelWorkspaceId;
+      if (!workspaceId) return;
+      const requestVersion = ++changesPanelRequestVersion;
+
+      try {
+        const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
+        set((state) => {
+          if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
+          state.changesPanelFiles = files;
+        });
+      } catch {
+        // Failed to refresh
+      }
     },
 
     async loadWorkspaceSessions(workspaceId) {

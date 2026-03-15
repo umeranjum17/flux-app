@@ -187,7 +187,7 @@ export function WorkspaceDashboard() {
                 isActive={ws.id === activeWorkspaceId}
                 onSelect={() => handleSelect(ws)}
                 onStop={() => handleStop(ws)}
-                onReview={() => useWorkspaceStore.getState().openReview(ws.id)}
+                onReview={() => useWorkspaceStore.getState().toggleChangesPanel(ws.id)}
                 onMerge={() => setMergingWorkspaceId(ws.id)}
                 onDelete={() => handleDelete(ws)}
                 onOpenIde={() => handleOpenIde(ws)}
