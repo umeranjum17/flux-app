@@ -365,6 +365,128 @@ describe('spawnCodex', () => {
     void handle.stop();
   });
 
+  it('maps file_read item.started to a read_file tool_call', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'item.started',
+      item: { type: 'file_read', id: 'fr-1', path: 'src/main.ts' },
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'tool_call',
+      toolName: 'read_file',
+      toolCallId: 'fr-1',
+      toolInput: { path: 'src/main.ts' },
+    }));
+  });
+
+  it('maps file_write item.started to a write_file tool_call', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'item.started',
+      item: { type: 'file_write', id: 'fw-1', path: 'src/new.ts' },
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'tool_call',
+      toolName: 'write_file',
+      toolCallId: 'fw-1',
+    }));
+  });
+
+  it('maps file_patch item.started to a patch_file tool_call', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'item.started',
+      item: { type: 'file_patch', id: 'fp-1', path: 'src/edit.ts' },
+    });
+
+    expect(messages).toContainEqual(expect.objectContaining({
+      type: 'tool_call',
+      toolName: 'patch_file',
+      toolCallId: 'fp-1',
+    }));
+  });
+
+  it('skips profile flag when resuming a session', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    spawnCodex({
+      taskId: 'task-1',
+      prompt: 'continue',
+      mode: 'act',
+      cwd: '/workspace',
+      resumeSessionId: 'session-abc',
+    });
+
+    const args = mockedSpawnAgentProcess.mock.calls[0]?.[0]?.args ?? [];
+    expect(args).not.toContain('--profile');
+  });
+
+  it('emits step markers from status messages (event_msg agent_message)', () => {
+    const proc = new FakeChildProcess();
+    mockedSpawnAgentProcess.mockReturnValue(proc as any);
+
+    const handle = spawnCodex({
+      taskId: 'task-1',
+      prompt: 'ship it',
+      mode: 'act',
+      cwd: '/workspace',
+    });
+
+    const messages: any[] = [];
+    handle.on('message', (message) => messages.push(message));
+
+    emitStdout(proc, {
+      type: 'event_msg',
+      payload: {
+        type: 'agent_message',
+        message: 'Working on it [STEP 1 START]',
+      },
+    });
+
+    // The message should come through as a status message with the marker text preserved
+    const statusMsg = messages.find((m) => m.type === 'status' && m.content.includes('[STEP 1 START]'));
+    expect(statusMsg).toBeDefined();
+  });
+
   it('passes MCP server config to codex as config overrides', () => {
     const proc = new FakeChildProcess();
     mockedSpawnAgentProcess.mockReturnValue(proc as any);

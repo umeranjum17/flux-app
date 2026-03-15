@@ -637,6 +637,54 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
   ].join('\n');
 }
 
+export interface StepMarker {
+  stepId: number;
+  status: 'in_progress' | 'done';
+}
+
+/**
+ * Scan a string for `[STEP N START]` and `[STEP N DONE]` markers.
+ * Returns deduplicated markers — if a step appears as both START and DONE
+ * in the same content block, the DONE wins.
+ */
+export function parseStepMarkers(content: string): StepMarker[] {
+  const markers = new Map<number, StepMarker>();
+
+  for (const m of content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi)) {
+    const stepId = parseInt(m[1], 10);
+    if (!markers.has(stepId)) {
+      markers.set(stepId, { stepId, status: 'in_progress' });
+    }
+  }
+
+  for (const m of content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi)) {
+    const stepId = parseInt(m[1], 10);
+    // DONE always wins over START
+    markers.set(stepId, { stepId, status: 'done' });
+  }
+
+  return Array.from(markers.values());
+}
+
+/**
+ * Extract trackable text content from any non-user AgentMessage.
+ * Returns the content string if it should be scanned for step markers,
+ * or null if the message should be skipped.
+ */
+export function getStepTrackableContent(message: AgentMessage): string | null {
+  if (message.role === 'user') return null;
+  if (!message.content || typeof message.content !== 'string') return null;
+
+  switch (message.type) {
+    case 'text':
+    case 'status':
+    case 'tool_result':
+      return message.content;
+    default:
+      return null;
+  }
+}
+
 export interface RateLimitInfo {
   providerId: 'claude-code' | 'codex';
   status: 'allowed' | 'allowed_warning' | 'rejected';

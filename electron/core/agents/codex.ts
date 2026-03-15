@@ -50,7 +50,7 @@ export function spawnCodex(
 
   args.push('--skip-git-repo-check');
 
-  if (!options.sshHost && hasCodexProfile(inferredProfile)) {
+  if (!isResume && !options.sshHost && hasCodexProfile(inferredProfile)) {
     args.push('--profile', inferredProfile);
   }
 
@@ -724,6 +724,31 @@ function mapCodexItemStarted(item: any, timestamp: number): AgentMessage | null 
       timestamp,
       toolName: 'shell',
       toolInput: { command: item.command ?? '' },
+      toolCallId: item.id,
+    };
+  }
+
+  if (item.type === 'file_read') {
+    return {
+      type: 'tool_call',
+      role: 'assistant',
+      content: `Calling: read_file`,
+      timestamp,
+      toolName: 'read_file',
+      toolInput: { path: item.path ?? item.file ?? '' },
+      toolCallId: item.id,
+    };
+  }
+
+  if (item.type === 'file_write' || item.type === 'file_patch') {
+    const toolName = item.type === 'file_write' ? 'write_file' : 'patch_file';
+    return {
+      type: 'tool_call',
+      role: 'assistant',
+      content: `Calling: ${toolName}`,
+      timestamp,
+      toolName,
+      toolInput: { path: item.path ?? item.file ?? '' },
       toolCallId: item.id,
     };
   }

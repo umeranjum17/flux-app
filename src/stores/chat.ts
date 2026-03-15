@@ -113,6 +113,7 @@ export const useChatStore = create<ChatState>()(
           editedFiles: new Map(),
           expandedToolCallIds: new Set(),
           scrollToToolCallId: null,
+          todoItems: [],
         });
         state.activeTaskId = opts.id;
       });

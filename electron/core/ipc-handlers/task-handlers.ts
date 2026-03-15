@@ -36,6 +36,8 @@ import {
   normalizeRateLimitInfo,
   workspaceHasPendingChanges,
   isWorkspaceBranchMerged,
+  parseStepMarkers,
+  getStepTrackableContent,
 } from './utils';
 
 import { execFile } from 'child_process';
@@ -330,6 +332,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       ? sessionStore.getMessages(session.id)
       : undefined;
 
+    let pendingTodoItems: Array<{ id: number; label: string; status: 'pending' | 'in_progress' | 'done' }> | null = null;
+
     const isAgentSwitch = existingSession && existingSession.agentId !== agentId;
     if (isAgentSwitch) {
       const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
@@ -350,8 +354,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         ].filter(Boolean).join('\n');
 
         if (planSteps.length > 0) {
-          const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
-          sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+          pendingTodoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
         }
       } else {
         const context = buildConversationContext(session.id, sessionStore);
@@ -388,8 +391,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         ].filter(Boolean).join('\n');
 
         if (planSteps.length > 0) {
-          const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
-          sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+          pendingTodoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
         }
       } else {
         const context = buildConversationContext(session.id, sessionStore);
@@ -420,8 +422,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       ].filter(Boolean).join('\n');
 
       if (planSteps.length > 0) {
-        const todoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
-        sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+        pendingTodoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
       }
     }
 
@@ -490,6 +491,31 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       taskWorkspaceMap.set(options.taskId, workspace.id);
       taskWorkspaceStatusMap.set(options.taskId, 'running');
       workspaceStore.addSession(workspace.id, session.id, options.taskId);
+    }
+
+    // Emit deferred todo items now that the task is registered in the renderer
+    let todoInitialized = false;
+    const pendingTodoUpdates: Array<{ stepId: number; status: 'in_progress' | 'done' }> = [];
+
+    const emitTodoUpdate = (taskId: string, stepId: number, status: 'in_progress' | 'done') => {
+      if (!todoInitialized) {
+        pendingTodoUpdates.push({ stepId, status });
+        return;
+      }
+      sendToRenderer('agent:todo-update', { taskId, stepId, status });
+    };
+
+    const flushTodoUpdates = (taskId: string) => {
+      todoInitialized = true;
+      for (const update of pendingTodoUpdates) {
+        sendToRenderer('agent:todo-update', { taskId, stepId: update.stepId, status: update.status });
+      }
+      pendingTodoUpdates.length = 0;
+    };
+
+    if (pendingTodoItems) {
+      sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: pendingTodoItems });
+      flushTodoUpdates(options.taskId);
     }
 
     const idleHeartbeat = setInterval(() => {
@@ -590,6 +616,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             : 'pending' as const,
         }));
       sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+      flushTodoUpdates(options.taskId);
     });
 
     const toolHeartbeats = new Map<string, NodeJS.Timeout>();
@@ -627,22 +654,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
-      if (!agentUsedTodoWrite && message.type === 'text' && message.role === 'assistant' && message.content) {
-        const stepDoneMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi);
-        const stepStartMatches = message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi);
-        for (const m of stepStartMatches) {
-          sendToRenderer('agent:todo-update', {
-            taskId: options.taskId,
-            stepId: parseInt(m[1], 10),
-            status: 'in_progress',
-          });
-        }
-        for (const m of stepDoneMatches) {
-          sendToRenderer('agent:todo-update', {
-            taskId: options.taskId,
-            stepId: parseInt(m[1], 10),
-            status: 'done',
-          });
+      if (!agentUsedTodoWrite) {
+        const trackable = getStepTrackableContent(message);
+        if (trackable) {
+          const markers = parseStepMarkers(trackable);
+          for (const marker of markers) {
+            emitTodoUpdate(options.taskId, marker.stepId, marker.status);
+          }
         }
       }
 
@@ -672,6 +690,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
         if (todoItems.length > 0) {
           sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
+          flushTodoUpdates(options.taskId);
         }
       }
 

@@ -16,7 +16,14 @@ describe('mapCodexReasoningEffort', () => {
     expect(mapCodexReasoningEffort('low')).toBe('low');
     expect(mapCodexReasoningEffort('medium')).toBe('medium');
     expect(mapCodexReasoningEffort('high')).toBe('high');
-    expect(mapCodexReasoningEffort('xhigh')).toBe('xhigh');
+  });
+
+  it('clamps xhigh to high since Codex does not support xhigh', () => {
+    expect(mapCodexReasoningEffort('xhigh')).toBe('high');
+  });
+
+  it('returns undefined when no thinking level is provided', () => {
+    expect(mapCodexReasoningEffort(undefined)).toBeUndefined();
   });
 });
 
