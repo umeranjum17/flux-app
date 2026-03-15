@@ -6,6 +6,7 @@ import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
 import type { Workspace } from '../../lib/ipc-api';
 import type { DiffData, DiffFileEntry } from '../../lib/types';
+import { normalizeTrackedFilePath } from '../../lib/path-utils';
 
 function getBasename(path: string): string {
   return path.split('/').pop() ?? path;
@@ -73,11 +74,18 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
     // Find the most recent tool call for this file and scroll to it
     const task = useChatStore.getState().getActiveTask();
     if (!task) return;
-    const editEntry = task.editedFiles.get(filePath);
+    const normalizedPath = normalizeTrackedFilePath(filePath, task.cwd);
+    const editEntry = task.editedFiles.get(normalizedPath) ?? task.editedFiles.get(filePath);
     if (editEntry) {
-      useChatStore.getState().scrollToFileEdit(editEntry.toolCallId);
+      const didScroll = useChatStore.getState().scrollToFileEdit(editEntry.toolCallId);
+      if (didScroll) return;
+    }
+
+    if (workspace.id) {
+      void useWorkspaceStore.getState().openChangesPanel(workspace.id).then(() => {
+        void useWorkspaceStore.getState().changesPanelSelectFile(filePath);
+      });
     } else {
-      // Fallback: open the file activity panel
       useUiStore.getState().setFileActivityPanelOpen(true);
     }
   };

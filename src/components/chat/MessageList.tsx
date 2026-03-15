@@ -30,6 +30,7 @@ import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
+import { normalizeTrackedFilePath } from '../../lib/path-utils';
 
 const messageVariants = {
   initial: { opacity: 0, y: 14, scale: 0.985 },
@@ -41,6 +42,40 @@ const messageTransition = {
   duration: 0.22,
   ease: [0.22, 1, 0.36, 1] as const,
 };
+
+function mergeDiffEntries(
+  diffs: Map<string, import('../../lib/types').DiffData>,
+  cwd?: string,
+): import('../../lib/types').DiffData | undefined {
+  if (diffs.size === 0) return undefined;
+
+  const mergedByPath = new Map<string, import('../../lib/types').DiffFileEntry>();
+  for (const diff of diffs.values()) {
+    for (const file of diff.files) {
+      const normalizedPath = normalizeTrackedFilePath(file.path, cwd);
+      const existing = mergedByPath.get(normalizedPath);
+      if (!existing) {
+        mergedByPath.set(normalizedPath, {
+          ...file,
+          path: normalizedPath,
+        });
+        continue;
+      }
+      mergedByPath.set(normalizedPath, {
+        ...existing,
+        additions: Math.max(existing.additions, file.additions),
+        deletions: Math.max(existing.deletions, file.deletions),
+      });
+    }
+  }
+
+  const files = Array.from(mergedByPath.values());
+  return {
+    files,
+    totalAdditions: files.reduce((sum, file) => sum + file.additions, 0),
+    totalDeletions: files.reduce((sum, file) => sum + file.deletions, 0),
+  };
+}
 
 function isSubagentMarker(msg: AgentMessage): boolean {
   return Boolean(msg.subagentId && msg.subagentStatus);
@@ -255,16 +290,7 @@ export function MessageList() {
 
           {(taskStatus === 'done' || taskStatus === 'error') && (() => {
             const resultMsg = [...messages].reverse().find((m) => m.type === 'result');
-            const mergedDiff = diffs.size > 0
-              ? Array.from(diffs.values()).reduce(
-                  (acc, d) => ({
-                    files: [...acc.files, ...d.files],
-                    totalAdditions: acc.totalAdditions + d.totalAdditions,
-                    totalDeletions: acc.totalDeletions + d.totalDeletions,
-                  }),
-                  { files: [] as import('../../lib/types').DiffFileEntry[], totalAdditions: 0, totalDeletions: 0 },
-                )
-              : undefined;
+            const mergedDiff = mergeDiffEntries(diffs, task.cwd);
 
             // Show combined completion card with inline files when workspace is available.
             // Show on error too — the agent may have completed work before the error occurred

@@ -16,6 +16,7 @@ import type {
   TodoItem,
 } from '../lib/types';
 import { useWorkspaceStore } from './workspace';
+import { normalizeTrackedFilePath } from '../lib/path-utils';
 
 interface ChatState {
   tasks: Map<string, Task>;
@@ -58,7 +59,7 @@ interface ChatState {
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
   updateTodoItem(taskId: string, stepId: number, status: TodoItem['status']): void;
-  scrollToFileEdit(toolCallId: string): void;
+  scrollToFileEdit(toolCallId: string): boolean;
   clearScrollTarget(): void;
   getActiveTask(): Task | undefined;
 }
@@ -346,12 +347,27 @@ export const useChatStore = create<ChatState>()(
     },
 
     scrollToFileEdit(toolCallId) {
+      let canScroll = false;
       set((state) => {
         const task = state.activeTaskId ? state.tasks.get(state.activeTaskId) : undefined;
         if (!task) return;
+
+        const mainMatch = task.messages.some(
+          (msg) => msg.type === 'tool_call' && msg.toolCallId === toolCallId,
+        );
+        const subagentMatch = Array.from(task.subagents.values()).some((subagent) =>
+          subagent.messages.some(
+            (msg) => msg.type === 'tool_call' && msg.toolCallId === toolCallId,
+          ),
+        );
+
+        canScroll = mainMatch || subagentMatch;
+        if (!canScroll) return;
+
         task.expandedToolCallIds.add(toolCallId);
         task.scrollToToolCallId = toolCallId;
       });
+      return canScroll;
     },
 
     clearScrollTarget() {
@@ -390,17 +406,23 @@ function trackEditedFile(task: Task, message: AgentMessage): void {
   const toolName = message.toolName ?? '';
   if (!isFileEditTool(toolName)) return;
 
-  const filePath =
+  const rawFilePath =
     message.filePath ??
     (message.toolInput?.file_path as string | undefined) ??
     (message.toolInput?.path as string | undefined);
-  if (!filePath) return;
+  if (!rawFilePath) return;
+
+  const filePath = normalizeTrackedFilePath(rawFilePath, task.cwd);
 
   const stats = countDiffStatsFromMessage(message);
+  const resolvedToolCallId = message.toolCallId ?? `edit-${message.timestamp}`;
+  if (!message.toolCallId) {
+    message.toolCallId = resolvedToolCallId;
+  }
   const existing = task.editedFiles.get(filePath);
   task.editedFiles.set(filePath, {
     filePath,
-    toolCallId: message.toolCallId ?? `edit-${message.timestamp}`,
+    toolCallId: resolvedToolCallId,
     additions: (existing?.additions ?? 0) + stats.additions,
     deletions: (existing?.deletions ?? 0) + stats.deletions,
     timestamp: message.timestamp,

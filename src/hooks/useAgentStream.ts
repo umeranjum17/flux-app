@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
 import type { AgentMessage, DiffData, TodoItem } from '../lib/types';
+import { normalizeTrackedFilePath } from '../lib/path-utils';
 
 function shouldAutoApprove(toolName: string): boolean {
   const { autoApprove, autoApproveTools } = useUiStore.getState();
@@ -95,9 +96,10 @@ export function useAgentStream() {
         if (task) {
           task.diffs.set(key, diff);
           for (const [index, file] of diff.files.entries()) {
-            const existing = task.editedFiles.get(file.path);
-            task.editedFiles.set(file.path, {
-              filePath: file.path,
+            const normalizedPath = normalizeTrackedFilePath(file.path, task.cwd);
+            const existing = task.editedFiles.get(normalizedPath);
+            task.editedFiles.set(normalizedPath, {
+              filePath: normalizedPath,
               toolCallId: existing?.toolCallId ?? `diff-${key}-${index}`,
               additions: file.additions,
               deletions: file.deletions,

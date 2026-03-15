@@ -2,17 +2,9 @@ import { useEffect, useRef } from 'react';
 import { X, FilePen } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 import type { EditedFileEntry } from '../../lib/types';
-
-function getBasename(path: string): string {
-  return path.split('/').pop() ?? path;
-}
-
-function getDirectory(path: string): string {
-  const parts = path.split('/');
-  if (parts.length <= 1) return '';
-  return parts.slice(-2, -1)[0] + '/';
-}
+import { getDisplayPath } from '../../lib/path-utils';
 
 function FileRow({
   entry,
@@ -23,8 +15,7 @@ function FileRow({
   isActive: boolean;
   onClick: () => void;
 }) {
-  const basename = getBasename(entry.filePath);
-  const dir = getDirectory(entry.filePath);
+  const { basename, context } = getDisplayPath(entry.filePath);
 
   return (
     <button
@@ -37,11 +28,9 @@ function FileRow({
       title={entry.filePath}
     >
       <FilePen size={12} className="shrink-0 text-info" />
-      <div className="min-w-0 flex-1 flex items-baseline gap-1">
-        <span className="text-[12px] font-medium truncate">{basename}</span>
-        {dir && (
-          <span className="text-[11px] text-text-tertiary truncate">{dir}</span>
-        )}
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] font-medium truncate">{basename}</div>
+        {context && <div className="text-[10px] text-text-tertiary truncate">{context}/</div>}
       </div>
       <span className="flex items-center gap-1 shrink-0 text-[11px] font-mono">
         {entry.additions > 0 && (
@@ -61,10 +50,13 @@ function FileRow({
 export function FileActivityPanel() {
   const task = useChatStore((s) => s.getActiveTask());
   const scrollToFileEdit = useChatStore((s) => s.scrollToFileEdit);
+  const openChangesPanel = useWorkspaceStore((s) => s.openChangesPanel);
+  const changesPanelSelectFile = useWorkspaceStore((s) => s.changesPanelSelectFile);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const editedFiles = task?.editedFiles;
   const files = editedFiles ? Array.from(editedFiles.values()) : [];
+  const workspaceId = task?.workspaceId ?? null;
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
 
@@ -136,7 +128,12 @@ export function FileActivityPanel() {
               key={entry.filePath}
               entry={entry}
               isActive={false}
-              onClick={() => scrollToFileEdit(entry.toolCallId)}
+              onClick={async () => {
+                const didScroll = scrollToFileEdit(entry.toolCallId);
+                if (didScroll || !workspaceId) return;
+                await openChangesPanel(workspaceId);
+                await changesPanelSelectFile(entry.filePath);
+              }}
             />
           ))}
       </div>
