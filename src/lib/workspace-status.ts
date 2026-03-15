@@ -119,6 +119,11 @@ export const workspaceLifecycleConfig: Record<
   },
 };
 
+/** Whether the workspace has reached a terminal outcome (merged or ready to archive). */
+export function isTerminalOutcome(outcome: WorkspaceOutcome | undefined): boolean {
+  return outcome === 'merged' || outcome === 'ready_to_archive';
+}
+
 export function getWorkspaceLifecycleState(
   workspace: Pick<Workspace, 'status' | 'outcome'>,
 ): WorkspaceLifecycleState {
@@ -128,7 +133,7 @@ export function getWorkspaceLifecycleState(
   if (workspace.status === 'waiting_approval') return 'awaiting_approval';
   if (workspace.status === 'waiting_input') return 'awaiting_input';
 
-  if (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive') return 'merged';
+  if (isTerminalOutcome(workspace.outcome)) return 'merged';
   if (workspace.outcome === 'ready_to_merge') return 'ready_to_merge';
   if (workspace.outcome === 'ready_for_pr') return 'ready_for_review';
 

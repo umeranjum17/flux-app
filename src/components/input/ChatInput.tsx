@@ -14,6 +14,7 @@ import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, RateLimitInfo, Session } from '../../lib/ipc-api';
 import type { FileAttachment, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
+import { isTerminalOutcome } from '../../lib/workspace-status';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   low: 'Low',
@@ -60,6 +61,10 @@ export function ChatInput({ focused }: ChatInputProps) {
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const activeWorkspaceOutcome = useWorkspaceStore((s) => {
+    const id = s.activeWorkspaceId;
+    return id ? s.workspaces.get(id)?.outcome : undefined;
+  });
   const { mode, sendKey } = useUiStore();
   const inputMode = useUiStore((s) => s.inputMode);
   const shellHistory = useUiStore((s) => s.shellHistory);
@@ -767,7 +772,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     }
   }, [activeTask, canSpawnSubagents, subagentDrafts, subagentModel]);
 
-  const isContinuing = !isTerminal && activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
+  const isContinuing = !isTerminal && !isTerminalOutcome(activeWorkspaceOutcome) && activeTask && (activeTask.status === 'done' || activeTask.status === 'error') && activeTask.messages.length > 0;
   const isModeSwitch = isContinuing && activeTask.mode !== mode;
 
   const displayModel = (() => {

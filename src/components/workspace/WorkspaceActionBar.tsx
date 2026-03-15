@@ -2,7 +2,7 @@ import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink } from 'lucide-r
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { useChatStore } from '../../stores/chat';
-import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
+import { getWorkspaceLifecycleState, isTerminalOutcome, workspaceLifecycleConfig } from '../../lib/workspace-status';
 
 export function WorkspaceActionBar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -10,7 +10,7 @@ export function WorkspaceActionBar() {
   const workspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
 
   const isRunning = workspace?.status === 'running' || workspace?.status === 'waiting_approval' || workspace?.status === 'waiting_input';
-  const isMerged = workspace?.outcome === 'merged' || workspace?.outcome === 'ready_to_archive';
+  const isMerged = isTerminalOutcome(workspace?.outcome);
   const hasChanges = useWorkspaceHasChanges(workspace?.id, {
     pollMs: isRunning ? 2000 : 4000,
   });

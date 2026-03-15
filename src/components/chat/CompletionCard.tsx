@@ -7,6 +7,7 @@ import { useChatStore } from '../../stores/chat';
 import type { Workspace } from '../../lib/ipc-api';
 import type { DiffData, DiffFileEntry } from '../../lib/types';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
+import { isTerminalOutcome } from '../../lib/workspace-status';
 
 function getBasename(path: string): string {
   return path.split('/').pop() ?? path;
@@ -49,7 +50,7 @@ function formatDuration(ms: number): string {
 
 export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, diff, durationMs }: CompletionCardProps) {
   const mergeTarget = suggestedMergeTarget || workspace.baseBranch || 'main';
-  const isReadyToArchive = workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive';
+  const isReadyToArchive = isTerminalOutcome(workspace.outcome);
   const hasInlineDiff = !!diff && diff.files.length > 0;
   const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff });
   const hasChanges = hasInlineDiff || hasWorkspaceChanges;
