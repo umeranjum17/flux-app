@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
-import { useWorkspaceStore } from '../stores/workspace';
 import type { AgentMessage, DiffData, TodoItem } from '../lib/types';
 
 function shouldAutoApprove(toolName: string): boolean {
@@ -25,9 +24,29 @@ export function useAgentStream() {
       useChatStore.getState().ingestStreamBatch(batch);
     }
 
+    // Track whether we've already auto-opened the file activity panel for this run
+    const autoOpenedForTask = new Set<string>();
+
     const unsubMessage = window.api.on('agent:message', (data: unknown) => {
       const { taskId, message } = data as { taskId: string; message: AgentMessage };
       messageBuffer.push({ taskId, message });
+
+      // Auto-open file activity panel on first file edit
+      if (
+        message.type === 'tool_call' &&
+        message.toolName &&
+        !autoOpenedForTask.has(taskId)
+      ) {
+        const toolLower = message.toolName.toLowerCase();
+        if (toolLower.includes('edit') || toolLower.includes('write') || toolLower.includes('patch')) {
+          const filePath = message.filePath ?? (message.toolInput?.file_path as string | undefined) ?? (message.toolInput?.path as string | undefined);
+          if (filePath) {
+            autoOpenedForTask.add(taskId);
+            useUiStore.getState().setFileActivityPanelOpen(true);
+          }
+        }
+      }
+
       if (rafId === null) {
         rafId = requestAnimationFrame(flushMessages);
       }
@@ -54,14 +73,6 @@ export function useAgentStream() {
         });
       }
       useChatStore.getState().setTaskStatus(taskId, error ? 'error' : 'done');
-
-      // Auto-open the changes panel after a successful coding turn
-      if (!error) {
-        const task = useChatStore.getState().tasks.get(taskId);
-        if (task?.workspaceId) {
-          useWorkspaceStore.getState().openChangesPanel(task.workspaceId);
-        }
-      }
     });
 
     const unsubPermission = window.api.on('agent:permission', (data: unknown) => {

@@ -183,6 +183,14 @@ export interface TodoItem {
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
+export interface EditedFileEntry {
+  filePath: string;
+  toolCallId: string;
+  additions: number;
+  deletions: number;
+  timestamp: number;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -217,6 +225,9 @@ export interface Task {
   agentHistory: AgentHistoryEntry[];
   rateLimitSuggestion?: { agents: AgentId[] };
   diffs: Map<string, DiffData>;
+  editedFiles: Map<string, EditedFileEntry>;
+  expandedToolCallIds: Set<string>;
+  scrollToToolCallId: string | null;
   planRevisions?: string[];
   todoItems?: TodoItem[];
   currentStatus?: string;

@@ -64,6 +64,7 @@ interface ToolCallBlockProps {
   isComplete?: boolean;
   diff?: string;
   filePath?: string;
+  forceExpanded?: boolean;
 }
 
 interface TodoItem {
@@ -271,10 +272,12 @@ export function ToolCallBlock({
   isComplete,
   diff,
   filePath,
+  forceExpanded,
 }: ToolCallBlockProps) {
   const isEdit = isFileEditTool(toolName);
   const resolvedFilePath = filePath ?? (toolInput?.file_path as string | undefined) ?? (toolInput?.path as string | undefined);
   const [expanded, setExpanded] = useState(false);
+  const isExpanded = expanded || (forceExpanded ?? false);
   const { Icon, color } = getToolIcon(toolName);
   const description = getToolDescription(toolName, toolInput, resultContent);
   const todoItems = useMemo(() => parseTodoItems(toolName, toolInput), [toolInput, toolName]);
@@ -311,9 +314,13 @@ export function ToolCallBlock({
   const hasExpandableContent = !!resultContent || !!resolvedDiff || shouldShowSemanticBody;
 
   return (
-    <div className="tool-call-row group">
+    <div
+      className="tool-call-row group"
+      data-tool-call-id={toolCallId}
+      {...(isEdit && resolvedFilePath ? { 'data-file-edit': resolvedFilePath } : {})}
+    >
       <button
-        onClick={() => hasExpandableContent && setExpanded(!expanded)}
+        onClick={() => hasExpandableContent && setExpanded(!isExpanded)}
         className="flex w-full items-center gap-2.5 py-1.5 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
         <span className="shrink-0 flex items-center justify-center w-5 h-5">
@@ -335,13 +342,13 @@ export function ToolCallBlock({
         )}
         {hasExpandableContent && (
           <span className="shrink-0 text-text-tertiary/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </span>
         )}
       </button>
 
       <AnimatePresence initial={false}>
-        {expanded && hasExpandableContent && (
+        {isExpanded && hasExpandableContent && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -352,7 +359,7 @@ export function ToolCallBlock({
             <div className="pl-7 pr-1 pt-1 pb-2">
               {shouldShowSemanticBody && (
                 <>
-                  {isSemanticTodo && <TodoPreview items={todoItems} expanded={expanded} />}
+                  {isSemanticTodo && <TodoPreview items={todoItems} expanded={isExpanded} />}
                   {isSemanticQuestion && <QuestionPreview questions={questionItems} />}
                 </>
               )}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown, ArrowRightLeft, X, Play, Copy, ClipboardList, Check } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
@@ -61,12 +61,26 @@ export function MessageList() {
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
   const planText = task ? getLatestPlanText(task.messages) : '';
 
+  const expandedToolCallIds = task?.expandedToolCallIds ?? new Set<string>();
+  const scrollToToolCallId = task?.scrollToToolCallId ?? null;
+  const clearScrollTarget = useChatStore((s) => s.clearScrollTarget);
+
   const workspaceId = task?.workspaceId;
   const workspace = useWorkspaceStore((s) => workspaceId ? s.workspaces.get(workspaceId) : undefined);
   const completionTarget = useWorkspaceCompletion(workspaceId);
 
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
     useAutoScroll([messages.length, messages[messages.length - 1]?.content]);
+
+  // Handle scroll-to-file-edit requests
+  useEffect(() => {
+    if (!scrollToToolCallId || !containerRef.current) return;
+    const el = containerRef.current.querySelector(`[data-tool-call-id="${scrollToToolCallId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    clearScrollTarget();
+  }, [scrollToToolCallId, clearScrollTarget, containerRef]);
 
   // Hide PlanCard if user sent a new message after the plan was generated
   const planIsStale = useMemo(() => {
@@ -218,7 +232,7 @@ export function MessageList() {
                     exit="exit"
                     transition={messageTransition}
                   >
-                    {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode)}
+                    {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode, expandedToolCallIds)}
                   </motion.div>,
                 );
               }
@@ -412,6 +426,7 @@ function renderMessage(
   taskStatus?: string,
   mergedResult?: AgentMessage | null,
   taskMode?: string,
+  expandedToolCallIds?: Set<string>,
 ) {
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
   const highlightAsPlan = isPlanMessage(msg, taskMode as 'plan' | 'act' | undefined);
@@ -452,6 +467,7 @@ function renderMessage(
           isComplete={!!mergedResult}
           diff={msg.diff}
           filePath={msg.filePath}
+          forceExpanded={msg.toolCallId ? expandedToolCallIds?.has(msg.toolCallId) : undefined}
         />
       );
 

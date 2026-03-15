@@ -26,6 +26,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { ChangesPanel } from '../review/ChangesPanel';
+import { FileActivityPanel } from '../review/FileActivityPanel';
 import { MergeDialog } from '../review/MergeDialog';
 import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
@@ -43,6 +44,7 @@ export function AppShell() {
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
+  const fileActivityPanelOpen = useUiStore((s) => s.fileActivityPanelOpen);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const termRef = useRef<TerminalPanelHandle>(null);
 
@@ -541,12 +543,17 @@ export function AppShell() {
                       </div>
                     )}
 
-                    {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
-                    <div className="shrink-0">
-                      <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">
-                        <LiveRunHeader />
-                        <ChatInput focused />
+                    <div className="flex flex-1 min-h-0 overflow-hidden">
+                      <div className="flex-1 min-w-0 flex flex-col">
+                        {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                        <div className="shrink-0">
+                          <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">
+                            <LiveRunHeader />
+                            <ChatInput focused />
+                          </div>
+                        </div>
                       </div>
+                      {fileActivityPanelOpen && <FileActivityPanel />}
                     </div>
                   </div>
                 )}

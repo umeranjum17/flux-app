@@ -62,6 +62,9 @@ interface UiState {
   autoApprove: boolean;
   autoApproveTools: string[];
 
+  // File activity panel
+  fileActivityPanelOpen: boolean;
+
   // Smart terminal input
   inputMode: 'chat' | 'terminal';
   shellHistory: string[];
@@ -100,6 +103,8 @@ interface UiState {
   setAutoApprove(enabled: boolean): void;
   toggleAutoApprove(): void;
   setAutoApproveTools(tools: string[]): void;
+  setFileActivityPanelOpen(open: boolean): void;
+  toggleFileActivityPanel(): void;
   setInputMode(mode: 'chat' | 'terminal'): void;
   toggleInputMode(): void;
   addShellCommand(cmd: string): void;
@@ -143,6 +148,7 @@ export const useUiStore = create<UiState>()(
     recentProjects: [],
     autoApprove: false,
     autoApproveTools: ['Read', 'Glob', 'Grep', 'Bash'],
+    fileActivityPanelOpen: false,
     inputMode: 'chat',
     shellHistory: [],
     completionModel: 'haiku',
@@ -360,6 +366,18 @@ export const useUiStore = create<UiState>()(
     setAutoApproveTools(tools) {
       set((state) => {
         state.autoApproveTools = tools;
+      });
+    },
+
+    setFileActivityPanelOpen(open) {
+      set((state) => {
+        state.fileActivityPanelOpen = open;
+      });
+    },
+
+    toggleFileActivityPanel() {
+      set((state) => {
+        state.fileActivityPanelOpen = !state.fileActivityPanelOpen;
       });
     },
 

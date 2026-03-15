@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
-import { GitMerge, Eye, MessageSquare, Trash2 } from 'lucide-react';
+import { GitMerge, Files, Eye, MessageSquare, Trash2 } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
+import { useChatStore } from '../../stores/chat';
 import type { Workspace } from '../../lib/ipc-api';
 import type { DiffData, DiffFileEntry } from '../../lib/types';
 
@@ -51,7 +52,11 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff });
   const hasChanges = hasInlineDiff || hasWorkspaceChanges;
 
-  const handleReview = () => {
+  const handleShowFiles = () => {
+    useUiStore.getState().toggleFileActivityPanel();
+  };
+
+  const handleFullReview = () => {
     useWorkspaceStore.getState().toggleChangesPanel(workspace.id);
   };
 
@@ -64,13 +69,17 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
     useWorkspaceStore.getState().archiveWorkspace(workspace.id);
   };
 
-  const handleFileClick = async (filePath: string) => {
-    const store = useWorkspaceStore.getState();
-    await store.openChangesPanel(workspace.id);
-    // Small delay to ensure diff files are loaded before selecting
-    setTimeout(() => {
-      useWorkspaceStore.getState().changesPanelSelectFile(filePath);
-    }, 100);
+  const handleFileClick = (filePath: string) => {
+    // Find the most recent tool call for this file and scroll to it
+    const task = useChatStore.getState().getActiveTask();
+    if (!task) return;
+    const editEntry = task.editedFiles.get(filePath);
+    if (editEntry) {
+      useChatStore.getState().scrollToFileEdit(editEntry.toolCallId);
+    } else {
+      // Fallback: open the file activity panel
+      useUiStore.getState().setFileActivityPanelOpen(true);
+    }
   };
 
   return (
@@ -110,11 +119,20 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
         )}
         {hasChanges && (
           <button
-            onClick={handleReview}
+            onClick={handleShowFiles}
+            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
+          >
+            <Files size={11} />
+            Show Files
+          </button>
+        )}
+        {hasChanges && (
+          <button
+            onClick={handleFullReview}
             className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
           >
             <Eye size={11} />
-            Review
+            Full Review
           </button>
         )}
         {isReadyToArchive ? (

@@ -5,6 +5,7 @@ import type {
   ActiveRunState,
   AgentMessage,
   AgentId,
+  EditedFileEntry,
   FileAttachment,
   PendingQuestionState,
   SubagentState,
@@ -57,6 +58,8 @@ interface ChatState {
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
   updateTodoItem(taskId: string, stepId: number, status: TodoItem['status']): void;
+  scrollToFileEdit(toolCallId: string): void;
+  clearScrollTarget(): void;
   getActiveTask(): Task | undefined;
 }
 
@@ -106,6 +109,9 @@ export const useChatStore = create<ChatState>()(
           subagents: new Map(),
           agentHistory: [],
           diffs: new Map(),
+          editedFiles: new Map(),
+          expandedToolCallIds: new Set(),
+          scrollToToolCallId: null,
         });
         state.activeTaskId = opts.id;
       });
@@ -117,6 +123,8 @@ export const useChatStore = create<ChatState>()(
         if (task) {
           task.subagents.clear();
           task.diffs.clear();
+          task.editedFiles.clear();
+          task.expandedToolCallIds.clear();
         }
         state.tasks.delete(taskId);
         state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
@@ -137,6 +145,8 @@ export const useChatStore = create<ChatState>()(
         if (task) {
           task.subagents.clear();
           task.diffs.clear();
+          task.editedFiles.clear();
+          task.expandedToolCallIds.clear();
         }
         state.tasks.delete(taskId);
         state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
@@ -335,12 +345,67 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
+    scrollToFileEdit(toolCallId) {
+      set((state) => {
+        const task = state.activeTaskId ? state.tasks.get(state.activeTaskId) : undefined;
+        if (!task) return;
+        task.expandedToolCallIds.add(toolCallId);
+        task.scrollToToolCallId = toolCallId;
+      });
+    },
+
+    clearScrollTarget() {
+      set((state) => {
+        const task = state.activeTaskId ? state.tasks.get(state.activeTaskId) : undefined;
+        if (!task) return;
+        task.scrollToToolCallId = null;
+      });
+    },
+
     getActiveTask() {
       const { tasks, activeTaskId } = get();
       return activeTaskId ? tasks.get(activeTaskId) : undefined;
     },
   })),
 );
+
+function isFileEditTool(toolName: string): boolean {
+  const name = toolName.toLowerCase();
+  return name.includes('edit') || name.includes('write') || name.includes('patch');
+}
+
+function countDiffStatsFromMessage(message: AgentMessage): { additions: number; deletions: number } {
+  const diffSource = message.diff ?? '';
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diffSource.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) additions++;
+    else if (line.startsWith('-') && !line.startsWith('---')) deletions++;
+  }
+  return { additions, deletions };
+}
+
+function trackEditedFile(task: Task, message: AgentMessage): void {
+  if (message.type !== 'tool_call') return;
+  const toolName = message.toolName ?? '';
+  if (!isFileEditTool(toolName)) return;
+
+  const filePath =
+    message.filePath ??
+    (message.toolInput?.file_path as string | undefined) ??
+    (message.toolInput?.path as string | undefined);
+  if (!filePath) return;
+
+  const stats = countDiffStatsFromMessage(message);
+  const existing = task.editedFiles.get(filePath);
+  task.editedFiles.set(filePath, {
+    filePath,
+    toolCallId: message.toolCallId ?? `edit-${message.timestamp}`,
+    additions: (existing?.additions ?? 0) + stats.additions,
+    deletions: (existing?.deletions ?? 0) + stats.deletions,
+    timestamp: message.timestamp,
+  });
+}
 
 function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message: AgentMessage): void {
   const task = state.tasks.get(taskId);
@@ -372,6 +437,10 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
   } else {
     appendMessage(task, message);
   }
+
+  // Track edited files in real-time
+  trackEditedFile(task, message);
+
   applyLiveMessage(task, message);
 }
 
