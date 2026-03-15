@@ -206,6 +206,14 @@ function ProviderCard({
         </div>
       )}
 
+      {/* Error with windows — live fetch broken but showing stale data */}
+      {isError && hasWindows && provider.message && (
+        <div className="flex items-center gap-2 mt-2 px-2 py-1.5 rounded-md bg-warning/10 text-text-secondary">
+          <AlertCircle size={12} className="shrink-0 text-warning" />
+          <span className="text-[10px] leading-tight">{provider.message}</span>
+        </div>
+      )}
+
       {/* Auth missing */}
       {isDisconnected && !hasWindows && (
         <div className="flex items-center gap-2 py-2 text-text-tertiary">

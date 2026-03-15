@@ -1418,6 +1418,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           )
           : null;
         if (normalized) {
+          normalized.fetchedAt = Date.now();
           cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
         }
       }

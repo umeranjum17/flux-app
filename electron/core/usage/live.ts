@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { getDb } from '../db/connection';
+import { logDiagnostic } from '../diagnostics/logger';
 
 export type UsageProviderId = 'claude-code' | 'codex';
 export type UsageWindowKey = 'five_hour' | 'seven_day';
@@ -177,12 +178,25 @@ export class LiveUsageService {
       };
     }
 
-    const snapshotWindows = (['five_hour', 'seven_day'] as UsageWindowKey[])
+    const snapshotRows = (['five_hour', 'seven_day'] as UsageWindowKey[])
       .map((windowKey) => latestSnapshots.get(snapshotKey(result.providerId, windowKey)))
-      .filter((row): row is UsageSnapshotRow => !!row)
-      .map((row) => this.snapshotRowToWindow(result, row, now));
+      .filter((row): row is UsageSnapshotRow => !!row);
+    const snapshotWindows = snapshotRows.map((row) => this.snapshotRowToWindow(result, row, now));
 
     if (snapshotWindows.length > 0) {
+      // Persist anchor snapshots so the trend chart accumulates points during outages.
+      this.persistSnapshots(snapshotRows
+        .filter((row) => !row.resets_at || row.resets_at > now)
+        .map((row) => ({
+          providerId: row.provider_id,
+          windowKey: row.window_key,
+          status: mapStatus(row.used_percent),
+          usedPercent: row.used_percent,
+          resetsAt: row.resets_at,
+          fetchedAt: now,
+          source: 'snapshot' as UsageWindowSource,
+        })));
+
       const fallbackMessage = result.message
         ? `${result.message}. Showing last known usage.`
         : 'Showing last known usage';
@@ -398,6 +412,12 @@ export class LiveUsageService {
     const hasClaudeAccount = hasClaudeAccountState();
     const credentialSource = readClaudeCredentialSource({ includeKeychain: !hasClaudeAccount });
     const oauth = credentialSource?.oauth;
+    logDiagnostic('usage', 'claude credential source', {
+      source: credentialSource?.path ?? 'none',
+      hasAccessToken: !!oauth?.accessToken,
+      hasRefreshToken: !!oauth?.refreshToken,
+      expiresAt: oauth?.expiresAt ?? null,
+    });
     if (!oauth || typeof oauth.accessToken !== 'string') {
       return {
         providerId: 'claude-code',
@@ -423,6 +443,7 @@ export class LiveUsageService {
 
     // Refresh proactively when expiresAt is unknown (0) or within the buffer window.
     if (refreshToken && (expiresAt === 0 || expiresAt - now <= CLAUDE_REFRESH_BUFFER_MS)) {
+      logDiagnostic('usage', 'claude token refresh (proactive)', { expiresAt, reason: expiresAt === 0 ? 'unknown_expiry' : 'near_expiry' });
       const refreshed = await this.refreshClaudeToken(refreshToken);
       if (refreshed) {
         accessToken = refreshed.accessToken;
@@ -435,6 +456,9 @@ export class LiveUsageService {
           refreshToken,
           expiresAt,
         });
+        logDiagnostic('usage', 'claude token refresh succeeded', { expiresAt: refreshed.expiresAt });
+      } else {
+        logDiagnostic('usage', 'claude token refresh failed (all endpoints)', { expiresAt });
       }
     }
 
@@ -443,6 +467,7 @@ export class LiveUsageService {
 
       // On auth failure, try one token refresh + retry (without recursing).
       if ((response.status === 401 || response.status === 403) && refreshToken) {
+        logDiagnostic('usage', 'claude usage API auth failure, retrying refresh', { status: response.status });
         const refreshed = await this.refreshClaudeToken(refreshToken);
         if (refreshed) {
           accessToken = refreshed.accessToken;
@@ -454,23 +479,37 @@ export class LiveUsageService {
             expiresAt: refreshed.expiresAt,
           });
           response = await this.fetchClaudeUsageApi(accessToken);
+        } else {
+          logDiagnostic('usage', 'claude token refresh on 401 also failed');
         }
       }
 
       if (!response.ok) {
+        let body = '';
+        try { body = await response.text(); } catch { /* best effort */ }
+        logDiagnostic('usage', 'claude usage API error', { status: response.status, body: body.slice(0, 500) });
         throw new Error(`Claude usage request failed (${response.status})`);
       }
 
       const json = await response.json() as Record<string, any>;
+      const windows = normalizeClaudeWindows(json, now);
+      logDiagnostic('usage', 'claude usage API success', { windowCount: windows.length });
+
+      // Cache the working token so keychain sources don't re-read on every poll.
+      if (!this.claudeTokenCache) {
+        this.claudeTokenCache = { accessToken, refreshToken: refreshToken ?? '', expiresAt };
+      }
+
       return {
         providerId: 'claude-code',
         label: PROVIDER_LABELS['claude-code'],
         status: 'connected',
         message: null,
         fetchedAt: now,
-        windows: normalizeClaudeWindows(json, now),
+        windows,
       };
     } catch (error) {
+      logDiagnostic('usage', 'claude usage fetch error', { error: error instanceof Error ? error.message : String(error) });
       return {
         providerId: 'claude-code',
         label: PROVIDER_LABELS['claude-code'],
@@ -509,12 +548,14 @@ export class LiveUsageService {
         });
 
         if (!response.ok) {
+          logDiagnostic('usage', 'claude token refresh endpoint rejected', { url: tokenUrl, status: response.status });
           continue;
         }
 
         const json = await response.json() as Record<string, any>;
         const accessToken = typeof json.access_token === 'string' ? json.access_token : null;
         if (!accessToken) {
+          logDiagnostic('usage', 'claude token refresh response missing access_token', { url: tokenUrl });
           continue;
         }
 
@@ -525,8 +566,8 @@ export class LiveUsageService {
           refreshToken: nextRefreshToken,
           expiresAt: Date.now() + (expiresIn * 1000),
         };
-      } catch {
-        // Keep trying the next known endpoint.
+      } catch (err) {
+        logDiagnostic('usage', 'claude token refresh endpoint error', { url: tokenUrl, error: err instanceof Error ? err.message : String(err) });
       }
     }
     return null;
