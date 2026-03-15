@@ -681,7 +681,8 @@ export function AppShell() {
                     )}
 
                     <div className="flex flex-1 min-h-0 overflow-hidden">
-                      <div className="flex-1 min-w-0 flex flex-col">
+                      <div className="relative flex-1 min-w-0 flex flex-col">
+                        {explorerOpen && <FileExplorer />}
                         <ErrorBoundary>
                           {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
                         </ErrorBoundary>
@@ -700,7 +701,6 @@ export function AppShell() {
                   </div>
                 )}
 
-                {explorerOpen && <FileExplorer />}
               </div>
             </div>
 

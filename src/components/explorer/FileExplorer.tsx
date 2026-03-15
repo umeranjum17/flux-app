@@ -35,6 +35,13 @@ export function FileExplorer() {
     useUiStore.getState().setExplorerOpen(false);
   }, []);
 
+  // Auto-open workspace side panel (Files tab) so file navigation is available
+  useEffect(() => {
+    if (filePath && !useUiStore.getState().workspacePanelOpen) {
+      useUiStore.getState().openWorkspacePanelTab('files');
+    }
+  }, [filePath]);
+
   // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

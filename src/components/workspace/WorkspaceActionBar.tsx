@@ -1,4 +1,4 @@
-import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search } from 'lucide-react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
@@ -77,7 +77,7 @@ export function WorkspaceActionBar() {
         )}
         {!isRunning && (
           <>
-            <ActionBtn icon={<Trash2 size={12} />} label="Archive" onClick={handleArchive} danger />
+            <ActionBtn icon={<Archive size={12} />} label="Archive" onClick={handleArchive} danger />
             {!isMerged && (
               <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
             )}
