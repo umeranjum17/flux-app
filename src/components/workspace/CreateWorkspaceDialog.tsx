@@ -19,6 +19,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   const agents = useAgentStore((s) => s.agents);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const selectedModel = useAgentStore((s) => s.selectedModel);
+  const selectedThinking = useAgentStore((s) => s.selectedThinking);
   const dynamicModels = useAgentStore((s) => s.dynamicModels);
   const cwd = useUiStore((s) => s.cwd);
   const openProjects = useUiStore((s) => s.openProjects);
@@ -62,7 +63,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
         agentId: agentId as any,
         model,
         mode: 'act',
-        thinking: 'medium',
+        thinking: selectedThinking,
       });
       onClose();
     } catch (err) {

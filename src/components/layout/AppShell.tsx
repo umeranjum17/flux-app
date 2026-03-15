@@ -345,7 +345,15 @@ export function AppShell() {
           window.api.invoke('config:set', { defaultThinking: cur.thinking } as Partial<FluxConfig>).catch(() => {});
         }
 
-        // Agent/model changes are scoped to the workspace when one is active
+        // Always update global config defaults so new workspaces inherit the latest selection
+        const configPartial: Partial<FluxConfig> = {};
+        if (cur.agent !== snapshot.agent) configPartial.defaultAgent = cur.agent;
+        if (cur.model !== snapshot.model) configPartial.defaultModel = cur.model;
+        if (Object.keys(configPartial).length > 0) {
+          window.api.invoke('config:set', configPartial).catch(() => {});
+        }
+
+        // When a workspace is active, also persist agent/model to the workspace DB
         if (wsId) {
           const wsPartial: { workspaceId: string; agentId?: string; model?: string } = { workspaceId: wsId };
           if (cur.agent !== snapshot.agent) wsPartial.agentId = cur.agent;
@@ -356,13 +364,6 @@ export function AppShell() {
               ...(wsPartial.agentId ? { agentId: wsPartial.agentId } : {}),
               ...(wsPartial.model ? { model: wsPartial.model } : {}),
             });
-          }
-        } else {
-          const partial: Partial<FluxConfig> = {};
-          if (cur.agent !== snapshot.agent) partial.defaultAgent = cur.agent;
-          if (cur.model !== snapshot.model) partial.defaultModel = cur.model;
-          if (Object.keys(partial).length > 0) {
-            window.api.invoke('config:set', partial).catch(() => {});
           }
         }
       }, 300);
