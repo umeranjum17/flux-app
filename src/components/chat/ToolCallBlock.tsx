@@ -329,13 +329,15 @@ export function ToolCallBlock({
         <span className="text-[13px] font-medium text-text-secondary">
           {formatToolLabel(toolName)}
         </span>
-        {description && (
-          <span className="text-[13px] text-text-tertiary truncate min-w-0">
+        {description ? (
+          <span className="text-[13px] text-text-tertiary truncate min-w-0 flex-1">
             {description}
           </span>
+        ) : (
+          <span className="flex-1" />
         )}
         {diffStats && (
-          <span className="flex items-center gap-1 shrink-0 ml-auto text-[12px] font-mono">
+          <span className="ml-auto flex items-center gap-1 shrink-0 text-[12px] font-mono">
             <span className="text-success">+{diffStats.added}</span>
             <span className="text-error">-{diffStats.removed}</span>
           </span>
