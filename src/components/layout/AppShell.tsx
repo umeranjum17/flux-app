@@ -625,8 +625,8 @@ export function AppShell() {
                     <TabBar />
                     {activeWorkspaceId && <WorkspaceActionBar />}
 
-                    {/* Not-a-git-repo banner */}
-                    {!isGitRepo && cwd && (
+                    {/* Not-a-git-repo banner — hide when a workspace is active since it has its own git context */}
+                    {!isGitRepo && cwd && !activeWorkspaceId && (
                       <div className="mx-auto mt-4 w-full max-w-[600px] px-6">
                         <div className="flex items-start gap-3 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3">
                           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" />
