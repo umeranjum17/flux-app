@@ -178,14 +178,32 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       .filter((status): status is WorkspaceStatus => !!status);
 
     if (statuses.includes('running')) return 'running';
+    if (statuses.includes('merging')) return 'merging';
     if (statuses.includes('waiting_approval')) return 'waiting_approval';
     if (statuses.includes('waiting_input')) return 'waiting_input';
     if (statuses.includes('error')) return 'error';
     if (statuses.length > 0 && statuses.every((status) => status === 'done')) return 'done';
-    return 'done';
+    return 'idle';
+  };
+
+  const validStatusTransitions: Record<WorkspaceStatus, WorkspaceStatus[]> = {
+    idle: ['running', 'merging'],
+    running: ['done', 'error', 'waiting_approval', 'waiting_input', 'idle'],
+    merging: ['done', 'error', 'idle'],
+    waiting_approval: ['running', 'done', 'error', 'idle'],
+    waiting_input: ['running', 'done', 'error', 'idle'],
+    done: ['running', 'merging', 'idle'],
+    error: ['running', 'merging', 'idle'],
   };
 
   const emitWorkspaceStatus = (workspaceId: string, status: WorkspaceStatus, extra?: { sessionId?: string }) => {
+    const ws = workspaceStore.get(workspaceId);
+    if (ws) {
+      const from = ws.status;
+      if (from !== status && !validStatusTransitions[from]?.includes(status)) {
+        console.warn(`[workspace] Invalid status transition: ${from} → ${status} for workspace ${workspaceId}`);
+      }
+    }
     workspaceStore.update(workspaceId, {
       status,
       ...(extra?.sessionId ? { sessionId: extra.sessionId } : {}),

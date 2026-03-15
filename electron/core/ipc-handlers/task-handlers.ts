@@ -469,8 +469,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       });
     }
 
+    const initialStatus: WorkspaceStatus = options.workspaceAction === 'merge' ? 'merging' : 'running';
     if (workspace) {
-      updateWorkspaceTaskStatus(options.taskId, workspace.id, 'running', { sessionId: session.id });
+      updateWorkspaceTaskStatus(options.taskId, workspace.id, initialStatus, { sessionId: session.id });
       if (
         options.workspaceAction !== 'merge'
         && options.mode === 'act'
@@ -491,7 +492,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     taskSessions.set(options.taskId, session.id);
     if (workspace) {
       taskWorkspaceMap.set(options.taskId, workspace.id);
-      taskWorkspaceStatusMap.set(options.taskId, 'running');
+      taskWorkspaceStatusMap.set(options.taskId, initialStatus);
       workspaceStore.addSession(workspace.id, session.id, options.taskId);
     }
 
@@ -999,30 +1000,31 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             if (options.mode === 'act') {
               if (options.workspaceAction === 'merge') {
                 if (!finalError) {
-                  emitWorkspaceOutcome(workspace.id, 'merged');
+                  const actuallyMerged = await isWorkspaceBranchMerged(workspace);
+                  emitWorkspaceOutcome(workspace.id, actuallyMerged ? 'merged' : 'ready_for_pr');
                 }
               } else {
                 if (!finalError) {
                   await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
                 }
 
-                // Determine outcome from actual git state rather than relying
-                // on the previous outcome value.  This makes the lifecycle
-                // resilient to external merges, manual git operations, and
-                // repeated task runs.
-                const currentWs = workspaceStore.get(workspace.id);
-                const currentOutcome = currentWs?.outcome ?? 'in_progress';
+                // Determine outcome from actual git state using a fresh read
+                // of the workspace to avoid stale data from the spawn-time capture.
+                const freshWs = workspaceStore.get(workspace.id);
+                if (freshWs) {
+                  const currentOutcome = freshWs.outcome ?? 'in_progress';
 
-                // Don't downgrade user-promoted outcomes
-                const userPromotedOutcomes = new Set(['ready_to_merge', 'merged', 'ready_to_archive']);
-                if (!userPromotedOutcomes.has(currentOutcome)) {
-                  const merged = await isWorkspaceBranchMerged(workspace);
-                  if (merged) {
-                    emitWorkspaceOutcome(workspace.id, 'merged');
-                  } else {
-                    const { hasPendingChanges } = await workspaceHasPendingChanges(workspace);
-                    if (hasPendingChanges) {
-                      emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
+                  // Don't downgrade user-promoted outcomes
+                  const userPromotedOutcomes = new Set(['ready_to_merge', 'merged', 'ready_to_archive']);
+                  if (!userPromotedOutcomes.has(currentOutcome)) {
+                    const merged = await isWorkspaceBranchMerged(freshWs);
+                    if (merged) {
+                      emitWorkspaceOutcome(freshWs.id, 'merged');
+                    } else {
+                      const { hasPendingChanges } = await workspaceHasPendingChanges(freshWs);
+                      if (hasPendingChanges) {
+                        emitWorkspaceOutcome(freshWs.id, 'ready_for_pr');
+                      }
                     }
                   }
                 }
@@ -1101,8 +1103,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           handle.removeAllListeners();
           activeTasks.delete(options.taskId);
           taskSessions.delete(options.taskId);
-          taskWorkspaceStatusMap.delete(options.taskId);
-          taskWorkspaceMap.delete(options.taskId);
+          // Use releaseWorkspaceTask as the single cleanup path — it deletes
+          // from both maps and emits the correct aggregated status.
+          releaseWorkspaceTask(options.taskId);
           cleaningUp.delete(options.taskId);
           taskRetryCounts.delete(options.taskId);
           taskStallMonitors.get(options.taskId)?.dispose();
