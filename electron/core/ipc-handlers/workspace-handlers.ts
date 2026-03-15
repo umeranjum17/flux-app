@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
-import type { WorkspaceOutcome } from '../worktree/types';
+import type { WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
 import { createWorktree, removeWorktree } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile } from '../worktree/diff';
@@ -356,6 +356,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         workspaces.map(async (ws) => {
           // Skip workspaces with active tasks — their outcome will be set on completion
           const hasActiveTask = [...taskWorkspaceMap.entries()].some(([, wsId]) => wsId === ws.id);
+          if (!hasActiveTask) {
+            // Reset stale statuses left over from a crashed or force-quit session
+            const activeStatuses: WorkspaceStatus[] = ['running', 'merging', 'waiting_approval', 'waiting_input'];
+            if (activeStatuses.includes(ws.status as WorkspaceStatus)) {
+              const resetStatus = ws.outcome === 'in_progress' ? 'idle' : 'done';
+              emitWorkspaceStatus(ws.id, resetStatus);
+            }
+          }
           if (hasActiveTask) return;
 
           try {

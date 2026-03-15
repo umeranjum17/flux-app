@@ -224,10 +224,13 @@ export function AppShell() {
 
         useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
-        // Sync outcomes with actual git state (fire-and-forget — updates
-        // arrive via workspace:outcome events)
+        // Sync outcomes and reset stale statuses before restoring sessions
         for (const repo of projects) {
-          window.api.invoke('workspace:sync-outcomes', { parentRepo: repo }).catch(() => {});
+          try {
+            await window.api.invoke('workspace:sync-outcomes', { parentRepo: repo });
+          } catch (err) {
+            console.warn('[AppShell] Failed to sync workspace outcomes:', err);
+          }
         }
 
         for (const workspace of allWorkspaces) {
