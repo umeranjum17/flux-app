@@ -68,6 +68,24 @@ export function MessageList() {
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
     useAutoScroll([messages.length, messages[messages.length - 1]?.content]);
 
+  // Hide PlanCard if user sent a new message after the plan was generated
+  const planIsStale = useMemo(() => {
+    if (!task || !planText) return false;
+    let lastPlanIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (isPlanMessage(messages[i], task.mode)) {
+        lastPlanIdx = i;
+        break;
+      }
+    }
+    if (lastPlanIdx < 0) return false;
+    // Check if any user message exists after the plan
+    for (let i = lastPlanIdx + 1; i < messages.length; i++) {
+      if (messages[i].role === 'user' && messages[i].type === 'text') return true;
+    }
+    return false;
+  }, [messages, planText, task]);
+
   if (!task) {
     return (
       <div className="flex flex-1 items-center justify-center text-text-tertiary">
@@ -87,24 +105,6 @@ export function MessageList() {
   const isStreaming = isActiveRun;
   const lastMessage = messages[messages.length - 1];
   const showCursor = isStreaming && lastMessage?.role === 'assistant' && lastMessage?.type === 'text';
-
-  // Hide PlanCard if user sent a new message after the plan was generated
-  const planIsStale = useMemo(() => {
-    if (!planText) return false;
-    let lastPlanIdx = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (isPlanMessage(messages[i], task.mode)) {
-        lastPlanIdx = i;
-        break;
-      }
-    }
-    if (lastPlanIdx < 0) return false;
-    // Check if any user message exists after the plan
-    for (let i = lastPlanIdx + 1; i < messages.length; i++) {
-      if (messages[i].role === 'user' && messages[i].type === 'text') return true;
-    }
-    return false;
-  }, [messages, planText, task.mode]);
 
   // Build set of message indices where agent switches happened
   const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
