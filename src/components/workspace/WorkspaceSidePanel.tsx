@@ -1,17 +1,19 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight, GitCompareArrows, FilePlus, FileEdit, FileX, FileSymlink, Undo2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
 import { FileActivityPanel } from '../review/FileActivityPanel';
+import type { DiffFile } from '../../lib/ipc-api';
 
-type PanelTab = 'files' | 'search' | 'activity';
+type PanelTab = 'files' | 'search' | 'activity' | 'changes';
 
 const PANEL_TABS: { id: PanelTab; icon: typeof Files; label: string }[] = [
   { id: 'files', icon: Files, label: 'Files' },
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'activity', icon: FilePen, label: 'Activity' },
+  { id: 'changes', icon: GitCompareArrows, label: 'Changes' },
 ];
 
 /**
@@ -36,15 +38,19 @@ function useEffectiveCwd(): string {
 export function WorkspaceSidePanel() {
   const open = useUiStore((s) => s.workspacePanelOpen);
   const activeTab = useUiStore((s) => s.workspacePanelTab);
+  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
 
   if (!open) return null;
+
+  // Only show the changes tab icon when a changes panel is active
+  const visibleTabs = changesPanelOpen ? PANEL_TABS : PANEL_TABS.filter((t) => t.id !== 'changes');
 
   return (
     <div className="w-[280px] shrink-0 border-l border-border/50 bg-bg-surface/30 flex flex-col">
       {/* Tab bar */}
       <div className="flex items-center justify-between border-b border-border/40 px-2 py-1">
         <div className="flex items-center gap-0.5">
-          {PANEL_TABS.map(({ id, icon: Icon, label }) => (
+          {visibleTabs.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => useUiStore.getState().setWorkspacePanelTab(id)}
@@ -69,6 +75,7 @@ export function WorkspaceSidePanel() {
         {activeTab === 'files' && <PanelFilesTab />}
         {activeTab === 'search' && <PanelSearchTab />}
         {activeTab === 'activity' && <PanelActivityTab />}
+        {activeTab === 'changes' && <PanelChangesTab />}
       </div>
     </div>
   );
@@ -302,4 +309,142 @@ function PanelActivityTab() {
   }, [contextKey]);
 
   return <FileActivityPanel embedded />;
+}
+
+/* ---------- Changes tab (changed files list for diff overlay) ---------- */
+
+const changeStatusIcons: Record<DiffFile['status'], React.ReactNode> = {
+  added: <FilePlus size={12} className="text-success shrink-0" />,
+  modified: <FileEdit size={12} className="text-warning shrink-0" />,
+  deleted: <FileX size={12} className="text-error shrink-0" />,
+  renamed: <FileSymlink size={12} className="text-info shrink-0" />,
+};
+
+function changeFileName(path: string): string {
+  return path.split('/').pop() || path;
+}
+
+function changeDirName(path: string): string {
+  const parts = path.split('/');
+  return parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : '';
+}
+
+function PanelChangesTab() {
+  const files = useWorkspaceStore((s) => s.changesPanelFiles);
+  const selectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
+  const workspaceId = useWorkspaceStore((s) => s.changesPanelWorkspaceId);
+  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+
+  const workspace = workspaceId ? workspaces.get(workspaceId) : null;
+
+  const totalAdded = useMemo(() => files.reduce((s, f) => s + f.additions, 0), [files]);
+  const totalDeleted = useMemo(() => files.reduce((s, f) => s + f.deletions, 0), [files]);
+
+  const handleDiscard = useCallback(async (filePath: string) => {
+    if (!workspaceId) return;
+    await window.api.invoke('workspace:discard-file', { workspaceId, filePath });
+    useWorkspaceStore.getState().refreshChangesPanelFiles();
+  }, [workspaceId]);
+
+  // Keyboard navigation: up/down arrows to cycle files
+  useEffect(() => {
+    if (!changesPanelOpen || files.length === 0) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+
+      e.preventDefault();
+      const store = useWorkspaceStore.getState();
+      const currentIdx = store.changesPanelFiles.findIndex((f) => f.path === store.changesPanelSelectedFile);
+      const len = store.changesPanelFiles.length;
+      if (len === 0) return;
+
+      let nextIdx: number;
+      if (e.key === 'ArrowDown') {
+        nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % len;
+      } else {
+        nextIdx = currentIdx < 0 ? len - 1 : (currentIdx - 1 + len) % len;
+      }
+      store.changesPanelSelectFile(store.changesPanelFiles[nextIdx].path);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [changesPanelOpen, files.length]);
+
+  if (!changesPanelOpen) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
+        <p className="text-[11px] text-text-tertiary text-center">No changes panel open. Use &ldquo;Review Changes&rdquo; on a workspace to view diffs.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-[12px] font-medium text-text-secondary">
+            Changes
+            {files.length > 0 && (
+              <span className="text-[11px] text-text-tertiary ml-1.5">
+                {files.length} file{files.length !== 1 ? 's' : ''}
+                {totalAdded > 0 && <span className="text-success ml-1">+{totalAdded}</span>}
+                {totalDeleted > 0 && <span className="text-error ml-1">-{totalDeleted}</span>}
+              </span>
+            )}
+          </p>
+          {workspace && (
+            <p className="text-[10px] font-mono text-text-tertiary truncate mt-0.5">{workspace.branch}</p>
+          )}
+        </div>
+        <button
+          onClick={() => useWorkspaceStore.getState().closeChangesPanel()}
+          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
+          title="Close changes"
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto py-1">
+        {files.length === 0 ? (
+          <div className="px-3 py-6 text-center text-[11px] text-text-tertiary">No changes detected</div>
+        ) : (
+          files.map((file) => {
+            const isSelected = file.path === selectedFile;
+            return (
+              <button
+                key={file.path}
+                onClick={() => useWorkspaceStore.getState().changesPanelSelectFile(file.path)}
+                className={`group w-full flex items-center gap-1.5 px-3 py-1.5 text-left transition-colors ${
+                  isSelected
+                    ? 'bg-accent/10 text-text-primary'
+                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                }`}
+              >
+                {changeStatusIcons[file.status]}
+                <span className="flex-1 min-w-0 truncate text-[11px] font-mono">
+                  <span className="text-text-tertiary">{changeDirName(file.path)}</span>
+                  {changeFileName(file.path)}
+                </span>
+                <span className="flex items-center gap-1 shrink-0 text-[10px]">
+                  {file.additions > 0 && <span className="text-success">+{file.additions}</span>}
+                  {file.deletions > 0 && <span className="text-error">-{file.deletions}</span>}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDiscard(file.path); }}
+                  className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-error hover:bg-error/10 transition-all"
+                  title="Discard changes"
+                >
+                  <Undo2 size={11} />
+                </button>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }

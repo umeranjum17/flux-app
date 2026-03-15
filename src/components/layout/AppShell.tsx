@@ -640,8 +640,6 @@ export function AppShell() {
               <div className="relative flex min-w-0 flex-1 flex-col">
                 {reviewingWorkspaceId ? (
                   <CodeReviewPanel />
-                ) : changesPanelOpen ? (
-                  <ChangesPanel />
                 ) : (
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
@@ -683,6 +681,7 @@ export function AppShell() {
                     <div className="flex flex-1 min-h-0 overflow-hidden">
                       <div className="relative flex-1 min-w-0 flex flex-col">
                         {explorerOpen && <FileExplorer />}
+                        {changesPanelOpen && <ChangesPanel />}
                         <ErrorBoundary>
                           {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
                         </ErrorBoundary>
