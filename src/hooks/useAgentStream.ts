@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
+import { useWorkspaceStore } from '../stores/workspace';
 import type { AgentMessage, DiffData, TodoItem } from '../lib/types';
 
 function shouldAutoApprove(toolName: string): boolean {
@@ -53,6 +54,14 @@ export function useAgentStream() {
         });
       }
       useChatStore.getState().setTaskStatus(taskId, error ? 'error' : 'done');
+
+      // Auto-open the changes panel after a successful coding turn
+      if (!error) {
+        const task = useChatStore.getState().tasks.get(taskId);
+        if (task?.workspaceId) {
+          useWorkspaceStore.getState().openChangesPanel(task.workspaceId);
+        }
+      }
     });
 
     const unsubPermission = window.api.on('agent:permission', (data: unknown) => {
