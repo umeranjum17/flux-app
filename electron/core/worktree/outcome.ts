@@ -13,6 +13,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
+import { logDiagnostic } from '../diagnostics/logger';
 import type { Workspace, WorkspaceOutcome } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -208,6 +209,7 @@ export async function transitionWorkspaceOutcome(
   const gitState = await resolveGitState(workspace);
   const next = computeNextOutcome(workspace.outcome, trigger, gitState);
   if (next !== null && next !== workspace.outcome) {
+    logDiagnostic('outcome', 'workspace outcome transition', { workspaceId: workspace.id, trigger, from: workspace.outcome, to: next });
     emitFn(workspace.id, next);
   }
 }
