@@ -10,6 +10,7 @@ import { repoMapService } from '../intelligence/repomap';
 import { createCheckpoint, listCheckpoints } from '../checkpoint/manager';
 import { extendedEnv, resolveSshCommand, classifySpawnError } from '../process-utils';
 import type { WorkspaceStatus } from '../worktree/types';
+import { transitionWorkspaceOutcome } from '../worktree/outcome';
 import type { BaseIpcContext, SpawnTaskRunOptions } from './types';
 import {
   MAX_AUTO_RETRIES,
@@ -34,8 +35,6 @@ import {
   captureGitSnapshot,
   captureGitDiff,
   normalizeRateLimitInfo,
-  workspaceHasPendingChanges,
-  isWorkspaceBranchMerged,
   parseStepMarkers,
   getStepTrackableContent,
   extractTodoItemsFromPayload,
@@ -980,15 +979,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             if (options.mode === 'act') {
               if (options.workspaceAction === 'merge') {
                 if (!finalError) {
-                  // Use fresh workspace read to avoid stale data from spawn-time capture
-                  const freshMergeWs = workspaceStore.get(workspace.id);
-                  const currentMergeOutcome = freshMergeWs?.outcome ?? 'in_progress';
-                  // Don't downgrade user-promoted outcomes (e.g. ready_to_archive)
-                  const userPromotedMergeOutcomes = new Set(['ready_to_archive']);
-                  if (!userPromotedMergeOutcomes.has(currentMergeOutcome)) {
-                    const actuallyMerged = await isWorkspaceBranchMerged(freshMergeWs ?? workspace);
-                    emitWorkspaceOutcome(workspace.id, actuallyMerged ? 'merged' : 'ready_for_pr');
-                  }
+                  const freshMergeWs = workspaceStore.get(workspace.id) ?? workspace;
+                  await transitionWorkspaceOutcome(freshMergeWs, 'task_completed_merge', emitWorkspaceOutcome);
                 }
               } else {
                 if (!finalError) {
@@ -999,21 +991,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 // of the workspace to avoid stale data from the spawn-time capture.
                 const freshWs = workspaceStore.get(workspace.id);
                 if (freshWs) {
-                  const currentOutcome = freshWs.outcome ?? 'in_progress';
-
-                  // Don't downgrade user-promoted outcomes
-                  const userPromotedOutcomes = new Set(['ready_to_merge', 'merged', 'ready_to_archive']);
-                  if (!userPromotedOutcomes.has(currentOutcome)) {
-                    const merged = await isWorkspaceBranchMerged(freshWs);
-                    if (merged) {
-                      emitWorkspaceOutcome(freshWs.id, 'merged');
-                    } else {
-                      const { hasPendingChanges } = await workspaceHasPendingChanges(freshWs);
-                      if (hasPendingChanges) {
-                        emitWorkspaceOutcome(freshWs.id, 'ready_for_pr');
-                      }
-                    }
-                  }
+                  const trigger = finalError ? 'task_error' : 'task_completed';
+                  await transitionWorkspaceOutcome(freshWs, trigger, emitWorkspaceOutcome);
                 }
 
                 // Agent-driven workspace rename: let the agent's output determine the name

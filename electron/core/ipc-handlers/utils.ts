@@ -455,6 +455,11 @@ export async function workspaceHasCommits(workspace: Workspace): Promise<boolean
  * Check whether a workspace branch has been fully merged into the parent
  * branch.  Uses `git merge-base --is-ancestor` which returns exit code 0
  * when every commit on the workspace branch is reachable from the parent.
+ *
+ * IMPORTANT: A branch that never diverged (zero commits ahead of the merge
+ * base) is NOT considered "merged" — `--is-ancestor` returns true trivially
+ * when the branch tip equals the merge base, which was the root cause of
+ * empty directories showing as merged.
  */
 export async function isWorkspaceBranchMerged(workspace: Workspace): Promise<boolean> {
   try {
@@ -473,7 +478,20 @@ export async function isWorkspaceBranchMerged(workspace: Workspace): Promise<boo
       { cwd: workspace.worktreePath, timeout: 5000 },
     );
 
-    // Check if the workspace branch tip is an ancestor of the parent branch
+    // Find the merge-base between the branch tip and the target
+    const { stdout: mergeBaseOut } = await execFileAsync(
+      'git', ['merge-base', branchTip.trim(), target],
+      { cwd: workspace.parentRepo, timeout: 5000 },
+    );
+    const mergeBase = mergeBaseOut.trim();
+
+    // If the branch tip IS the merge base, the branch never diverged.
+    // This is NOT "merged" — it just never had any commits of its own.
+    if (branchTip.trim() === mergeBase) {
+      return false;
+    }
+
+    // The branch has diverged. Now check if it's been merged back.
     await execFileAsync(
       'git', ['merge-base', '--is-ancestor', branchTip.trim(), target],
       { cwd: workspace.parentRepo, timeout: 5000 },

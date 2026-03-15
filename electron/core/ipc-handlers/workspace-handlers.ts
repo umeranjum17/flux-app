@@ -7,12 +7,13 @@ import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
 import type { WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
+import { transitionWorkspaceOutcome } from '../worktree/outcome';
 import { createWorktree, removeWorktree } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile } from '../worktree/diff';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
-import { requireFields, commandExists, workspaceHasPendingChanges, isWorkspaceBranchMerged, moveWorktreeDirectory } from './utils';
+import { requireFields, commandExists, moveWorktreeDirectory } from './utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -306,19 +307,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
     // Sync outcome from git state after stop so the UI reflects any work the agent completed
     const stoppedWs = workspaceStore.get(workspaceId);
-    if (stoppedWs && stoppedWs.outcome !== 'merged' && stoppedWs.outcome !== 'ready_to_archive') {
+    if (stoppedWs) {
       try {
-        const merged = await isWorkspaceBranchMerged(stoppedWs);
-        if (merged) {
-          emitWorkspaceOutcome(workspaceId, 'merged');
-        } else if (stoppedWs.outcome !== 'ready_to_merge') {
-          const { hasPendingChanges } = await workspaceHasPendingChanges(stoppedWs);
-          if (hasPendingChanges && stoppedWs.outcome === 'in_progress') {
-            emitWorkspaceOutcome(workspaceId, 'ready_for_pr');
-          } else if (!hasPendingChanges && stoppedWs.outcome === 'ready_for_pr') {
-            emitWorkspaceOutcome(workspaceId, 'in_progress');
-          }
-        }
+        await transitionWorkspaceOutcome(stoppedWs, 'agent_stopped', emitWorkspaceOutcome);
       } catch {
         // Best-effort — don't block stop
       }
@@ -363,7 +354,6 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:sync-outcomes',
     async (_event, { parentRepo }: { parentRepo: string }) => {
       const workspaces = workspaceStore.list(parentRepo);
-      const userPromoted = new Set<WorkspaceOutcome>(['ready_to_merge', 'ready_to_archive']);
 
       // Run all checks in parallel for speed
       await Promise.all(
@@ -381,28 +371,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
           if (hasActiveTask) return;
 
           try {
-            if (ws.outcome === 'merged') {
-              // Already merged — nothing to do
-              return;
-            }
-
-            // Check if the branch has been merged externally
-            const merged = await isWorkspaceBranchMerged(ws);
-            if (merged) {
-              emitWorkspaceOutcome(ws.id, 'merged');
-              return;
-            }
-
-            // For non-promoted outcomes, check pending changes
-            if (!userPromoted.has(ws.outcome)) {
-              const { hasPendingChanges } = await workspaceHasPendingChanges(ws);
-              if (hasPendingChanges && ws.outcome === 'in_progress') {
-                emitWorkspaceOutcome(ws.id, 'ready_for_pr');
-              } else if (!hasPendingChanges && ws.outcome === 'ready_for_pr') {
-                // Changes were reverted or reset — go back to in_progress
-                emitWorkspaceOutcome(ws.id, 'in_progress');
-              }
-            }
+            await transitionWorkspaceOutcome(ws, 'sync', emitWorkspaceOutcome);
           } catch {
             // Best-effort — don't block workspace loading
           }
@@ -468,10 +437,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
     // Sync outcome from git state — it may have changed while archived
     try {
-      const merged = await isWorkspaceBranchMerged(restored);
-      if (merged && restored.outcome !== 'merged') {
-        emitWorkspaceOutcome(workspaceId, 'merged');
-      }
+      await transitionWorkspaceOutcome(restored, 'unarchived', emitWorkspaceOutcome);
     } catch {
       // Best-effort
     }

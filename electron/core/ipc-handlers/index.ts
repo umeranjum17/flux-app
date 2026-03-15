@@ -216,6 +216,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   };
 
   const emitWorkspaceOutcome = (workspaceId: string, outcome: WorkspaceOutcome) => {
+    const current = workspaceStore.get(workspaceId)?.outcome;
+    console.log(`[outcome] ${workspaceId}: ${current} → ${outcome}`);
     workspaceStore.update(workspaceId, { outcome });
     sendToRenderer('workspace:outcome', { workspaceId, outcome });
   };
