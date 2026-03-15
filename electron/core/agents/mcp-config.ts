@@ -1,7 +1,15 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import type { McpServerConfig } from './claude-sdk';
+
+/** MCP server configuration. */
+export interface McpServerConfig {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+}
 
 /**
  * Load MCP server configuration from Claude's project and user settings.

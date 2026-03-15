@@ -6,7 +6,6 @@ import path from 'path';
 
 import { agentManager } from '../agents/manager';
 import type { AgentHandle } from '../agents/types';
-import type { SdkAgentHandle } from '../agents/claude-sdk';
 import { ConfigManager } from '../config/config';
 import type { RepoMapConfig } from '../config/types';
 import { WorkspaceStore } from '../worktree/store';
@@ -598,21 +597,15 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     return { providers: availableCompletionProviders() };
   });
 
-  ipcMain.handle('mcp:status', async (_event, { taskId }: { taskId: string }) => {
-    const handle = activeTasks.get(taskId);
-    if (!handle || !('getMcpServerStatus' in handle)) return [];
-    return (handle as SdkAgentHandle).getMcpServerStatus();
+  ipcMain.handle('mcp:status', async () => {
+    return [];
   });
 
-  ipcMain.handle('mcp:reconnect', async (_event, { taskId, serverName }: { taskId: string; serverName: string }) => {
-    const handle = activeTasks.get(taskId);
-    if (!handle || !('reconnectMcpServer' in handle)) return;
-    await (handle as SdkAgentHandle).reconnectMcpServer(serverName);
+  ipcMain.handle('mcp:reconnect', async () => {
+    // No-op: SDK-based MCP management removed
   });
 
-  ipcMain.handle('mcp:toggle', async (_event, { taskId, serverName, enabled }: { taskId: string; serverName: string; enabled: boolean }) => {
-    const handle = activeTasks.get(taskId);
-    if (!handle || !('toggleMcpServer' in handle)) return;
-    await (handle as SdkAgentHandle).toggleMcpServer(serverName, enabled);
+  ipcMain.handle('mcp:toggle', async () => {
+    // No-op: SDK-based MCP management removed
   });
 }

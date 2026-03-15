@@ -12,7 +12,6 @@ import {
 } from './types';
 import type { SessionMessage } from '../session/types';
 import { spawnClaude } from './claude';
-import { spawnClaudeSdk } from './claude-sdk';
 import { loadMcpServers } from './mcp-config';
 import { spawnCodex } from './codex';
 import { spawnGemini } from './gemini';
@@ -20,14 +19,6 @@ import { spawnOpenAI } from './openai';
 import { spawnOllama } from './ollama';
 import { fetchModelsForAgent, clearModelCache } from './model-fetcher';
 import type { ModelInfo } from './types';
-
-/**
- * Check whether the Agent SDK should be used for Claude instead of the CLI subprocess.
- * Controlled by the FLUX_CLAUDE_SDK environment variable.
- */
-function shouldUseClaudeSdk(): boolean {
-  return process.env.FLUX_CLAUDE_SDK === '1';
-}
 
 const AGENT_DEFS: Record<
   AgentId,
@@ -175,11 +166,6 @@ class AgentManager {
     // OpenAI supports session resume via message replay
     if (id === 'openai' && resumeMessages?.length) {
       return spawnOpenAI(opts, resumeMessages);
-    }
-
-    // Use Agent SDK for local Claude sessions when enabled
-    if (id === 'claude-code' && !options.sshHost && shouldUseClaudeSdk()) {
-      return spawnClaudeSdk(opts, mcpServers);
     }
 
     if (id === 'codex') {

@@ -18,7 +18,7 @@ import {
   inferCodexProfile,
   mapCodexReasoningEffort,
 } from './codex-utils';
-import type { McpServerConfig } from './claude-sdk';
+import type { McpServerConfig } from './mcp-config';
 
 export const CODEX_STARTUP_TIMEOUT_MS = 30_000;
 

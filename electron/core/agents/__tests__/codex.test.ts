@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { spawnCodex } from '../codex';
 import { spawnAgentProcess } from '../spawn-utils';
-import type { McpServerConfig } from '../claude-sdk';
+import type { McpServerConfig } from '../mcp-config';
 
 vi.mock('../spawn-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../spawn-utils')>();
