@@ -450,7 +450,11 @@ function renderMessage(
         />
       );
 
-    case 'tool_call':
+    case 'tool_call': {
+      // TodoWrite is shown in the sticky TodoBar above input — skip inline rendering
+      const toolNameLower = (msg.toolName ?? '').toLowerCase();
+      if (toolNameLower.includes('todo')) return null;
+
       return (
         <ToolCallBlock
           toolName={msg.toolName ?? 'unknown'}
@@ -466,6 +470,7 @@ function renderMessage(
           forceExpanded={msg.toolCallId ? expandedToolCallIds?.has(msg.toolCallId) : undefined}
         />
       );
+    }
 
     case 'tool_result':
       return (
