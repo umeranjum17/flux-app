@@ -2,7 +2,7 @@ import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from './ipc-api';
 
 export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; label: string; pulse?: boolean }> = {
   idle: { color: 'bg-text-tertiary', label: 'Idle' },
-  running: { color: 'bg-accent', label: 'Coding', pulse: true },
+  running: { color: 'bg-accent', label: 'Working', pulse: true },
   waiting_approval: { color: 'bg-warning', label: 'Needs approval', pulse: true },
   waiting_input: { color: 'bg-info', label: 'Needs input', pulse: true },
   done: { color: 'bg-info', label: 'Completed' },
@@ -51,9 +51,9 @@ export const workspaceLifecycleConfig: Record<
   },
   coding: {
     color: 'bg-accent',
-    label: 'Coding',
+    label: 'Working',
     pulse: true,
-    detail: 'Agent is writing code.',
+    detail: 'Agent is working.',
     badgeClass: 'bg-accent/12 text-accent',
     accentColor: 'bg-accent',
     cardTint: 'lifecycle-tint-coding',

@@ -72,10 +72,12 @@ export function WorkspaceActionBar() {
             <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
           </>
         )}
-        {isMerged ? (
-          <ActionBtn icon={<Trash2 size={12} />} label="Archive" onClick={handleArchive} danger />
-        ) : (
-          <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
+        {!isRunning && (
+          isMerged ? (
+            <ActionBtn icon={<Trash2 size={12} />} label="Archive" onClick={handleArchive} danger />
+          ) : (
+            <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
+          )
         )}
       </div>
     </div>

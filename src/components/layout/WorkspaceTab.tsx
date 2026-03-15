@@ -284,19 +284,21 @@ export function WorkspaceTab() {
                         <span className="truncate font-mono">{ws.branch}</span>
                       </div>
                     </div>
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      title="Archive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        useWorkspaceStore.getState().archiveWorkspace(ws.id);
-                        window.api.invoke('workspace:archive', { workspaceId: ws.id });
-                      }}
-                      className="shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
-                    >
-                      <Trash2 size={12} />
-                    </span>
+                    {!isRunning(ws) && (
+                      <span
+                        role="button"
+                        tabIndex={-1}
+                        title="Archive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          useWorkspaceStore.getState().archiveWorkspace(ws.id);
+                          window.api.invoke('workspace:archive', { workspaceId: ws.id });
+                        }}
+                        className="shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
+                      >
+                        <Trash2 size={12} />
+                      </span>
+                    )}
                     {wsGlobalIdx < 9 && (
                       <span className="shrink-0 text-[10px] text-text-tertiary/50 font-mono">{'\u2318'}{wsGlobalIdx + 1}</span>
                     )}
@@ -357,7 +359,9 @@ export function WorkspaceTab() {
             {isRunning(contextMenu.ws) && (
               <ContextItem icon={<Square size={12} />} label="Stop" onClick={() => handleContextAction('stop', contextMenu.ws)} />
             )}
-            <ContextItem icon={<Trash2 size={12} />} label="Archive" onClick={() => handleContextAction('archive', contextMenu.ws)} />
+            {!isRunning(contextMenu.ws) && (
+              <ContextItem icon={<Trash2 size={12} />} label="Archive" onClick={() => handleContextAction('archive', contextMenu.ws)} />
+            )}
             <div className="my-1 border-t border-border/60" />
             <ContextItem icon={<Trash2 size={12} />} label="Delete" onClick={() => handleContextAction('delete', contextMenu.ws)} danger />
           </div>
