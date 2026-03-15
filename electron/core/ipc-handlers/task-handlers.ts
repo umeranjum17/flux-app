@@ -964,6 +964,35 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
+
+            // Detect if the agent renamed the branch (e.g. via `git branch -m`)
+            // and sync the workspace record so the UI shows the correct name.
+            try {
+              const { stdout: actualBranch } = await execFileAsync(
+                'git', ['branch', '--show-current'],
+                { cwd: workspace.worktreePath, timeout: 5000 },
+              );
+              const trimmedBranch = actualBranch.trim();
+              if (trimmedBranch && trimmedBranch !== workspace.branch) {
+                const nameSlug = trimmedBranch
+                  .replace(/^[^/]*\//, '')       // strip prefix like flux/ or user/
+                  .replace(/-[a-z0-9]{4,8}$/, '') // strip trailing random suffix
+                  .replace(/[_-]+/g, ' ')
+                  .trim();
+                const newName = nameSlug
+                  ? nameSlug.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 40)
+                  : trimmedBranch;
+                workspaceStore.update(workspace.id, { branch: trimmedBranch, name: newName });
+                sendToRenderer('workspace:updated', {
+                  workspaceId: workspace.id,
+                  branch: trimmedBranch,
+                  name: newName,
+                });
+              }
+            } catch {
+              // Best-effort branch detection
+            }
+
             if (options.mode === 'act') {
               if (options.workspaceAction === 'merge') {
                 if (!finalError) {
