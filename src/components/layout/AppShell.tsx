@@ -233,14 +233,26 @@ export function AppShell() {
 
   // Sync model selector when the active workspace changes so each workspace
   // shows and uses its own agent/model in the chat input dropdown.
+  // When switching away from a workspace (back to standalone chats), restore
+  // the global config defaults so workspace settings don't leak out.
   useEffect(() => {
-    if (!activeWorkspaceId) return;
-    const workspace = useWorkspaceStore.getState().workspaces.get(activeWorkspaceId);
-    if (!workspace?.agentId) return;
-    useAgentStore.getState().syncToWorkspace(
-      workspace.agentId as import('../../lib/types').AgentId,
-      workspace.model,
-    );
+    if (activeWorkspaceId) {
+      const workspace = useWorkspaceStore.getState().workspaces.get(activeWorkspaceId);
+      if (!workspace?.agentId) return;
+      useAgentStore.getState().syncToWorkspace(
+        workspace.agentId as import('../../lib/types').AgentId,
+        workspace.model,
+      );
+    } else {
+      // Restore global defaults when leaving a workspace
+      window.api.invoke('config:get').then((raw) => {
+        const config = raw as FluxConfig;
+        const agentStore = useAgentStore.getState();
+        const agentId = (config.defaultAgent || agentStore.selectedAgentId) as import('../../lib/types').AgentId;
+        const model = config.defaultModel || agentStore.selectedModel;
+        agentStore.syncToWorkspace(agentId, model);
+      }).catch(() => {});
+    }
   }, [activeWorkspaceId]);
 
   // Fetch git info when CWD changes
@@ -285,7 +297,9 @@ export function AppShell() {
     applyTheme(theme);
   }, [theme]);
 
-  // Auto-persist agent selections (debounced)
+  // Auto-persist agent selections (debounced).
+  // When a workspace is active, agent/model changes are scoped to that workspace
+  // instead of leaking into the global config.
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
     let prev = {
@@ -300,12 +314,32 @@ export function AppShell() {
       prev = cur;
       clearTimeout(timeout);
       timeout = setTimeout(() => {
-        const partial: Partial<FluxConfig> = {};
-        if (cur.agent !== snapshot.agent) partial.defaultAgent = cur.agent;
-        if (cur.model !== snapshot.model) partial.defaultModel = cur.model;
-        if (cur.thinking !== snapshot.thinking) partial.defaultThinking = cur.thinking;
-        if (Object.keys(partial).length > 0) {
-          window.api.invoke('config:set', partial).catch(() => {});
+        const wsId = useWorkspaceStore.getState().activeWorkspaceId;
+
+        // Thinking is always global
+        if (cur.thinking !== snapshot.thinking) {
+          window.api.invoke('config:set', { defaultThinking: cur.thinking } as Partial<FluxConfig>).catch(() => {});
+        }
+
+        // Agent/model changes are scoped to the workspace when one is active
+        if (wsId) {
+          const wsPartial: { workspaceId: string; agentId?: string; model?: string } = { workspaceId: wsId };
+          if (cur.agent !== snapshot.agent) wsPartial.agentId = cur.agent;
+          if (cur.model !== snapshot.model) wsPartial.model = cur.model;
+          if (wsPartial.agentId || wsPartial.model) {
+            window.api.invoke('workspace:update', wsPartial).catch(() => {});
+            useWorkspaceStore.getState().updateWorkspace(wsId, {
+              ...(wsPartial.agentId ? { agentId: wsPartial.agentId } : {}),
+              ...(wsPartial.model ? { model: wsPartial.model } : {}),
+            });
+          }
+        } else {
+          const partial: Partial<FluxConfig> = {};
+          if (cur.agent !== snapshot.agent) partial.defaultAgent = cur.agent;
+          if (cur.model !== snapshot.model) partial.defaultModel = cur.model;
+          if (Object.keys(partial).length > 0) {
+            window.api.invoke('config:set', partial).catch(() => {});
+          }
         }
       }, 300);
     });

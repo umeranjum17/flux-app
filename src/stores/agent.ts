@@ -120,7 +120,6 @@ export const useAgentStore = create<AgentState>()(
 
     syncToWorkspace(agentId, model) {
       const current = get();
-      if (current.selectedAgentId === agentId && current.selectedModel === model) return;
       const agentChanged = current.selectedAgentId !== agentId;
       set((state) => {
         state.selectedAgentId = agentId;
@@ -129,7 +128,9 @@ export const useAgentStore = create<AgentState>()(
           state.dynamicModels = [];
         }
       });
-      // Fetch available models; fetchModels will keep selectedModel if it's valid
+      // Always fetch models so the selector stays correct after a workspace switch,
+      // even when the agent hasn't changed (the user may have manually picked a
+      // different model in the previous workspace).
       void get().fetchModels(agentId);
     },
   })),

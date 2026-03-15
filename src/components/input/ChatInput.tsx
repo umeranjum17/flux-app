@@ -56,8 +56,10 @@ export function ChatInput({ focused }: ChatInputProps) {
     const id = s.activeTaskId;
     return id ? s.tasks.get(id) : undefined;
   });
+  const activeTaskId = useChatStore((s) => s.activeTaskId);
   const upsertSession = useSessionStore((s) => s.upsertSession);
   const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const { mode, sendKey } = useUiStore();
   const inputMode = useUiStore((s) => s.inputMode);
   const shellHistory = useUiStore((s) => s.shellHistory);
@@ -160,6 +162,18 @@ export function ChatInput({ focused }: ChatInputProps) {
       textareaRef.current?.focus();
     }
   }, [pendingMention]);
+
+  // Reset local input state when switching tasks or workspaces so content
+  // doesn't leak across workspace boundaries.
+  useEffect(() => {
+    setValue('');
+    setImages([]);
+    setAttachedFiles([]);
+    setGhostText('');
+    setShowSlash(false);
+    setShowMention(false);
+    if (completionTimer.current) clearTimeout(completionTimer.current);
+  }, [activeTaskId, activeWorkspaceId]);
 
   // When switching to terminal mode, ensure '$ ' prefix
   useEffect(() => {
