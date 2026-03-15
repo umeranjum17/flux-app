@@ -168,6 +168,54 @@ function isFileEditTool(toolName: string): boolean {
   return name.includes('edit') || name.includes('write') || name.includes('patch');
 }
 
+/**
+ * Synthesize a unified diff string from Edit/Write tool input when no
+ * explicit diff is provided. Edit tools have old_string/new_string,
+ * Write tools have content (new file).
+ */
+function synthesizeDiffFromToolInput(
+  toolName: string,
+  toolInput?: Record<string, unknown>,
+): string | undefined {
+  if (!toolInput) return undefined;
+  const name = toolName.toLowerCase();
+  const filePath = (toolInput.file_path ?? toolInput.path ?? toolInput.filePath) as
+    | string
+    | undefined;
+  const shortPath = filePath ?? 'file';
+
+  if (name.includes('edit') || name.includes('patch')) {
+    const oldStr = toolInput.old_string as string | undefined;
+    const newStr = toolInput.new_string as string | undefined;
+    if (oldStr != null && newStr != null) {
+      const oldLines = oldStr.split('\n');
+      const newLines = newStr.split('\n');
+      const header = `--- a/${shortPath}\n+++ b/${shortPath}`;
+      const hunk = `@@ -1,${oldLines.length} +1,${newLines.length} @@`;
+      const removed = oldLines.map((l) => `-${l}`);
+      const added = newLines.map((l) => `+${l}`);
+      return `${header}\n${hunk}\n${removed.join('\n')}\n${added.join('\n')}`;
+    }
+  }
+
+  if (name.includes('write')) {
+    const content = toolInput.content as string | undefined;
+    if (content) {
+      const lines = content.split('\n');
+      // Cap at 200 lines to keep the UI responsive for large files
+      const capped = lines.length > 200 ? lines.slice(0, 200) : lines;
+      const header = `--- /dev/null\n+++ b/${shortPath}`;
+      const hunk = `@@ -0,0 +1,${lines.length} @@`;
+      const added = capped.map((l) => `+${l}`);
+      const suffix =
+        lines.length > 200 ? `\n+... (${lines.length - 200} more lines)` : '';
+      return `${header}\n${hunk}\n${added.join('\n')}${suffix}`;
+    }
+  }
+
+  return undefined;
+}
+
 function parseExitCode(resultContent?: string): number | null {
   if (!resultContent) return null;
   const match = resultContent.match(/\bexit(?:\s+code)?[: ]+(-?\d+)\b/i);
@@ -235,12 +283,17 @@ export function ToolCallBlock({
   const isSemanticQuestion = questionItems.length > 0;
   const shouldShowSemanticBody = isSemanticTodo || isSemanticQuestion;
 
+  const resolvedDiff = useMemo(
+    () => diff ?? synthesizeDiffFromToolInput(toolName, toolInput),
+    [diff, toolName, toolInput],
+  );
+
   const diffStats = useMemo(() => {
     if (!isFileEditTool(toolName)) return null;
-    const diffSource = diff ?? resultContent;
+    const diffSource = resolvedDiff ?? resultContent;
     if (!diffSource) return null;
     return countDiffStats(diffSource);
-  }, [toolName, diff, resultContent]);
+  }, [toolName, resolvedDiff, resultContent]);
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
@@ -255,7 +308,7 @@ export function ToolCallBlock({
     return <Icon size={13} className={`${color} shrink-0`} />;
   }, [isRunning, isComplete, resultIsError, Icon, color]);
 
-  const hasExpandableContent = !!resultContent || !!diff || shouldShowSemanticBody;
+  const hasExpandableContent = !!resultContent || !!resolvedDiff || shouldShowSemanticBody;
 
   return (
     <div className="tool-call-row group">
@@ -305,13 +358,13 @@ export function ToolCallBlock({
               )}
 
               {!shouldShowSemanticBody && (
-                <ToolContentErrorBoundary fallbackContent={resultContent ?? diff}>
+                <ToolContentErrorBoundary fallbackContent={resultContent ?? resolvedDiff}>
                   <ExpandedToolContent
                     toolName={toolName}
                     toolInput={toolInput}
                     resultContent={resultContent}
                     resultIsError={resultIsError}
-                    diff={diff}
+                    diff={resolvedDiff}
                     filePath={resolvedFilePath}
                   />
                 </ToolContentErrorBoundary>
