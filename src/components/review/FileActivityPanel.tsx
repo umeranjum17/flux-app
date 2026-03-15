@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, FilePen } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
+import type { DiffFile } from '../../lib/ipc-api';
 import type { EditedFileEntry } from '../../lib/types';
 import { getDisplayPath } from '../../lib/path-utils';
 
@@ -53,12 +54,50 @@ export function FileActivityPanel() {
   const openChangesPanel = useWorkspaceStore((s) => s.openChangesPanel);
   const changesPanelSelectFile = useWorkspaceStore((s) => s.changesPanelSelectFile);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [workspaceFallbackFiles, setWorkspaceFallbackFiles] = useState<EditedFileEntry[]>([]);
+  const [loadingFallback, setLoadingFallback] = useState(false);
 
   const editedFiles = task?.editedFiles;
-  const files = editedFiles ? Array.from(editedFiles.values()) : [];
+  const trackedFiles = editedFiles ? Array.from(editedFiles.values()) : [];
   const workspaceId = task?.workspaceId ?? null;
+  const files = trackedFiles.length > 0 ? trackedFiles : workspaceFallbackFiles;
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspaceId || trackedFiles.length > 0) {
+      setWorkspaceFallbackFiles([]);
+      setLoadingFallback(false);
+      return;
+    }
+
+    setLoadingFallback(true);
+    window.api.invoke('workspace:diff-files', { workspaceId })
+      .then((diffFiles) => {
+        if (cancelled) return;
+        const now = Date.now();
+        setWorkspaceFallbackFiles(
+          (diffFiles as DiffFile[]).map((file, index) => ({
+            filePath: file.path,
+            toolCallId: `workspace-diff-${index}`,
+            additions: file.additions,
+            deletions: file.deletions,
+            timestamp: now - index,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setWorkspaceFallbackFiles([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFallback(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, trackedFiles.length]);
 
   // Close on Escape
   useEffect(() => {
@@ -88,7 +127,7 @@ export function FileActivityPanel() {
         </div>
         <div className="flex-1 flex items-center justify-center px-3">
           <p className="text-[12px] text-text-tertiary text-center">
-            No files edited yet
+            {loadingFallback ? 'Loading files...' : 'No files edited yet'}
           </p>
         </div>
       </div>
