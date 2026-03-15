@@ -20,6 +20,7 @@ const workspace = {
   updatedAt: 1,
   agentId: 'codex',
   model: 'gpt-5-codex',
+  mode: 'act' as const,
   worktreePath: '/repo/.flux-worktrees/ws-1',
 };
 

@@ -48,6 +48,10 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     name: '014_create_project_group_items',
     sql: CREATE_PROJECT_GROUP_ITEMS_TABLE,
   },
+  {
+    name: '015_add_workspace_mode',
+    sql: "ALTER TABLE workspaces ADD COLUMN mode TEXT NOT NULL DEFAULT 'act'",
+  },
 ];
 
 export function runMigrations(): void {
@@ -83,6 +87,14 @@ export function runMigrations(): void {
     }
 
     if (migration.name === '011_add_workspace_outcome' && hasColumn(db, 'workspaces', 'outcome')) {
+      db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
+        migration.name,
+        Date.now()
+      );
+      continue;
+    }
+
+    if (migration.name === '015_add_workspace_mode' && hasColumn(db, 'workspaces', 'mode')) {
       db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
         migration.name,
         Date.now()

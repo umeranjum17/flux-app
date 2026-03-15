@@ -49,12 +49,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         branch,
         agentId,
         model,
+        mode,
       }: {
         name: string;
         parentRepo: string;
         branch: string;
         agentId: string;
         model: string;
+        mode?: SpawnOptions['mode'];
       },
     ) => {
       requireFields({ name, parentRepo, branch, agentId, model }, 'name', 'parentRepo', 'branch', 'agentId', 'model');
@@ -79,6 +81,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         branch: worktree.branch,
         agentId,
         model,
+        mode,
         status: 'idle',
       });
     },
@@ -88,7 +91,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:create-quick',
     async (
       _event,
-      { parentRepo, agentId, model }: { parentRepo: string; agentId: string; model: string },
+      { parentRepo, agentId, model, mode }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode'] },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
       if (getSshHost()) {
@@ -114,6 +117,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         branch: worktree.branch,
         agentId,
         model,
+        mode,
         status: 'idle',
       });
     },
@@ -195,7 +199,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:spawn',
-    async (_event, { workspaceId, prompt, mode = 'act' }: { workspaceId: string; prompt: string; mode?: SpawnOptions['mode'] }) => {
+    async (_event, { workspaceId, prompt, mode }: { workspaceId: string; prompt: string; mode?: SpawnOptions['mode'] }) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
@@ -208,7 +212,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         prompt,
         agentId: workspace.agentId,
         model: workspace.model,
-        mode,
+        mode: mode ?? workspace.mode,
         cwd: workspace.worktreePath,
         sessionId: workspace.sessionId,
       });
@@ -218,7 +222,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:spawn-chat',
-    async (_event, { workspaceId, prompt, mode = 'act', agentId: overrideAgentId, model: overrideModel, images, attachments }: {
+    async (_event, { workspaceId, prompt, mode, agentId: overrideAgentId, model: overrideModel, images, attachments }: {
       workspaceId: string;
       prompt: string;
       mode?: SpawnOptions['mode'];
@@ -239,7 +243,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         prompt,
         agentId: (overrideAgentId ?? workspace.agentId) as any,
         model: overrideModel ?? workspace.model,
-        mode,
+        mode: mode ?? workspace.mode,
         cwd: workspace.worktreePath,
         images,
         attachments,
@@ -371,10 +375,11 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:update',
-    async (_event, { workspaceId, agentId, model }: { workspaceId: string; agentId?: string; model?: string }) => {
+    async (_event, { workspaceId, agentId, model, mode }: { workspaceId: string; agentId?: string; model?: string; mode?: SpawnOptions['mode'] }) => {
       workspaceStore.update(workspaceId, {
         ...(agentId ? { agentId: agentId as AgentId } : {}),
         ...(model ? { model } : {}),
+        ...(mode ? { mode } : {}),
       });
     },
   );
