@@ -52,6 +52,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
         branch: branch.trim(),
         agentId,
         model,
+        thinking: selectedThinking,
       }) as Workspace;
 
       useWorkspaceStore.getState().addWorkspace(workspace);

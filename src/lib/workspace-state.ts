@@ -200,6 +200,7 @@ export async function createEmptyWorkspace(opts: {
   agentId: AgentId;
   model: string;
   mode?: TaskMode;
+  thinking?: ThinkingLevel;
   cwd: string;
 }): Promise<Workspace> {
   const workspace = await window.api.invoke('workspace:create-quick', {
@@ -207,6 +208,7 @@ export async function createEmptyWorkspace(opts: {
     agentId: opts.agentId,
     model: opts.model,
     mode: opts.mode,
+    thinking: opts.thinking,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);
@@ -371,6 +373,7 @@ export async function createWorkspaceAndChat(
     agentId: opts.agentId,
     model: opts.model,
     mode: opts.mode,
+    thinking: opts.thinking,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);

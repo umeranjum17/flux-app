@@ -124,9 +124,7 @@ export const useAgentStore = create<AgentState>()(
       set((state) => {
         state.selectedAgentId = agentId;
         state.selectedModel = model;
-        if (thinking) {
-          state.selectedThinking = thinking;
-        }
+        state.selectedThinking = thinking ?? 'medium';
         if (agentChanged) {
           state.dynamicModels = [];
         }

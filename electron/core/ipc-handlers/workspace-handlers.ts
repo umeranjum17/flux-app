@@ -43,6 +43,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         agentId,
         model,
         mode,
+        thinking,
       }: {
         name: string;
         parentRepo: string;
@@ -50,6 +51,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         agentId: string;
         model: string;
         mode?: SpawnOptions['mode'];
+        thinking?: string;
       },
     ) => {
       requireFields({ name, parentRepo, branch, agentId, model }, 'name', 'parentRepo', 'branch', 'agentId', 'model');
@@ -83,6 +85,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         agentId,
         model,
         mode,
+        thinking: thinking as any,
         status: 'idle',
       });
     },
@@ -92,7 +95,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:create-quick',
     async (
       _event,
-      { parentRepo, agentId, model, mode }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode'] },
+      { parentRepo, agentId, model, mode, thinking }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
       if (getSshHost()) {
@@ -127,6 +130,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         agentId,
         model,
         mode,
+        thinking: thinking as any,
         status: 'idle',
       });
     },

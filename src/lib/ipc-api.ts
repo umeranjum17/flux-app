@@ -68,11 +68,11 @@ export interface IpcChannels {
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string; includeArchived?: boolean }]; result: Workspace[] };
   'workspace:create': {
-    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode }];
+    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
     result: Workspace;
   };
   'workspace:create-quick': {
-    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode }];
+    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
     result: Workspace;
   };
   'workspace:rename-branch': {
@@ -96,7 +96,7 @@ export interface IpcChannels {
     result: void;
   };
   'workspace:update': {
-    args: [{ workspaceId: string; agentId?: string; model?: string; mode?: TaskMode }];
+    args: [{ workspaceId: string; agentId?: string; model?: string; mode?: TaskMode; thinking?: ThinkingLevel }];
     result: void;
   };
   'workspace:archive': { args: [{ workspaceId: string }]; result: void };

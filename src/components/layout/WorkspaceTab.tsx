@@ -138,7 +138,7 @@ export function WorkspaceTab() {
     try {
       const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
       const mode = useUiStore.getState().mode;
-      const ws = await createEmptyWorkspace({ agentId, model, mode, cwd: projectPath });
+      const ws = await createEmptyWorkspace({ agentId, model, mode, thinking: selectedThinking, cwd: projectPath });
       const taskId = crypto.randomUUID();
       useChatStore.getState().createTask({
         id: taskId,
