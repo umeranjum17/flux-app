@@ -9,6 +9,7 @@ interface CreateWorkspaceInput {
   parentRepo: string;
   worktreePath: string;
   branch: string;
+  baseBranch?: string;
   agentId: string;
   model: string;
   mode?: TaskMode;
@@ -49,6 +50,7 @@ export class WorkspaceStore {
       parentRepo: input.parentRepo,
       worktreePath: input.worktreePath,
       branch: input.branch,
+      baseBranch: input.baseBranch,
       agentId: input.agentId as any,
       model: input.model,
       mode: input.mode ?? 'act',
@@ -61,14 +63,15 @@ export class WorkspaceStore {
 
     db.prepare(
       `INSERT INTO workspaces (
-        id, name, parent_repo, worktree_path, branch, agent_id, model, mode, status, outcome, created_at, updated_at, session_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, parent_repo, worktree_path, branch, base_branch, agent_id, model, mode, status, outcome, created_at, updated_at, session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       workspace.id,
       workspace.name,
       workspace.parentRepo,
       workspace.worktreePath,
       workspace.branch,
+      workspace.baseBranch ?? null,
       workspace.agentId,
       workspace.model,
       workspace.mode,
@@ -97,13 +100,14 @@ export class WorkspaceStore {
 
     db.prepare(
       `UPDATE workspaces
-       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, agent_id = ?, model = ?, mode = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
+       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, base_branch = ?, agent_id = ?, model = ?, mode = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
        WHERE id = ?`,
     ).run(
       next.name,
       next.parentRepo,
       next.worktreePath,
       next.branch,
+      next.baseBranch ?? null,
       next.agentId,
       next.model,
       next.mode,
@@ -175,6 +179,7 @@ function rowToWorkspace(row: any): Workspace {
     parentRepo: row.parent_repo,
     worktreePath: row.worktree_path,
     branch: row.branch,
+    baseBranch: row.base_branch ?? undefined,
     agentId: row.agent_id,
     model: row.model,
     mode: row.mode ?? 'act',

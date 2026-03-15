@@ -11,15 +11,16 @@ interface MergeDialogProps {
 
 export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const gitBranch = useUiStore((s) => s.gitBranch);
-  const [targetBranch, setTargetBranch] = useState(() => gitBranch?.trim() ?? '');
+  const defaultBranch = workspace.baseBranch?.trim() || gitBranch?.trim() || '';
+  const [targetBranch, setTargetBranch] = useState(() => defaultBranch);
   const [squash, setSquash] = useState(true);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!gitBranch?.trim()) return;
-    setTargetBranch((current) => current.trim() || gitBranch);
-  }, [gitBranch]);
+    if (!defaultBranch) return;
+    setTargetBranch((current) => current.trim() || defaultBranch);
+  }, [defaultBranch]);
 
   const handleMerge = async () => {
     setMerging(true);
@@ -78,7 +79,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             <input
               value={targetBranch}
               onChange={(e) => setTargetBranch(e.target.value)}
-              placeholder={gitBranch ?? 'Enter branch name'}
+              placeholder={defaultBranch || 'Enter branch name'}
               className="input-field font-mono text-xs"
             />
           </div>
