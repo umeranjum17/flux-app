@@ -227,9 +227,9 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
-        // Auto-add to openProjects if not already there
-        if (cwd && !state.openProjects.includes(cwd)) {
-          state.openProjects = [...state.openProjects, cwd];
+        // Only auto-add when no projects are open yet (first-time setup)
+        if (cwd && state.openProjects.length === 0) {
+          state.openProjects = [cwd];
         }
       });
     },

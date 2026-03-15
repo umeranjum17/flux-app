@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
@@ -247,6 +247,18 @@ export function WorkspaceTab() {
                     className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
                   >
                     <Plus size={11} />
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    title="Remove project from sidebar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      useUiStore.getState().removeOpenProject(projectPath);
+                    }}
+                    className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-error"
+                  >
+                    <X size={11} />
                   </span>
                 </button>
               )}
