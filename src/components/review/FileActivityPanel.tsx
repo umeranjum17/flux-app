@@ -48,7 +48,7 @@ function FileRow({
   );
 }
 
-export function FileActivityPanel() {
+export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const task = useChatStore((s) => s.getActiveTask());
   const scrollToFileEdit = useChatStore((s) => s.scrollToFileEdit);
   const openChangesPanel = useWorkspaceStore((s) => s.openChangesPanel);
@@ -113,20 +113,23 @@ export function FileActivityPanel() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const wrapperClass = embedded
+    ? 'flex min-h-0 flex-1 flex-col'
+    : 'w-[220px] shrink-0 border-l border-border/50 bg-bg-surface/30 flex flex-col';
+
   if (files.length === 0) {
     return (
-      <div
-        ref={panelRef}
-        className="w-[220px] shrink-0 border-l border-border/50 bg-bg-surface/30 flex flex-col"
-      >
+      <div ref={panelRef} className={wrapperClass}>
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
           <span className="text-[12px] font-medium text-text-secondary">Files</span>
-          <button
-            onClick={() => contextKey && useUiStore.getState().setFileActivityPanelOpen(false, contextKey)}
-            className="p-0.5 rounded text-text-tertiary hover:text-text-primary transition-colors"
-          >
-            <X size={13} />
-          </button>
+          {!embedded && (
+            <button
+              onClick={() => contextKey && useUiStore.getState().setFileActivityPanelOpen(false, contextKey)}
+              className="p-0.5 rounded text-text-tertiary hover:text-text-primary transition-colors"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
         <div className="flex-1 flex items-center justify-center px-3">
           <p className="text-[12px] text-text-tertiary text-center">
@@ -138,10 +141,7 @@ export function FileActivityPanel() {
   }
 
   return (
-    <div
-      ref={panelRef}
-      className="w-[220px] shrink-0 border-l border-border/50 bg-bg-surface/30 flex flex-col"
-    >
+    <div ref={panelRef} className={wrapperClass}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
         <div className="flex items-center gap-2">
@@ -153,12 +153,14 @@ export function FileActivityPanel() {
             <span className="text-error">-{totalDeletions}</span>
           </span>
         </div>
-        <button
-          onClick={() => contextKey && useUiStore.getState().setFileActivityPanelOpen(false, contextKey)}
-          className="p-0.5 rounded text-text-tertiary hover:text-text-primary transition-colors"
-        >
-          <X size={13} />
-        </button>
+        {!embedded && (
+          <button
+            onClick={() => contextKey && useUiStore.getState().setFileActivityPanelOpen(false, contextKey)}
+            className="p-0.5 rounded text-text-tertiary hover:text-text-primary transition-colors"
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
 
       {/* File list */}

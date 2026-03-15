@@ -1,5 +1,6 @@
-import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink } from 'lucide-react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { useUiStore } from '../../stores/ui';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { useChatStore } from '../../stores/chat';
 import { getWorkspaceLifecycleState, isTerminalOutcome, workspaceLifecycleConfig } from '../../lib/workspace-status';
@@ -62,6 +63,8 @@ export function WorkspaceActionBar() {
         </span>
       </div>
       <div className="flex items-center gap-1">
+        <ActionBtn icon={<Files size={12} />} label="Files" onClick={() => useUiStore.getState().openWorkspacePanelTab('files')} />
+        <ActionBtn icon={<Search size={12} />} label="Search" onClick={() => useUiStore.getState().openWorkspacePanelTab('search')} />
         {isRunning && (
           <ActionBtn icon={<Square size={12} />} label="Stop" onClick={handleStop} />
         )}

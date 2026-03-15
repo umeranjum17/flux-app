@@ -15,7 +15,7 @@ export interface RecentProject {
 
 interface UiState {
   sidebarOpen: boolean;
-  sidebarTab: 'workspaces' | 'search' | 'usage' | 'explorer';
+  sidebarTab: 'workspaces' | 'usage';
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
@@ -71,6 +71,10 @@ interface UiState {
   // File activity panel (per workspace/task)
   fileActivityPanelOpenContexts: Set<string>;
 
+  // Workspace side panel (right side: files, search, activity)
+  workspacePanelOpen: boolean;
+  workspacePanelTab: 'files' | 'search' | 'activity';
+
   // Smart terminal input
   inputMode: 'chat' | 'terminal';
   shellHistory: string[];
@@ -78,7 +82,7 @@ interface UiState {
 
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
-  setSidebarTab(tab: 'workspaces' | 'search' | 'usage' | 'explorer'): void;
+  setSidebarTab(tab: 'workspaces' | 'usage'): void;
   toggleTheme(): void;
   setTheme(theme: 'dark' | 'light'): void;
   setSendKey(sendKey: 'cmd+enter' | 'enter'): void;
@@ -117,6 +121,10 @@ interface UiState {
   setAutoApproveTools(tools: string[]): void;
   setFileActivityPanelOpen(open: boolean, contextKey: string): void;
   toggleFileActivityPanel(contextKey: string): void;
+  setWorkspacePanelOpen(open: boolean): void;
+  setWorkspacePanelTab(tab: 'files' | 'search' | 'activity'): void;
+  toggleWorkspacePanel(): void;
+  openWorkspacePanelTab(tab: 'files' | 'search' | 'activity'): void;
   setInputMode(mode: 'chat' | 'terminal'): void;
   toggleInputMode(): void;
   addShellCommand(cmd: string): void;
@@ -164,6 +172,8 @@ export const useUiStore = create<UiState>()(
     autoApprove: false,
     autoApproveTools: ['Read', 'Glob', 'Grep', 'Bash'],
     fileActivityPanelOpenContexts: new Set(),
+    workspacePanelOpen: false,
+    workspacePanelTab: 'activity' as const,
     inputMode: 'chat',
     shellHistory: [],
     completionModel: 'haiku',
@@ -459,6 +469,31 @@ export const useUiStore = create<UiState>()(
         } else {
           state.fileActivityPanelOpenContexts.add(contextKey);
         }
+      });
+    },
+
+    setWorkspacePanelOpen(open) {
+      set((state) => {
+        state.workspacePanelOpen = open;
+      });
+    },
+
+    setWorkspacePanelTab(tab) {
+      set((state) => {
+        state.workspacePanelTab = tab;
+      });
+    },
+
+    toggleWorkspacePanel() {
+      set((state) => {
+        state.workspacePanelOpen = !state.workspacePanelOpen;
+      });
+    },
+
+    openWorkspacePanelTab(tab) {
+      set((state) => {
+        state.workspacePanelTab = tab;
+        state.workspacePanelOpen = true;
       });
     },
 

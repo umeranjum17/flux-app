@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Copy, Check, FileCode2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 import { getHighlighter } from '../../lib/shiki';
 
 function getLang(filename: string): string {
@@ -101,10 +102,12 @@ export function FileExplorer() {
   const lang = getLang(fileName);
   const lineCount = content?.split('\n').length ?? 0;
 
-  // Relative path from cwd
-  const cwd = useUiStore.getState().cwd;
-  const displayPath = cwd && filePath.startsWith(cwd)
-    ? filePath.slice(cwd.length + 1)
+  // Relative path from workspace worktree or global cwd
+  const wsId = useWorkspaceStore.getState().activeWorkspaceId;
+  const wsPath = wsId ? useWorkspaceStore.getState().workspaces.get(wsId)?.worktreePath : null;
+  const basePath = wsPath || useUiStore.getState().cwd;
+  const displayPath = basePath && filePath.startsWith(basePath)
+    ? filePath.slice(basePath.length + 1)
     : filePath;
 
   return (

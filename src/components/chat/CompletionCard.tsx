@@ -56,7 +56,12 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const hasChanges = hasInlineDiff || hasWorkspaceChanges;
 
   const handleShowFiles = () => {
-    useUiStore.getState().toggleFileActivityPanel(workspace.id);
+    const ui = useUiStore.getState();
+    if (ui.workspacePanelOpen && ui.workspacePanelTab === 'activity') {
+      ui.setWorkspacePanelOpen(false);
+    } else {
+      ui.openWorkspacePanelTab('activity');
+    }
   };
 
   const handleFullReview = () => {
@@ -89,7 +94,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
       });
     } else {
       const activeTask = useChatStore.getState().getActiveTask();
-      useUiStore.getState().setFileActivityPanelOpen(true, activeTask?.workspaceId ?? activeTask?.id ?? '');
+      useUiStore.getState().openWorkspacePanelTab('activity');
     }
   };
 

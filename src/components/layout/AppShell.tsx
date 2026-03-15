@@ -28,7 +28,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { ChangesPanel } from '../review/ChangesPanel';
-import { FileActivityPanel } from '../review/FileActivityPanel';
+import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
 import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
@@ -46,14 +46,6 @@ export function AppShell() {
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
-  const fileActivityContextKey = useChatStore((s) => {
-    if (!s.activeTaskId) return null;
-    const task = s.tasks.get(s.activeTaskId);
-    return task ? (task.workspaceId ?? task.id) : null;
-  });
-  const fileActivityPanelOpen = useUiStore((s) =>
-    fileActivityContextKey ? s.fileActivityPanelOpenContexts.has(fileActivityContextKey) : false,
-  );
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const termRef = useRef<TerminalPanelHandle>(null);
 
@@ -528,14 +520,22 @@ export function AppShell() {
       if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
       if (meta && e.key === 'k') { e.preventDefault(); useUiStore.getState().setOverlay('command-palette'); }
-      if (meta && e.key === 'e') {
+      if (meta && !e.shiftKey && e.key === 'e') {
         e.preventDefault();
         const ui = useUiStore.getState();
-        if (ui.sidebarTab === 'explorer' && ui.sidebarOpen) {
-          ui.setSidebarTab('workspaces');
+        if (ui.workspacePanelOpen && ui.workspacePanelTab === 'files') {
+          ui.setWorkspacePanelOpen(false);
         } else {
-          ui.setSidebarTab('explorer');
-          if (!ui.sidebarOpen) ui.setSidebarOpen(true);
+          ui.openWorkspacePanelTab('files');
+        }
+      }
+      if (meta && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        const ui = useUiStore.getState();
+        if (ui.workspacePanelOpen && ui.workspacePanelTab === 'search') {
+          ui.setWorkspacePanelOpen(false);
+        } else {
+          ui.openWorkspacePanelTab('search');
         }
       }
       if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanel(); }
@@ -695,7 +695,7 @@ export function AppShell() {
                           </div>
                         </div>
                       </div>
-                      {fileActivityPanelOpen && <FileActivityPanel />}
+                      <WorkspaceSidePanel />
                     </div>
                   </div>
                 )}

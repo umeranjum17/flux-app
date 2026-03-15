@@ -6,6 +6,7 @@ export function ActivityBar() {
   const terminalOpen = useUiStore((s) => s.terminalOpen);
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const sidebarTab = useUiStore((s) => s.sidebarTab);
+  const searchPanelActive = useUiStore((s) => s.workspacePanelOpen && s.workspacePanelTab === 'search');
   const cwd = useUiStore((s) => s.cwd);
 
   const handleOpenFolder = async () => {
@@ -17,8 +18,7 @@ export function ActivityBar() {
   };
 
   const handleSearch = () => {
-    useUiStore.getState().setSidebarTab('search');
-    useUiStore.getState().setSidebarOpen(true);
+    useUiStore.getState().openWorkspacePanelTab('search');
   };
 
   const handleChats = () => {
@@ -59,7 +59,7 @@ export function ActivityBar() {
         <ActivityIcon
           icon={<Search size={20} strokeWidth={1.8} />}
           label="Search"
-          active={sidebarOpen && sidebarTab === 'search'}
+          active={searchPanelActive}
           onClick={handleSearch}
         />
       </div>

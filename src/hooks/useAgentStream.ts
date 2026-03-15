@@ -47,7 +47,7 @@ export function useAgentStream() {
               autoOpenedForTask.add(taskId);
               const task = chatState.tasks.get(taskId);
               const contextKey = task?.workspaceId ?? taskId;
-              useUiStore.getState().setFileActivityPanelOpen(true, contextKey);
+              useUiStore.getState().openWorkspacePanelTab('activity');
             }
           }
         }
