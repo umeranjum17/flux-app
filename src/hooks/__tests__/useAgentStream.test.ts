@@ -182,6 +182,34 @@ describe('useAgentStream', () => {
     });
   });
 
+  it('agent:diff updates task diffs and editedFiles for file activity', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('agent:diff', {
+      taskId: 'task-1',
+      key: '0-4',
+      diff: {
+        files: [{
+          path: 'src/hooks/useAgentStream.ts',
+          additions: 12,
+          deletions: 3,
+          hunks: [],
+        }],
+        totalAdditions: 12,
+        totalDeletions: 3,
+      },
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.diffs.get('0-4')?.files[0]?.path).toBe('src/hooks/useAgentStream.ts');
+    expect(task?.editedFiles.get('src/hooks/useAgentStream.ts')).toEqual(expect.objectContaining({
+      filePath: 'src/hooks/useAgentStream.ts',
+      additions: 12,
+      deletions: 3,
+    }));
+  });
+
   it('callbacks receive data as first arg (not old _event, data pattern)', () => {
     // The hook destructures data directly from the first callback argument.
     // If the old Electron (_event, data) pattern were used, taskId would be

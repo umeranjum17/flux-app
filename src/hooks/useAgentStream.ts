@@ -94,6 +94,16 @@ export function useAgentStream() {
         const task = state.tasks.get(taskId);
         if (task) {
           task.diffs.set(key, diff);
+          for (const [index, file] of diff.files.entries()) {
+            const existing = task.editedFiles.get(file.path);
+            task.editedFiles.set(file.path, {
+              filePath: file.path,
+              toolCallId: existing?.toolCallId ?? `diff-${key}-${index}`,
+              additions: file.additions,
+              deletions: file.deletions,
+              timestamp: Date.now(),
+            });
+          }
         }
       });
     });

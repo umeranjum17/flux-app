@@ -925,7 +925,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       cwd: spawnCwd,
       remoteCwd: sshHost ? options.cwd : undefined,
       sshHost: sshHost ?? undefined,
-      dangerouslyBypassPermissions: agentId === 'claude-code' || options.workspaceAction === 'merge',
+      dangerouslyBypassPermissions: agentId === 'claude-code'
+        || (agentId === 'codex' && options.mode === 'act')
+        || options.workspaceAction === 'merge',
       prompt: effectivePrompt,
       sessionId: agentId === 'claude-code' ? session.id : options.sessionId,
       resumeSessionId: agentId === 'codex'
