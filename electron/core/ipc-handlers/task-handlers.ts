@@ -1088,8 +1088,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 }
 
                 try {
-                  const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: workspace.parentRepo });
-                  const suggestedMergeTarget = branchOut.trim() || 'main';
+                  const currentWsData = workspaceStore.get(workspace.id);
+                  const suggestedMergeTarget = currentWsData?.baseBranch || 'main';
                   sendToRenderer('workspace:completion', {
                     workspaceId: workspace.id,
                     taskId: options.taskId,

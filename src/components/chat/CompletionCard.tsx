@@ -48,7 +48,7 @@ function formatDuration(ms: number): string {
 }
 
 export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, diff, durationMs }: CompletionCardProps) {
-  const mergeTarget = suggestedMergeTarget || useUiStore.getState().gitBranch || 'main';
+  const mergeTarget = suggestedMergeTarget || workspace.baseBranch || 'main';
   const isReadyToArchive = workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive';
   const hasInlineDiff = !!diff && diff.files.length > 0;
   const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff });
