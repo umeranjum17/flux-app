@@ -304,8 +304,16 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       ? workspaceStore.get(options.workspaceId)
       : workspaceStore.get(options.taskId);
     if (activeTasks.has(options.taskId)) {
+      // Capture before releaseTask removes it from the map
+      const priorHandle = activeTasks.get(options.taskId);
       releaseTask(options.taskId);
       lifecycleManager.clearTask(options.taskId);
+      // Await old process death so the session lock is released before respawning.
+      // This prevents "session already in use" conflicts when the user switches
+      // model mid-execution, which would otherwise cause spurious spawn failures.
+      if (priorHandle) {
+        await priorHandle.stop().catch(() => {});
+      }
     }
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
@@ -838,6 +846,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           && !result.error.includes('authentication')
           && !result.error.includes('rate limit')
           && !result.error.includes('timed out')
+          && !result.error.startsWith('Failed to start ')  // spawn errors (binary not found) are never retriable
           && !(wsIdForRetry && isCircuitBreakerOpen(wsIdForRetry));
         if (result?.error && !shouldAutoRetry && wsIdForRetry && isCircuitBreakerOpen(wsIdForRetry)) {
           emitTaskMessage(options.taskId, session.id, {
