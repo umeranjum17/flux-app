@@ -34,7 +34,8 @@ import {
   captureGitSnapshot,
   captureGitDiff,
   normalizeRateLimitInfo,
-  workspaceHasCommits,
+  workspaceHasPendingChanges,
+  isWorkspaceBranchMerged,
 } from './utils';
 
 import { execFile } from 'child_process';
@@ -954,11 +955,24 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                   await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
                 }
 
+                // Determine outcome from actual git state rather than relying
+                // on the previous outcome value.  This makes the lifecycle
+                // resilient to external merges, manual git operations, and
+                // repeated task runs.
                 const currentWs = workspaceStore.get(workspace.id);
-                if (currentWs && currentWs.outcome === 'in_progress') {
-                  const hasCommits = await workspaceHasCommits(workspace);
-                  if (hasCommits) {
-                    emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
+                const currentOutcome = currentWs?.outcome ?? 'in_progress';
+
+                // Don't downgrade user-promoted outcomes
+                const userPromotedOutcomes = new Set(['ready_to_merge', 'merged', 'ready_to_archive']);
+                if (!userPromotedOutcomes.has(currentOutcome)) {
+                  const merged = await isWorkspaceBranchMerged(workspace);
+                  if (merged) {
+                    emitWorkspaceOutcome(workspace.id, 'merged');
+                  } else {
+                    const { hasPendingChanges } = await workspaceHasPendingChanges(workspace);
+                    if (hasPendingChanges) {
+                      emitWorkspaceOutcome(workspace.id, 'ready_for_pr');
+                    }
                   }
                 }
 

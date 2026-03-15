@@ -284,28 +284,112 @@ export async function captureGitDiff(cwd: string, baseRef: string): Promise<Diff
   }
 }
 
-export async function workspaceHasCommits(workspace: Workspace): Promise<boolean> {
+export interface WorkspacePendingChanges {
+  hasCommits: boolean;
+  hasUncommittedChanges: boolean;
+  hasPendingChanges: boolean;
+}
+
+/**
+ * Detect pending changes in a workspace by checking both commits ahead of the
+ * parent branch and uncommitted working-tree changes.  Uses `git merge-base`
+ * to find the true divergence point so the result is reliable even when the
+ * parent repo HEAD is on a different branch.
+ */
+export async function workspaceHasPendingChanges(workspace: Workspace): Promise<WorkspacePendingChanges> {
+  let hasCommits = false;
+  let hasUncommittedChanges = false;
+
+  // 1. Check for commits ahead of the merge-base with the parent branch
   try {
     const { stdout: parentBranch } = await execFileAsync(
       'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
       { cwd: workspace.parentRepo, timeout: 5000 },
     );
     const target = parentBranch.trim() || 'HEAD';
-    const { stdout: countOut } = await execFileAsync(
-      'git', ['rev-list', '--count', `${target}..HEAD`],
+
+    // Use merge-base for an accurate divergence point
+    const { stdout: mergeBaseOut } = await execFileAsync(
+      'git', ['merge-base', target, 'HEAD'],
       { cwd: workspace.worktreePath, timeout: 5000 },
     );
-    return parseInt(countOut.trim(), 10) > 0;
-  } catch {
-    try {
-      const { stdout: statusOut } = await execFileAsync(
-        'git', ['status', '--porcelain'],
+    const mergeBase = mergeBaseOut.trim();
+
+    if (mergeBase) {
+      const { stdout: countOut } = await execFileAsync(
+        'git', ['rev-list', '--count', `${mergeBase}..HEAD`],
         { cwd: workspace.worktreePath, timeout: 5000 },
       );
-      return statusOut.trim().length > 0;
-    } catch {
-      return false;
+      hasCommits = parseInt(countOut.trim(), 10) > 0;
     }
+  } catch {
+    // Fallback: try the simpler rev-list check
+    try {
+      const { stdout: countOut } = await execFileAsync(
+        'git', ['rev-list', '--count', 'HEAD'],
+        { cwd: workspace.worktreePath, timeout: 5000 },
+      );
+      // If the branch has any commits at all, treat it as having commits
+      // (conservative fallback when merge-base fails)
+      hasCommits = parseInt(countOut.trim(), 10) > 0;
+    } catch {
+      // Cannot determine commit state
+    }
+  }
+
+  // 2. Check for uncommitted changes (staged, unstaged, untracked)
+  try {
+    const { stdout: statusOut } = await execFileAsync(
+      'git', ['status', '--porcelain'],
+      { cwd: workspace.worktreePath, timeout: 5000 },
+    );
+    hasUncommittedChanges = statusOut.trim().length > 0;
+  } catch {
+    // Cannot determine uncommitted state
+  }
+
+  return {
+    hasCommits,
+    hasUncommittedChanges,
+    hasPendingChanges: hasCommits || hasUncommittedChanges,
+  };
+}
+
+/** @deprecated Use workspaceHasPendingChanges instead */
+export async function workspaceHasCommits(workspace: Workspace): Promise<boolean> {
+  const result = await workspaceHasPendingChanges(workspace);
+  return result.hasPendingChanges;
+}
+
+/**
+ * Check whether a workspace branch has been fully merged into the parent
+ * branch.  Uses `git merge-base --is-ancestor` which returns exit code 0
+ * when every commit on the workspace branch is reachable from the parent.
+ */
+export async function isWorkspaceBranchMerged(workspace: Workspace): Promise<boolean> {
+  try {
+    const { stdout: parentBranch } = await execFileAsync(
+      'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
+      { cwd: workspace.parentRepo, timeout: 5000 },
+    );
+    const target = parentBranch.trim() || 'HEAD';
+
+    // Get the workspace branch tip from the worktree
+    const { stdout: branchTip } = await execFileAsync(
+      'git', ['rev-parse', 'HEAD'],
+      { cwd: workspace.worktreePath, timeout: 5000 },
+    );
+
+    // Check if the workspace branch tip is an ancestor of the parent branch
+    await execFileAsync(
+      'git', ['merge-base', '--is-ancestor', branchTip.trim(), target],
+      { cwd: workspace.parentRepo, timeout: 5000 },
+    );
+    // Exit code 0 → the branch is fully merged
+    return true;
+  } catch {
+    // Exit code 1 → not merged, or any other error
+    return false;
   }
 }
 

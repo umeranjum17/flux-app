@@ -216,6 +216,12 @@ export function AppShell() {
 
         useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
+        // Sync outcomes with actual git state (fire-and-forget — updates
+        // arrive via workspace:outcome events)
+        for (const repo of projects) {
+          window.api.invoke('workspace:sync-outcomes', { parentRepo: repo }).catch(() => {});
+        }
+
         for (const workspace of allWorkspaces) {
           const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
           if (cancelled) return;

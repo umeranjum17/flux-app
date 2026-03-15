@@ -12,7 +12,7 @@ import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile } from '../worktree/diff';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
-import { requireFields, commandExists } from './utils';
+import { requireFields, commandExists, workspaceHasPendingChanges, isWorkspaceBranchMerged } from './utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -319,6 +319,53 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:set-outcome',
     async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
       emitWorkspaceOutcome(workspaceId, outcome as WorkspaceOutcome);
+    },
+  );
+
+  // Sync workspace outcomes based on actual git state.  Called after loading
+  // workspaces so the UI reflects reality even when merges or changes happened
+  // outside Flux (e.g. via CLI, GitHub, or another tool).
+  ipcMain.handle(
+    'workspace:sync-outcomes',
+    async (_event, { parentRepo }: { parentRepo: string }) => {
+      const workspaces = workspaceStore.list(parentRepo);
+      const userPromoted = new Set<WorkspaceOutcome>(['ready_to_merge', 'ready_to_archive']);
+
+      // Run all checks in parallel for speed
+      await Promise.all(
+        workspaces.map(async (ws) => {
+          // Skip workspaces with active tasks — their outcome will be set on completion
+          const hasActiveTask = [...taskWorkspaceMap.entries()].some(([, wsId]) => wsId === ws.id);
+          if (hasActiveTask) return;
+
+          try {
+            if (ws.outcome === 'merged') {
+              // Already merged — nothing to do
+              return;
+            }
+
+            // Check if the branch has been merged externally
+            const merged = await isWorkspaceBranchMerged(ws);
+            if (merged) {
+              emitWorkspaceOutcome(ws.id, 'merged');
+              return;
+            }
+
+            // For non-promoted outcomes, check pending changes
+            if (!userPromoted.has(ws.outcome)) {
+              const { hasPendingChanges } = await workspaceHasPendingChanges(ws);
+              if (hasPendingChanges && ws.outcome === 'in_progress') {
+                emitWorkspaceOutcome(ws.id, 'ready_for_pr');
+              } else if (!hasPendingChanges && ws.outcome === 'ready_for_pr') {
+                // Changes were reverted or reset — go back to in_progress
+                emitWorkspaceOutcome(ws.id, 'in_progress');
+              }
+            }
+          } catch {
+            // Best-effort — don't block workspace loading
+          }
+        }),
+      );
     },
   );
 

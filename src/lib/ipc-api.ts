@@ -91,6 +91,10 @@ export interface IpcChannels {
     args: [{ workspaceId: string; outcome: WorkspaceOutcome }];
     result: void;
   };
+  'workspace:sync-outcomes': {
+    args: [{ parentRepo: string }];
+    result: void;
+  };
   'workspace:update': {
     args: [{ workspaceId: string; agentId?: string; model?: string }];
     result: void;

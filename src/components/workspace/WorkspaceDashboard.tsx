@@ -44,6 +44,11 @@ export function WorkspaceDashboard() {
         }
         useWorkspaceStore.getState().setWorkspaces(allActive);
         useWorkspaceStore.getState().setArchivedWorkspaces(allArchived);
+
+        // Sync outcomes with actual git state
+        for (const repo of projects) {
+          window.api.invoke('workspace:sync-outcomes', { parentRepo: repo }).catch(() => {});
+        }
       } catch {
         // best-effort
       }
