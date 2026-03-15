@@ -650,6 +650,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           )
           : null;
         if (normalized) {
+          normalized.fetchedAt = Date.now();
           cachedRateLimits.set(`${normalized.providerId}:${normalized.rateLimitType}`, normalized);
         }
       }
@@ -776,14 +777,16 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     handle.on('done', (result) => {
+      // Always clear tool heartbeats immediately, regardless of cleaningUp state,
+      // to prevent leaked intervals if this handler returns early or throws.
+      for (const interval of toolHeartbeats.values()) clearInterval(interval);
+      toolHeartbeats.clear();
+
       void (async () => {
         if (cleaningUp.has(options.taskId)) return;
 
         stallMonitor.dispose();
         taskStallMonitors.delete(options.taskId);
-
-        for (const interval of toolHeartbeats.values()) clearInterval(interval);
-        toolHeartbeats.clear();
 
         if (taskIdleHeartbeats.has(options.taskId)) {
           clearInterval(taskIdleHeartbeats.get(options.taskId)!);
@@ -828,8 +831,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         try {
           let finalError = result?.error;
 
-          for (const interval of toolHeartbeats.values()) clearInterval(interval);
-          toolHeartbeats.clear();
           if (taskIdleHeartbeats.has(options.taskId)) {
             clearInterval(taskIdleHeartbeats.get(options.taskId)!);
             taskIdleHeartbeats.delete(options.taskId);
@@ -966,6 +967,35 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             updateWorkspaceTaskStatus(options.taskId, workspace.id, nextStatus, { sessionId: session.id });
+
+            // Detect if the agent renamed the branch (e.g. via `git branch -m`)
+            // and sync the workspace record so the UI shows the correct name.
+            try {
+              const { stdout: actualBranch } = await execFileAsync(
+                'git', ['branch', '--show-current'],
+                { cwd: workspace.worktreePath, timeout: 5000 },
+              );
+              const trimmedBranch = actualBranch.trim();
+              if (trimmedBranch && trimmedBranch !== workspace.branch) {
+                const nameSlug = trimmedBranch
+                  .replace(/^[^/]*\//, '')       // strip prefix like flux/ or user/
+                  .replace(/-[a-z0-9]{4,8}$/, '') // strip trailing random suffix
+                  .replace(/[_-]+/g, ' ')
+                  .trim();
+                const newName = nameSlug
+                  ? nameSlug.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 40)
+                  : trimmedBranch;
+                workspaceStore.update(workspace.id, { branch: trimmedBranch, name: newName });
+                sendToRenderer('workspace:updated', {
+                  workspaceId: workspace.id,
+                  branch: trimmedBranch,
+                  name: newName,
+                });
+              }
+            } catch {
+              // Best-effort branch detection
+            }
+
             if (options.mode === 'act') {
               if (options.workspaceAction === 'merge') {
                 if (!finalError) {
@@ -1029,19 +1059,23 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                         } catch {
                           // Branch rename failed (e.g. name collision) — keep old branch
                         }
-                        const updatedWs = workspaceStore.update(workspace.id, {
+                        workspaceStore.update(workspace.id, {
                           name: agentName,
                           branch: newBranch,
                         });
-                        if (updatedWs) {
-                          sendToRenderer('workspace:updated', {
-                            workspaceId: workspace.id,
-                            changes: { name: agentName, branch: newBranch },
-                          });
-                        }
+                        sendToRenderer('workspace:updated', {
+                          workspaceId: workspace.id,
+                          name: agentName,
+                          branch: newBranch,
+                        });
                       } else {
                         // Branch already matches — just update the display name
                         workspaceStore.update(workspace.id, { name: agentName });
+                        sendToRenderer('workspace:updated', {
+                          workspaceId: workspace.id,
+                          name: agentName,
+                          branch: workspace.branch,
+                        });
                       }
                     }
                   } catch {
@@ -1297,6 +1331,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   });
 
   ipcMain.handle('subagent:stop', async (_event, { subagentId, parentTaskId }: { subagentId?: string; parentTaskId?: string }) => {
+    const SUBAGENT_STOP_TIMEOUT_MS = 10_000;
     const targets = subagentId
       ? [subagentId]
       : Array.from(activeSubagents.entries())
@@ -1306,7 +1341,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     for (const targetId of targets) {
       const subagent = activeSubagents.get(targetId);
       if (!subagent) continue;
-      await subagent.handle.stop();
+      // Use a timeout to prevent hanging indefinitely on a wedged subagent
+      await Promise.race([
+        subagent.handle.stop(),
+        new Promise<void>(resolve => setTimeout(resolve, SUBAGENT_STOP_TIMEOUT_MS)),
+      ]);
       subagent.handle.removeAllListeners();
       activeSubagents.delete(targetId);
       activeTasks.delete(targetId);
@@ -1372,6 +1411,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const handle = activeTasks.get(taskId);
     if (!handle) {
       return { steerFailed: true, reason: 'task_finished' };
+    }
+
+    if (!handle.isAlive()) {
+      return { steerFailed: true, reason: 'process_exited' };
     }
 
     const effectivePrompt = await buildPromptWithAttachments(prompt, attachments, getSshHost());

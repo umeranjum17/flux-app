@@ -2552,14 +2552,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       taskWorkspaceMap.delete(taskId);
     }
 
-    // Remove the worktree to free disk space, but keep the branch
+    // Remove worktree — gracefully handles missing/non-git parentRepo
     try {
-      await execFileAsync('git', ['worktree', 'remove', workspace.worktreePath, '--force'], {
-        cwd: workspace.parentRepo,
-        timeout: 30000,
-      });
+      await removeWorktree(workspace.parentRepo, workspace.worktreePath);
     } catch {
-      // Worktree may already be gone
+      // Worktree may already be gone or parentRepo may not be a git repo
     }
 
     workspaceStore.archive(workspaceId);

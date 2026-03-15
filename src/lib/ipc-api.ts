@@ -149,7 +149,7 @@ export interface IpcEvents {
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
-  'workspace:updated': { workspaceId: string; changes: Partial<Pick<Workspace, 'name' | 'branch' | 'worktreePath'>> };
+  'workspace:updated': { workspaceId: string; branch: string; name: string };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;

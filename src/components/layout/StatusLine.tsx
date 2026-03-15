@@ -3,7 +3,7 @@ import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
-import { GitBranch, Wifi, WifiOff, FolderOpen, Brain, Monitor, Terminal } from 'lucide-react';
+import { GitBranch, Wifi, WifiOff, Brain, Monitor, Terminal } from 'lucide-react';
 import type { ThinkingLevel } from '../../lib/types';
 
 export function StatusLine() {
@@ -16,7 +16,6 @@ export function StatusLine() {
   const agents = useAgentStore((s) => s.agents);
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
 
-  const cwd = useUiStore((s) => s.cwd);
   const gitBranch = useUiStore((s) => s.gitBranch);
   const gitDirty = useUiStore((s) => s.gitDirty);
   const sshConnected = useUiStore((s) => s.sshConnected);
@@ -57,22 +56,9 @@ export function StatusLine() {
   const qualityGate = activeTask?.lastQualityGate;
   const rateLimit = activeTask?.rateLimitInfo;
 
-  const shortCwd = cwd ? truncatePath(cwd, 30) : '';
-
   const handleSshClick = useCallback(() => {
     useUiStore.getState().setOverlay('ssh-connect');
   }, []);
-
-  const handleOpenFolder = useCallback(async () => {
-    if (sshConnected) {
-      useUiStore.getState().setOverlay('remote-folder-picker');
-      return;
-    }
-    const picked = await window.api.invoke('cwd:pick') as string | null;
-    if (picked) {
-      useUiStore.getState().setCwd(picked);
-    }
-  }, [sshConnected]);
 
   return (
     <div className="flex h-[30px] min-h-[30px] select-none items-center border-t border-border bg-bg-secondary">
@@ -106,15 +92,6 @@ export function StatusLine() {
         >
           {sshConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
           {sshConnected ? `SSH: ${sshHost}` : 'SSH'}
-        </button>
-
-        <button
-          onClick={handleOpenFolder}
-          className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[13px] text-text-tertiary"
-          title="Open folder"
-        >
-          <FolderOpen size={12} />
-          {shortCwd || 'Open Folder'}
         </button>
 
         {gitBranch && (
@@ -217,13 +194,6 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
-}
-
-function truncatePath(p: string, maxLen: number): string {
-  if (p.length <= maxLen) return p;
-  const parts = p.split('/');
-  if (parts.length <= 2) return p;
-  return `.../${parts.slice(-2).join('/')}`;
 }
 
 function rateLimitColor(utilization: number): string {

@@ -143,6 +143,14 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   });
 
   ipcMain.handle('usage:rate-limits', async () => {
+    const RATE_LIMIT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+    const now = Date.now();
+    // Evict stale entries and return only fresh ones
+    for (const [key, info] of cachedRateLimits) {
+      if (info.fetchedAt && now - info.fetchedAt > RATE_LIMIT_TTL_MS) {
+        cachedRateLimits.delete(key);
+      }
+    }
     return Array.from(cachedRateLimits.values());
   });
 

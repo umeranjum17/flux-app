@@ -21,7 +21,7 @@ export function Sidebar() {
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
   const terminalOpen = useUiStore((s) => s.bottomPanelOpen);
 
-  const width = sidebarTab === 'explorer' ? 292 : 240;
+  const width = sidebarTab === 'explorer' ? 320 : 280;
 
   return (
     <motion.aside

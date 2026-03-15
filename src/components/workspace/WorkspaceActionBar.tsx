@@ -73,11 +73,12 @@ export function WorkspaceActionBar() {
           </>
         )}
         {!isRunning && (
-          isMerged ? (
+          <>
             <ActionBtn icon={<Trash2 size={12} />} label="Archive" onClick={handleArchive} danger />
-          ) : (
-            <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
-          )
+            {!isMerged && (
+              <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
+            )}
+          </>
         )}
       </div>
     </div>

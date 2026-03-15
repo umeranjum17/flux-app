@@ -24,6 +24,7 @@ import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
 import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { ChangesPanel } from '../review/ChangesPanel';
@@ -253,8 +254,8 @@ export function AppShell() {
       useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
     });
     const unsubUpdated = window.api.on('workspace:updated', (data: unknown) => {
-      const { workspaceId, changes } = data as { workspaceId: string; changes: Record<string, unknown> };
-      useWorkspaceStore.getState().updateWorkspace(workspaceId, changes as any);
+      const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, { branch, name });
     });
     return () => { unsub(); unsubOutcome(); unsubCheckpoint(); unsubUpdated(); };
   }, []);
@@ -625,8 +626,8 @@ export function AppShell() {
                     <TabBar />
                     {activeWorkspaceId && <WorkspaceActionBar />}
 
-                    {/* Not-a-git-repo banner */}
-                    {!isGitRepo && cwd && (
+                    {/* Not-a-git-repo banner — hide when a workspace is active since it has its own git context */}
+                    {!isGitRepo && cwd && !activeWorkspaceId && (
                       <div className="mx-auto mt-4 w-full max-w-[600px] px-6">
                         <div className="flex items-start gap-3 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3">
                           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" />
@@ -660,12 +661,16 @@ export function AppShell() {
 
                     <div className="flex flex-1 min-h-0 overflow-hidden">
                       <div className="flex-1 min-w-0 flex flex-col">
-                        {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                        <ErrorBoundary>
+                          {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                        </ErrorBoundary>
                         <div className="shrink-0">
                           <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">
                             <LiveRunHeader />
                             <TodoBar />
-                            <ChatInput focused />
+                            <ErrorBoundary>
+                              <ChatInput focused />
+                            </ErrorBoundary>
                           </div>
                         </div>
                       </div>
