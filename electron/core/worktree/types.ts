@@ -1,4 +1,4 @@
-import type { AgentId, TaskMode } from '../agents/types';
+import type { AgentId, TaskMode, ThinkingLevel } from '../agents/types';
 
 export interface WorktreeInfo {
   id: string;
@@ -51,6 +51,7 @@ export interface Workspace {
   agentId: AgentId;
   model: string;
   mode: TaskMode;
+  thinking?: ThinkingLevel;
   status: WorkspaceStatus;
   outcome: WorkspaceOutcome;
   createdAt: number;

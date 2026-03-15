@@ -280,6 +280,7 @@ export interface Workspace {
   agentId: string;
   model: string;
   mode: TaskMode;
+  thinking?: ThinkingLevel;
   worktreePath: string;
   sessionId?: string;
   archivedAt?: number;

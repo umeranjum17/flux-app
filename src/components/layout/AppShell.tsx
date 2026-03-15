@@ -175,7 +175,7 @@ export function AppShell() {
 
     const restoreWorkspaceChats = async (workspace: Workspace, sessions: WorkspaceSession[]) => {
       const chatStore = useChatStore.getState();
-      const thinking = useAgentStore.getState().selectedThinking;
+      const thinking = workspace.thinking ?? useAgentStore.getState().selectedThinking;
 
       for (const workspaceSession of sessions) {
         const existingTask = Array.from(chatStore.tasks.values()).find(
@@ -281,6 +281,7 @@ export function AppShell() {
       useAgentStore.getState().syncToWorkspace(
         workspace.agentId as import('../../lib/types').AgentId,
         workspace.model,
+        workspace.thinking,
       );
       useUiStore.getState().setMode(workspace.mode ?? 'act');
     } else {
@@ -290,7 +291,7 @@ export function AppShell() {
         const agentStore = useAgentStore.getState();
         const agentId = (config.defaultAgent || agentStore.selectedAgentId) as import('../../lib/types').AgentId;
         const model = config.defaultModel || agentStore.selectedModel;
-        agentStore.syncToWorkspace(agentId, model);
+        agentStore.syncToWorkspace(agentId, model, config.defaultThinking);
         useUiStore.getState().setMode(config.defaultMode ?? 'act');
       }).catch(() => {});
     }
@@ -361,29 +362,30 @@ export function AppShell() {
       timeout = setTimeout(() => {
         const wsId = useWorkspaceStore.getState().activeWorkspaceId;
 
-        // Thinking is always global
-        if (cur.thinking !== snapshot.thinking) {
-          window.api.invoke('config:set', { defaultThinking: cur.thinking } as Partial<FluxConfig>).catch(() => {});
-        }
-
         // Always update global config defaults so new workspaces inherit the latest selection
         const configPartial: Partial<FluxConfig> = {};
         if (cur.agent !== snapshot.agent) configPartial.defaultAgent = cur.agent;
         if (cur.model !== snapshot.model) configPartial.defaultModel = cur.model;
+        // Only persist thinking globally when no workspace is active
+        if (!wsId && cur.thinking !== snapshot.thinking) {
+          configPartial.defaultThinking = cur.thinking;
+        }
         if (Object.keys(configPartial).length > 0) {
           window.api.invoke('config:set', configPartial).catch(() => {});
         }
 
-        // When a workspace is active, also persist agent/model to the workspace DB
+        // When a workspace is active, persist agent/model/thinking to the workspace DB
         if (wsId) {
-          const wsPartial: { workspaceId: string; agentId?: string; model?: string } = { workspaceId: wsId };
+          const wsPartial: { workspaceId: string; agentId?: string; model?: string; thinking?: string } = { workspaceId: wsId };
           if (cur.agent !== snapshot.agent) wsPartial.agentId = cur.agent;
           if (cur.model !== snapshot.model) wsPartial.model = cur.model;
-          if (wsPartial.agentId || wsPartial.model) {
+          if (cur.thinking !== snapshot.thinking) wsPartial.thinking = cur.thinking;
+          if (wsPartial.agentId || wsPartial.model || wsPartial.thinking) {
             window.api.invoke('workspace:update', wsPartial).catch(() => {});
             useWorkspaceStore.getState().updateWorkspace(wsId, {
               ...(wsPartial.agentId ? { agentId: wsPartial.agentId } : {}),
               ...(wsPartial.model ? { model: wsPartial.model } : {}),
+              ...(wsPartial.thinking ? { thinking: wsPartial.thinking as any } : {}),
             });
           }
         }

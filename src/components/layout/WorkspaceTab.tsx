@@ -94,14 +94,13 @@ export function WorkspaceTab() {
         break;
       case 'new-chat': {
         const taskId = crypto.randomUUID();
-        const { selectedThinking } = useAgentStore.getState();
         useChatStore.getState().createTask({
           id: taskId,
           title: 'New chat',
           agentId: ws.agentId as any,
           model: ws.model,
           mode: 'act',
-          thinking: selectedThinking,
+          thinking: ws.thinking ?? useAgentStore.getState().selectedThinking,
           cwd: ws.worktreePath,
           workspaceId: ws.id,
         });
@@ -147,7 +146,7 @@ export function WorkspaceTab() {
         agentId: ws.agentId as any,
         model: ws.model,
         mode: ws.mode ?? mode,
-        thinking: selectedThinking,
+        thinking: ws.thinking ?? selectedThinking,
         cwd: ws.worktreePath,
         workspaceId: ws.id,
       });

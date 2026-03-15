@@ -18,8 +18,8 @@ interface AgentState {
   setDetecting(detecting: boolean): void;
   getSelectedAgent(): DetectedAgent | undefined;
   fetchModels(agentId: AgentId): Promise<void>;
-  /** Sync the selector to match a workspace's stored agent and model. */
-  syncToWorkspace(agentId: AgentId, model: string): void;
+  /** Sync the selector to match a workspace's stored agent, model, and thinking level. */
+  syncToWorkspace(agentId: AgentId, model: string, thinking?: ThinkingLevel): void;
 }
 
 let modelsRequestSequence = 0;
@@ -118,12 +118,15 @@ export const useAgentStore = create<AgentState>()(
       return agents.find((a) => a.id === selectedAgentId);
     },
 
-    syncToWorkspace(agentId, model) {
+    syncToWorkspace(agentId, model, thinking?) {
       const current = get();
       const agentChanged = current.selectedAgentId !== agentId;
       set((state) => {
         state.selectedAgentId = agentId;
         state.selectedModel = model;
+        if (thinking) {
+          state.selectedThinking = thinking;
+        }
         if (agentChanged) {
           state.dynamicModels = [];
         }

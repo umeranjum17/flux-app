@@ -59,7 +59,7 @@ export function TabBar() {
       agentId: (activeWorkspace?.agentId as any) ?? selectedAgentId,
       model: activeWorkspace?.model ?? selectedModel,
       mode,
-      thinking: selectedThinking,
+      thinking: activeWorkspace?.thinking ?? selectedThinking,
       cwd: activeWorkspace?.worktreePath ?? (useUiStore.getState().cwd || '.'),
       workspaceId: activeWorkspace?.id,
     });

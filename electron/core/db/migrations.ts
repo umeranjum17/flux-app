@@ -56,6 +56,10 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     name: '016_add_workspace_base_branch',
     sql: 'ALTER TABLE workspaces ADD COLUMN base_branch TEXT',
   },
+  {
+    name: '017_add_workspace_thinking',
+    sql: 'ALTER TABLE workspaces ADD COLUMN thinking TEXT',
+  },
 ];
 
 export function runMigrations(): void {
