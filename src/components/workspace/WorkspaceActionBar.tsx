@@ -9,13 +9,14 @@ export function WorkspaceActionBar() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const workspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
 
+  const isRunning = workspace?.status === 'running' || workspace?.status === 'waiting_approval' || workspace?.status === 'waiting_input';
+  const hasChanges = useWorkspaceHasChanges(workspace?.id, {
+    pollMs: isRunning ? 2000 : 4000,
+  });
+
   if (!workspace) return null;
 
   const status = workspaceStatusConfig[workspace.status] ?? workspaceStatusConfig.idle;
-  const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
-  const hasChanges = useWorkspaceHasChanges(workspace.id, {
-    pollMs: isRunning ? 2000 : 4000,
-  });
 
   const handleStop = async () => {
     await window.api.invoke('workspace:stop', { workspaceId: workspace.id });
