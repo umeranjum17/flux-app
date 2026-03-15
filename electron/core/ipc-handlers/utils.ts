@@ -110,6 +110,93 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+export type NormalizedTodoItem = {
+  id: number;
+  label: string;
+  status: 'pending' | 'in_progress' | 'done';
+};
+
+function normalizeTodoStatus(value: unknown): NormalizedTodoItem['status'] {
+  if (typeof value === 'boolean') {
+    return value ? 'done' : 'pending';
+  }
+
+  if (typeof value !== 'string') return 'pending';
+  const normalized = value.toLowerCase().trim();
+  if (normalized === 'completed' || normalized === 'complete' || normalized === 'done' || normalized === 'finished') {
+    return 'done';
+  }
+  if (normalized === 'in_progress' || normalized === 'in-progress' || normalized === 'active' || normalized === 'doing') {
+    return 'in_progress';
+  }
+  return 'pending';
+}
+
+function normalizeTodoLabel(value: Record<string, unknown>): string {
+  for (const key of ['content', 'title', 'label', 'text', 'task', 'step']) {
+    const raw = value[key];
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      return raw.trim();
+    }
+  }
+  return '';
+}
+
+function extractTodoArrayFromPayload(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (!isRecord(payload)) return [];
+
+  for (const key of ['todos', 'items', 'tasks', 'steps', 'plan']) {
+    const value = payload[key];
+    if (Array.isArray(value)) return value;
+  }
+
+  if (isRecord(payload.data)) {
+    return extractTodoArrayFromPayload(payload.data);
+  }
+
+  return [];
+}
+
+export function extractTodoItemsFromPayload(payload: unknown): NormalizedTodoItem[] {
+  const rawItems = extractTodoArrayFromPayload(payload);
+  return rawItems
+    .map((item, i): NormalizedTodoItem | null => {
+      if (typeof item === 'string') {
+        const label = item.trim();
+        if (!label) return null;
+        return { id: i + 1, label, status: 'pending' };
+      }
+      if (!isRecord(item)) return null;
+
+      const label = normalizeTodoLabel(item);
+      if (!label) return null;
+
+      const status = normalizeTodoStatus(
+        item.status ?? item.state ?? item.done ?? item.completed,
+      );
+
+      return { id: i + 1, label, status };
+    })
+    .filter((item): item is NormalizedTodoItem => !!item);
+}
+
+export function isTodoTrackingToolCall(
+  toolName: string | undefined,
+  toolInput: Record<string, unknown> | undefined,
+): boolean {
+  const normalizedToolName = toolName?.toLowerCase() ?? '';
+  if (normalizedToolName.includes('todo') || normalizedToolName === 'update_plan') {
+    return true;
+  }
+
+  if (!toolInput) {
+    return false;
+  }
+
+  return extractTodoItemsFromPayload(toolInput).length > 0;
+}
+
 export function readAgentSessionId(metadata: Record<string, unknown> | undefined, agentId: AgentId): string | undefined {
   if (!metadata) return undefined;
   const agentSessions = metadata.agentSessions;

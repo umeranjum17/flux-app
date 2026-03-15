@@ -38,6 +38,8 @@ import {
   isWorkspaceBranchMerged,
   parseStepMarkers,
   getStepTrackableContent,
+  extractTodoItemsFromPayload,
+  isTodoTrackingToolCall,
   extractAgentWorkspaceName,
   branchNameFromLabel,
   moveWorktreeDirectory,
@@ -612,15 +614,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
-      const todoItems = (payload.todos ?? [])
-        .filter((t: any) => t && typeof t === 'object' && typeof t.content === 'string')
-        .map((t: any, i: number) => ({
-          id: i + 1,
-          label: t.content,
-          status: t.status === 'completed' ? 'done' as const
-            : t.status === 'in_progress' ? 'in_progress' as const
-            : 'pending' as const,
-        }));
+      const todoItems = extractTodoItemsFromPayload(payload.todos ?? payload);
       sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
       flushTodoUpdates(options.taskId);
     });
@@ -673,27 +667,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       if (
         message.type === 'tool_call'
-        && message.toolName
-        && message.toolName.toLowerCase().includes('todo')
         && message.toolInput
-        && Array.isArray(message.toolInput.todos)
+        && isTodoTrackingToolCall(message.toolName, message.toolInput)
       ) {
-        const todoItems = (message.toolInput.todos as Array<Record<string, unknown>>)
-          .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-          .map((item, i) => {
-            const label = typeof item.content === 'string'
-              ? item.content
-              : typeof item.title === 'string'
-                ? item.title
-                : String(item.text ?? '');
-            const rawStatus = typeof item.status === 'string' ? item.status : 'pending';
-            const status: 'pending' | 'in_progress' | 'done' =
-              rawStatus === 'completed' ? 'done'
-                : rawStatus === 'in_progress' ? 'in_progress'
-                  : 'pending';
-            return { id: i + 1, label, status };
-          })
-          .filter((item) => item.label.trim().length > 0);
+        const todoItems = extractTodoItemsFromPayload(message.toolInput);
 
         if (todoItems.length > 0) {
           sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });

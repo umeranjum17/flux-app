@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStepMarkers, getStepTrackableContent } from '../utils';
+import { parseStepMarkers, getStepTrackableContent, extractTodoItemsFromPayload, isTodoTrackingToolCall } from '../utils';
 import type { AgentMessage } from '../../agents/types';
 
 describe('parseStepMarkers', () => {
@@ -112,5 +112,27 @@ describe('getStepTrackableContent', () => {
       timestamp: Date.now(),
     };
     expect(getStepTrackableContent(msg)).toBeNull();
+  });
+});
+
+describe('extractTodoItemsFromPayload', () => {
+  it('normalizes update_plan payloads into todo items', () => {
+    expect(extractTodoItemsFromPayload({
+      plan: [
+        { step: 'Inspect Codex event payloads', status: 'completed' },
+        { step: 'Sync renderer todo bar', status: 'in_progress' },
+      ],
+    })).toEqual([
+      { id: 1, label: 'Inspect Codex event payloads', status: 'done' },
+      { id: 2, label: 'Sync renderer todo bar', status: 'in_progress' },
+    ]);
+  });
+});
+
+describe('isTodoTrackingToolCall', () => {
+  it('recognizes update_plan tool calls with plan items', () => {
+    expect(isTodoTrackingToolCall('update_plan', {
+      plan: [{ step: 'Ship the fix', status: 'pending' }],
+    })).toBe(true);
   });
 });
