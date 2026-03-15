@@ -8,7 +8,7 @@ import {
   isMeaningfulMessage,
   terminateAgentProcess,
 } from './spawn-utils';
-import { classifySpawnError } from '../process-utils';
+import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
 import {
   extractMcpToolBaseName as _extractMcpToolBaseName,
   isQuestionToolName as _isQuestionToolName,
@@ -96,6 +96,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
     sshHost: options.sshHost,
     remoteCwd: options.remoteCwd,
   });
+  attachChildStdinErrorHandler(proc, 'claude');
 
   const emitter = new EventEmitter() as AgentHandle;
   emitter.setMaxListeners(20);
@@ -594,13 +595,13 @@ function writeClaudeUserMessage(proc: ChildProcess, prompt: string, images?: str
 
   if (content.length === 0) return;
 
-  proc.stdin.write(JSON.stringify({
+  safeWriteToChildStdin(proc, JSON.stringify({
     type: 'user',
     message: {
       role: 'user',
       content,
     },
-  }) + '\n');
+  }) + '\n', 'claude');
 }
 
 function writeClaudeControlResponse(
@@ -610,20 +611,20 @@ function writeClaudeControlResponse(
 ): void {
   if (!proc.stdin?.writable) return;
 
-  proc.stdin.write(JSON.stringify({
+  safeWriteToChildStdin(proc, JSON.stringify({
     type: 'control_response',
     response: {
       subtype: 'success',
       request_id: requestId,
       response,
     },
-  }) + '\n');
+  }) + '\n', 'claude');
 }
 
 function writeClaudeQuestionResponse(proc: ChildProcess, requestId: string, response: string): void {
   if (!proc.stdin?.writable) return;
 
-  proc.stdin.write(JSON.stringify({
+  safeWriteToChildStdin(proc, JSON.stringify({
     type: 'user',
     message: {
       role: 'user',
@@ -633,7 +634,7 @@ function writeClaudeQuestionResponse(proc: ChildProcess, requestId: string, resp
         content: `User has answered your questions: ${response}. You can now continue with the user's answers in mind.`,
       }],
     },
-  }) + '\n');
+  }) + '\n', 'claude');
 }
 
 function toClaudeImageBlock(image: string): Record<string, unknown> | null {

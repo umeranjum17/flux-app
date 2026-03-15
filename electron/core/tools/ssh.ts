@@ -1,6 +1,6 @@
 import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
-import { extendedEnv, resolveSshCommand } from '../process-utils';
+import { extendedEnv, resolveSshCommand, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,11 +46,12 @@ export async function sshWriteFile(
     env: extendedEnv(),
     stdio: ['pipe', 'pipe', 'pipe'],
   } as any);
+  attachChildStdinErrorHandler(proc, 'sshWriteFile');
 
   return new Promise((resolve) => {
     let stderr = '';
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
-    proc.stdin?.write(content);
+    safeWriteToChildStdin(proc, content, 'sshWriteFile');
     proc.stdin?.end();
     proc.on('close', (code: number) => {
       if (code === 0) resolve({ success: true });

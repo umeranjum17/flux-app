@@ -60,6 +60,7 @@ export function FileActivityPanel() {
   const editedFiles = task?.editedFiles;
   const trackedFiles = editedFiles ? Array.from(editedFiles.values()) : [];
   const workspaceId = task?.workspaceId ?? null;
+  const contextKey = task?.workspaceId ?? task?.id ?? '';
   const files = trackedFiles.length > 0 ? trackedFiles : workspaceFallbackFiles;
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
@@ -103,7 +104,9 @@ export function FileActivityPanel() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        useUiStore.getState().setFileActivityPanelOpen(false);
+        const t = useChatStore.getState().getActiveTask();
+        const key = t?.workspaceId ?? t?.id;
+        if (key) useUiStore.getState().setFileActivityPanelOpen(false, key);
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -119,7 +122,7 @@ export function FileActivityPanel() {
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
           <span className="text-[12px] font-medium text-text-secondary">Files</span>
           <button
-            onClick={() => useUiStore.getState().setFileActivityPanelOpen(false)}
+            onClick={() => contextKey && useUiStore.getState().setFileActivityPanelOpen(false, contextKey)}
             className="p-0.5 rounded text-text-tertiary hover:text-text-primary transition-colors"
           >
             <X size={13} />
@@ -151,7 +154,7 @@ export function FileActivityPanel() {
           </span>
         </div>
         <button
-          onClick={() => useUiStore.getState().setFileActivityPanelOpen(false)}
+          onClick={() => contextKey && useUiStore.getState().setFileActivityPanelOpen(false, contextKey)}
           className="p-0.5 rounded text-text-tertiary hover:text-text-primary transition-colors"
         >
           <X size={13} />

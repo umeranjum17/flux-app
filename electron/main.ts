@@ -3,11 +3,13 @@ import path from 'path';
 import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers';
 import { runMigrations } from './core/db/migrations';
 import { ConfigManager } from './core/config/config';
+import { isIgnorableStreamWriteError } from './core/process-utils';
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason);
 });
 process.on('uncaughtException', (err) => {
+  if (isIgnorableStreamWriteError(err)) return;
   console.error('Uncaught exception:', err);
 });
 

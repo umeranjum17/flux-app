@@ -55,7 +55,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const hasChanges = hasInlineDiff || hasWorkspaceChanges;
 
   const handleShowFiles = () => {
-    useUiStore.getState().toggleFileActivityPanel();
+    useUiStore.getState().toggleFileActivityPanel(workspace.id);
   };
 
   const handleFullReview = () => {
@@ -87,7 +87,8 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
         void useWorkspaceStore.getState().changesPanelSelectFile(filePath);
       });
     } else {
-      useUiStore.getState().setFileActivityPanelOpen(true);
+      const activeTask = useChatStore.getState().getActiveTask();
+      useUiStore.getState().setFileActivityPanelOpen(true, activeTask?.workspaceId ?? activeTask?.id ?? '');
     }
   };
 

@@ -2,7 +2,7 @@ import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
 import { spawnAgentProcess, createStartupWatchdog, isMeaningfulMessage } from './spawn-utils';
-import { classifySpawnError } from '../process-utils';
+import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
 
 const OLLAMA_STARTUP_TIMEOUT_MS = 30_000;
 
@@ -23,6 +23,7 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
     sshHost: options.sshHost,
     remoteCwd: options.remoteCwd,
   });
+  attachChildStdinErrorHandler(proc, 'ollama');
 
   const emitter = new EventEmitter() as AgentHandle;
   emitter.setMaxListeners(20);
@@ -87,16 +88,12 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       // Ollama finished responding — send /bye to exit gracefully
-      if (proc.stdin?.writable) {
-        proc.stdin.write('/bye\n');
-      }
+      safeWriteToChildStdin(proc, '/bye\n', 'ollama');
     }, IDLE_TIMEOUT_MS);
   };
 
   // Send the prompt via stdin since `ollama run` reads from stdin
-  if (proc.stdin?.writable) {
-    proc.stdin.write(options.prompt + '\n');
-  }
+  safeWriteToChildStdin(proc, options.prompt + '\n', 'ollama');
 
   const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
   let buffer = '';
@@ -206,9 +203,7 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
   emitter.steer = (prompt: string) => {
     // Reset idle timer for follow-up messages
     if (idleTimer) clearTimeout(idleTimer);
-    if (proc.stdin?.writable) {
-      proc.stdin.write(prompt + '\n');
-    }
+    safeWriteToChildStdin(proc, prompt + '\n', 'ollama');
   };
 
   emitter.answerQuestion = (_requestId: string, response: string) => {

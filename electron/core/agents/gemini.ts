@@ -2,7 +2,7 @@ import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentHandle, SpawnOptions, AgentMessage } from './types';
 import { spawnAgentProcess, createStartupWatchdog, filterStderrNoise, isMeaningfulMessage } from './spawn-utils';
-import { classifySpawnError } from '../process-utils';
+import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
 
 const GEMINI_STARTUP_TIMEOUT_MS = 20_000;
 
@@ -28,6 +28,7 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
     sshHost: options.sshHost,
     remoteCwd: options.remoteCwd,
   });
+  attachChildStdinErrorHandler(proc, 'gemini');
 
   const emitter = new EventEmitter() as AgentHandle;
   emitter.setMaxListeners(20);
@@ -192,25 +193,19 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
   };
 
   emitter.approve = (requestId: string) => {
-    if (proc.stdin?.writable) {
-      proc.stdin.write(JSON.stringify({ type: 'approve', requestId }) + '\n');
-    }
+    safeWriteToChildStdin(proc, JSON.stringify({ type: 'approve', requestId }) + '\n', 'gemini');
   };
 
   emitter.deny = (requestId: string) => {
-    if (proc.stdin?.writable) {
-      proc.stdin.write(JSON.stringify({ type: 'deny', requestId }) + '\n');
-    }
+    safeWriteToChildStdin(proc, JSON.stringify({ type: 'deny', requestId }) + '\n', 'gemini');
   };
 
   emitter.steer = (prompt: string, images?: string[]) => {
-    if (proc.stdin?.writable) {
-      const payload: Record<string, unknown> = { type: 'user_message', content: prompt };
-      if (images?.length) {
-        payload.images = images;
-      }
-      proc.stdin.write(JSON.stringify(payload) + '\n');
+    const payload: Record<string, unknown> = { type: 'user_message', content: prompt };
+    if (images?.length) {
+      payload.images = images;
     }
+    safeWriteToChildStdin(proc, JSON.stringify(payload) + '\n', 'gemini');
   };
 
   emitter.answerQuestion = (_requestId: string, response: string) => {

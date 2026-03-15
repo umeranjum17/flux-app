@@ -17,7 +17,13 @@ import { LiveUsageService } from '../usage/live';
 import { setSshHost as setToolsSshHost } from '../tools/ssh';
 import { grepFiles } from '../tools/grep';
 import { repoMapService } from '../intelligence/repomap';
-import { extendedEnv, resolveSshCommand, classifySpawnError } from '../process-utils';
+import {
+  extendedEnv,
+  resolveSshCommand,
+  classifySpawnError,
+  attachChildStdinErrorHandler,
+  safeWriteToChildStdin,
+} from '../process-utils';
 import { executeBash } from '../tools/bash';
 import { suggestCompletion, availableCompletionProviders } from '../completion/service';
 import { getCheckpointDiff, listCheckpoints, revertToCheckpoint } from '../checkpoint/manager';
@@ -385,8 +391,8 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
         env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      if (termCwd && proc.stdin?.writable) {
-        proc.stdin.write(`cd ${toRemoteShellPath(termCwd)}\n`);
+      if (termCwd) {
+        safeWriteToChildStdin(proc, `cd ${toRemoteShellPath(termCwd)}\n`, `terminal:${id}`);
       }
     } else {
       const shellArgs = process.platform === 'win32' ? ['-NoLogo', '-NoExit'] : ['-i'];
@@ -396,6 +402,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
+    attachChildStdinErrorHandler(proc, `terminal:${id}`);
 
     activeTerminals.set(id, proc);
 
@@ -417,7 +424,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('terminal:write', async (_event, { id, data }: { id: string; data: string }) => {
     const proc = activeTerminals.get(id);
-    if (proc?.stdin?.writable) proc.stdin.write(data);
+    if (proc) safeWriteToChildStdin(proc, data, `terminal:${id}`);
   });
 
   ipcMain.handle('terminal:resize', async (_event, { id: _id, cols: _cols, rows: _rows }: { id: string; cols: number; rows: number }) => {

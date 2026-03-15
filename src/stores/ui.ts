@@ -1,3 +1,4 @@
+import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
@@ -62,8 +63,8 @@ interface UiState {
   autoApprove: boolean;
   autoApproveTools: string[];
 
-  // File activity panel
-  fileActivityPanelOpen: boolean;
+  // File activity panel (per workspace/task)
+  fileActivityPanelOpenContexts: Set<string>;
 
   // Smart terminal input
   inputMode: 'chat' | 'terminal';
@@ -103,8 +104,8 @@ interface UiState {
   setAutoApprove(enabled: boolean): void;
   toggleAutoApprove(): void;
   setAutoApproveTools(tools: string[]): void;
-  setFileActivityPanelOpen(open: boolean): void;
-  toggleFileActivityPanel(): void;
+  setFileActivityPanelOpen(open: boolean, contextKey: string): void;
+  toggleFileActivityPanel(contextKey: string): void;
   setInputMode(mode: 'chat' | 'terminal'): void;
   toggleInputMode(): void;
   addShellCommand(cmd: string): void;
@@ -148,7 +149,7 @@ export const useUiStore = create<UiState>()(
     recentProjects: [],
     autoApprove: false,
     autoApproveTools: ['Read', 'Glob', 'Grep', 'Bash'],
-    fileActivityPanelOpen: false,
+    fileActivityPanelOpenContexts: new Set(),
     inputMode: 'chat',
     shellHistory: [],
     completionModel: 'haiku',
@@ -369,15 +370,23 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-    setFileActivityPanelOpen(open) {
+    setFileActivityPanelOpen(open, contextKey) {
       set((state) => {
-        state.fileActivityPanelOpen = open;
+        if (open) {
+          state.fileActivityPanelOpenContexts.add(contextKey);
+        } else {
+          state.fileActivityPanelOpenContexts.delete(contextKey);
+        }
       });
     },
 
-    toggleFileActivityPanel() {
+    toggleFileActivityPanel(contextKey) {
       set((state) => {
-        state.fileActivityPanelOpen = !state.fileActivityPanelOpen;
+        if (state.fileActivityPanelOpenContexts.has(contextKey)) {
+          state.fileActivityPanelOpenContexts.delete(contextKey);
+        } else {
+          state.fileActivityPanelOpenContexts.add(contextKey);
+        }
       });
     },
 

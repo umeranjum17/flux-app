@@ -11,7 +11,7 @@ import {
   isMeaningfulMessage,
   terminateAgentProcess,
 } from './spawn-utils';
-import { classifySpawnError } from '../process-utils';
+import { classifySpawnError, attachChildStdinErrorHandler, safeWriteToChildStdin } from '../process-utils';
 import {
   extractCodexSessionMeta,
   hasCodexProfile,
@@ -99,6 +99,7 @@ export function spawnCodex(
     sshHost: options.sshHost,
     remoteCwd: options.remoteCwd,
   });
+  attachChildStdinErrorHandler(proc, 'codex');
 
   const emitter = new EventEmitter() as AgentHandle;
   emitter.setMaxListeners(20);
@@ -356,9 +357,7 @@ export function spawnCodex(
   };
 
   emitter.steer = (prompt: string) => {
-    if (proc.stdin?.writable) {
-      proc.stdin.write(prompt + '\n');
-    }
+    safeWriteToChildStdin(proc, prompt + '\n', 'codex');
   };
 
   emitter.answerQuestion = (_requestId: string, response: string) => {

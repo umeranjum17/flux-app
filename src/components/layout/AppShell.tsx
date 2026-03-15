@@ -45,7 +45,14 @@ export function AppShell() {
   const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
-  const fileActivityPanelOpen = useUiStore((s) => s.fileActivityPanelOpen);
+  const fileActivityContextKey = useChatStore((s) => {
+    if (!s.activeTaskId) return null;
+    const task = s.tasks.get(s.activeTaskId);
+    return task ? (task.workspaceId ?? task.id) : null;
+  });
+  const fileActivityPanelOpen = useUiStore((s) =>
+    fileActivityContextKey ? s.fileActivityPanelOpenContexts.has(fileActivityContextKey) : false,
+  );
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const termRef = useRef<TerminalPanelHandle>(null);
 

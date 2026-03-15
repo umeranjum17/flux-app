@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import type { ChildProcess } from 'child_process';
+import type { Writable } from 'stream';
 
 export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
 
@@ -385,4 +387,66 @@ export function classifySpawnError(
     userMessage: msg || 'Unknown error',
     suggestion: '',
   };
+}
+
+const STREAM_ERROR_HANDLER_ATTACHED = Symbol('streamErrorHandlerAttached');
+
+type MarkedWritable = Writable & {
+  [STREAM_ERROR_HANDLER_ATTACHED]?: boolean;
+  writableEnded?: boolean;
+};
+
+export function isIgnorableStreamWriteError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED';
+}
+
+function isWritableOpen(stream: Writable | null | undefined): stream is MarkedWritable {
+  if (!stream) return false;
+  const candidate = stream as MarkedWritable;
+  return candidate.writable && !candidate.destroyed && candidate.writableEnded !== true;
+}
+
+export function attachStreamErrorHandler(stream: Writable | null | undefined, context: string): void {
+  if (!stream) return;
+  const candidate = stream as MarkedWritable;
+  if (candidate[STREAM_ERROR_HANDLER_ATTACHED]) return;
+  candidate[STREAM_ERROR_HANDLER_ATTACHED] = true;
+  candidate.on('error', (err: Error) => {
+    if (isIgnorableStreamWriteError(err)) return;
+    console.warn(`[${context}] stream error`, err);
+  });
+}
+
+export function safeWriteToStream(
+  stream: Writable | null | undefined,
+  data: string | Uint8Array,
+  context: string,
+): boolean {
+  if (!isWritableOpen(stream)) return false;
+  const writable = stream as MarkedWritable;
+  try {
+    writable.write(data, (err?: Error | null) => {
+      if (!err || isIgnorableStreamWriteError(err)) return;
+      console.warn(`[${context}] stream write failed`, err);
+    });
+    return true;
+  } catch (err) {
+    if (!isIgnorableStreamWriteError(err)) {
+      console.warn(`[${context}] stream write threw`, err);
+    }
+    return false;
+  }
+}
+
+export function attachChildStdinErrorHandler(proc: ChildProcess, context: string): void {
+  attachStreamErrorHandler(proc.stdin, `${context}:stdin`);
+}
+
+export function safeWriteToChildStdin(
+  proc: ChildProcess,
+  data: string | Uint8Array,
+  context: string,
+): boolean {
+  return safeWriteToStream(proc.stdin, data, `${context}:stdin`);
 }

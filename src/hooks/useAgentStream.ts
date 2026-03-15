@@ -32,7 +32,7 @@ export function useAgentStream() {
       const { taskId, message } = data as { taskId: string; message: AgentMessage };
       messageBuffer.push({ taskId, message });
 
-      // Auto-open file activity panel on first file edit
+      // Auto-open file activity panel on first file edit (only for the active task)
       if (
         message.type === 'tool_call' &&
         message.toolName &&
@@ -42,8 +42,13 @@ export function useAgentStream() {
         if (toolLower.includes('edit') || toolLower.includes('write') || toolLower.includes('patch')) {
           const filePath = message.filePath ?? (message.toolInput?.file_path as string | undefined) ?? (message.toolInput?.path as string | undefined);
           if (filePath) {
-            autoOpenedForTask.add(taskId);
-            useUiStore.getState().setFileActivityPanelOpen(true);
+            const chatState = useChatStore.getState();
+            if (chatState.activeTaskId === taskId) {
+              autoOpenedForTask.add(taskId);
+              const task = chatState.tasks.get(taskId);
+              const contextKey = task?.workspaceId ?? taskId;
+              useUiStore.getState().setFileActivityPanelOpen(true, contextKey);
+            }
           }
         }
       }

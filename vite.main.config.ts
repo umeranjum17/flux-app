@@ -14,6 +14,7 @@ export default defineConfig({
         'electron',
         'sqlite',
         'node:sqlite',
+        'web-tree-sitter',
         ...builtinModules,
         ...builtinModules.map((m) => `node:${m}`),
       ],
