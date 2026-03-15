@@ -25,6 +25,7 @@ interface WorkspaceState {
 
   // Actions
   setWorkspaces(workspaces: Workspace[]): void;
+  mergeWorkspaces(workspaces: Workspace[]): void;
   addWorkspace(ws: Workspace): void;
   updateWorkspace(id: string, updates: Partial<Workspace>): void;
   removeWorkspace(id: string): void;
@@ -96,6 +97,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     setWorkspaces(workspaces) {
       set((state) => {
         state.workspaces = new Map(workspaces.map((ws) => [ws.id, ws]));
+      });
+    },
+
+    mergeWorkspaces(workspaces) {
+      set((state) => {
+        for (const ws of workspaces) {
+          state.workspaces.set(ws.id, ws);
+        }
       });
     },
 

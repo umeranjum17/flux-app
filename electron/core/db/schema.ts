@@ -104,6 +104,22 @@ CREATE TABLE IF NOT EXISTS workspace_sessions (
 CREATE INDEX IF NOT EXISTS idx_ws_sessions_workspace ON workspace_sessions(workspace_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ws_sessions_pair ON workspace_sessions(workspace_id, session_id)`;
 
+export const CREATE_PROJECT_GROUPS_TABLE = `
+CREATE TABLE IF NOT EXISTS project_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+)`;
+
+export const CREATE_PROJECT_GROUP_ITEMS_TABLE = `
+CREATE TABLE IF NOT EXISTS project_group_items (
+  group_id TEXT NOT NULL REFERENCES project_groups(id) ON DELETE CASCADE,
+  project_path TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (group_id, project_path)
+)`;
+
 export const CREATE_MIGRATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS migrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

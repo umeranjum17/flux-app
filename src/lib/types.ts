@@ -1,3 +1,11 @@
+export interface ProjectGroup {
+  id: string;
+  name: string;
+  projects: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type AgentId = 'claude-code' | 'codex' | 'gemini' | 'openai' | 'ollama';
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 export type ThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';

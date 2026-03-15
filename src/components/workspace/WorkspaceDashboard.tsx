@@ -25,22 +25,30 @@ export function WorkspaceDashboard() {
   const archivedList = Array.from(archivedWorkspaces.values());
   const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
 
-  // Load workspaces on mount
+  const openProjects = useUiStore((s) => s.openProjects);
+
+  // Load workspaces on mount — across all open projects
   useEffect(() => {
-    if (!cwd) return;
-    window.api.invoke('workspace:list', { parentRepo: cwd })
-      .then((result: unknown) => {
-        useWorkspaceStore.getState().setWorkspaces(result as Workspace[]);
-      })
-      .catch(() => {});
-    // Also load archived workspaces
-    window.api.invoke('workspace:list', { parentRepo: cwd, includeArchived: true })
-      .then((result: unknown) => {
-        const all = result as Workspace[];
-        useWorkspaceStore.getState().setArchivedWorkspaces(all.filter((ws) => ws.archivedAt));
-      })
-      .catch(() => {});
-  }, [cwd]);
+    const projects = openProjects.length > 0 ? openProjects : cwd ? [cwd] : [];
+    if (projects.length === 0) return;
+
+    (async () => {
+      try {
+        const allActive: Workspace[] = [];
+        const allArchived: Workspace[] = [];
+        for (const repo of projects) {
+          const active = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
+          allActive.push(...active);
+          const withArchived = await window.api.invoke('workspace:list', { parentRepo: repo, includeArchived: true }) as Workspace[];
+          allArchived.push(...withArchived.filter((ws) => ws.archivedAt));
+        }
+        useWorkspaceStore.getState().setWorkspaces(allActive);
+        useWorkspaceStore.getState().setArchivedWorkspaces(allArchived);
+      } catch {
+        // best-effort
+      }
+    })();
+  }, [cwd, openProjects]);
 
   // Listen for workspace status updates
   useEffect(() => {

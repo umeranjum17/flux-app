@@ -24,6 +24,8 @@ import {
 import { registerAuxiliaryIpcHandlers } from './auxiliary';
 import { registerTaskHandlers } from './task-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
+import { registerProjectGroupHandlers } from './project-group-handlers';
+import { ProjectGroupStore } from '../project-group/store';
 
 console.log('[ipc-handlers] module loaded');
 
@@ -147,6 +149,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'mcp:status',
     'mcp:reconnect',
     'mcp:toggle',
+    'project-group:create',
+    'project-group:list',
+    'project-group:get',
+    'project-group:add-project',
+    'project-group:remove-project',
+    'project-group:rename',
+    'project-group:delete',
+    'workspace:list-multi',
   ];
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
@@ -292,6 +302,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   registerWorkspaceHandlers(fullCtx);
+
+  const projectGroupStore = new ProjectGroupStore();
+  registerProjectGroupHandlers({ projectGroupStore, workspaceStore });
 
   // Initialize repo map if enabled
   const initialConfig = configManager.get().repoMap;

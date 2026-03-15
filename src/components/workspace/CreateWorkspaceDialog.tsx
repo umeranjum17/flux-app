@@ -21,14 +21,18 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   const selectedModel = useAgentStore((s) => s.selectedModel);
   const dynamicModels = useAgentStore((s) => s.dynamicModels);
   const cwd = useUiStore((s) => s.cwd);
+  const openProjects = useUiStore((s) => s.openProjects);
 
   const [name, setName] = useState('');
   const [branch, setBranch] = useState(() => createDefaultBranchName());
   const [agentId, setAgentId] = useState(selectedAgentId);
   const [model, setModel] = useState(selectedModel);
+  const [parentRepo, setParentRepo] = useState(cwd);
   const [prompt, setPrompt] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const projectOptions = openProjects.length > 0 ? openProjects : cwd ? [cwd] : [];
 
   const availableAgents = agents.filter((a) => a.available);
   const selectedAgent = agents.find((a) => a.id === agentId);
@@ -43,7 +47,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
     try {
       workspace = await window.api.invoke('workspace:create', {
         name: name.trim(),
-        parentRepo: cwd,
+        parentRepo: parentRepo,
         branch: branch.trim(),
         agentId,
         model,
@@ -113,6 +117,20 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
               className="input-field font-mono text-xs"
             />
           </Field>
+
+          {projectOptions.length > 1 && (
+            <Field label="Project">
+              <select
+                value={parentRepo}
+                onChange={(e) => setParentRepo(e.target.value)}
+                className="input-field"
+              >
+                {projectOptions.map((p) => (
+                  <option key={p} value={p}>{p.split('/').pop() || p}</option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Agent">

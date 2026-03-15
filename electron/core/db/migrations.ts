@@ -8,6 +8,8 @@ import {
   CREATE_WORKSPACES_TABLE,
   CREATE_CHECKPOINTS_TABLE,
   CREATE_WORKSPACE_SESSIONS_TABLE,
+  CREATE_PROJECT_GROUPS_TABLE,
+  CREATE_PROJECT_GROUP_ITEMS_TABLE,
   CREATE_MIGRATIONS_TABLE,
 } from './schema';
 
@@ -37,6 +39,14 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
   {
     name: '012_create_usage_snapshot_lookup_index',
     sql: 'CREATE INDEX IF NOT EXISTS idx_usage_window_snapshots_lookup ON usage_window_snapshots(provider_id, window_key, sampled_at)',
+  },
+  {
+    name: '013_create_project_groups',
+    sql: CREATE_PROJECT_GROUPS_TABLE,
+  },
+  {
+    name: '014_create_project_group_items',
+    sql: CREATE_PROJECT_GROUP_ITEMS_TABLE,
   },
 ];
 

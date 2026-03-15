@@ -84,6 +84,17 @@ export function AppShell() {
           if (typeof (config as any).autoApprove === 'boolean') {
             useUiStore.getState().setAutoApprove((config as any).autoApprove);
           }
+          // Restore multi-project state
+          if (config.openProjects && config.openProjects.length > 0) {
+            useUiStore.getState().setOpenProjects(config.openProjects);
+            // Restore active project (if saved) or use the first open project
+            if (config.activeProjectPath && config.openProjects.includes(config.activeProjectPath)) {
+              useUiStore.getState().setActiveProject(config.activeProjectPath);
+            }
+          }
+          if (config.lastActiveGroupId) {
+            useUiStore.getState().setActiveGroupId(config.lastActiveGroupId);
+          }
         } catch (err) {
           toast.error('Failed to load configuration');
           console.error('Config load failed:', err);
@@ -146,9 +157,12 @@ export function AppShell() {
     init().catch(console.error);
   }, []);
 
-  // Load workspaces when CWD changes and listen for status updates
+  const openProjects = useUiStore((s) => s.openProjects);
+
+  // Load workspaces when CWD or openProjects change and listen for status updates
   useEffect(() => {
-    if (!cwd) return;
+    const projects = openProjects.length > 0 ? openProjects : cwd ? [cwd] : [];
+    if (projects.length === 0) return;
     let cancelled = false;
 
     const restoreWorkspaceChats = async (workspace: Workspace, sessions: WorkspaceSession[]) => {
@@ -193,12 +207,16 @@ export function AppShell() {
 
     (async () => {
       try {
-        const result = await window.api.invoke('workspace:list', { parentRepo: cwd }) as Workspace[];
-        if (cancelled) return;
+        const allWorkspaces: Workspace[] = [];
+        for (const repo of projects) {
+          const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
+          if (cancelled) return;
+          allWorkspaces.push(...result);
+        }
 
-        useWorkspaceStore.getState().setWorkspaces(result);
+        useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
-        for (const workspace of result) {
+        for (const workspace of allWorkspaces) {
           const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
           if (cancelled) return;
 
@@ -213,7 +231,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [cwd]);
+  }, [cwd, openProjects]);
 
   useEffect(() => {
     const unsub = window.api.on('workspace:status', (data: unknown) => {
@@ -342,6 +360,41 @@ export function AppShell() {
           }
         }
       }, 300);
+    });
+    return () => { clearTimeout(timeout); unsub(); };
+  }, []);
+
+  // Auto-persist multi-project state
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    let prevOpenProjects = useUiStore.getState().openProjects;
+    let prevCwd = useUiStore.getState().cwd;
+    let prevGroupId = useUiStore.getState().activeGroupId;
+    const unsub = useUiStore.subscribe((state) => {
+      if (
+        state.openProjects === prevOpenProjects &&
+        state.cwd === prevCwd &&
+        state.activeGroupId === prevGroupId
+      ) return;
+      prevOpenProjects = state.openProjects;
+      prevCwd = state.cwd;
+      prevGroupId = state.activeGroupId;
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const partial: Partial<FluxConfig> = {};
+        if (state.openProjects.length > 0) {
+          partial.openProjects = state.openProjects;
+        }
+        if (state.cwd) {
+          partial.activeProjectPath = state.cwd;
+        }
+        if (state.activeGroupId) {
+          partial.lastActiveGroupId = state.activeGroupId;
+        }
+        if (Object.keys(partial).length > 0) {
+          window.api.invoke('config:set', partial).catch(() => {});
+        }
+      }, 500);
     });
     return () => { clearTimeout(timeout); unsub(); };
   }, []);

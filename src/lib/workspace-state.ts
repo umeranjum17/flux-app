@@ -61,6 +61,7 @@ export interface CreateWorkspaceAndChatOptions {
   mode: TaskMode;
   thinking: ThinkingLevel;
   cwd: string;
+  parentRepo?: string;
   images?: string[];
   attachments?: FileAttachment[];
 }
@@ -327,10 +328,11 @@ export async function createWorkspaceAndChat(
 ): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
   // Use a temporary auto-generated branch; it gets renamed from the first task prompt in startWorkspaceChat.
   const branch = createFluxBranchName('workspace');
+  const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
 
   const workspace = await window.api.invoke('workspace:create', {
     name: 'Workspace',
-    parentRepo: opts.cwd,
+    parentRepo: effectiveParentRepo,
     branch,
     agentId: opts.agentId,
     model: opts.model,

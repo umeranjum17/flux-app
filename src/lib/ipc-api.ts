@@ -1,4 +1,4 @@
-import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment, TodoItem } from './types';
+import type { DetectedAgent, AuthResult, AgentMessage, DiffData, SpawnOptions, TaskMode, ThinkingLevel, FileAttachment, TodoItem, ProjectGroup } from './types';
 
 export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
 
@@ -114,6 +114,18 @@ export interface IpcChannels {
   'mcp:status': { args: [{ taskId: string }]; result: McpServerStatus[] };
   'mcp:reconnect': { args: [{ taskId: string; serverName: string }]; result: void };
   'mcp:toggle': { args: [{ taskId: string; serverName: string; enabled: boolean }]; result: void };
+
+  // Project groups
+  'project-group:create': { args: [{ name: string; projects?: string[] }]; result: ProjectGroup };
+  'project-group:list': { args: []; result: ProjectGroup[] };
+  'project-group:get': { args: [{ id: string }]; result: ProjectGroup | null };
+  'project-group:add-project': { args: [{ groupId: string; projectPath: string }]; result: ProjectGroup | null };
+  'project-group:remove-project': { args: [{ groupId: string; projectPath: string }]; result: ProjectGroup | null };
+  'project-group:rename': { args: [{ groupId: string; name: string }]; result: ProjectGroup | null };
+  'project-group:delete': { args: [{ groupId: string }]; result: void };
+
+  // Multi-project workspace listing
+  'workspace:list-multi': { args: [{ parentRepos: string[]; includeArchived?: boolean }]; result: Workspace[] };
 }
 
 // Events main sends to renderer
@@ -215,6 +227,11 @@ export interface FluxConfig {
     lastUsed: number;
   }>;
   repoMap: RepoMapIpcConfig;
+
+  // Multi-project state
+  lastActiveGroupId?: string;
+  openProjects?: string[];
+  activeProjectPath?: string;
 }
 
 export interface Checkpoint {

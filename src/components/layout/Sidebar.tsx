@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { MessageSquare, Search, Gauge, Files, Terminal, FolderOpen } from 'lucide-react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { MessageSquare, Search, Gauge, Files, Terminal, FolderOpen, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../stores/ui';
 import { UsagePanel } from './UsagePanel';
@@ -91,39 +91,28 @@ function ExplorerPanel() {
   );
 }
 
-function FilesTab() {
-  const cwd = useUiStore((s) => s.cwd);
-  const projectName = useUiStore((s) => s.projectName);
+function ProjectFileTree({ projectPath, isActive, showHeader }: { projectPath: string; isActive: boolean; showHeader: boolean }) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const projectName = useMemo(() => projectPath.split('/').pop() || projectPath, [projectPath]);
 
   const loadTree = useCallback(async () => {
-    if (!cwd) return;
+    if (!projectPath) return;
     setLoading(true);
     try {
-      const result = await window.api.invoke('fs:readdir', { dirPath: cwd, depth: 2 }) as TreeNode[];
+      const result = await window.api.invoke('fs:readdir', { dirPath: projectPath, depth: 2 }) as TreeNode[];
       setTree(result);
     } catch {
       setTree([]);
     }
     setLoading(false);
-  }, [cwd]);
+  }, [projectPath]);
 
   useEffect(() => {
     loadTree();
   }, [loadTree]);
-
-  const handleOpenFolder = async () => {
-    const sshConnected = useUiStore.getState().sshConnected;
-    if (sshConnected) {
-      useUiStore.getState().setOverlay('remote-folder-picker');
-      return;
-    }
-    const picked = await window.api.invoke('cwd:pick') as string | null;
-    if (picked) {
-      useUiStore.getState().setCwd(picked);
-    }
-  };
 
   const handleFileSelect = (filePath: string) => {
     const name = filePath.split('/').pop() || filePath;
@@ -139,11 +128,71 @@ function FilesTab() {
   };
 
   return (
+    <div>
+      {showHeader && (
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          onDoubleClick={() => useUiStore.getState().setActiveProject(projectPath)}
+          className={`flex w-full items-center gap-1.5 px-1 py-1.5 text-left transition-colors hover:bg-bg-hover ${
+            isActive ? 'text-accent' : 'text-text-secondary'
+          }`}
+          title={`${projectPath}\nDouble-click to set as active`}
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+          <FolderOpen size={12} className="shrink-0 opacity-60" />
+          <span className="truncate text-[12px] font-semibold">{projectName}</span>
+        </button>
+      )}
+      {!collapsed && (
+        <>
+          {loading && tree.length === 0 && (
+            <p className="px-4 py-2 text-[11px] text-text-tertiary">Loading...</p>
+          )}
+          {!loading && tree.length === 0 && (
+            <p className="px-4 py-2 text-[11px] text-text-tertiary">Empty directory</p>
+          )}
+          <FileTree nodes={tree} onFileSelect={handleFileSelect} onFileDoubleClick={handleFileMention} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function FilesTab() {
+  const cwd = useUiStore((s) => s.cwd);
+  const openProjects = useUiStore((s) => s.openProjects);
+
+  const projects = useMemo(() => {
+    if (openProjects.length > 0) return openProjects;
+    if (cwd) return [cwd];
+    return [];
+  }, [openProjects, cwd]);
+
+  const hasMultipleProjects = projects.length > 1;
+
+  const handleOpenFolder = async () => {
+    const sshConnected = useUiStore.getState().sshConnected;
+    if (sshConnected) {
+      useUiStore.getState().setOverlay('remote-folder-picker');
+      return;
+    }
+    const picked = await window.api.invoke('cwd:pick') as string | null;
+    if (picked) {
+      useUiStore.getState().addOpenProject(picked);
+      useUiStore.getState().setActiveProject(picked);
+    }
+  };
+
+  return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
         <div className="min-w-0">
           <p className="truncate text-[12px] font-medium text-text-secondary">
-            {projectName || 'No folder open'}
+            {projects.length === 0
+              ? 'No folder open'
+              : hasMultipleProjects
+                ? `${projects.length} projects`
+                : (cwd?.split('/').pop() || 'Project')}
           </p>
         </div>
         <button
@@ -156,7 +205,7 @@ function FilesTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">
-        {!cwd && (
+        {projects.length === 0 && (
           <div className="px-2 py-6 text-center">
             <button
               onClick={handleOpenFolder}
@@ -167,13 +216,14 @@ function FilesTab() {
             </button>
           </div>
         )}
-        {cwd && tree.length === 0 && !loading && (
-          <p className="px-4 py-4 text-center text-[11px] text-text-tertiary">Empty directory</p>
-        )}
-        {loading && tree.length === 0 && (
-          <p className="px-4 py-4 text-center text-[11px] text-text-tertiary">Loading...</p>
-        )}
-        <FileTree nodes={tree} onFileSelect={handleFileSelect} onFileDoubleClick={handleFileMention} />
+        {projects.map((projectPath) => (
+          <ProjectFileTree
+            key={projectPath}
+            projectPath={projectPath}
+            isActive={projectPath === cwd}
+            showHeader={hasMultipleProjects}
+          />
+        ))}
       </div>
     </div>
   );

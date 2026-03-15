@@ -25,6 +25,11 @@ interface UiState {
   cwd: string;
   projectName: string;
 
+  // Multi-project / Project Groups
+  activeGroupId: string | null;
+  openProjects: string[];
+  collapsedProjects: Set<string>;
+
   // Git
   isGitRepo: boolean;
   gitBranch: string | null;
@@ -81,6 +86,12 @@ interface UiState {
   toggleMode(): void;
   setOverlay(overlay: Overlay): void;
   setCwd(cwd: string): void;
+  setActiveGroupId(id: string | null): void;
+  setOpenProjects(projects: string[]): void;
+  addOpenProject(path: string): void;
+  removeOpenProject(path: string): void;
+  setActiveProject(path: string): void;
+  toggleProjectCollapsed(path: string): void;
   setIsGitRepo(isRepo: boolean): void;
   setGitBranch(branch: string | null): void;
   setGitUpstream(upstream: string | null): void;
@@ -131,6 +142,9 @@ export const useUiStore = create<UiState>()(
     activeOverlay: null,
     cwd: '',
     projectName: '',
+    activeGroupId: null,
+    openProjects: [],
+    collapsedProjects: new Set(),
     isGitRepo: true,
     gitBranch: null,
     gitUpstream: null,
@@ -213,6 +227,64 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
+        // Auto-add to openProjects if not already there
+        if (cwd && !state.openProjects.includes(cwd)) {
+          state.openProjects = [...state.openProjects, cwd];
+        }
+      });
+    },
+
+    setActiveGroupId(id) {
+      set((state) => {
+        state.activeGroupId = id;
+      });
+    },
+
+    setOpenProjects(projects) {
+      set((state) => {
+        state.openProjects = projects;
+      });
+    },
+
+    addOpenProject(path) {
+      set((state) => {
+        if (!state.openProjects.includes(path)) {
+          state.openProjects = [...state.openProjects, path];
+        }
+      });
+    },
+
+    removeOpenProject(path) {
+      set((state) => {
+        state.openProjects = state.openProjects.filter((p) => p !== path);
+        state.collapsedProjects.delete(path);
+        // If we removed the active project, switch to the first remaining one
+        if (state.cwd === path && state.openProjects.length > 0) {
+          state.cwd = state.openProjects[0];
+          state.projectName = basename(state.openProjects[0]);
+          state.activeFile = null;
+        }
+      });
+    },
+
+    setActiveProject(path) {
+      set((state) => {
+        state.cwd = path;
+        state.projectName = basename(path);
+        state.activeFile = null;
+        if (!state.openProjects.includes(path)) {
+          state.openProjects = [...state.openProjects, path];
+        }
+      });
+    },
+
+    toggleProjectCollapsed(path) {
+      set((state) => {
+        if (state.collapsedProjects.has(path)) {
+          state.collapsedProjects.delete(path);
+        } else {
+          state.collapsedProjects.add(path);
+        }
       });
     },
 
