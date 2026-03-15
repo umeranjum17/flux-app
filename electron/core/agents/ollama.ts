@@ -29,6 +29,7 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
   emitter.setMaxListeners(20);
   emitter.taskId = options.taskId;
   emitter.agentId = 'ollama';
+  emitter.pid = proc.pid;
   let stopped = false;
   let finished = false;
 

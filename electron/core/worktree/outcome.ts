@@ -10,11 +10,25 @@
  * previously lived in 7 different call sites with different guard sets.
  */
 
+import fs from 'fs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-import { logDiagnostic } from '../diagnostics/logger';
 import type { Workspace, WorkspaceOutcome } from './types';
+
+// Lazy-load logDiagnostic to avoid importing 'electron' in test environments
+let _logDiagnostic: typeof import('../diagnostics/logger').logDiagnostic | undefined;
+function logDiagnostic(...args: Parameters<typeof import('../diagnostics/logger').logDiagnostic>) {
+  if (!_logDiagnostic) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      _logDiagnostic = require('../diagnostics/logger').logDiagnostic;
+    } catch {
+      _logDiagnostic = (() => {}) as any;
+    }
+  }
+  _logDiagnostic!(...args);
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -35,6 +49,10 @@ export interface WorkspaceGitState {
   hasUncommittedChanges: boolean;
   hasPendingChanges: boolean;
   isMerged: boolean;
+  /** Warnings from git commands that failed during state resolution. */
+  warnings: string[];
+  /** True if the worktree directory does not exist on disk. */
+  worktreeDeleted?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +67,19 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
   let hasCommits = false;
   let hasUncommittedChanges = false;
   let isMerged = false;
+  const warnings: string[] = [];
+
+  // Pre-check: verify worktree directory exists
+  if (!fs.existsSync(workspace.worktreePath)) {
+    return {
+      hasCommits: false,
+      hasUncommittedChanges: false,
+      hasPendingChanges: false,
+      isMerged: false,
+      warnings: [`Worktree directory does not exist: ${workspace.worktreePath}`],
+      worktreeDeleted: true,
+    };
+  }
 
   const target = await resolveTarget(workspace);
 
@@ -67,7 +98,7 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
       );
       hasCommits = parseInt(countOut.trim(), 10) > 0;
     }
-  } catch {
+  } catch (err) {
     // Fallback: simple rev-list count
     try {
       const { stdout: countOut } = await execFileAsync(
@@ -75,8 +106,8 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
         { cwd: workspace.worktreePath, timeout: 5000 },
       );
       hasCommits = parseInt(countOut.trim(), 10) > 0;
-    } catch {
-      // Cannot determine commit state
+    } catch (innerErr) {
+      warnings.push(`Cannot determine commit state: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}`);
     }
   }
 
@@ -87,8 +118,8 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
       { cwd: workspace.worktreePath, timeout: 5000 },
     );
     hasUncommittedChanges = statusOut.trim().length > 0;
-  } catch {
-    // Cannot determine uncommitted state
+  } catch (err) {
+    warnings.push(`Cannot determine uncommitted state: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 3. Branch merged check
@@ -116,12 +147,12 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
         // Exit code 0 → fully merged
         isMerged = true;
       } catch {
-        // Exit code 1 → not merged
+        // Exit code 1 → not merged (expected, not a warning)
       }
     }
     // else: branch tip === merge base → never diverged → not merged
-  } catch {
-    // Cannot determine merge state
+  } catch (err) {
+    warnings.push(`Cannot determine merge state: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return {
@@ -129,6 +160,7 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
     hasUncommittedChanges,
     hasPendingChanges: hasCommits || hasUncommittedChanges,
     isMerged,
+    warnings,
   };
 }
 
@@ -201,14 +233,39 @@ export type EmitOutcomeFn = (workspaceId: string, outcome: WorkspaceOutcome) => 
  * 2. Computes the next outcome
  * 3. Emits if changed
  */
+/** Outcomes ranked by progression — used to detect demotions. */
+const OUTCOME_RANK: Record<WorkspaceOutcome, number> = {
+  in_progress: 0,
+  ready_for_pr: 1,
+  ready_to_merge: 2,
+  merged: 3,
+  ready_to_archive: 4,
+};
+
 export async function transitionWorkspaceOutcome(
   workspace: Workspace,
   trigger: WorkspaceOutcomeTrigger,
   emitFn: EmitOutcomeFn,
 ): Promise<void> {
   const gitState = await resolveGitState(workspace);
+
+  if (gitState.warnings.length > 0) {
+    for (const w of gitState.warnings) {
+      logDiagnostic('outcome', 'git state warning', { workspaceId: workspace.id, warning: w });
+    }
+  }
+
   const next = computeNextOutcome(workspace.outcome, trigger, gitState);
   if (next !== null && next !== workspace.outcome) {
+    // Guard: skip demotions when git state had errors (could be stale data)
+    if (gitState.warnings.length > 0 && OUTCOME_RANK[next] < OUTCOME_RANK[workspace.outcome]) {
+      logDiagnostic('outcome', 'skipping demotion due to git warnings', {
+        workspaceId: workspace.id, trigger, from: workspace.outcome, to: next,
+        warnings: gitState.warnings,
+      });
+      return;
+    }
+
     logDiagnostic('outcome', 'workspace outcome transition', { workspaceId: workspace.id, trigger, from: workspace.outcome, to: next });
     emitFn(workspace.id, next);
   }

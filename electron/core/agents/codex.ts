@@ -137,6 +137,7 @@ export function spawnCodex(
   emitter.setMaxListeners(20);
   emitter.taskId = options.taskId;
   emitter.agentId = 'codex';
+  emitter.pid = proc.pid;
   let stopped = false;
   let finished = false;
   let heartbeatInterval: ReturnType<typeof setInterval>;

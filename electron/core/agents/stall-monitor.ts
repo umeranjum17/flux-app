@@ -51,6 +51,7 @@ function getToolTimeout(toolName: string | undefined): number {
 export class StallMonitor {
   private toolTimers = new Map<string, NodeJS.Timeout>();
   private toolStartTimes = new Map<string, number>();
+  private toolNames = new Map<string, string | undefined>();
   private idleTimer: NodeJS.Timeout | null = null;
   private healthInterval: NodeJS.Timeout | null = null;
   private disposed = false;
@@ -77,11 +78,49 @@ export class StallMonitor {
     this.toolTimers.clear();
   }
 
-  /** Resume stall monitoring. Resets the idle timer. */
+  /** Resume stall monitoring. Re-arms timers for tools that were running when paused. */
   resume(): void {
     if (this.disposed || !this.paused) return;
     this.paused = false;
-    this.toolStartTimes.clear();
+
+    // Re-arm timers for tools that were still running when we paused
+    const now = Date.now();
+    for (const [toolCallId, startTime] of this.toolStartTimes.entries()) {
+      const toolName = this.toolNames.get(toolCallId);
+      const timeout = getToolTimeout(toolName);
+      const elapsed = now - startTime;
+      const remaining = timeout - elapsed;
+
+      if (remaining <= 0) {
+        // Already exceeded timeout while paused — fire immediately
+        this.toolStartTimes.delete(toolCallId);
+        this.toolNames.delete(toolCallId);
+        this.options.onStallDetected({
+          type: 'tool_timeout',
+          toolCallId,
+          toolName,
+          durationMs: elapsed,
+          autoRestartsRemaining: Math.max(0, this.options.maxAutoRestarts - this.restartCount),
+        });
+      } else {
+        // Re-arm with remaining time
+        const timer = setTimeout(() => {
+          if (this.disposed) return;
+          const actualStart = this.toolStartTimes.get(toolCallId);
+          const durationMs = actualStart ? Date.now() - actualStart : timeout;
+          this.clearToolTimer(toolCallId);
+          this.options.onStallDetected({
+            type: 'tool_timeout',
+            toolCallId,
+            toolName,
+            durationMs,
+            autoRestartsRemaining: Math.max(0, this.options.maxAutoRestarts - this.restartCount),
+          });
+        }, remaining);
+        this.toolTimers.set(toolCallId, timer);
+      }
+    }
+
     this.resetIdleTimer();
   }
 
@@ -94,6 +133,7 @@ export class StallMonitor {
 
     const timeout = getToolTimeout(toolName);
     this.toolStartTimes.set(toolCallId, Date.now());
+    this.toolNames.set(toolCallId, toolName);
 
     const timer = setTimeout(() => {
       if (this.disposed) return;
@@ -153,6 +193,7 @@ export class StallMonitor {
     }
     this.toolTimers.clear();
     this.toolStartTimes.clear();
+    this.toolNames.clear();
 
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
@@ -168,6 +209,7 @@ export class StallMonitor {
       this.toolTimers.delete(toolCallId);
     }
     this.toolStartTimes.delete(toolCallId);
+    this.toolNames.delete(toolCallId);
   }
 
   private resetIdleTimer(): void {

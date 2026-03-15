@@ -116,6 +116,8 @@ export interface SpawnOptions {
 export interface AgentHandle extends EventEmitter {
   taskId: string;
   agentId: AgentId;
+  /** PID of the underlying child process, if available. */
+  pid?: number;
   stop(): Promise<void>;
   approve(requestId: string): void;
   deny(requestId: string): void;

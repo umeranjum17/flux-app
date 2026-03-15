@@ -274,12 +274,32 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 }
 
 export function cleanupProcesses(): void {
+  // Dispose stall monitors to prevent stale callbacks during shutdown
+  for (const [, monitor] of taskStallMonitors) {
+    try { monitor.dispose(); } catch {}
+  }
+  taskStallMonitors.clear();
+
+  // Clear idle heartbeat intervals
+  for (const [, interval] of taskIdleHeartbeats) {
+    try { clearInterval(interval); } catch {}
+  }
+  taskIdleHeartbeats.clear();
+
+  // Kill terminal processes
   for (const [, proc] of activeTerminals) {
     try { proc.kill(); } catch {}
   }
   activeTerminals.clear();
+
+  // Stop agent handles
   for (const [, handle] of activeTasks) {
     try { handle.stop(); } catch {}
   }
   activeTasks.clear();
+
+  // Clear remaining state maps
+  taskSessions.clear();
+  cleaningUp.clear();
+  taskRetryCounts.clear();
 }

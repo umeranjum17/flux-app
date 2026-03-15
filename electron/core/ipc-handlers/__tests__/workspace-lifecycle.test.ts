@@ -40,6 +40,8 @@ function makeWorkspace(overrides?: Partial<Workspace>): Partial<Workspace> {
     id: WS_ID,
     status: 'idle' as WorkspaceStatus,
     outcome: 'in_progress' as WorkspaceOutcome,
+    worktreePath: '/tmp/test-worktree',
+    parentRepo: '/tmp/test-repo',
     ...overrides,
   };
 }
@@ -593,6 +595,54 @@ describe('WorkspaceLifecycleManager', () => {
         ([, updates]: [string, any]) => 'outcome' in updates
       );
       expect(outcomeCalls).toHaveLength(0);
+    });
+  });
+
+  describe('reconcileOnStartup with missing worktrees', () => {
+    it('auto-archives workspace when worktree is missing and outcome is in_progress', async () => {
+      store._set(WS_ID, makeWorkspace({
+        status: 'idle',
+        outcome: 'in_progress',
+        worktreePath: '/nonexistent/path/that/does/not/exist',
+      }));
+      store.list.mockReturnValue([store._data[WS_ID] as any]);
+
+      await manager.reconcileOnStartup();
+
+      const archiveCalls = store.update.mock.calls.filter(
+        ([, updates]: [string, any]) => 'archivedAt' in updates
+      );
+      expect(archiveCalls.length).toBeGreaterThan(0);
+    });
+
+    it('does not auto-archive when outcome is ready_for_pr (branch may still exist)', async () => {
+      store._set(WS_ID, makeWorkspace({
+        status: 'idle',
+        outcome: 'ready_for_pr',
+        worktreePath: '/nonexistent/path/that/does/not/exist',
+      }));
+      store.list.mockReturnValue([store._data[WS_ID] as any]);
+
+      await manager.reconcileOnStartup();
+
+      const archiveCalls = store.update.mock.calls.filter(
+        ([, updates]: [string, any]) => 'archivedAt' in updates
+      );
+      expect(archiveCalls).toHaveLength(0);
+    });
+  });
+
+  describe('clearTask', () => {
+    it('removes task from all maps without emission', () => {
+      manager.taskStarted('t1', WS_ID, 'running');
+      emissions.length = 0;
+
+      manager.clearTask('t1');
+
+      expect(manager.isTaskActive('t1')).toBe(false);
+      expect(manager.getWorkspaceForTask('t1')).toBeUndefined();
+      expect(manager.getTaskStatus('t1')).toBeUndefined();
+      expect(emissions).toHaveLength(0);
     });
   });
 });

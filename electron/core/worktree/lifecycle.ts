@@ -9,6 +9,8 @@
  * - Deduplication of emissions
  */
 
+import fs from 'fs';
+
 import type { Workspace, WorkspaceOutcome, WorkspaceStatus } from './types';
 import { resolveGitState, computeNextOutcome } from './outcome';
 import type { WorkspaceOutcomeTrigger } from './outcome';
@@ -108,6 +110,14 @@ export class WorkspaceLifecycleManager {
    * Phase 2: Sync outcomes from git — async, best-effort per workspace.
    */
   async reconcileOnStartup(): Promise<void> {
+    // Phase 0: Kill orphaned agent processes from a previous crash
+    try {
+      const { killOrphanedAgents } = await import('../agents/pid-tracker');
+      killOrphanedAgents();
+    } catch (err) {
+      console.warn('[lifecycle:reconcile] Failed to kill orphaned agents:', err);
+    }
+
     const allWorkspaces = this.workspaceStore.list();
 
     const activeStatuses: WorkspaceStatus[] = ['running', 'merging', 'waiting_approval', 'waiting_input'];
@@ -128,7 +138,22 @@ export class WorkspaceLifecycleManager {
         .map(ws => this.serialized(ws.id, async () => {
           try {
             const fresh = this.workspaceStore.get(ws.id);
-            if (fresh) await this.transitionOutcome(fresh, 'sync');
+            if (!fresh) return;
+
+            // Validate worktree directory exists on disk
+            if (!fs.existsSync(fresh.worktreePath)) {
+              console.warn(`[lifecycle:reconcile] Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
+              if (fresh.outcome === 'in_progress') {
+                // No commits and worktree gone — auto-archive
+                console.log(`[lifecycle:reconcile] Auto-archiving ${ws.id} (worktree deleted, no commits)`);
+                this.workspaceStore.update(ws.id, { archivedAt: Date.now() });
+              }
+              // For higher outcomes (ready_for_pr, etc.) the branch may
+              // still exist in git — log but don't touch the outcome
+              return;
+            }
+
+            await this.transitionOutcome(fresh, 'sync');
           } catch (err) {
             console.warn(`[lifecycle:reconcile] Failed to sync outcome for ${ws.id}:`, err);
           }
@@ -232,12 +257,30 @@ export class WorkspaceLifecycleManager {
   async transitionOutcome(workspace: Workspace, trigger: WorkspaceOutcomeTrigger): Promise<void> {
     const gitState = await resolveGitState(workspace);
 
+    if (gitState.warnings.length > 0) {
+      for (const w of gitState.warnings) {
+        getLogDiagnostic()('outcome', 'git state warning', { workspaceId: workspace.id, warning: w });
+      }
+    }
+
     // Re-read current outcome from DB — it may have changed during git ops
     const fresh = this.workspaceStore.get(workspace.id);
     if (!fresh) return;
 
     const next = computeNextOutcome(fresh.outcome, trigger, gitState);
     if (next !== null && next !== fresh.outcome) {
+      // Guard: skip demotions when git state had errors (could be stale data)
+      const outcomeRank: Record<string, number> = {
+        in_progress: 0, ready_for_pr: 1, ready_to_merge: 2, merged: 3, ready_to_archive: 4,
+      };
+      if (gitState.warnings.length > 0 && (outcomeRank[next] ?? 0) < (outcomeRank[fresh.outcome] ?? 0)) {
+        getLogDiagnostic()('outcome', 'skipping demotion due to git warnings', {
+          workspaceId: workspace.id, trigger, from: fresh.outcome, to: next,
+          warnings: gitState.warnings,
+        });
+        return;
+      }
+
       getLogDiagnostic()('outcome', 'workspace outcome transition', {
         workspaceId: workspace.id,
         trigger,
