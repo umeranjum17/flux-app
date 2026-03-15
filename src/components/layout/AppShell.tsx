@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar';
 import { StatusLine } from './StatusLine';
 import { MessageList } from '../chat/MessageList';
 import { LiveRunHeader } from '../chat/LiveRunHeader';
+import { TodoBar } from '../chat/TodoBar';
 import { ChatInput } from '../input/ChatInput';
 import { WelcomeScreen } from './WelcomeScreen';
 import { TabBar } from './TabBar';
@@ -549,6 +550,7 @@ export function AppShell() {
                         <div className="shrink-0">
                           <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">
                             <LiveRunHeader />
+                            <TodoBar />
                             <ChatInput focused />
                           </div>
                         </div>
