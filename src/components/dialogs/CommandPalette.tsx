@@ -8,6 +8,7 @@ import {
   Settings,
   Bot,
   FolderOpen,
+  FolderPlus,
   Search,
   Wifi,
   WifiOff,
@@ -145,6 +146,14 @@ export function CommandPalette() {
             const { useUiStore: ui } = await import('../../stores/ui');
             ui.getState().setCwd(picked);
           }
+        },
+      },
+      {
+        id: 'create-folder',
+        name: 'Create Folder',
+        icon: FolderPlus,
+        handler: () => {
+          setOverlay('create-folder');
         },
       },
       {

@@ -174,6 +174,43 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     return getCurrentCwd();
   });
 
+  ipcMain.handle('fs:pick-directory', async (_event, { defaultPath }: { defaultPath?: string } = {}) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      defaultPath: defaultPath ?? getCurrentCwd(),
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('cwd:create', async (_event, { parentPath, folderName, initGit }: { parentPath: string; folderName: string; initGit: boolean }) => {
+    if (!folderName || /[/\\]/.test(folderName)) {
+      return { error: 'Invalid folder name' };
+    }
+    if (folderName.length > 255) {
+      return { error: 'Folder name too long' };
+    }
+    const newPath = path.join(parentPath, folderName);
+    try {
+      await fs.promises.mkdir(newPath, { recursive: false });
+    } catch (err: any) {
+      if (err.code === 'EEXIST') {
+        return { error: 'A folder with that name already exists' };
+      }
+      return { error: err.message ?? 'Failed to create folder' };
+    }
+    if (initGit) {
+      try {
+        await execFileAsync('git', ['init'], { cwd: newPath, timeout: 10000 });
+      } catch (err: any) {
+        return { error: `Folder created but git init failed: ${err.message}` };
+      }
+    }
+    setCurrentCwd(newPath);
+    setLocalCwd(newPath);
+    return { path: newPath };
+  });
+
   ipcMain.handle('git:is-repo', async (_event, { dirPath }: { dirPath?: string } = {}) => {
     const target = dirPath ?? getCurrentCwd();
     try {

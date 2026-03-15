@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { MessageSquare, Search, Gauge, Files, Terminal, FolderOpen, ChevronDown, ChevronRight } from 'lucide-react';
+import { FolderPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../stores/ui';
 import { UsagePanel } from './UsagePanel';
@@ -195,13 +196,22 @@ function FilesTab() {
                 : (cwd?.split('/').pop() || 'Project')}
           </p>
         </div>
-        <button
-          onClick={handleOpenFolder}
-          className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
-          title="Open folder"
-        >
-          <FolderOpen size={14} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => useUiStore.getState().setOverlay('create-folder')}
+            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
+            title="Create new folder"
+          >
+            <FolderPlus size={14} />
+          </button>
+          <button
+            onClick={handleOpenFolder}
+            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
+            title="Open folder"
+          >
+            <FolderOpen size={14} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">

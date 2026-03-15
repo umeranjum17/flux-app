@@ -1,4 +1,4 @@
-import { Zap } from 'lucide-react';
+import { Zap, FolderPlus } from 'lucide-react';
 import { useUiStore, type RecentProject } from '../../stores/ui';
 
 interface WelcomeScreenProps {
@@ -14,6 +14,16 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
         <div className="mb-8 text-center">
           <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-text-primary">Start a conversation</h2>
           <p className="mt-2 text-[14px] text-text-tertiary">Type a message below or press <kbd className="premium-pill px-1.5 py-0.5 text-[12px] font-mono text-text-secondary">Cmd+K</kbd> to open commands</p>
+        </div>
+
+        <div className="mb-6 flex justify-center">
+          <button
+            onClick={() => useUiStore.getState().setOverlay('create-folder')}
+            className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <FolderPlus size={14} />
+            Create New Folder
+          </button>
         </div>
 
         {recentProjects.length > 0 && (

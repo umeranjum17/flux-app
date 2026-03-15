@@ -46,6 +46,11 @@ export interface IpcChannels {
   'cwd:get': { args: []; result: string };
   'cwd:set': { args: [{ cwd: string }]; result: string };
   'cwd:pick': { args: []; result: string | null };
+  'cwd:create': {
+    args: [{ parentPath: string; folderName: string; initGit: boolean }];
+    result: { path: string } | { error: string };
+  };
+  'fs:pick-directory': { args: [{ defaultPath?: string }]; result: string | null };
   'git:is-repo': { args: [{ dirPath?: string }?]; result: boolean };
   'git:branch': { args: []; result: string | null };
   'git:upstream': { args: []; result: string | null };

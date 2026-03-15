@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
 
-type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'context-settings' | 'diagnostics' | 'help' | null;
+type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | null;
 
 export interface RecentProject {
   path: string;
