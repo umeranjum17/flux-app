@@ -63,8 +63,8 @@ export function UsagePanel() {
 
   useEffect(() => {
     void loadUsage();
-    const cleanupLiveUpdate = window.api.on('usage:live-update', (data: LiveUsageOverview) => {
-      setLiveUsage(data);
+    const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
+      setLiveUsage(data as LiveUsageOverview);
     });
     const cleanupDone = window.api.on('agent:done', () => {
       void loadUsage(true);

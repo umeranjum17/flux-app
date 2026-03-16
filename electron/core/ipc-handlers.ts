@@ -16,7 +16,7 @@ import { WorkspaceStore } from './worktree/store';
 import { createWorktree, removeWorktree } from './worktree/manager';
 import { generateWorkspaceName } from './worktree/names';
 import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
-import { createCheckpoint } from './checkpoint/manager';
+import { createCheckpoint, listCheckpoints } from './checkpoint/manager';
 import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
 import { StallMonitor } from './agents/stall-monitor';
@@ -1428,8 +1428,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       // Detect step progress markers in assistant text and update todo state.
       // Skip if the agent is using TodoWrite natively (which provides structured updates).
       if (!agentUsedTodoWrite && message.type === 'text' && message.role === 'assistant' && message.content) {
-        const stepDoneMatches = Array.from(message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi));
-        const stepStartMatches = Array.from(message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi));
+        const stepDoneMatches = Array.from(message.content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi)) as RegExpMatchArray[];
+        const stepStartMatches = Array.from(message.content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi)) as RegExpMatchArray[];
         const matchedSteps = [...stepStartMatches, ...stepDoneMatches]
           .map((match) => parseInt(match[1], 10))
           .filter((stepId) => Number.isFinite(stepId) && stepId > 0);

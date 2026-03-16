@@ -29,6 +29,7 @@ import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
 import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
+import { SystemActivityFeed } from './SystemActivityFeed';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
@@ -95,6 +96,7 @@ export function MessageList() {
   const taskId = task?.id;
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
   const planText = task ? getLatestPlanText(task.messages) : '';
+  const systemActivities = task?.systemActivities ?? [];
 
   const expandedToolCallIds = task?.expandedToolCallIds ?? new Set<string>();
   const scrollToToolCallId = task?.scrollToToolCallId ?? null;
@@ -279,6 +281,10 @@ export function MessageList() {
             <div className="pl-1">
               <StreamingCursor />
             </div>
+          )}
+
+          {systemActivities.length > 0 && (
+            <SystemActivityFeed activities={systemActivities} />
           )}
 
           {isActiveRun && task.currentStatus && (

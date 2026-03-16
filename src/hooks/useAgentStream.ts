@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
-import type { AgentMessage, DiffData, TodoItem } from '../lib/types';
+import type { Checkpoint, RepoMapIpcStatus, WorkspaceStatus } from '../lib/ipc-api';
+import type { AgentMessage, DiffData, SystemActivity, TodoItem } from '../lib/types';
 import { normalizeTrackedFilePath } from '../lib/path-utils';
 
 function shouldAutoApprove(toolName: string): boolean {
@@ -27,6 +28,8 @@ export function useAgentStream() {
 
     // Track whether we've already auto-opened the file activity panel for this run
     const autoOpenedForTask = new Set<string>();
+    const lastWorkspaceStatus = new Map<string, WorkspaceStatus>();
+    let lastRepoMapState: RepoMapIpcStatus['state'] | null = null;
 
     const unsubMessage = window.api.on('agent:message', (data: unknown) => {
       const { taskId, message } = data as { taskId: string; message: AgentMessage };
@@ -126,6 +129,57 @@ export function useAgentStream() {
       useChatStore.getState().updateTodoItem(taskId, stepId, status);
     });
 
+    const unsubStall = window.api.on('agent:stall', (data: unknown) => {
+      const { taskId, stallInfo } = data as {
+        taskId: string;
+        stallInfo: { type: string; toolName?: string; durationMs: number; autoRestartsRemaining: number };
+      };
+      useChatStore.getState().addSystemActivity(taskId, buildStallActivity(stallInfo));
+    });
+
+    const unsubWorkspaceStatus = window.api.on('workspace:status', (data: unknown) => {
+      const { workspaceId, status } = data as { workspaceId: string; status: WorkspaceStatus };
+      if (lastWorkspaceStatus.get(workspaceId) === status) {
+        return;
+      }
+      lastWorkspaceStatus.set(workspaceId, status);
+      useChatStore.getState().addSystemActivityForWorkspace(
+        workspaceId,
+        buildWorkspaceStatusActivity(status),
+      );
+    });
+
+    const unsubCheckpoint = window.api.on('workspace:checkpoint', (data: unknown) => {
+      const { workspaceId, checkpoint } = data as { workspaceId: string; checkpoint: Checkpoint };
+      useChatStore.getState().addSystemActivityForWorkspace(
+        workspaceId,
+        buildCheckpointActivity(checkpoint),
+      );
+    });
+
+    const unsubWorkspaceUpdated = window.api.on('workspace:updated', (data: unknown) => {
+      const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
+      useChatStore.getState().addSystemActivityForWorkspace(
+        workspaceId,
+        makeActivity('workspace', 'Workspace updated', `${name} on ${branch}`),
+      );
+    });
+
+    const unsubRepoMapStatus = window.api.on('repomap:status', (data: unknown) => {
+      const status = data as RepoMapIpcStatus;
+      if (status.state === lastRepoMapState) {
+        return;
+      }
+      lastRepoMapState = status.state;
+
+      const activeTaskId = useChatStore.getState().activeTaskId;
+      if (!activeTaskId) {
+        return;
+      }
+
+      useChatStore.getState().addSystemActivity(activeTaskId, buildRepoMapActivity(status));
+    });
+
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       flushMessages(); // flush any remaining
@@ -135,6 +189,89 @@ export function useAgentStream() {
       unsubDiff();
       unsubTodo();
       unsubTodoUpdate();
+      unsubStall();
+      unsubWorkspaceStatus();
+      unsubCheckpoint();
+      unsubWorkspaceUpdated();
+      unsubRepoMapStatus();
     };
   }, []);
+}
+
+function makeActivity(
+  category: SystemActivity['category'],
+  label: string,
+  detail?: string,
+): SystemActivity {
+  return {
+    id: `${category}:${label}:${detail ?? ''}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    category,
+    label,
+    detail,
+    timestamp: Date.now(),
+  };
+}
+
+function buildStallActivity(stallInfo: {
+  type: string;
+  toolName?: string;
+  durationMs: number;
+  autoRestartsRemaining: number;
+}): SystemActivity {
+  const stallSeconds = Math.max(1, Math.round(stallInfo.durationMs / 1000));
+  const label = stallInfo.type === 'tool_timeout'
+    ? `${stallInfo.toolName ?? 'Tool'} timed out`
+    : 'Agent stalled';
+  const retryDetail = stallInfo.autoRestartsRemaining > 0
+    ? `${stallInfo.autoRestartsRemaining} auto-restart${stallInfo.autoRestartsRemaining === 1 ? '' : 's'} remaining`
+    : 'No automatic retries remaining';
+  return makeActivity('stall', label, `No activity for ${stallSeconds}s · ${retryDetail}`);
+}
+
+function buildWorkspaceStatusActivity(status: WorkspaceStatus): SystemActivity {
+  return makeActivity('workspace', `Workspace is ${formatWorkspaceStatus(status)}`);
+}
+
+function buildCheckpointActivity(checkpoint: Checkpoint): SystemActivity {
+  const summaryParts = [
+    `${checkpoint.filesChanged} ${checkpoint.filesChanged === 1 ? 'file' : 'files'}`,
+    checkpoint.additions || checkpoint.deletions
+      ? `+${checkpoint.additions} / -${checkpoint.deletions}`
+      : null,
+  ].filter(Boolean);
+  return makeActivity(
+    'checkpoint',
+    checkpoint.description || 'Checkpoint saved',
+    summaryParts.join(' · '),
+  );
+}
+
+function buildRepoMapActivity(status: RepoMapIpcStatus): SystemActivity {
+  switch (status.state) {
+    case 'building':
+      return makeActivity(
+        'repomap',
+        'Repo map indexing started',
+        `${status.parsedFiles}/${status.totalFiles} files parsed`,
+      );
+    case 'ready':
+      return makeActivity(
+        'repomap',
+        'Repo map ready',
+        `${status.totalFiles} files · ${status.totalTags} tags indexed`,
+      );
+    case 'error':
+      return makeActivity(
+        'repomap',
+        'Repo map failed',
+        status.errorMessage || 'Indexer reported an error',
+      );
+    case 'idle':
+    default:
+      return makeActivity('sync', 'Repo map idle');
+  }
+}
+
+function formatWorkspaceStatus(status: WorkspaceStatus): string {
+  return status.replace(/_/g, ' ');
 }

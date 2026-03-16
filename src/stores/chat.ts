@@ -9,6 +9,7 @@ import type {
   FileAttachment,
   PendingQuestionState,
   SubagentState,
+  SystemActivity,
   Task,
   TaskMode,
   TaskStatus,
@@ -60,12 +61,15 @@ interface ChatState {
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
   updateTodoItem(taskId: string, stepId: number, status: TodoItem['status']): void;
+  addSystemActivity(taskId: string, activity: SystemActivity): void;
+  addSystemActivityForWorkspace(workspaceId: string, activity: SystemActivity): void;
   scrollToFileEdit(toolCallId: string): boolean;
   clearScrollTarget(): void;
   getActiveTask(): Task | undefined;
 }
 
 const MAX_TASKS = 20;
+const MAX_SYSTEM_ACTIVITIES = 40;
 
 export const useChatStore = create<ChatState>()(
   immer((set, get) => ({
@@ -115,6 +119,7 @@ export const useChatStore = create<ChatState>()(
           expandedToolCallIds: new Set(),
           scrollToToolCallId: null,
           todoItems: [],
+          systemActivities: [],
         });
         state.activeTaskId = opts.id;
       });
@@ -370,6 +375,25 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
+    addSystemActivity(taskId, activity) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task) return;
+        appendSystemActivity(task, activity);
+      });
+    },
+
+    addSystemActivityForWorkspace(workspaceId, activity) {
+      set((state) => {
+        // Find any task in this workspace and append the activity
+        for (const task of state.tasks.values()) {
+          if (task.workspaceId === workspaceId) {
+            appendSystemActivity(task, activity);
+          }
+        }
+      });
+    },
+
     scrollToFileEdit(toolCallId) {
       let canScroll = false;
       set((state) => {
@@ -451,6 +475,24 @@ function trackEditedFile(task: Task, message: AgentMessage): void {
     deletions: (existing?.deletions ?? 0) + stats.deletions,
     timestamp: message.timestamp,
   });
+}
+
+function appendSystemActivity(task: Task, activity: SystemActivity): void {
+  const lastActivity = task.systemActivities[task.systemActivities.length - 1];
+  if (
+    lastActivity
+    && lastActivity.category === activity.category
+    && lastActivity.label === activity.label
+    && lastActivity.detail === activity.detail
+  ) {
+    lastActivity.timestamp = activity.timestamp;
+    return;
+  }
+
+  task.systemActivities.push(activity);
+  if (task.systemActivities.length > MAX_SYSTEM_ACTIVITIES) {
+    task.systemActivities.splice(0, task.systemActivities.length - MAX_SYSTEM_ACTIVITIES);
+  }
 }
 
 function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message: AgentMessage): void {

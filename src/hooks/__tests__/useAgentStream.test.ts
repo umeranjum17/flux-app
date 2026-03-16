@@ -36,15 +36,25 @@ describe('useAgentStream', () => {
     expect(subscribedChannels).toContain('agent:message');
     expect(subscribedChannels).toContain('agent:done');
     expect(subscribedChannels).toContain('agent:permission');
+    expect(subscribedChannels).toContain('agent:stall');
+    expect(subscribedChannels).toContain('workspace:status');
+    expect(subscribedChannels).toContain('workspace:checkpoint');
+    expect(subscribedChannels).toContain('workspace:updated');
+    expect(subscribedChannels).toContain('repomap:status');
   });
 
   it('unsubscribes all listeners on unmount', () => {
     const { unmount } = renderHook(() => useAgentStream());
 
-    // Each on() call returns an unsub function; after mount there should be 3 listeners
+    // Each on() call returns an unsub function; after mount there should be listeners
     expect(mockApi._listeners.get('agent:message')?.size).toBe(1);
     expect(mockApi._listeners.get('agent:done')?.size).toBe(1);
     expect(mockApi._listeners.get('agent:permission')?.size).toBe(1);
+    expect(mockApi._listeners.get('agent:stall')?.size).toBe(1);
+    expect(mockApi._listeners.get('workspace:status')?.size).toBe(1);
+    expect(mockApi._listeners.get('workspace:checkpoint')?.size).toBe(1);
+    expect(mockApi._listeners.get('workspace:updated')?.size).toBe(1);
+    expect(mockApi._listeners.get('repomap:status')?.size).toBe(1);
 
     unmount();
 
@@ -52,6 +62,11 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('agent:message')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('agent:done')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('agent:permission')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('agent:stall')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('workspace:status')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('workspace:checkpoint')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('workspace:updated')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('repomap:status')?.size ?? 0).toBe(0);
   });
 
   it('agent:message adds a message to the task', () => {
@@ -207,6 +222,114 @@ describe('useAgentStream', () => {
       filePath: 'src/hooks/useAgentStream.ts',
       additions: 12,
       deletions: 3,
+    }));
+  });
+
+  it('agent:stall appends a system activity entry', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('agent:stall', {
+      taskId: 'task-1',
+      stallInfo: {
+        type: 'tool_timeout',
+        toolName: 'Bash',
+        durationMs: 45_000,
+        autoRestartsRemaining: 1,
+      },
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.systemActivities).toEqual([
+      expect.objectContaining({
+        category: 'stall',
+        label: 'Bash timed out',
+        detail: 'No activity for 45s · 1 auto-restart remaining',
+      }),
+    ]);
+  });
+
+  it('workspace events are mirrored into workspace chat activity', () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Workspace task',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/tmp',
+      workspaceId: 'ws-1',
+    });
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('workspace:status', { workspaceId: 'ws-1', status: 'running' });
+    mockApi._emit('workspace:checkpoint', {
+      workspaceId: 'ws-1',
+      checkpoint: {
+        id: 'cp-1',
+        workspaceId: 'ws-1',
+        sessionId: 'session-1',
+        messageIndex: 0,
+        gitCommitSha: 'abc123',
+        parentSha: 'def456',
+        description: 'Saved progress',
+        filesChanged: 2,
+        additions: 10,
+        deletions: 3,
+        createdAt: Date.now(),
+      },
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.systemActivities).toEqual([
+      expect.objectContaining({
+        category: 'workspace',
+        label: 'Workspace is running',
+      }),
+      expect.objectContaining({
+        category: 'checkpoint',
+        label: 'Saved progress',
+        detail: '2 files · +10 / -3',
+      }),
+    ]);
+  });
+
+  it('repomap state changes are surfaced on the active task without duplicate states', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('repomap:status', {
+      state: 'building',
+      totalFiles: 12,
+      parsedFiles: 3,
+      totalTags: 0,
+      lastBuiltAt: null,
+    });
+    mockApi._emit('repomap:status', {
+      state: 'building',
+      totalFiles: 12,
+      parsedFiles: 7,
+      totalTags: 0,
+      lastBuiltAt: null,
+    });
+    mockApi._emit('repomap:status', {
+      state: 'ready',
+      totalFiles: 12,
+      parsedFiles: 12,
+      totalTags: 42,
+      lastBuiltAt: Date.now(),
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.systemActivities).toHaveLength(2);
+    expect(task?.systemActivities[0]).toEqual(expect.objectContaining({
+      category: 'repomap',
+      label: 'Repo map indexing started',
+    }));
+    expect(task?.systemActivities[1]).toEqual(expect.objectContaining({
+      category: 'repomap',
+      label: 'Repo map ready',
+      detail: '12 files · 42 tags indexed',
     }));
   });
 

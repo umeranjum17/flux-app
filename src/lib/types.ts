@@ -192,6 +192,16 @@ export interface TodoItem {
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
+export type SystemActivityCategory = 'workspace' | 'checkpoint' | 'repomap' | 'stall' | 'sync';
+
+export interface SystemActivity {
+  id: string;
+  category: SystemActivityCategory;
+  label: string;
+  detail?: string;
+  timestamp: number;
+}
+
 export interface EditedFileEntry {
   filePath: string;
   toolCallId: string;
@@ -241,4 +251,5 @@ export interface Task {
   todoItems?: TodoItem[];
   currentStatus?: string;
   currentStatusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
+  systemActivities: SystemActivity[];
 }

@@ -162,4 +162,35 @@ This depends on the agent honoring the structured plan prompt.`,
     expect(screen.getByText(/^Steps$/)).not.toBeNull();
     expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
   });
+
+  it('renders background system activities in the chat timeline', () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Workspace task',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: 'Working on it.',
+      timestamp: 7,
+    });
+    useChatStore.getState().addSystemActivity('task-1', {
+      id: 'activity-1',
+      category: 'checkpoint',
+      label: 'Checkpoint saved',
+      detail: '3 files · +18 / -4',
+      timestamp: Date.now(),
+    });
+
+    render(<MessageList />);
+
+    expect(screen.getByText('Background activity')).not.toBeNull();
+    expect(screen.getByText('Checkpoint saved')).not.toBeNull();
+    expect(screen.getByText('3 files · +18 / -4')).not.toBeNull();
+  });
 });
