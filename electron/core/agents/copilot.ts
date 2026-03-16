@@ -28,6 +28,11 @@ function classifyCopilotExit(code: number | null, stderr: string): string {
 }
 
 export function spawnCopilot(options: SpawnOptions): AgentHandle {
+  // Streaming state: track whether deltas were received so we can suppress
+  // the redundant full-content events that would otherwise double the text.
+  let hasReceivedTextDelta = false;
+  let hasReceivedReasoningDelta = false;
+
   return createCliAgentHandle(options, {
     agentId: 'copilot',
     label: 'GitHub Copilot',
@@ -68,6 +73,41 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
     classifyExit: classifyCopilotExit,
 
     hooks: {
+      onEvent(event, ctx) {
+        // Track delta streaming to prevent content doubling.
+        // When --stream is on, the CLI sends token-level deltas followed by a
+        // full-content event. Without suppression the store's merge logic
+        // appends the full content to the accumulated deltas, visibly doubling text.
+        if (event.type === 'assistant.message_delta') {
+          hasReceivedTextDelta = true;
+          return false; // let default mapEvent handle the delta
+        }
+        if (event.type === 'assistant.reasoning_delta') {
+          hasReceivedReasoningDelta = true;
+          return false;
+        }
+
+        // Suppress full assistant.message when deltas already delivered the content
+        if (event.type === 'assistant.message' && hasReceivedTextDelta) {
+          hasReceivedTextDelta = false;
+          return true;
+        }
+        // Suppress full assistant.reasoning when deltas already delivered the content
+        if (event.type === 'assistant.reasoning' && hasReceivedReasoningDelta) {
+          hasReceivedReasoningDelta = false;
+          return true;
+        }
+
+        // Suppress partial tool results — the final tool.execution_complete
+        // carries the authoritative output. Partial results only add clutter
+        // and cause duplicate tool_result entries in the message list.
+        if (event.type === 'tool.execution_partial_result') {
+          return true;
+        }
+
+        return false;
+      },
+
       extractSessionMeta(event) {
         if (event.type === 'session.start' && typeof event.data?.sessionId === 'string') {
           return { id: event.data.sessionId };

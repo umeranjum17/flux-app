@@ -453,6 +453,42 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
     return;
   }
 
+  // Merge duplicate result messages (e.g. Copilot sends both a `result` event
+  // and a separate `assistant.usage` event — without merging, tokens and cost
+  // would be double-counted and the completion card would flash).
+  if (message.type === 'result') {
+    const existingIdx = findLastResultIndex(task.messages);
+    if (existingIdx >= 0) {
+      const existing = task.messages[existingIdx];
+      if (message.costUsd != null && existing.costUsd == null) {
+        existing.costUsd = message.costUsd;
+        task.costUsd += message.costUsd;
+      }
+      if (message.durationMs != null && !existing.durationMs) {
+        existing.durationMs = message.durationMs;
+      }
+      // Don't double-count tokens — the first result already contributed
+      applyLiveMessage(task, message);
+      return;
+    }
+  }
+
+  // Deduplicate tool_result entries for the same toolCallId. Some agents (e.g.
+  // Copilot) send partial results followed by a final result — replace the
+  // earlier entry instead of accumulating separate messages.
+  if (message.type === 'tool_result' && message.toolCallId) {
+    for (let i = task.messages.length - 1; i >= 0; i--) {
+      const prev = task.messages[i];
+      if (prev.type === 'tool_result' && prev.toolCallId === message.toolCallId) {
+        prev.content = message.content;
+        prev.timestamp = message.timestamp;
+        prev.isError = message.isError;
+        applyLiveMessage(task, message);
+        return;
+      }
+    }
+  }
+
   const last = task.messages[task.messages.length - 1];
   if (shouldMergeStreamChunk(last, message)) {
     last.content += message.content;
@@ -465,6 +501,13 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
   trackEditedFile(task, message);
 
   applyLiveMessage(task, message);
+}
+
+function findLastResultIndex(messages: AgentMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].type === 'result') return i;
+  }
+  return -1;
 }
 
 function appendMessage(task: Task, message: AgentMessage): void {
