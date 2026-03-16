@@ -954,6 +954,16 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 // Best-effort
               }
             }
+
+            // 5. For merge actions, emit agent:done now. Merge is a one-shot
+            //    operation — the agent won't receive follow-up prompts. For
+            //    stream-json agents (Claude) the process stays alive between
+            //    turns, so handle.on('done') may never fire until explicit
+            //    stop. Emitting here lets the renderer finalize task state.
+            if (options.workspaceAction === 'merge') {
+              sendToRenderer('agent:done', { taskId: options.taskId });
+              lifecycleManager.taskCompleted(options.taskId, 'done', { sessionId: session.id });
+            }
           } catch (err) {
             console.error('[result-handler] Post-completion workspace ops failed:', err);
           }
@@ -1248,18 +1258,23 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             // still runs quality gates and diff capture above, but branch
             // detection, checkpoint, rename, and completion notification were
             // already emitted on turn completion.
+            //
+            // Exception: for merge actions, always retry the outcome transition
+            // as a safety net — the result handler's transition may have failed
+            // silently (e.g. git state resolution error caught by try/catch).
             if (resultCompletionDone && !finalError) {
-              // Already handled — but still attempt merge outcome transition
-              // as a safety net in case the result handler's transition failed
-              // silently (e.g. git state wasn't ready yet during turn completion).
+              // Safety-net: retry merge outcome transition in case it failed
+              // during the result handler. transitionOutcome is idempotent —
+              // if the outcome is already 'merged', this is a no-op.
               if (options.workspaceAction === 'merge' && options.mode === 'act') {
                 try {
                   const freshMergeWs = workspaceStore.get(workspace.id) ?? workspace;
                   await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
                 } catch (err) {
-                  console.error('[done-handler] Merge outcome safety-net failed:', err);
+                  console.error('[done-handler] Merge outcome retry failed:', err);
                 }
               }
+              // Skip remaining post-completion ops — already handled
             } else {
 
             // Post-completion operations: branch detection, outcome transition,

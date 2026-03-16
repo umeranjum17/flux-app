@@ -180,7 +180,20 @@ export function computeNextOutcome(
   trigger: WorkspaceOutcomeTrigger,
   gitState: WorkspaceGitState,
 ): WorkspaceOutcome | null {
-  // Terminal outcomes block all automated triggers
+  // task_completed_merge represents an actual merge operation — allow it to
+  // promote ready_to_merge → merged even though ready_to_merge is normally
+  // terminal.  Without this, agent-assisted merges that start from
+  // ready_to_merge (the common case) would silently fail to advance.
+  if (trigger === 'task_completed_merge') {
+    if (current === 'merged' || current === 'ready_to_archive') return null;
+    if (gitState.isMerged) return 'merged';
+    // Merge task completed but branch not actually merged yet — promote to
+    // ready_for_pr only if it's an upgrade (don't demote ready_to_merge).
+    if (current === 'in_progress') return 'ready_for_pr';
+    return null;
+  }
+
+  // Terminal outcomes block all other automated triggers
   if (TERMINAL_OUTCOMES.has(current)) {
     return null;
   }
@@ -190,11 +203,6 @@ export function computeNextOutcome(
       if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
       if (current === 'ready_for_pr' && gitState.isMerged) return 'merged';
       return null;
-
-    case 'task_completed_merge':
-      if (gitState.isMerged) return 'merged';
-      // Merge task completed but branch not actually merged — at least it has changes
-      return 'ready_for_pr';
 
     case 'task_error':
       // Errors don't promote outcomes

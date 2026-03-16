@@ -325,7 +325,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     }, []);
 
     const handleCreate = useCallback((shell?: string) => {
-      createTerminal({ shell });
+      createTerminal({ shell }).catch(() => {});
     }, [createTerminal]);
 
     return (
@@ -357,7 +357,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           {tabs.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <button
-                onClick={() => createTerminal()}
+                onClick={() => createTerminal().catch(() => {})}
                 className="flex items-center gap-2 px-4 py-2 text-xs text-text-tertiary hover:text-text-primary bg-bg-hover/50 hover:bg-bg-hover rounded-md transition-colors"
               >
                 <span className="text-base">+</span>

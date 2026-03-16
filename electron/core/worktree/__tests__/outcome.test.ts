@@ -25,6 +25,8 @@ describe('computeNextOutcome', () => {
 
     for (const outcome of terminalOutcomes) {
       for (const trigger of triggers) {
+        // task_completed_merge is allowed to promote ready_to_merge → merged
+        if (trigger === 'task_completed_merge' && outcome === 'ready_to_merge') continue;
         it(`${outcome} + ${trigger} → no change`, () => {
           expect(computeNextOutcome(outcome, trigger, git({ hasCommits: true, isMerged: true }))).toBeNull();
         });
@@ -67,6 +69,14 @@ describe('computeNextOutcome', () => {
 
     it('ready_for_pr + isMerged → merged', () => {
       expect(computeNextOutcome('ready_for_pr', 'task_completed_merge', git({ isMerged: true }))).toBe('merged');
+    });
+
+    it('ready_to_merge + isMerged → merged (bypasses terminal guard)', () => {
+      expect(computeNextOutcome('ready_to_merge', 'task_completed_merge', git({ isMerged: true }))).toBe('merged');
+    });
+
+    it('ready_to_merge + not merged → no change (already at ready_for_pr or above)', () => {
+      expect(computeNextOutcome('ready_to_merge', 'task_completed_merge', git())).toBeNull();
     });
   });
 
