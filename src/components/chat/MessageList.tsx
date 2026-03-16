@@ -107,7 +107,7 @@ export function MessageList() {
   const completionTarget = useWorkspaceCompletion(workspaceId);
 
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
-    useAutoScroll([messages.length, messages[messages.length - 1]?.content]);
+    useAutoScroll([messages.length, messages[messages.length - 1]?.content?.length]);
 
   // Handle scroll-to-file-edit requests
   useEffect(() => {

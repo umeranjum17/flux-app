@@ -583,7 +583,16 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
   // Track edited files in real-time
   trackEditedFile(task, message);
 
-  applyLiveMessage(task, message);
+  // When a text/thinking chunk was merged into the previous message, the run
+  // phase hasn't changed (still 'responding' or 'thinking').  Skip the full
+  // applyLiveMessage path to avoid unnecessary activeRun.lastActivityAt
+  // mutations — those dirty the Zustand state on every 32 ms delta flush,
+  // causing cascading re-renders in LiveRunHeader and MessageList.
+  if (mergeTarget) {
+    promoteTaskStatus(task, message);
+  } else {
+    applyLiveMessage(task, message);
+  }
 }
 
 function findLastResultIndex(messages: AgentMessage[]): number {
