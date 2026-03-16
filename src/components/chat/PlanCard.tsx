@@ -381,8 +381,16 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                               </button>
                               {/* Step content */}
                               <div className={`plan-step-content flex-1 min-w-0 pb-4 ${checked ? 'opacity-50' : ''}`}>
-                                <span className={`text-[13px] font-medium leading-snug ${checked ? 'text-text-tertiary line-through' : 'text-text-primary'} transition-colors`}>
-                                  {step.title}
+                                <span className={`markdown-inline text-[13px] font-medium leading-snug ${checked ? 'text-text-tertiary line-through' : 'text-text-primary'} transition-colors`}>
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      ...markdownComponents,
+                                      p: ({ children }) => <>{children}</>,
+                                    }}
+                                  >
+                                    {step.title}
+                                  </ReactMarkdown>
                                 </span>
                                 {step.body && (
                                   <div className="markdown-prose mt-1.5 text-[12.5px] text-text-secondary">
