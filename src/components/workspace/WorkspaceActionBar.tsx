@@ -55,7 +55,6 @@ export function WorkspaceActionBar() {
   const handleOpenTerminal = () => {
     const uiStore = useUiStore.getState();
     uiStore.setBottomPanelOpen(true);
-    uiStore.setBottomPanelTab('terminal');
     // Dispatch a custom event to tell TerminalPanel to open a workspace terminal
     window.dispatchEvent(new CustomEvent('flux:open-workspace-terminal', {
       detail: { workspaceId: workspace.id },

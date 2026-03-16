@@ -48,7 +48,6 @@ interface UiState {
 
   // Bottom panel
   bottomPanelOpen: boolean;
-  bottomPanelTab: 'setup' | 'run' | 'terminal';
 
   // SSH
   sshHost: string | null;
@@ -133,7 +132,6 @@ interface UiState {
   // Bottom panel
   toggleBottomPanel(): void;
   setBottomPanelOpen(open: boolean): void;
-  setBottomPanelTab(tab: 'setup' | 'run' | 'terminal'): void;
 }
 
 function basename(p: string): string {
@@ -162,7 +160,6 @@ export const useUiStore = create<UiState>()(
     activeTerminalId: null,
     bottomPanelMode: 'agent',
     bottomPanelOpen: false,
-    bottomPanelTab: 'terminal',
     sshHost: null,
     sshConnected: false,
     environment: 'local',
@@ -534,10 +531,5 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-    setBottomPanelTab(tab) {
-      set((state) => {
-        state.bottomPanelTab = tab;
-      });
-    },
   })),
 );
