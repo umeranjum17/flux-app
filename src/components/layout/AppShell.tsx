@@ -216,7 +216,8 @@ export function AppShell() {
 
         useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
-        // Sync outcomes and reset stale statuses before restoring sessions
+        // Sync outcomes and reset stale statuses before restoring sessions.
+        // This updates the backend DB and emits workspace:status/outcome events.
         for (const repo of projects) {
           try {
             await window.api.invoke('workspace:sync-outcomes', { parentRepo: repo });
@@ -225,7 +226,19 @@ export function AppShell() {
           }
         }
 
-        for (const workspace of allWorkspaces) {
+        // Re-fetch workspaces after sync so we have fresh status/outcome data.
+        // Without this, restoreWorkspaceChats uses stale pre-sync data which can
+        // cause tasks to be created with incorrect status (e.g. 'running' instead
+        // of 'idle') after an app crash.
+        const freshWorkspaces: Workspace[] = [];
+        for (const repo of projects) {
+          const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
+          if (cancelled) return;
+          freshWorkspaces.push(...result);
+        }
+        useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
+
+        for (const workspace of freshWorkspaces) {
           const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
           if (cancelled) return;
 

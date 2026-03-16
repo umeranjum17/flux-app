@@ -47,6 +47,10 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [cachedRateLimits, setCachedRateLimits] = useState<RateLimitInfo[]>([]);
   const [rateLimitsUpdatedAt, setRateLimitsUpdatedAt] = useState<number | null>(null);
 
+  // Guard against accidental sends in completed/merged workspaces
+  const [pendingTerminalSend, setPendingTerminalSend] = useState(false);
+  const confirmedTerminalSend = useRef(false);
+
   // Terminal / ghost text state
   const [ghostText, setGhostText] = useState('');
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -297,6 +301,19 @@ export function ChatInput({ focused }: ChatInputProps) {
     // ── Chat mode: agent conversation ──
     let task = getActiveTask();
     const attachments = attachedFiles.length > 0 ? attachedFiles : undefined;
+
+    // Guard: Warn before starting a new agent run in a completed/merged workspace.
+    // This prevents accidentally burning tokens by re-executing in a terminal workspace.
+    if (!confirmedTerminalSend.current && isTerminalOutcome(activeWorkspaceOutcome)) {
+      const hasExistingSession = task?.sessionId;
+      // For tasks with an existing session, the agent resumes context-aware.
+      // For new chats (no task or draft tab), the agent starts fresh — warn first.
+      if (!hasExistingSession) {
+        setPendingTerminalSend(true);
+        return;
+      }
+    }
+    confirmedTerminalSend.current = false;
 
     if (!task) {
       const sshConnected = useUiStore.getState().sshConnected;
@@ -823,6 +840,33 @@ export function ChatInput({ focused }: ChatInputProps) {
           onSelect={handleMentionSelect}
           onClose={() => setShowMention(false)}
         />
+      )}
+
+      {/* Confirmation banner for sending in a completed/merged workspace */}
+      {pendingTerminalSend && (
+        <div className="mb-1.5 flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/8 px-3 py-2">
+          <span className="text-xs text-warning">
+            This workspace is already completed. Start a new agent run?
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setPendingTerminalSend(false)}
+              className="rounded-md px-2 py-1 text-xs text-text-secondary hover:bg-bg-hover"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setPendingTerminalSend(false);
+                confirmedTerminalSend.current = true;
+                handleSend();
+              }}
+              className="rounded-md bg-warning/15 px-2 py-1 text-xs font-medium text-warning hover:bg-warning/25"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
       )}
 
       <div className={`premium-input-shell px-3 py-2.5 transition-colors ${shellClasses}`}>

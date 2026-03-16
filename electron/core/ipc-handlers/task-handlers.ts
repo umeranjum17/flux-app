@@ -537,8 +537,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const initialStatus: WorkspaceStatus = options.workspaceAction === 'merge' ? 'merging' : 'running';
     if (workspace) {
       lifecycleManager.taskStarted(options.taskId, workspace.id, initialStatus, session.id);
+      // Only reset terminal outcomes when the user explicitly sends a new prompt
+      // (not during auto-recovery or session resume), to prevent merged/completed
+      // workspaces from being accidentally restarted.
+      const isExplicitUserAction = options.prompt !== '[Resuming previous session]'
+        && options.workspaceAction !== 'merge';
       if (
-        options.workspaceAction !== 'merge'
+        isExplicitUserAction
         && options.mode === 'act'
         && (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
       ) {
