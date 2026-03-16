@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { markdownComponents } from './MarkdownComponents';
 import type { Task } from '../../lib/types';
 import { getLatestPlanText } from '../../lib/plan';
 
@@ -57,12 +58,34 @@ function parsePlanSections(text: string): PlanSection[] {
   return sections;
 }
 
-function extractSteps(content: string): string[] {
-  const steps: string[] = [];
-  for (const line of content.split('\n')) {
+interface StepInfo {
+  title: string;
+  body: string;
+}
+
+function extractSteps(content: string): StepInfo[] {
+  const steps: StepInfo[] = [];
+  const lines = content.split('\n');
+  let currentTitle = '';
+  let currentBody: string[] = [];
+
+  for (const line of lines) {
     const match = line.match(/^\d+\.\s+(.+)/);
-    if (match) steps.push(match[1]);
+    if (match) {
+      if (currentTitle) {
+        steps.push({ title: currentTitle, body: currentBody.join('\n').trim() });
+      }
+      currentTitle = match[1];
+      currentBody = [];
+    } else if (currentTitle) {
+      currentBody.push(line);
+    }
   }
+
+  if (currentTitle) {
+    steps.push({ title: currentTitle, body: currentBody.join('\n').trim() });
+  }
+
   return steps;
 }
 
@@ -75,7 +98,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState('');
-  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1, 2, 3]));
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]));
   const [showCheckpoint, setShowCheckpoint] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
@@ -276,15 +299,12 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                 {isExpanded && (
                   <div className="px-4 pb-3 pl-9">
                     {steps.length > 0 ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {steps.map((step, stepIdx) => {
                           const stepKey = `${idx}:${stepIdx}`;
                           const checked = checkedSteps.has(stepKey);
                           return (
-                            <label
-                              key={stepKey}
-                              className="flex items-start gap-2 text-sm cursor-pointer group"
-                            >
+                            <div key={stepKey} className="flex items-start gap-2 text-sm group">
                               <input
                                 type="checkbox"
                                 checked={checked}
@@ -296,18 +316,25 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                                     return next;
                                   });
                                 }}
-                                className="mt-1 shrink-0 accent-plan"
+                                className="mt-1 shrink-0 accent-plan cursor-pointer"
                               />
-                              <span className={`${checked ? 'text-text-tertiary line-through' : 'text-text-secondary'} transition-colors`}>
-                                {step}
-                              </span>
-                            </label>
+                              <div className={`${checked ? 'text-text-tertiary line-through' : 'text-text-primary'} transition-colors min-w-0 flex-1`}>
+                                <span className="font-medium">{step.title}</span>
+                                {step.body && (
+                                  <div className="markdown-prose mt-1 text-sm">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                      {step.body}
+                                    </ReactMarkdown>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="markdown-prose text-sm text-text-secondary">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <div className="markdown-prose text-sm text-text-primary">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                           {section.content}
                         </ReactMarkdown>
                       </div>
