@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowDown, ArrowRightLeft, X, Play, Copy, ClipboardList, Check } from 'lucide-react';
+import { ArrowDown, ArrowRightLeft, X, Play, Copy, ClipboardList, Check, Sparkles } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
@@ -33,6 +33,25 @@ import { SystemActivityInlineItem, SystemActivityGroup, groupActivitiesByCategor
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
+function SkillBadges({ skills }: { skills: Array<{ id: string; name: string }> }) {
+  if (skills.length === 0) return null;
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <Sparkles size={13} className="text-accent shrink-0" />
+      <span className="text-[11px] font-medium text-text-secondary">Skills</span>
+      <div className="flex flex-wrap gap-1.5">
+        {skills.map((s) => (
+          <span
+            key={s.id}
+            className="inline-flex items-center rounded-full bg-accent/12 px-2 py-0.5 text-[11px] font-medium text-accent"
+          >
+            {s.name}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const messageVariants = {
   initial: { opacity: 0, y: 14, scale: 0.985 },
@@ -115,6 +134,7 @@ export function MessageList() {
     [task?.systemActivities, workspaceActivities],
   );
   const todoItems = task?.todoItems ?? [];
+  const activeSkills = task?.activeSkills ?? [];
 
   const expandedToolCallIds = task?.expandedToolCallIds ?? new Set<string>();
   const scrollToToolCallId = task?.scrollToToolCallId ?? null;
@@ -161,7 +181,7 @@ export function MessageList() {
     );
   }
 
-  const hasVisibleContext = Boolean(task?.currentStatus) || systemActivities.length > 0 || todoItems.length > 0 || isActiveRun;
+  const hasVisibleContext = Boolean(task?.currentStatus) || systemActivities.length > 0 || todoItems.length > 0 || activeSkills.length > 0 || isActiveRun;
 
   if (messages.length === 0 && !hasVisibleContext) {
     return (
@@ -192,6 +212,8 @@ export function MessageList() {
                 statusKind={task.currentStatusKind ?? 'diagnostic'}
               />
             )}
+
+            <SkillBadges skills={activeSkills} />
 
             {groupedActivities.length > 0 ? (
               groupedActivities.map((group) => (
@@ -248,6 +270,7 @@ export function MessageList() {
         className="h-full overflow-y-auto px-6 py-5"
       >
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-1">
+          <SkillBadges skills={activeSkills} />
           <AnimatePresence initial={false}>
             {(() => {
               const rendered: React.ReactNode[] = [];
