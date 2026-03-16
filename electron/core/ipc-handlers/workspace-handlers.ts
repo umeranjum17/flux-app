@@ -216,13 +216,18 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:spawn',
-    async (_event, { workspaceId, prompt, mode }: { workspaceId: string; prompt: string; mode?: SpawnOptions['mode'] }) => {
+    async (_event, { taskId: providedTaskId, workspaceId, prompt, mode }: {
+      taskId?: string;
+      workspaceId: string;
+      prompt: string;
+      mode?: SpawnOptions['mode'];
+    }) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      const taskId = crypto.randomUUID();
+      const taskId = providedTaskId ?? crypto.randomUUID();
       const result = await spawnTaskRun({
         taskId,
         workspaceId: workspace.id,
@@ -239,7 +244,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:spawn-chat',
-    async (_event, { workspaceId, prompt, mode, agentId: overrideAgentId, model: overrideModel, images, attachments }: {
+    async (_event, { taskId: providedTaskId, workspaceId, prompt, mode, agentId: overrideAgentId, model: overrideModel, images, attachments }: {
+      taskId?: string;
       workspaceId: string;
       prompt: string;
       mode?: SpawnOptions['mode'];
@@ -253,7 +259,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      const taskId = crypto.randomUUID();
+      const taskId = providedTaskId ?? crypto.randomUUID();
       const result = await spawnTaskRun({
         taskId,
         workspaceId: workspace.id,

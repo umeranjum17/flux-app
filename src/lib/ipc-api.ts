@@ -80,9 +80,9 @@ export interface IpcChannels {
     args: [{ workspaceId: string; newBranch: string; newName?: string; newWorktreeName?: string }];
     result: Workspace;
   };
-  'workspace:spawn': { args: [{ workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
+  'workspace:spawn': { args: [{ taskId?: string; workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
   'workspace:spawn-chat': {
-    args: [{ workspaceId: string; prompt: string; mode?: TaskMode; agentId?: string; model?: string; images?: string[]; attachments?: FileAttachment[] }];
+    args: [{ taskId?: string; workspaceId: string; prompt: string; mode?: TaskMode; agentId?: string; model?: string; images?: string[]; attachments?: FileAttachment[] }];
     result: { taskId: string; session: Session };
   };
   'workspace:list-chats': { args: [{ workspaceId: string }]; result: WorkspaceSession[] };

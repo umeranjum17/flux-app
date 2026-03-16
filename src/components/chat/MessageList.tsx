@@ -5,7 +5,7 @@ import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
-import type { AgentId, AgentMessage, AgentHistoryEntry, Task } from '../../lib/types';
+import type { AgentId, AgentMessage, AgentHistoryEntry, SystemActivity, Task } from '../../lib/types';
 
 const AGENT_LABELS: Record<string, string> = {
   'claude-code': 'Claude',
@@ -45,6 +45,8 @@ const messageTransition = {
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
+const EMPTY_SYSTEM_ACTIVITIES: SystemActivity[] = [];
+
 function mergeDiffEntries(
   diffs: Map<string, import('../../lib/types').DiffData>,
   cwd?: string,
@@ -79,6 +81,15 @@ function mergeDiffEntries(
   };
 }
 
+function mergeSystemActivities(
+  taskActivities: SystemActivity[],
+  workspaceActivities: SystemActivity[],
+): SystemActivity[] {
+  if (taskActivities.length === 0) return workspaceActivities;
+  if (workspaceActivities.length === 0) return taskActivities;
+  return [...taskActivities, ...workspaceActivities].sort((left, right) => left.timestamp - right.timestamp);
+}
+
 function isSubagentMarker(msg: AgentMessage): boolean {
   return Boolean(msg.subagentId && msg.subagentStatus);
 }
@@ -96,14 +107,19 @@ export function MessageList() {
   const taskId = task?.id;
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
   const planText = task ? getLatestPlanText(task.messages) : '';
-  const systemActivities = task?.systemActivities ?? [];
+  const workspaceId = task?.workspaceId;
+  const workspace = useWorkspaceStore((s) => workspaceId ? s.workspaces.get(workspaceId) : undefined);
+  const workspaceActivities = useWorkspaceStore((s) => workspaceId ? s.workspaceActivities.get(workspaceId) ?? EMPTY_SYSTEM_ACTIVITIES : EMPTY_SYSTEM_ACTIVITIES);
+  const systemActivities = useMemo(
+    () => mergeSystemActivities(task?.systemActivities ?? [], workspaceActivities),
+    [task?.systemActivities, workspaceActivities],
+  );
+  const todoItems = task?.todoItems ?? [];
 
   const expandedToolCallIds = task?.expandedToolCallIds ?? new Set<string>();
   const scrollToToolCallId = task?.scrollToToolCallId ?? null;
   const clearScrollTarget = useChatStore((s) => s.clearScrollTarget);
 
-  const workspaceId = task?.workspaceId;
-  const workspace = useWorkspaceStore((s) => workspaceId ? s.workspaces.get(workspaceId) : undefined);
   const completionTarget = useWorkspaceCompletion(workspaceId);
 
   const { containerRef, isAtBottom, scrollToBottom, handleScroll } =
@@ -145,10 +161,55 @@ export function MessageList() {
     );
   }
 
-  if (messages.length === 0) {
+  const hasVisibleContext = Boolean(task?.currentStatus) || systemActivities.length > 0 || todoItems.length > 0 || isActiveRun;
+
+  if (messages.length === 0 && !hasVisibleContext) {
     return (
       <div className="flex flex-1 items-center justify-center text-text-tertiary">
         <p className="text-sm tracking-[0.02em]">Ask Flux anything...</p>
+      </div>
+    );
+  }
+
+  if (messages.length === 0) {
+    const groupedActivities = groupActivitiesByCategory(systemActivities);
+    const waitingLabel = todoItems.length > 0
+      ? 'Checklist received — waiting for agent output...'
+      : 'Waiting for first output...';
+
+    return (
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto px-6 py-5"
+        >
+          <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-3">
+            {task?.currentStatus && (
+              <ActivityIndicator
+                label={task.currentStatus}
+                active={isActiveRun}
+                statusKind={task.currentStatusKind ?? 'diagnostic'}
+              />
+            )}
+
+            {groupedActivities.length > 0 ? (
+              groupedActivities.map((group) => (
+                <div key={`empty-state-${group[0].id}`}>
+                  {group.length === 1 ? (
+                    <SystemActivityInlineItem activity={group[0]} />
+                  ) : (
+                    <SystemActivityGroup activities={group} />
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="px-1 py-1 text-[12px] text-text-tertiary">
+                {waitingLabel}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }

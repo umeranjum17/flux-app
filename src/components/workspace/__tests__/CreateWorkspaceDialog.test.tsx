@@ -48,9 +48,18 @@ beforeEach(() => {
 
   useWorkspaceStore.setState({
     workspaces: new Map(),
+    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
+    showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
+    workspaceActivities: new Map(),
+    workspaceSessions: new Map(),
+    changesPanelOpen: false,
+    changesPanelWorkspaceId: null,
+    changesPanelFiles: [],
+    changesPanelSelectedFile: null,
+    changesPanelFileDiff: null,
   });
 });
 
@@ -70,7 +79,7 @@ describe('CreateWorkspaceDialog', () => {
       worktreePath: '/repo/.flux-worktrees/ws-1',
     };
 
-    let resolveSpawn: ((value: { taskId: string; session: { id: string } }) => void) | null = null;
+    let resolveSpawn: ((value: { taskId: string; session: Record<string, unknown> }) => void) | null = null;
     mockApi.invoke.mockImplementation((channel: string) => {
       if (channel === 'workspace:create') {
         return Promise.resolve(workspace);
@@ -91,6 +100,7 @@ describe('CreateWorkspaceDialog', () => {
 
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith('workspace:spawn-chat', {
+        taskId: expect.any(String),
         workspaceId: 'ws-1',
         prompt: 'Fix the brittle flows',
         agentId: 'codex',
@@ -99,16 +109,32 @@ describe('CreateWorkspaceDialog', () => {
       });
     });
 
-    expect(useChatStore.getState().tasks.size).toBe(0);
+    expect(useChatStore.getState().tasks.size).toBe(1);
+    const pendingTask = Array.from(useChatStore.getState().tasks.values())[0];
+    expect(pendingTask?.status).toBe('running');
+    expect(pendingTask?.messages[0]?.content).toBe('Fix the brittle flows');
 
     expect(resolveSpawn).not.toBeNull();
-    resolveSpawn!({ taskId: 'task-1', session: { id: 'session-1' } });
-
-    await waitFor(() => {
-      expect(useChatStore.getState().tasks.get('task-1')?.sessionId).toBe('session-1');
+    resolveSpawn!({
+      taskId: pendingTask!.id,
+      session: {
+        id: 'session-1',
+        title: '[WS] Hardening pass',
+        agentId: 'codex',
+        model: 'gpt-5-codex',
+        mode: 'act',
+        cwd: '/repo/.flux-worktrees/ws-1',
+        createdAt: 1,
+        updatedAt: 1,
+        metadata: {},
+      },
     });
 
-    const task = useChatStore.getState().tasks.get('task-1');
+    await waitFor(() => {
+      expect(useChatStore.getState().tasks.get(pendingTask!.id)?.sessionId).toBe('session-1');
+    });
+
+    const task = useChatStore.getState().tasks.get(pendingTask!.id);
     expect(task).toBeDefined();
     expect(task?.status).toBe('running');
     expect(task?.workspaceId).toBe('ws-1');

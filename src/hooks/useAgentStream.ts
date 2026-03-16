@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
-import type { Checkpoint, RepoMapIpcStatus, WorkspaceStatus } from '../lib/ipc-api';
+import { useWorkspaceStore } from '../stores/workspace';
+import type { Checkpoint, RepoMapIpcStatus, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
 import type { AgentMessage, DiffData, SystemActivity, TodoItem } from '../lib/types';
 import { normalizeTrackedFilePath } from '../lib/path-utils';
+import { workspaceOutcomeConfig } from '../lib/workspace-status';
 
 function shouldAutoApprove(toolName: string): boolean {
   const { autoApprove, autoApproveTools } = useUiStore.getState();
@@ -29,6 +31,7 @@ export function useAgentStream() {
     // Track whether we've already auto-opened the file activity panel for this run
     const autoOpenedForTask = new Set<string>();
     const lastWorkspaceStatus = new Map<string, WorkspaceStatus>();
+    const lastWorkspaceOutcome = new Map<string, WorkspaceOutcome>();
     let lastRepoMapState: RepoMapIpcStatus['state'] | null = null;
 
     const unsubMessage = window.api.on('agent:message', (data: unknown) => {
@@ -143,15 +146,27 @@ export function useAgentStream() {
         return;
       }
       lastWorkspaceStatus.set(workspaceId, status);
-      useChatStore.getState().addSystemActivityForWorkspace(
+      useWorkspaceStore.getState().addWorkspaceActivity(
         workspaceId,
         buildWorkspaceStatusActivity(status),
       );
     });
 
+    const unsubWorkspaceOutcome = window.api.on('workspace:outcome', (data: unknown) => {
+      const { workspaceId, outcome } = data as { workspaceId: string; outcome: WorkspaceOutcome };
+      if (lastWorkspaceOutcome.get(workspaceId) === outcome) {
+        return;
+      }
+      lastWorkspaceOutcome.set(workspaceId, outcome);
+      useWorkspaceStore.getState().addWorkspaceActivity(
+        workspaceId,
+        buildWorkspaceOutcomeActivity(outcome),
+      );
+    });
+
     const unsubCheckpoint = window.api.on('workspace:checkpoint', (data: unknown) => {
       const { workspaceId, checkpoint } = data as { workspaceId: string; checkpoint: Checkpoint };
-      useChatStore.getState().addSystemActivityForWorkspace(
+      useWorkspaceStore.getState().addWorkspaceActivity(
         workspaceId,
         buildCheckpointActivity(checkpoint),
       );
@@ -159,7 +174,7 @@ export function useAgentStream() {
 
     const unsubWorkspaceUpdated = window.api.on('workspace:updated', (data: unknown) => {
       const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
-      useChatStore.getState().addSystemActivityForWorkspace(
+      useWorkspaceStore.getState().addWorkspaceActivity(
         workspaceId,
         makeActivity('workspace', 'Workspace updated', `${name} on ${branch}`),
       );
@@ -191,6 +206,7 @@ export function useAgentStream() {
       unsubTodoUpdate();
       unsubStall();
       unsubWorkspaceStatus();
+      unsubWorkspaceOutcome();
       unsubCheckpoint();
       unsubWorkspaceUpdated();
       unsubRepoMapStatus();
@@ -230,6 +246,10 @@ function buildStallActivity(stallInfo: {
 
 function buildWorkspaceStatusActivity(status: WorkspaceStatus): SystemActivity {
   return makeActivity('workspace', `Workspace is ${formatWorkspaceStatus(status)}`);
+}
+
+function buildWorkspaceOutcomeActivity(outcome: WorkspaceOutcome): SystemActivity {
+  return makeActivity('workspace', 'Workspace outcome updated', workspaceOutcomeConfig[outcome].label);
 }
 
 function buildCheckpointActivity(checkpoint: Checkpoint): SystemActivity {

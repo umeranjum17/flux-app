@@ -2,10 +2,26 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MessageList } from '../MessageList';
 import { useChatStore } from '../../../stores/chat';
+import { useWorkspaceStore } from '../../../stores/workspace';
 
 beforeEach(() => {
   cleanup();
-  useChatStore.setState({ tasks: new Map(), activeTaskId: null });
+  useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
+  useWorkspaceStore.setState({
+    workspaces: new Map(),
+    archivedWorkspaces: new Map(),
+    activeWorkspaceId: null,
+    showArchived: false,
+    mergingWorkspaceId: null,
+    checkpoints: new Map(),
+    workspaceActivities: new Map(),
+    workspaceSessions: new Map(),
+    changesPanelOpen: false,
+    changesPanelWorkspaceId: null,
+    changesPanelFiles: [],
+    changesPanelSelectedFile: null,
+    changesPanelFileDiff: null,
+  });
 });
 
 describe('MessageList', () => {
@@ -189,8 +205,45 @@ This depends on the agent honoring the structured plan prompt.`,
 
     render(<MessageList />);
 
-    expect(screen.getByText('Checkpoint')).not.toBeNull();
     expect(screen.getByText('Checkpoint saved')).not.toBeNull();
     expect(screen.getByText('· 3 files · +18 / -4')).not.toBeNull();
+  });
+
+  it('renders workspace lifecycle activity before the first assistant message arrives', () => {
+    useWorkspaceStore.getState().addWorkspace({
+      id: 'ws-1',
+      name: 'Lifecycle',
+      parentRepo: '/workspace',
+      branch: 'flux/lifecycle',
+      status: 'running',
+      outcome: 'in_progress',
+      createdAt: 1,
+      updatedAt: 1,
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      worktreePath: '/workspace/.flux-worktrees/ws-1',
+    });
+    useWorkspaceStore.getState().addWorkspaceActivity('ws-1', {
+      id: 'activity-1',
+      category: 'workspace',
+      label: 'Workspace is running',
+      timestamp: 2,
+    });
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Workspace task',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace/.flux-worktrees/ws-1',
+      workspaceId: 'ws-1',
+    });
+
+    render(<MessageList />);
+
+    expect(screen.getByText('Workspace is running')).not.toBeNull();
+    expect(screen.queryByText('Ask Flux anything...')).toBeNull();
   });
 });

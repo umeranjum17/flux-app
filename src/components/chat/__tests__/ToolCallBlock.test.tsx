@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToolCallBlock } from '../ToolCallBlock';
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('ToolCallBlock', () => {
   it('renders TodoWrite payloads as a checklist instead of raw JSON', async () => {
@@ -20,7 +24,7 @@ describe('ToolCallBlock', () => {
       />,
     );
 
-    expect(screen.getByText('1/3 completed')).not.toBeNull();
+    expect(screen.getAllByText('1/3 completed').length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button'));
     expect(screen.getByText('Inspect shared types')).not.toBeNull();
     expect(screen.getByText('Implement question propagation')).not.toBeNull();
@@ -43,7 +47,7 @@ describe('ToolCallBlock', () => {
       />,
     );
 
-    expect(screen.getByText('1/3 completed')).not.toBeNull();
+    expect(screen.getAllByText('1/3 completed').length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button'));
     expect(screen.getByText('Inspect Codex event payloads')).not.toBeNull();
     expect(screen.getByText('Sync renderer todo bar')).not.toBeNull();

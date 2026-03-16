@@ -4,6 +4,8 @@ import { waitFor } from '@testing-library/react';
 import { createMockApi, type MockApi } from '../../../test/mocks/window-api';
 import { useAgentStream } from '../useAgentStream';
 import { useChatStore } from '../../stores/chat';
+import { useWorkspaceStore } from '../../stores/workspace';
+import { startWorkspaceChat } from '../../lib/workspace-state';
 
 let mockApi: MockApi;
 
@@ -23,7 +25,22 @@ beforeEach(() => {
   mockApi = createMockApi();
   (window as any).api = mockApi;
   // Reset chat store
-  useChatStore.setState({ tasks: new Map(), activeTaskId: null });
+  useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
+  useWorkspaceStore.setState({
+    workspaces: new Map(),
+    archivedWorkspaces: new Map(),
+    activeWorkspaceId: null,
+    showArchived: false,
+    mergingWorkspaceId: null,
+    checkpoints: new Map(),
+    workspaceActivities: new Map(),
+    workspaceSessions: new Map(),
+    changesPanelOpen: false,
+    changesPanelWorkspaceId: null,
+    changesPanelFiles: [],
+    changesPanelSelectedFile: null,
+    changesPanelFileDiff: null,
+  });
 });
 
 describe('useAgentStream', () => {
@@ -38,6 +55,7 @@ describe('useAgentStream', () => {
     expect(subscribedChannels).toContain('agent:permission');
     expect(subscribedChannels).toContain('agent:stall');
     expect(subscribedChannels).toContain('workspace:status');
+    expect(subscribedChannels).toContain('workspace:outcome');
     expect(subscribedChannels).toContain('workspace:checkpoint');
     expect(subscribedChannels).toContain('workspace:updated');
     expect(subscribedChannels).toContain('repomap:status');
@@ -52,6 +70,7 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('agent:permission')?.size).toBe(1);
     expect(mockApi._listeners.get('agent:stall')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:status')?.size).toBe(1);
+    expect(mockApi._listeners.get('workspace:outcome')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:checkpoint')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:updated')?.size).toBe(1);
     expect(mockApi._listeners.get('repomap:status')?.size).toBe(1);
@@ -64,6 +83,7 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('agent:permission')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('agent:stall')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:status')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('workspace:outcome')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:checkpoint')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:updated')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('repomap:status')?.size ?? 0).toBe(0);
@@ -249,7 +269,21 @@ describe('useAgentStream', () => {
     ]);
   });
 
-  it('workspace events are mirrored into workspace chat activity', () => {
+  it('workspace events are captured in durable workspace activity', () => {
+    useWorkspaceStore.getState().addWorkspace({
+      id: 'ws-1',
+      name: 'Workspace',
+      parentRepo: '/tmp',
+      branch: 'flux/workspace',
+      status: 'idle',
+      outcome: 'in_progress',
+      createdAt: 1,
+      updatedAt: 1,
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      worktreePath: '/tmp/ws-1',
+    });
     useChatStore.getState().createTask({
       id: 'task-1',
       title: 'Workspace task',
@@ -263,6 +297,7 @@ describe('useAgentStream', () => {
     renderHook(() => useAgentStream());
 
     mockApi._emit('workspace:status', { workspaceId: 'ws-1', status: 'running' });
+    mockApi._emit('workspace:outcome', { workspaceId: 'ws-1', outcome: 'ready_for_pr' });
     mockApi._emit('workspace:checkpoint', {
       workspaceId: 'ws-1',
       checkpoint: {
@@ -280,11 +315,15 @@ describe('useAgentStream', () => {
       },
     });
 
-    const task = useChatStore.getState().tasks.get('task-1');
-    expect(task?.systemActivities).toEqual([
+    expect(useWorkspaceStore.getState().workspaceActivities.get('ws-1')).toEqual([
       expect.objectContaining({
         category: 'workspace',
         label: 'Workspace is running',
+      }),
+      expect.objectContaining({
+        category: 'workspace',
+        label: 'Workspace outcome updated',
+        detail: 'Ready for PR',
       }),
       expect.objectContaining({
         category: 'checkpoint',
@@ -292,6 +331,86 @@ describe('useAgentStream', () => {
         detail: '2 files · +10 / -3',
       }),
     ]);
+  });
+
+  it('captures todo and workspace lifecycle events before workspace spawn resolves', async () => {
+    const workspace = {
+      id: 'ws-1',
+      name: 'Race fix',
+      parentRepo: '/tmp',
+      branch: 'feature/race-fix',
+      status: 'idle' as const,
+      outcome: 'in_progress' as const,
+      createdAt: 1,
+      updatedAt: 1,
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act' as const,
+      worktreePath: '/tmp/ws-1',
+    };
+
+    useWorkspaceStore.getState().addWorkspace(workspace);
+
+    let resolveSpawn: ((value: { taskId: string; session: any }) => void) | null = null;
+    mockApi.invoke.mockImplementation((channel: string) => {
+      if (channel === 'workspace:spawn-chat') {
+        return new Promise((resolve) => {
+          resolveSpawn = resolve as typeof resolveSpawn;
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderHook(() => useAgentStream());
+
+    const pendingStart = startWorkspaceChat({
+      taskId: 'task-1',
+      workspace,
+      prompt: 'Fix the lifecycle race',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      thinking: 'medium',
+    });
+
+    await waitFor(() => {
+      expect(useChatStore.getState().tasks.get('task-1')).toBeDefined();
+    });
+
+    mockApi._emit('agent:todo', {
+      taskId: 'task-1',
+      todoItems: [{ id: 1, label: 'Trace lifecycle IPC', status: 'in_progress' }],
+    });
+    mockApi._emit('workspace:status', { workspaceId: 'ws-1', status: 'running' });
+
+    expect(useChatStore.getState().tasks.get('task-1')?.todoItems).toEqual([
+      { id: 1, label: 'Trace lifecycle IPC', status: 'in_progress' },
+    ]);
+    expect(useWorkspaceStore.getState().workspaceActivities.get('ws-1')).toEqual([
+      expect.objectContaining({
+        category: 'workspace',
+        label: 'Workspace is running',
+      }),
+    ]);
+
+    expect(resolveSpawn).not.toBeNull();
+    resolveSpawn!({
+      taskId: 'task-1',
+      session: {
+        id: 'session-1',
+        title: '[WS] Race fix',
+        agentId: 'claude-code',
+        model: 'sonnet',
+        mode: 'act',
+        cwd: '/tmp/ws-1',
+        createdAt: 1,
+        updatedAt: 1,
+        metadata: {},
+      },
+    });
+
+    await pendingStart;
+    expect(useChatStore.getState().tasks.get('task-1')?.sessionId).toBe('session-1');
   });
 
   it('repomap state changes are surfaced on the active task without duplicate states', () => {

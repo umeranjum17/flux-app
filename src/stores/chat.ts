@@ -18,6 +18,7 @@ import type {
 } from '../lib/types';
 import { useWorkspaceStore } from './workspace';
 import { normalizeTrackedFilePath } from '../lib/path-utils';
+import { appendSystemActivity } from '../lib/system-activities';
 
 interface ChatState {
   tasks: Map<string, Task>;
@@ -62,14 +63,23 @@ interface ChatState {
   setTodoItems(taskId: string, items: TodoItem[]): void;
   updateTodoItem(taskId: string, stepId: number, status: TodoItem['status'], label?: string): void;
   addSystemActivity(taskId: string, activity: SystemActivity): void;
-  addSystemActivityForWorkspace(workspaceId: string, activity: SystemActivity): void;
+  upsertTaskShell(opts: {
+    id: string;
+    title: string;
+    agentId: AgentId;
+    model: string;
+    mode: TaskMode;
+    thinking: ThinkingLevel;
+    cwd: string;
+    sessionId?: string;
+    workspaceId?: string;
+  }): void;
   scrollToFileEdit(toolCallId: string): boolean;
   clearScrollTarget(): void;
   getActiveTask(): Task | undefined;
 }
 
 const MAX_TASKS = 20;
-const MAX_SYSTEM_ACTIVITIES = 40;
 
 // Monotonic counter for stable message IDs (used as React keys so that
 // merging streaming chunks doesn't remount/re-animate elements).
@@ -82,49 +92,74 @@ export const useChatStore = create<ChatState>()(
     tabOrder: [],
 
     createTask(opts) {
+      get().upsertTaskShell(opts);
+    },
+
+    upsertTaskShell(opts) {
       set((state) => {
-        // Auto-close oldest idle tabs when exceeding limit
-        if (state.tabOrder.length >= MAX_TASKS) {
-          const oldest = state.tabOrder.find((id) => {
-            const t = state.tasks.get(id);
-            return t && (t.status === 'idle' || t.status === 'done' || t.status === 'error') && id !== state.activeTaskId;
-          });
-          if (oldest) {
-            const task = state.tasks.get(oldest);
-            if (task) {
-              task.subagents.clear();
-              task.diffs.clear();
+        const existingTask = state.tasks.get(opts.id);
+        if (!existingTask) {
+          // Auto-close oldest idle tabs when exceeding limit
+          if (state.tabOrder.length >= MAX_TASKS) {
+            const oldest = state.tabOrder.find((id) => {
+              const t = state.tasks.get(id);
+              return t && (t.status === 'idle' || t.status === 'done' || t.status === 'error') && id !== state.activeTaskId;
+            });
+            if (oldest) {
+              const task = state.tasks.get(oldest);
+              if (task) {
+                task.subagents.clear();
+                task.diffs.clear();
+              }
+              state.tasks.delete(oldest);
+              state.tabOrder = state.tabOrder.filter((id) => id !== oldest);
             }
-            state.tasks.delete(oldest);
-            state.tabOrder = state.tabOrder.filter((id) => id !== oldest);
           }
+
+          state.tabOrder.push(opts.id);
+          state.tasks.set(opts.id, {
+            id: opts.id,
+            title: opts.title,
+            agentId: opts.agentId,
+            model: opts.model,
+            mode: opts.mode,
+            thinking: opts.thinking,
+            status: 'idle',
+            messages: [],
+            costUsd: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cwd: opts.cwd,
+            sessionId: opts.sessionId,
+            workspaceId: opts.workspaceId,
+            subagents: new Map(),
+            agentHistory: [],
+            diffs: new Map(),
+            editedFiles: new Map(),
+            expandedToolCallIds: new Set(),
+            scrollToToolCallId: null,
+            todoItems: [],
+            systemActivities: [],
+          });
+          state.activeTaskId = opts.id;
+          return;
         }
 
-        state.tabOrder.push(opts.id);
-        state.tasks.set(opts.id, {
-          id: opts.id,
-          title: opts.title,
-          agentId: opts.agentId,
-          model: opts.model,
-          mode: opts.mode,
-          thinking: opts.thinking,
-          status: 'idle',
-          messages: [],
-          costUsd: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          cwd: opts.cwd,
-          sessionId: opts.sessionId,
-          workspaceId: opts.workspaceId,
-          subagents: new Map(),
-          agentHistory: [],
-          diffs: new Map(),
-          editedFiles: new Map(),
-          expandedToolCallIds: new Set(),
-          scrollToToolCallId: null,
-          todoItems: [],
-          systemActivities: [],
-        });
+        existingTask.title = opts.title;
+        existingTask.agentId = opts.agentId;
+        existingTask.model = opts.model;
+        existingTask.mode = opts.mode;
+        existingTask.thinking = opts.thinking;
+        existingTask.cwd = opts.cwd;
+        if (opts.sessionId !== undefined) {
+          existingTask.sessionId = opts.sessionId;
+        }
+        if (opts.workspaceId !== undefined) {
+          existingTask.workspaceId = opts.workspaceId;
+        }
+        if (!state.tabOrder.includes(opts.id)) {
+          state.tabOrder.push(opts.id);
+        }
         state.activeTaskId = opts.id;
       });
     },
@@ -396,18 +431,7 @@ export const useChatStore = create<ChatState>()(
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task) return;
-        appendSystemActivity(task, activity);
-      });
-    },
-
-    addSystemActivityForWorkspace(workspaceId, activity) {
-      set((state) => {
-        // Find any task in this workspace and append the activity
-        for (const task of state.tasks.values()) {
-          if (task.workspaceId === workspaceId) {
-            appendSystemActivity(task, activity);
-          }
-        }
+        appendSystemActivity(task.systemActivities, activity);
       });
     },
 
@@ -492,24 +516,6 @@ function trackEditedFile(task: Task, message: AgentMessage): void {
     deletions: (existing?.deletions ?? 0) + stats.deletions,
     timestamp: message.timestamp,
   });
-}
-
-function appendSystemActivity(task: Task, activity: SystemActivity): void {
-  const lastActivity = task.systemActivities[task.systemActivities.length - 1];
-  if (
-    lastActivity
-    && lastActivity.category === activity.category
-    && lastActivity.label === activity.label
-    && lastActivity.detail === activity.detail
-  ) {
-    lastActivity.timestamp = activity.timestamp;
-    return;
-  }
-
-  task.systemActivities.push(activity);
-  if (task.systemActivities.length > MAX_SYSTEM_ACTIVITIES) {
-    task.systemActivities.splice(0, task.systemActivities.length - MAX_SYSTEM_ACTIVITIES);
-  }
 }
 
 function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message: AgentMessage): void {

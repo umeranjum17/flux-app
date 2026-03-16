@@ -1,6 +1,9 @@
+import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { Workspace, WorkspaceStatus, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
+import type { SystemActivity } from '../lib/types';
+import { appendSystemActivity } from '../lib/system-activities';
 
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
@@ -16,6 +19,9 @@ interface WorkspaceState {
 
   // Checkpoint state
   checkpoints: Map<string, Checkpoint[]>;
+
+  // Durable workspace-scoped lifecycle activity
+  workspaceActivities: Map<string, SystemActivity[]>;
 
   // Actions
   setWorkspaces(workspaces: Workspace[]): void;
@@ -51,6 +57,7 @@ interface WorkspaceState {
   // Checkpoint actions
   loadCheckpoints(workspaceId: string): Promise<void>;
   addCheckpoint(workspaceId: string, checkpoint: Checkpoint): void;
+  addWorkspaceActivity(workspaceId: string, activity: SystemActivity): void;
 
   // Workspace session (multi-chat) actions
   setWorkspaceSessions(workspaceId: string, sessions: WorkspaceSession[]): void;
@@ -69,6 +76,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
+    workspaceActivities: new Map(),
     workspaceSessions: new Map(),
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,
@@ -109,6 +117,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       set((state) => {
         state.workspaces.delete(id);
         state.checkpoints.delete(id);
+        state.workspaceActivities.delete(id);
         state.workspaceSessions.delete(id);
         if (state.activeWorkspaceId === id) {
           state.activeWorkspaceId = null;
@@ -164,6 +173,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           state.archivedWorkspaces.set(id, archived);
           state.workspaces.delete(id);
           state.checkpoints.delete(id);
+          state.workspaceActivities.delete(id);
           state.workspaceSessions.delete(id);
           if (state.activeWorkspaceId === id) {
             state.activeWorkspaceId = null;
@@ -195,6 +205,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const existing = state.checkpoints.get(workspaceId) ?? [];
         existing.push(checkpoint);
         state.checkpoints.set(workspaceId, existing);
+      });
+    },
+
+    addWorkspaceActivity(workspaceId, activity) {
+      set((state) => {
+        const nextActivities = [...(state.workspaceActivities.get(workspaceId) ?? [])];
+        appendSystemActivity(nextActivities, activity);
+        state.workspaceActivities.set(workspaceId, nextActivities);
       });
     },
 

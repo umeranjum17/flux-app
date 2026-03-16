@@ -69,10 +69,12 @@ describe('MergeDialog', () => {
 
   it('starts a merge task in the parent repo with agent git access', async () => {
     const onClose = vi.fn();
-    mockApi.invoke.mockImplementation(async (channel: string) => {
+    let spawnedTaskId: string | undefined;
+    mockApi.invoke.mockImplementation(async (channel: string, args?: any) => {
       if (channel === 'task:spawn') {
+        spawnedTaskId = args?.taskId;
         return {
-          taskId: 'task-1',
+          taskId: args?.taskId,
           session: {
             id: 'session-1',
             title: '[WS] Hardening pass',
@@ -91,7 +93,8 @@ describe('MergeDialog', () => {
 
     render(<MergeDialog workspace={workspace} onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start Merge' }));
+    fireEvent.click(screen.getByRole('button', { name: /Agent Merge/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Agent Merge' }));
 
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
@@ -112,18 +115,19 @@ describe('MergeDialog', () => {
     });
 
     const mergePrompt = mockApi.invoke.mock.calls.find(([channel]) => channel === 'task:spawn')?.[1]?.prompt;
-    expect(mergePrompt).toContain('`git commit -m "merge(master): flux-hardening"`');
+    expect(mergePrompt).toContain('Use the format: `merge(master): <concise summary of what changed>`');
     expect(mergePrompt).toContain('`git push origin master`');
 
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
     });
 
-    const task = useChatStore.getState().tasks.get('task-1');
+    expect(spawnedTaskId).toBeTruthy();
+    const task = useChatStore.getState().tasks.get(spawnedTaskId!);
     expect(task).toEqual(expect.objectContaining({
-      id: 'task-1',
+      id: spawnedTaskId,
       agentId: 'codex',
-      cwd: '/repo',
+      cwd: workspace.worktreePath,
       workspaceId: workspace.id,
       status: 'running',
     }));
@@ -143,7 +147,8 @@ describe('MergeDialog', () => {
 
     render(<MergeDialog workspace={workspace} onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start Merge' }));
+    fireEvent.click(screen.getByRole('button', { name: /Agent Merge/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Agent Merge' }));
 
     await waitFor(() => {
       expect(screen.getByText('spawn failed')).toBeInTheDocument();

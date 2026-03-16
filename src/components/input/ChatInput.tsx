@@ -55,6 +55,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [ghostText, setGhostText] = useState('');
   const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyIndex = useRef(-1);
+  const hasMountedTaskContext = useRef(false);
 
   const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
   const activeTask = useChatStore((s) => {
@@ -175,6 +176,10 @@ export function ChatInput({ focused }: ChatInputProps) {
   // Reset local input state when switching tasks or workspaces so content
   // doesn't leak across workspace boundaries.
   useEffect(() => {
+    if (!hasMountedTaskContext.current) {
+      hasMountedTaskContext.current = true;
+      return;
+    }
     setValue('');
     setImages([]);
     setAttachedFiles([]);
@@ -374,6 +379,7 @@ export function ChatInput({ focused }: ChatInputProps) {
       if (workspace) {
         try {
           await startWorkspaceChat({
+            taskId: task.id,
             workspace,
             prompt: text,
             agentId: selectedAgentId,
@@ -383,7 +389,6 @@ export function ChatInput({ focused }: ChatInputProps) {
             images: images.length > 0 ? images : undefined,
             attachments,
           });
-          useChatStore.getState().removeTask(task.id);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Failed to start workspace chat');
         }

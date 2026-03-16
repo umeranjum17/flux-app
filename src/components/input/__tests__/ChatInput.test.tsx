@@ -21,7 +21,21 @@ beforeEach(() => {
   (window as any).api = mockApi;
 
   useChatStore.setState({ tasks: new Map(), activeTaskId: null });
-  useWorkspaceStore.setState({ workspaces: new Map(), activeWorkspaceId: null });
+  useWorkspaceStore.setState({
+    workspaces: new Map(),
+    archivedWorkspaces: new Map(),
+    activeWorkspaceId: null,
+    showArchived: false,
+    mergingWorkspaceId: null,
+    checkpoints: new Map(),
+    workspaceActivities: new Map(),
+    workspaceSessions: new Map(),
+    changesPanelOpen: false,
+    changesPanelWorkspaceId: null,
+    changesPanelFiles: [],
+    changesPanelSelectedFile: null,
+    changesPanelFileDiff: null,
+  });
   useSessionStore.setState({ sessions: [], loading: false });
   useUiStore.setState({
     sidebarOpen: true,
@@ -114,6 +128,7 @@ describe('ChatInput', () => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
         'workspace:spawn-chat',
         expect.objectContaining({
+          taskId: expect.any(String),
           workspaceId: 'ws-1',
           prompt: 'Fix the bug',
           agentId: 'codex',
@@ -161,6 +176,7 @@ describe('ChatInput', () => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
         'workspace:spawn-chat',
         expect.objectContaining({
+          taskId: expect.any(String),
           workspaceId: 'ws-1',
           prompt: 'Fix the bug',
         }),
@@ -244,11 +260,13 @@ describe('ChatInput', () => {
       expect(mockApi.invoke).toHaveBeenCalledWith(
         'workspace:spawn-chat',
         expect.objectContaining({
+          taskId: 'task-draft',
           workspaceId: 'ws-1',
           prompt: 'Fix error state',
         }),
       );
     });
+    expect(useChatStore.getState().tasks.has('task-draft')).toBe(true);
     expect(mockApi.invoke).not.toHaveBeenCalledWith(
       'task:spawn',
       expect.objectContaining({
