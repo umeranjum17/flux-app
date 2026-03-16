@@ -103,60 +103,67 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }]);
       setActiveId(id);
 
-      const result = await window.api.invoke('terminal:create', {
-        id,
-        cwd: opts?.workspaceId ? undefined : cwd,
-        workspaceId: opts?.workspaceId,
-        shell: opts?.shell,
-      }) as { id: string; shellName: string };
+      try {
+        const result = await window.api.invoke('terminal:create', {
+          id,
+          cwd: opts?.workspaceId ? undefined : cwd,
+          workspaceId: opts?.workspaceId,
+          shell: opts?.shell,
+        }) as { id: string; shellName: string };
 
-      // Update tab with shell info
-      setTabs((prev) => prev.map((t) =>
-        t.id === id
-          ? {
-            ...t,
-            shellName: result.shellName,
-            title: opts?.workspaceName || result.shellName || placeholderTitle,
+        // Update tab with shell info
+        setTabs((prev) => prev.map((t) =>
+          t.id === id
+            ? {
+              ...t,
+              shellName: result.shellName,
+              title: opts?.workspaceName || result.shellName || placeholderTitle,
+            }
+            : t
+        ));
+
+        const { Terminal } = await import('@xterm/xterm');
+        const { FitAddon } = await import('@xterm/addon-fit');
+        const { WebLinksAddon } = await import('@xterm/addon-web-links');
+
+        const currentTheme = useUiStore.getState().theme;
+        const term = new Terminal({
+          cursorBlink: true,
+          cursorStyle: 'bar',
+          fontSize: 13,
+          lineHeight: 1.2,
+          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Cascadia Code", monospace',
+          theme: currentTheme === 'dark' ? DARK_THEME : LIGHT_THEME,
+          scrollback: 10000,
+          allowProposedApi: true,
+        });
+
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.loadAddon(new WebLinksAddon());
+
+        terminalRefs.current.set(id, { term, fitAddon });
+
+        requestAnimationFrame(() => {
+          const el = document.getElementById(`terminal-${id}`);
+          if (el) {
+            term.open(el);
+            fitAddon.fit();
+            window.api.invoke('terminal:resize', { id, cols: term.cols, rows: term.rows });
           }
-          : t
-      ));
+        });
 
-      const { Terminal } = await import('@xterm/xterm');
-      const { FitAddon } = await import('@xterm/addon-fit');
-      const { WebLinksAddon } = await import('@xterm/addon-web-links');
+        term.onData((data: string) => {
+          window.api.invoke('terminal:write', { id, data });
+        });
 
-      const currentTheme = useUiStore.getState().theme;
-      const term = new Terminal({
-        cursorBlink: true,
-        cursorStyle: 'bar',
-        fontSize: 13,
-        lineHeight: 1.2,
-        fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Cascadia Code", monospace',
-        theme: currentTheme === 'dark' ? DARK_THEME : LIGHT_THEME,
-        scrollback: 10000,
-        allowProposedApi: true,
-      });
-
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      term.loadAddon(new WebLinksAddon());
-
-      terminalRefs.current.set(id, { term, fitAddon });
-
-      requestAnimationFrame(() => {
-        const el = document.getElementById(`terminal-${id}`);
-        if (el) {
-          term.open(el);
-          fitAddon.fit();
-          window.api.invoke('terminal:resize', { id, cols: term.cols, rows: term.rows });
-        }
-      });
-
-      term.onData((data: string) => {
-        window.api.invoke('terminal:write', { id, data });
-      });
-
-      return id;
+        return id;
+      } catch (err) {
+        console.error('[TerminalPanel] Failed to create terminal:', err);
+        setTabs((prev) => prev.filter((t) => t.id !== id));
+        setActiveId((current) => current === id ? null : current);
+        return null;
+      }
     }, [cwd]);
 
     useImperativeHandle(ref, () => ({
@@ -181,18 +188,18 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             workspaceId,
             workspaceName: ws.name,
             workspaceBranch: ws.branch,
-          });
+          }).catch(() => {});
         }
       },
       createTerminal(opts?: { shell?: string }) {
-        createTerminal({ shell: opts?.shell });
+        createTerminal({ shell: opts?.shell }).catch(() => {});
       },
     }), [activeId, tabs, createTerminal]);
 
     // Create first terminal on mount
     useEffect(() => {
       if (tabs.length === 0) {
-        createTerminal();
+        createTerminal().catch(() => {});
       }
     }, []);
 

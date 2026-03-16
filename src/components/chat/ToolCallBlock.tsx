@@ -149,6 +149,14 @@ function getToolDescription(toolName: string, toolInput?: Record<string, unknown
     const count = extractGlobPaths(resultContent).length;
     return count > 0 ? `${String(toolInput.pattern)} · ${count} files` : String(toolInput.pattern);
   }
+  // Generic fallback: show first meaningful string field for unrecognized tools
+  // (e.g. Copilot's report_intent, task, and other provider-specific tool names)
+  for (const field of ['description', 'title', 'name', 'intention', 'intent', 'summary', 'message']) {
+    if (typeof toolInput[field] === 'string' && (toolInput[field] as string).trim()) {
+      const text = (toolInput[field] as string).trim();
+      return text.length > 80 ? text.slice(0, 80) + '...' : text;
+    }
+  }
   return '';
 }
 
