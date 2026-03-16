@@ -29,7 +29,7 @@ import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
 import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
-import { SystemActivityInlineItem } from './SystemActivityFeed';
+import { SystemActivityInlineItem, SystemActivityGroup, groupActivitiesByCategory } from './SystemActivityFeed';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
@@ -189,23 +189,36 @@ export function MessageList() {
               const rendered: React.ReactNode[] = [];
               let activityCursor = 0;
 
-              // Helper: flush any system activities whose timestamp <= cutoff
+              // Collect contiguous activities up to a timestamp cutoff,
+              // group consecutive same-category runs, and render as
+              // individual items or collapsible groups.
               const flushActivities = (cutoff: number) => {
+                const batch: typeof systemActivities = [];
                 while (activityCursor < systemActivities.length && systemActivities[activityCursor].timestamp <= cutoff) {
-                  const activity = systemActivities[activityCursor];
+                  batch.push(systemActivities[activityCursor]);
+                  activityCursor++;
+                }
+                if (batch.length === 0) return;
+
+                const groups = groupActivitiesByCategory(batch);
+                for (const group of groups) {
+                  const key = `sys-group-${group[0].id}`;
                   rendered.push(
                     <motion.div
-                      key={`sys-activity-${activity.id}`}
+                      key={key}
                       variants={messageVariants}
                       initial="initial"
                       animate="animate"
                       exit="exit"
                       transition={messageTransition}
                     >
-                      <SystemActivityInlineItem activity={activity} />
+                      {group.length === 1 ? (
+                        <SystemActivityInlineItem activity={group[0]} />
+                      ) : (
+                        <SystemActivityGroup activities={group} />
+                      )}
                     </motion.div>,
                   );
-                  activityCursor++;
                 }
               };
 
