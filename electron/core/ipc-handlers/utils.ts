@@ -5,6 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
+import { buildLifecyclePrompt, parseLifecycleEvent } from '../agents/lifecycle-protocol';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv, resolveSshCommand } from '../process-utils';
 import type { SessionStore } from '../session/store';
@@ -736,37 +737,9 @@ export function buildWorkspaceSystemContext(
       '- Commit your changes with clear, descriptive commit messages when you are done.',
       '- Do NOT push to remote or create pull requests — the user will merge via the UI.',
       '- After committing, summarize what you changed.',
-      '- At the very end of your final response, include exactly one line in this format:',
-      '  WORKSPACE_NAME: <short 3-5 word name describing what was done>',
-      '  Example: WORKSPACE_NAME: Fix Token Refresh Logic',
     );
 
-    if (agentId === 'claude-code') {
-      lines.push(
-        '',
-        '## Progress tracking',
-        'For multi-step tasks, use the `TodoWrite` tool to track your progress:',
-        '- Create a todo list at the start with all steps.',
-        '- Mark each step `in_progress` when you begin, `completed` when done.',
-        '- This keeps the user informed of your progress in real time.',
-      );
-    } else if (agentId === 'codex' || agentId === 'copilot') {
-      lines.push(
-        '',
-        '## Progress tracking',
-        'For multi-step tasks, output progress markers on their own line:',
-        '- `[STEP 1 START: short description]` when you begin a step.',
-        '- `[STEP 1 DONE]` when you complete a step.',
-        '',
-        'The description after the colon is a short label (under 50 chars). Example:',
-        '```',
-        '[STEP 1 START: Set up database schema]',
-        '... working ...',
-        '[STEP 1 DONE]',
-        '[STEP 2 START: Add API endpoints]',
-        '```',
-      );
-    }
+    lines.push('', buildLifecyclePrompt());
   } else if (mode === 'plan') {
     lines.push(
       '',
@@ -805,8 +778,10 @@ const WORKSPACE_NAME_PATTERN = /WORKSPACE_NAME:\s*(.+)/i;
 
 /**
  * Extract a workspace name suggested by the agent from its session messages.
- * Looks for `WORKSPACE_NAME: <name>` in result or assistant text messages (last → first).
- * Falls back to the first line of the last commit message in the worktree.
+ * Checks (in priority order):
+ *   1. FLUX_LIFECYCLE completed event with workspace_name
+ *   2. Legacy WORKSPACE_NAME: marker
+ * Searches result/text messages from last → first.
  */
 export function extractAgentWorkspaceName(
   sessionStore: SessionStore,
@@ -819,6 +794,14 @@ export function extractAgentWorkspaceName(
     if (m.role !== 'assistant') continue;
     if (m.type !== 'result' && m.type !== 'text') continue;
     if (!m.content) continue;
+
+    // Check for lifecycle completed event first
+    const lifecycleEvent = parseLifecycleEvent(m.content);
+    if (lifecycleEvent?.event === 'completed' && lifecycleEvent.workspace_name) {
+      return lifecycleEvent.workspace_name.trim().slice(0, 50);
+    }
+
+    // Fallback to legacy WORKSPACE_NAME: marker
     const match = m.content.match(WORKSPACE_NAME_PATTERN);
     if (match) {
       return match[1].trim().slice(0, 50);

@@ -48,6 +48,7 @@ import {
 
 import { trackAgentPid, untrackAgentPid } from '../agents/pid-tracker';
 import { classifyErrorContent } from '../agents/spawn-utils';
+import { parseAllLifecycleEvents } from '../agents/lifecycle-protocol';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -756,12 +757,36 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
       if (!agentUsedTodoWrite) {
+        // Unified lifecycle protocol: parse FLUX_LIFECYCLE events from text
         const trackable = getStepTrackableContent(message);
+        let handledByLifecycle = false;
         if (trackable) {
+          const lifecycleEvents = parseAllLifecycleEvents(trackable);
+          if (lifecycleEvents.length > 0) {
+            handledByLifecycle = true;
+            for (const evt of lifecycleEvents) {
+              if (evt.event === 'step_start' && typeof evt.step === 'number') {
+                if (!todoInitialized) {
+                  // Auto-seed so the renderer has an item to update
+                  sendToRenderer('agent:todo', {
+                    taskId: options.taskId,
+                    todoItems: [{ id: evt.step, label: evt.label || `Step ${evt.step}`, status: 'in_progress' }],
+                  });
+                  flushTodoUpdates(options.taskId);
+                }
+                emitTodoUpdate(options.taskId, evt.step, 'in_progress', evt.label);
+              } else if (evt.event === 'step_done' && typeof evt.step === 'number') {
+                emitTodoUpdate(options.taskId, evt.step, 'done');
+              }
+              // 'completed' events are handled by extractAgentWorkspaceName
+            }
+          }
+        }
+
+        // Fallback: legacy [STEP N START/DONE] markers for backward compat
+        if (!handledByLifecycle && trackable) {
           const markers = parseStepMarkers(trackable);
           if (markers.length > 0 && !todoInitialized) {
-            // Auto-seed the todo list from step markers so the renderer has
-            // items to update. Without this, updates are buffered forever.
             const labelMap = new Map(markers.filter((m) => m.label).map((m) => [m.stepId, m.label!]));
             const doneIds = new Set(markers.filter((m) => m.status === 'done').map((m) => m.stepId));
             const startIds = new Set(markers.filter((m) => m.status === 'in_progress').map((m) => m.stepId));
