@@ -21,6 +21,7 @@ export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; l
 export type WorkspaceLifecycleState =
   | 'idle'
   | 'coding'
+  | 'planning'
   | 'awaiting_approval'
   | 'awaiting_input'
   | 'ready_for_review'
@@ -57,6 +58,15 @@ export const workspaceLifecycleConfig: Record<
     badgeClass: 'bg-accent/12 text-accent',
     accentColor: 'bg-accent',
     cardTint: 'lifecycle-tint-coding',
+  },
+  planning: {
+    color: 'bg-info',
+    label: 'Planning',
+    pulse: true,
+    detail: 'Agent is creating a plan.',
+    badgeClass: 'bg-info/12 text-info',
+    accentColor: 'bg-info',
+    cardTint: 'lifecycle-tint-info',
   },
   awaiting_approval: {
     color: 'bg-warning',
@@ -125,11 +135,11 @@ export function isTerminalOutcome(outcome: WorkspaceOutcome | undefined): boolea
 }
 
 export function getWorkspaceLifecycleState(
-  workspace: Pick<Workspace, 'status' | 'outcome'>,
+  workspace: Pick<Workspace, 'status' | 'outcome'> & Partial<Pick<Workspace, 'mode'>>,
 ): WorkspaceLifecycleState {
   if (workspace.status === 'error') return 'blocked';
   if (workspace.status === 'merging') return 'merging';
-  if (workspace.status === 'running') return 'coding';
+  if (workspace.status === 'running') return workspace.mode === 'plan' ? 'planning' : 'coding';
   if (workspace.status === 'waiting_approval') return 'awaiting_approval';
   if (workspace.status === 'waiting_input') return 'awaiting_input';
 
