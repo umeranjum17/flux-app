@@ -78,14 +78,19 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   };
 
   const handleFileClick = (filePath: string) => {
-    // Find the most recent tool call for this file and scroll to it
     const task = useChatStore.getState().getActiveTask();
     if (!task) return;
-    const normalizedPath = normalizeTrackedFilePath(filePath, task.cwd);
-    const editEntry = task.editedFiles.get(normalizedPath) ?? task.editedFiles.get(filePath);
-    if (editEntry) {
-      const didScroll = useChatStore.getState().scrollToFileEdit(editEntry.toolCallId);
-      if (didScroll) return;
+
+    // Copilot inline diffs don't render well — go straight to the full Changes Panel
+    const useChangesPanel = task.agentId === 'copilot';
+
+    if (!useChangesPanel) {
+      const normalizedPath = normalizeTrackedFilePath(filePath, task.cwd);
+      const editEntry = task.editedFiles.get(normalizedPath) ?? task.editedFiles.get(filePath);
+      if (editEntry) {
+        const didScroll = useChatStore.getState().scrollToFileEdit(editEntry.toolCallId);
+        if (didScroll) return;
+      }
     }
 
     if (workspace.id) {
@@ -93,7 +98,6 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
         void useWorkspaceStore.getState().changesPanelSelectFile(filePath);
       });
     } else {
-      const activeTask = useChatStore.getState().getActiveTask();
       useUiStore.getState().openWorkspacePanelTab('activity');
     }
   };

@@ -173,8 +173,13 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
               entry={entry}
               isActive={false}
               onClick={async () => {
-                const didScroll = scrollToFileEdit(entry.toolCallId);
-                if (didScroll || !workspaceId) return;
+                // Copilot inline diffs don't render well — open full Changes Panel directly
+                const isCopilot = task?.agentId === 'copilot';
+                if (!isCopilot) {
+                  const didScroll = scrollToFileEdit(entry.toolCallId);
+                  if (didScroll || !workspaceId) return;
+                }
+                if (!workspaceId) return;
                 await openChangesPanel(workspaceId);
                 await changesPanelSelectFile(entry.filePath);
               }}
