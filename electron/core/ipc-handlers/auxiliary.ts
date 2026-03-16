@@ -7,7 +7,7 @@ import * as pty from 'node-pty';
 
 import { agentManager } from '../agents/manager';
 import type { AgentHandle } from '../agents/types';
-import { logDiagnostic } from '../diagnostics/logger';
+import { logDiagnostic, tailDiagnostics, getDiagnosticsLogPath } from '../diagnostics/logger';
 import { ConfigManager } from '../config/config';
 import type { RepoMapConfig } from '../config/types';
 import { WorkspaceStore } from '../worktree/store';
@@ -109,12 +109,97 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     return sessionStore.getMessages(id);
   });
 
+  ipcMain.handle('sessions:rename', async (_event, { id, title }: { id: string; title: string }) => {
+    sessionStore.update(id, { title });
+  });
+
+  ipcMain.handle('sessions:export', async (_event, { id, format = 'markdown' }: { id: string; format?: 'markdown' | 'json' }) => {
+    const session = sessionStore.get(id);
+    const messages = sessionStore.getMessages(id);
+    const summary = sessionStore.getSummary(id);
+    const title = session?.title ?? 'Untitled Session';
+
+    if (format === 'json') {
+      return {
+        content: JSON.stringify({ session, messages, summary }, null, 2),
+        filename: `${title.replace(/[^a-zA-Z0-9-_ ]/g, '')}.json`,
+      };
+    }
+
+    // Markdown format
+    const lines: string[] = [
+      `# ${title}`,
+      '',
+      `**Agent:** ${session?.agentId ?? 'unknown'} | **Model:** ${session?.model ?? 'unknown'} | **Mode:** ${session?.mode ?? 'unknown'}`,
+      `**Tokens:** ${summary.totalInputTokens.toLocaleString()} in / ${summary.totalOutputTokens.toLocaleString()} out | **Cost:** $${summary.totalCostUsd.toFixed(4)}`,
+      `**Created:** ${session ? new Date(session.createdAt).toISOString() : 'unknown'}`,
+      '',
+      '---',
+      '',
+    ];
+    for (const msg of messages) {
+      const role = msg.role === 'assistant' ? '🤖 Assistant' : msg.role === 'user' ? '👤 User' : `🔧 ${msg.role}`;
+      lines.push(`### ${role}`);
+      if (msg.toolName) lines.push(`*Tool: ${msg.toolName}*`);
+      lines.push('', msg.content || '*(empty)*', '');
+    }
+    return {
+      content: lines.join('\n'),
+      filename: `${title.replace(/[^a-zA-Z0-9-_ ]/g, '')}.md`,
+    };
+  });
+
+  ipcMain.handle('session:summary', async (_event, { id }: { id: string }) => {
+    return sessionStore.getSummary(id);
+  });
+
   ipcMain.handle('config:get', async () => {
     return configManager.get();
   });
 
   ipcMain.handle('config:set', async (_event, partial: Record<string, unknown>) => {
-    return configManager.set(partial);
+    configManager.set(partial);
+    sendToRenderer('config:changed', { config: configManager.get() });
+  });
+
+  ipcMain.handle('config:reset', async () => {
+    // Write an empty object so normalizeConfig applies all defaults
+    configManager.set({
+      theme: 'dark',
+      fontSize: 14,
+      sendKey: 'cmd+enter',
+      preferredIde: 'code',
+      defaultAgent: 'claude-code',
+      defaultModel: 'sonnet',
+      subagentModel: 'haiku',
+      defaultThinking: 'medium',
+      defaultMode: 'act',
+      qualityGateCommands: [],
+      qualityGateMaxRetries: 2,
+      customAgentPaths: {},
+      zoomLevel: 1.0,
+      recentProjects: [],
+      recentSshHosts: [],
+    } as Record<string, unknown>);
+    sendToRenderer('config:changed', { config: configManager.get() });
+  });
+
+  ipcMain.handle('config:export', async () => {
+    return JSON.stringify(configManager.get(), null, 2);
+  });
+
+  ipcMain.handle('config:import', async (_event, { json }: { json: string }) => {
+    try {
+      const parsed = JSON.parse(json);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return { success: false, error: 'Invalid config format: expected an object' };
+      }
+      configManager.set(parsed);
+      sendToRenderer('config:changed', { config: configManager.get() });
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 
   ipcMain.handle('theme:update-titlebar', async (_event, { theme }: { theme: 'dark' | 'light' }) => {
@@ -715,5 +800,117 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('mcp:toggle', async () => {
     // No-op: SDK-based MCP management removed
+  });
+
+  // --- Git extended operations ---
+
+  ipcMain.handle('git:log', async (_event, { cwd: logCwd, maxCount = 50 }: { cwd?: string; maxCount?: number }) => {
+    const targetCwd = logCwd || getCurrentCwd();
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['log', `--max-count=${maxCount}`, '--format=%H%x00%h%x00%an%x00%aI%x00%s'],
+        { cwd: targetCwd, timeout: 10000, encoding: 'utf-8' },
+      );
+      return stdout.trim().split('\n').filter(Boolean).map((line) => {
+        const [sha, shortSha, author, date, message] = line.split('\0');
+        return { sha, shortSha, author, date, message };
+      });
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle('git:diff-stat', async (_event, { cwd: statCwd }: { cwd?: string } = {}) => {
+    const targetCwd = statCwd || getCurrentCwd();
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['diff', '--stat', '--numstat', 'HEAD'],
+        { cwd: targetCwd, timeout: 10000, encoding: 'utf-8' },
+      );
+      let filesChanged = 0;
+      let additions = 0;
+      let deletions = 0;
+      for (const line of stdout.trim().split('\n').filter(Boolean)) {
+        const parts = line.split('\t');
+        if (parts.length >= 3) {
+          filesChanged++;
+          const add = parseInt(parts[0], 10);
+          const del = parseInt(parts[1], 10);
+          if (!isNaN(add)) additions += add;
+          if (!isNaN(del)) deletions += del;
+        }
+      }
+      return { filesChanged, additions, deletions };
+    } catch {
+      return { filesChanged: 0, additions: 0, deletions: 0 };
+    }
+  });
+
+  // --- Active task introspection ---
+
+  ipcMain.handle('agents:active-tasks', async () => {
+    const tasks: Array<{ taskId: string; agentId: string; workspaceId?: string; isAlive: boolean; pid?: number }> = [];
+    for (const [taskId, handle] of activeTasks.entries()) {
+      tasks.push({
+        taskId,
+        agentId: handle.agentId,
+        workspaceId: lifecycleManager.getWorkspaceForTask(taskId),
+        isAlive: handle.isAlive(),
+        pid: handle.pid,
+      });
+    }
+    return tasks;
+  });
+
+  // --- File system extended ---
+
+  ipcMain.handle('fs:stat', async (_event, { filePath }: { filePath: string }) => {
+    try {
+      const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(getCurrentCwd(), filePath);
+      const stat = fs.statSync(resolved);
+      return {
+        size: stat.size,
+        modifiedMs: stat.mtimeMs,
+        isDirectory: stat.isDirectory(),
+        isFile: stat.isFile(),
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('fs:write', async (_event, { filePath, content }: { filePath: string; content: string }) => {
+    try {
+      const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(getCurrentCwd(), filePath);
+      const dir = path.dirname(resolved);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(resolved, content, 'utf-8');
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // --- Terminal introspection ---
+
+  ipcMain.handle('terminal:list', async () => {
+    return Array.from(activeTerminals.entries()).map(([id, proc]) => ({
+      id,
+      pid: proc.pid,
+    }));
+  });
+
+  // --- Diagnostics ---
+
+  ipcMain.handle('diagnostics:logs', async (_event, { lines = 200 }: { lines?: number } = {}) => {
+    return tailDiagnostics(lines);
+  });
+
+  ipcMain.handle('diagnostics:log-path', async () => {
+    return getDiagnosticsLogPath();
   });
 }

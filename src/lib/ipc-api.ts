@@ -125,6 +125,77 @@ export interface IpcChannels {
   'mcp:reconnect': { args: [{ taskId: string; serverName: string }]; result: void };
   'mcp:toggle': { args: [{ taskId: string; serverName: string; enabled: boolean }]; result: void };
 
+  // Session management (extended)
+  'sessions:rename': { args: [{ id: string; title: string }]; result: void };
+  'sessions:export': {
+    args: [{ id: string; format?: 'markdown' | 'json' }];
+    result: { content: string; filename: string };
+  };
+  'session:summary': {
+    args: [{ id: string }];
+    result: SessionSummary;
+  };
+
+  // Workspace single fetch & bulk operations
+  'workspace:get': { args: [{ workspaceId: string }]; result: Workspace | null };
+  'workspace:discard-all': { args: [{ workspaceId: string }]; result: void };
+  'workspace:full-diff': { args: [{ workspaceId: string }]; result: string };
+  'workspace:git-state': {
+    args: [{ workspaceId: string }];
+    result: WorkspaceGitState;
+  };
+  'workspace:active-task': {
+    args: [{ workspaceId: string }];
+    result: string[];
+  };
+
+  // Git extended operations
+  'git:log': {
+    args: [{ cwd?: string; maxCount?: number }];
+    result: GitLogEntry[];
+  };
+  'git:diff-stat': {
+    args: [{ cwd?: string }];
+    result: { filesChanged: number; additions: number; deletions: number };
+  };
+
+  // Active task introspection
+  'agents:active-tasks': {
+    args: [];
+    result: ActiveTaskInfo[];
+  };
+
+  // File system extended
+  'fs:stat': {
+    args: [{ filePath: string }];
+    result: { size: number; modifiedMs: number; isDirectory: boolean; isFile: boolean } | null;
+  };
+  'fs:write': {
+    args: [{ filePath: string; content: string }];
+    result: { success: boolean; error?: string };
+  };
+
+  // Terminal introspection
+  'terminal:list': {
+    args: [];
+    result: Array<{ id: string; pid: number | undefined }>;
+  };
+
+  // Diagnostics
+  'diagnostics:logs': {
+    args: [{ lines?: number }];
+    result: string;
+  };
+  'diagnostics:log-path': {
+    args: [];
+    result: string;
+  };
+
+  // Config extended
+  'config:reset': { args: []; result: void };
+  'config:export': { args: []; result: string };
+  'config:import': { args: [{ json: string }]; result: { success: boolean; error?: string } };
+
   // Workspace run commands
   'workspace:run-command': {
     args: [{ workspaceId: string; command: string }];
@@ -192,6 +263,12 @@ export interface IpcEvents {
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'workspace:run-output': { terminalId: string; data: string };
   'workspace:run-exit': { terminalId: string; exitCode: number };
+  'workspace:created': { workspace: Workspace };
+  'workspace:deleted': { workspaceId: string };
+  'workspace:archived': { workspaceId: string };
+  'terminal:data': { id: string; data: string };
+  'terminal:exit': { id: string };
+  'config:changed': { config: FluxConfig };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;
   'usage:live-update': LiveUsageOverview;
@@ -461,4 +538,29 @@ export interface WorkspaceDiskUsage {
   sizeBytes: number;
   lastActivity: number;
   isStale: boolean;
+}
+
+export interface WorkspaceGitState {
+  hasCommits: boolean;
+  hasUncommittedChanges: boolean;
+  hasPendingChanges: boolean;
+  isMerged: boolean;
+  warnings: string[];
+  worktreeDeleted?: boolean;
+}
+
+export interface GitLogEntry {
+  sha: string;
+  shortSha: string;
+  author: string;
+  date: string;
+  message: string;
+}
+
+export interface ActiveTaskInfo {
+  taskId: string;
+  agentId: string;
+  workspaceId?: string;
+  isAlive: boolean;
+  pid?: number;
 }

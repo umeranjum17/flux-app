@@ -10,7 +10,8 @@ import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
 import type { WorkspaceOutcome, WorkspaceStatus, MergeResult } from '../worktree/types';
 import { createWorktree, removeWorktree, mergeWorktree, listWorktrees } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
-import { getChangedFiles, getFileDiff, discardFile } from '../worktree/diff';
+import { getChangedFiles, getFileDiff, discardFile, discardAll, getFullDiff } from '../worktree/diff';
+import { resolveGitState } from '../worktree/outcome';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
 import { requireFields, commandExists, moveWorktreeDirectory } from './utils';
@@ -31,6 +32,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle('workspace:list', async (_event, { parentRepo, includeArchived }: { parentRepo: string; includeArchived?: boolean }) => {
     if (getSshHost()) return [];
     return workspaceStore.list(parentRepo, includeArchived);
+  });
+
+  ipcMain.handle('workspace:get', async (_event, { workspaceId }: { workspaceId: string }) => {
+    return workspaceStore.get(workspaceId);
   });
 
   ipcMain.handle(
@@ -76,7 +81,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       } catch { /* best-effort */ }
 
       const worktree = await createWorktree(parentRepo, branch, branch);
-      return workspaceStore.create({
+      const ws = workspaceStore.create({
         id: worktree.id,
         name,
         parentRepo,
@@ -89,6 +94,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         thinking: thinking as any,
         status: 'idle',
       });
+      sendToRenderer('workspace:created', { workspace: ws });
+      return ws;
     },
   );
 
@@ -121,7 +128,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspaceName = generateWorkspaceName();
       const branch = `flux/${workspaceName}`;
       const worktree = await createWorktree(parentRepo, branch, workspaceName);
-      return workspaceStore.create({
+      const ws = workspaceStore.create({
         id: worktree.id,
         name: workspaceName,
         parentRepo,
@@ -134,6 +141,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         thinking: thinking as any,
         status: 'idle',
       });
+      sendToRenderer('workspace:created', { workspace: ws });
+      return ws;
     },
   );
 
@@ -305,6 +314,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
       await removeWorktree(workspace.parentRepo, workspace.worktreePath);
       workspaceStore.delete(workspaceId);
+      sendToRenderer('workspace:deleted', { workspaceId });
     });
   });
 
@@ -382,6 +392,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
       workspaceStore.archive(workspaceId);
       lifecycleManager.setStatus(workspaceId, 'idle');
+      sendToRenderer('workspace:archived', { workspaceId });
     });
   });
 
@@ -850,4 +861,28 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       return { pruned };
     },
   );
+
+  // --- Extended workspace operations ---
+
+  ipcMain.handle('workspace:discard-all', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    await discardAll(workspace.worktreePath);
+  });
+
+  ipcMain.handle('workspace:full-diff', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    return getFullDiff(workspace.worktreePath, workspace.parentRepo);
+  });
+
+  ipcMain.handle('workspace:git-state', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    return resolveGitState(workspace);
+  });
+
+  ipcMain.handle('workspace:active-task', async (_event, { workspaceId }: { workspaceId: string }) => {
+    return lifecycleManager.getActiveTaskIds(workspaceId);
+  });
 }
