@@ -769,23 +769,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         if (trackable) {
           const lifecycleEvents = parseAllLifecycleEvents(trackable);
           if (lifecycleEvents.length > 0) {
+            // Lifecycle events are workspace-level signals (running, merged, etc.)
+            // — they should NOT feed into the todo list.
             handledByLifecycle = true;
-            for (const evt of lifecycleEvents) {
-              if (evt.event === 'step_start' && typeof evt.step === 'number') {
-                if (!todoInitialized) {
-                  // Auto-seed so the renderer has an item to update
-                  sendToRenderer('agent:todo', {
-                    taskId: options.taskId,
-                    todoItems: [{ id: evt.step, label: evt.label || `Step ${evt.step}`, status: 'in_progress' }],
-                  });
-                  flushTodoUpdates(options.taskId);
-                }
-                emitTodoUpdate(options.taskId, evt.step, 'in_progress', evt.label);
-              } else if (evt.event === 'step_done' && typeof evt.step === 'number') {
-                emitTodoUpdate(options.taskId, evt.step, 'done');
-              }
-              // 'completed' events are handled by extractAgentWorkspaceName
-            }
           }
         }
 
@@ -1049,7 +1035,19 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         }
       }
       if (!(message.type === 'permission_request' && autoApprovePermission)) {
-        sendToRenderer('agent:message', { taskId: options.taskId, message });
+        // Strip FLUX_LIFECYCLE lines from visible message content so they
+        // don't render as raw JSON in chat cards.
+        const renderedMessage = (message.content && typeof message.content === 'string')
+          ? {
+            ...message,
+            content: message.content
+              .split('\n')
+              .filter((line: string) => !line.match(/^FLUX_LIFECYCLE:\s*\{/))
+              .join('\n')
+              .trim(),
+          }
+          : message;
+        sendToRenderer('agent:message', { taskId: options.taskId, message: renderedMessage });
       }
 
       if (message.subagentId && toolHeartbeats.size > 0) {
