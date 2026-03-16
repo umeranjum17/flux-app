@@ -5,7 +5,6 @@ import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
 import { WorkspaceCard } from './WorkspaceCard';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
-import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { MergeDialog } from '../review/MergeDialog';
 import type { Workspace } from '../../lib/ipc-api';
 
@@ -13,7 +12,6 @@ export function WorkspaceDashboard() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const archivedWorkspaces = useWorkspaceStore((s) => s.archivedWorkspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const showArchived = useWorkspaceStore((s) => s.showArchived);
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
@@ -114,11 +112,6 @@ export function WorkspaceDashboard() {
       .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
     useChatStore.getState().setActiveTask(latestTask?.id ?? null);
   }, []);
-
-  // If reviewing, show code review panel
-  if (reviewingWorkspaceId) {
-    return <CodeReviewPanel />;
-  }
 
   // If merging, show merge dialog
   const mergingWorkspace = mergingWorkspaceId

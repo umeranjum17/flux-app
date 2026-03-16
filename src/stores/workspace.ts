@@ -11,12 +11,6 @@ interface WorkspaceState {
   // Multi-chat sessions per workspace
   workspaceSessions: Map<string, WorkspaceSession[]>; // workspaceId → sessions
 
-  // Review state
-  reviewingWorkspaceId: string | null;
-  diffFiles: DiffFile[];
-  selectedFile: string | null;
-  fileDiff: { oldContent: string; newContent: string; unified: string } | null;
-
   // Merge state
   mergingWorkspaceId: string | null;
 
@@ -42,12 +36,6 @@ interface WorkspaceState {
   archiveWorkspace(id: string): void;
   unarchiveWorkspace(id: string, restored: Workspace): void;
 
-  // Review actions
-  openReview(workspaceId: string): Promise<void>;
-  closeReview(): void;
-  selectFile(path: string): Promise<void>;
-  refreshDiffFiles(): Promise<void>;
-
   // Changes panel (quick side-panel review)
   changesPanelOpen: boolean;
   changesPanelWorkspaceId: string | null;
@@ -70,8 +58,6 @@ interface WorkspaceState {
   loadWorkspaceSessions(workspaceId: string): Promise<void>;
 }
 
-let reviewRequestVersion = 0;
-let fileDiffRequestVersion = 0;
 let changesPanelRequestVersion = 0;
 let changesPanelFileDiffVersion = 0;
 
@@ -81,10 +67,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
     showArchived: false,
-    reviewingWorkspaceId: null,
-    diffFiles: [],
-    selectedFile: null,
-    fileDiff: null,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceSessions: new Map(),
@@ -130,12 +112,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.workspaceSessions.delete(id);
         if (state.activeWorkspaceId === id) {
           state.activeWorkspaceId = null;
-        }
-        if (state.reviewingWorkspaceId === id) {
-          state.reviewingWorkspaceId = null;
-          state.diffFiles = [];
-          state.selectedFile = null;
-          state.fileDiff = null;
         }
       });
     },
@@ -192,12 +168,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (state.activeWorkspaceId === id) {
             state.activeWorkspaceId = null;
           }
-          if (state.reviewingWorkspaceId === id) {
-            state.reviewingWorkspaceId = null;
-            state.diffFiles = [];
-            state.selectedFile = null;
-            state.fileDiff = null;
-          }
         }
       });
     },
@@ -207,88 +177,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.archivedWorkspaces.delete(id);
         state.workspaces.set(id, restored);
       });
-    },
-
-    async openReview(workspaceId) {
-      const requestVersion = ++reviewRequestVersion;
-      set((state) => {
-        state.reviewingWorkspaceId = workspaceId;
-        state.diffFiles = [];
-        state.selectedFile = null;
-        state.fileDiff = null;
-      });
-
-      try {
-        const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
-        set((state) => {
-          if (requestVersion !== reviewRequestVersion || state.reviewingWorkspaceId !== workspaceId) {
-            return;
-          }
-          state.diffFiles = files;
-        });
-      } catch {
-        // Failed to load diff files
-      }
-    },
-
-    closeReview() {
-      reviewRequestVersion += 1;
-      fileDiffRequestVersion += 1;
-      set((state) => {
-        state.reviewingWorkspaceId = null;
-        state.diffFiles = [];
-        state.selectedFile = null;
-        state.fileDiff = null;
-      });
-    },
-
-    async selectFile(filePath) {
-      const workspaceId = get().reviewingWorkspaceId;
-      if (!workspaceId) return;
-      const requestVersion = ++fileDiffRequestVersion;
-
-      set((state) => {
-        state.selectedFile = filePath;
-        state.fileDiff = null;
-      });
-
-      try {
-        const diff = await window.api.invoke('workspace:file-diff', { workspaceId, filePath }) as {
-          oldContent: string;
-          newContent: string;
-          unified: string;
-        };
-        set((state) => {
-          if (
-            requestVersion !== fileDiffRequestVersion ||
-            state.reviewingWorkspaceId !== workspaceId ||
-            state.selectedFile !== filePath
-          ) {
-            return;
-          }
-          state.fileDiff = diff;
-        });
-      } catch {
-        // Failed to load file diff
-      }
-    },
-
-    async refreshDiffFiles() {
-      const workspaceId = get().reviewingWorkspaceId;
-      if (!workspaceId) return;
-      const requestVersion = ++reviewRequestVersion;
-
-      try {
-        const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
-        set((state) => {
-          if (requestVersion !== reviewRequestVersion || state.reviewingWorkspaceId !== workspaceId) {
-            return;
-          }
-          state.diffFiles = files;
-        });
-      } catch {
-        // Failed to refresh
-      }
     },
 
     async loadCheckpoints(workspaceId) {

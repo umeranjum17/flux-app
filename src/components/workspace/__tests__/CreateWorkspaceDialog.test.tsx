@@ -49,10 +49,6 @@ beforeEach(() => {
   useWorkspaceStore.setState({
     workspaces: new Map(),
     activeWorkspaceId: null,
-    reviewingWorkspaceId: null,
-    diffFiles: [],
-    selectedFile: null,
-    fileDiff: null,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
   });

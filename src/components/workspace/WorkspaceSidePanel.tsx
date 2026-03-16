@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight, GitCompareArrows, FilePlus, FileEdit, FileX, FileSymlink, Undo2 } from 'lucide-react';
+import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight, GitCompareArrows } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
 import { FileActivityPanel } from '../review/FileActivityPanel';
-import type { DiffFile } from '../../lib/ipc-api';
+import { FileChangelist } from '../review/FileChangelist';
 
 type PanelTab = 'files' | 'search' | 'activity' | 'changes';
 
@@ -313,22 +313,6 @@ function PanelActivityTab() {
 
 /* ---------- Changes tab (changed files list for diff overlay) ---------- */
 
-const changeStatusIcons: Record<DiffFile['status'], React.ReactNode> = {
-  added: <FilePlus size={12} className="text-success shrink-0" />,
-  modified: <FileEdit size={12} className="text-warning shrink-0" />,
-  deleted: <FileX size={12} className="text-error shrink-0" />,
-  renamed: <FileSymlink size={12} className="text-info shrink-0" />,
-};
-
-function changeFileName(path: string): string {
-  return path.split('/').pop() || path;
-}
-
-function changeDirName(path: string): string {
-  const parts = path.split('/');
-  return parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : '';
-}
-
 function PanelChangesTab() {
   const files = useWorkspaceStore((s) => s.changesPanelFiles);
   const selectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
@@ -408,43 +392,13 @@ function PanelChangesTab() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1">
-        {files.length === 0 ? (
-          <div className="px-3 py-6 text-center text-[11px] text-text-tertiary">No changes detected</div>
-        ) : (
-          files.map((file) => {
-            const isSelected = file.path === selectedFile;
-            return (
-              <button
-                key={file.path}
-                onClick={() => useWorkspaceStore.getState().changesPanelSelectFile(file.path)}
-                className={`group w-full flex items-center gap-1.5 px-3 py-1.5 text-left transition-colors ${
-                  isSelected
-                    ? 'bg-accent/10 text-text-primary'
-                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                }`}
-              >
-                {changeStatusIcons[file.status]}
-                <span className="flex-1 min-w-0 truncate text-[11px] font-mono">
-                  <span className="text-text-tertiary">{changeDirName(file.path)}</span>
-                  {changeFileName(file.path)}
-                </span>
-                <span className="flex items-center gap-1 shrink-0 text-[10px]">
-                  {file.additions > 0 && <span className="text-success">+{file.additions}</span>}
-                  {file.deletions > 0 && <span className="text-error">-{file.deletions}</span>}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDiscard(file.path); }}
-                  className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-error hover:bg-error/10 transition-all"
-                  title="Discard changes"
-                >
-                  <Undo2 size={11} />
-                </button>
-              </button>
-            );
-          })
-        )}
-      </div>
+      <FileChangelist
+        files={files}
+        selectedFile={selectedFile}
+        onSelect={(path) => useWorkspaceStore.getState().changesPanelSelectFile(path)}
+        onDiscard={handleDiscard}
+        hideSummary
+      />
     </div>
   );
 }

@@ -26,7 +26,6 @@ import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, W
 import { useWorkspaceStore } from '../../stores/workspace';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
-import { CodeReviewPanel } from '../review/CodeReviewPanel';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
@@ -43,7 +42,6 @@ export function AppShell() {
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  const reviewingWorkspaceId = useWorkspaceStore((s) => s.reviewingWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
@@ -651,9 +649,6 @@ export function AppShell() {
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex flex-1 overflow-hidden">
               <div className="relative flex min-w-0 flex-1 flex-col">
-                {reviewingWorkspaceId ? (
-                  <CodeReviewPanel />
-                ) : (
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
                     <TabBar />
                     {activeWorkspaceId && <WorkspaceActionBar />}
@@ -711,8 +706,6 @@ export function AppShell() {
                       <WorkspaceSidePanel />
                     </div>
                   </div>
-                )}
-
               </div>
             </div>
 
