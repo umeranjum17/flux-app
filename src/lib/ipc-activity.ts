@@ -19,6 +19,8 @@ const DUPLICATE_RENDERED_EVENT_CHANNELS = new Set([
 const HIGH_VOLUME_EVENT_CHANNELS = new Set([
   'terminal:data',
   'workspace:run-output',
+  'workspace:diff-files',
+  'workspace:file-diff',
 ]);
 
 function formatPhaseLabel(activity: IpcActivity): string {
