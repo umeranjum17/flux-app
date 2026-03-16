@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, GitBranch, GitCommitHorizontal, RefreshCw, Activity, ChevronDown } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, GitBranch, GitCommitHorizontal, RefreshCw, Activity, ChevronDown, Sparkles } from 'lucide-react';
 import type { SystemActivity } from '../../lib/types';
 
 const CATEGORY_META: Record<
@@ -41,6 +41,12 @@ const CATEGORY_META: Record<
     accent: 'text-text-tertiary',
     accentBg: 'bg-bg-tertiary',
     label: 'IPC',
+  },
+  skill: {
+    Icon: Sparkles,
+    accent: 'text-accent',
+    accentBg: 'bg-accent/10',
+    label: 'Skill',
   },
 };
 

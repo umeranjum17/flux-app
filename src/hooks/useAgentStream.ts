@@ -138,6 +138,14 @@ export function useAgentStream() {
       useChatStore.getState().updateTodoItem(taskId, stepId, status, label);
     });
 
+    const unsubSkills = window.api.on('agent:skills', (data: unknown) => {
+      const { taskId, skills } = data as { taskId: string; skills: Array<{ id: string; name: string }> };
+      if (skills.length > 0) {
+        const names = skills.map((s) => s.name).join(', ');
+        useChatStore.getState().addSystemActivity(taskId, makeActivity('skill', 'Skills loaded', names));
+      }
+    });
+
     const unsubStall = window.api.on('agent:stall', (data: unknown) => {
       const { taskId, stallInfo } = data as {
         taskId: string;
@@ -214,6 +222,7 @@ export function useAgentStream() {
       unsubTodo();
       unsubPlan();
       unsubTodoUpdate();
+      unsubSkills();
       unsubStall();
       unsubWorkspaceStatus();
       unsubWorkspaceOutcome();
