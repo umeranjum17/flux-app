@@ -128,6 +128,11 @@ export function useAgentStream() {
       useChatStore.getState().setTodoItems(taskId, todoItems);
     });
 
+    const unsubPlan = window.api.on('agent:plan', (data: unknown) => {
+      const { taskId, planData } = data as { taskId: string; planData: import('../lib/types').PlanData };
+      useChatStore.getState().setPlanData(taskId, planData);
+    });
+
     const unsubTodoUpdate = window.api.on('agent:todo-update', (data: unknown) => {
       const { taskId, stepId, status, label } = data as { taskId: string; stepId: number; status: TodoItem['status']; label?: string };
       useChatStore.getState().updateTodoItem(taskId, stepId, status, label);
@@ -223,6 +228,7 @@ export function useAgentStream() {
       unsubPermission();
       unsubDiff();
       unsubTodo();
+      unsubPlan();
       unsubTodoUpdate();
       unsubStall();
       unsubWorkspaceStatus();

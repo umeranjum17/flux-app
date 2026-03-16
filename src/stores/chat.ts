@@ -62,6 +62,7 @@ interface ChatState {
   setTaskMode(taskId: string, mode: TaskMode): void;
   switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string): void;
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
+  setPlanData(taskId: string, planData: import('../lib/types').PlanData): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
   updateTodoItem(taskId: string, stepId: number, status: TodoItem['status'], label?: string): void;
   addSystemActivity(taskId: string, activity: SystemActivity): void;
@@ -397,6 +398,13 @@ export const useChatStore = create<ChatState>()(
           ...(images?.length ? { images } : {}),
           ...(attachments?.length ? { attachments } : {}),
         });
+      });
+    },
+
+    setPlanData(taskId, planData) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (task) task.planData = planData;
       });
     },
 
