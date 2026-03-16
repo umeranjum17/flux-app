@@ -710,6 +710,19 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         stallMonitor.pause();
       }
 
+      // A `result` message means the agent completed its turn.
+      // With --input-format stream-json the process stays alive, so
+      // handle.on('done') won't fire until the next turn ends or the
+      // process is killed.  Pause stall monitoring and stop the idle
+      // heartbeat so we don't falsely detect a stall and auto-restart.
+      if (message.type === 'result') {
+        stallMonitor.pause();
+        if (taskIdleHeartbeats.has(options.taskId)) {
+          clearInterval(taskIdleHeartbeats.get(options.taskId)!);
+          taskIdleHeartbeats.delete(options.taskId);
+        }
+      }
+
       if (message.type === 'rate_limit') {
         logDiagnostic('usage', `rate_limit stream event from agent=${agentId}`, {
           rawRateLimitInfo: message.rateLimitInfo ? JSON.stringify(message.rateLimitInfo).slice(0, 500) : null,
@@ -774,7 +787,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           lifecycleManager.taskStatusChanged(options.taskId, 'waiting_approval', { sessionId: session.id });
         } else if (message.type === 'question_request') {
           lifecycleManager.taskStatusChanged(options.taskId, 'waiting_input', { sessionId: session.id });
-        } else if (message.type !== 'rate_limit') {
+        } else if (message.type !== 'rate_limit' && message.type !== 'result') {
           lifecycleManager.taskStatusChanged(options.taskId, 'running', { sessionId: session.id });
         }
       }

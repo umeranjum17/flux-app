@@ -238,6 +238,85 @@ describe('addMessage', () => {
   });
 });
 
+describe('restoreMessages', () => {
+  it('rehydrates history without reviving a completed task', () => {
+    makeTask('t1');
+    useChatStore.getState().setTaskStatus('t1', 'done');
+
+    useChatStore.getState().restoreMessages('t1', [
+      {
+        type: 'text',
+        role: 'assistant',
+        content: 'Here is the plan.',
+        timestamp: 1,
+      },
+      {
+        type: 'tool_call',
+        role: 'assistant',
+        content: 'Edited file',
+        timestamp: 2,
+        toolName: 'Edit',
+        toolInput: { path: '/tmp/src/app.ts' },
+        diff: '--- a/src/app.ts\n+++ b/src/app.ts\n+const next = true;',
+      },
+      {
+        type: 'result',
+        role: 'assistant',
+        content: 'Done',
+        timestamp: 3,
+        costUsd: 0.12,
+        inputTokens: 1200,
+        outputTokens: 300,
+      },
+    ]);
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.status).toBe('done');
+    expect(task.activeRun).toBeUndefined();
+    expect(task.messages).toHaveLength(3);
+    expect(task.costUsd).toBeCloseTo(0.12);
+    expect(task.inputTokens).toBe(1200);
+    expect(task.outputTokens).toBe(300);
+    expect(task.editedFiles.get('src/app.ts')).toMatchObject({
+      filePath: 'src/app.ts',
+      additions: 1,
+      deletions: 0,
+    });
+  });
+
+  it('ignores ephemeral live-only messages during restore', () => {
+    makeTask('t1');
+
+    useChatStore.getState().restoreMessages('t1', [
+      {
+        type: 'status',
+        role: 'system',
+        content: 'Working',
+        timestamp: 1,
+        statusKind: 'progress',
+      },
+      {
+        type: 'rate_limit',
+        role: 'system',
+        content: 'rate',
+        timestamp: 2,
+        rateLimitInfo: {
+          status: 'allowed_warning',
+          resetsAt: Date.now() + 60_000,
+          rateLimitType: 'claude',
+          utilization: 0.9,
+        },
+      },
+    ]);
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.messages).toEqual([]);
+    expect(task.status).toBe('idle');
+    expect(task.currentStatus).toBeUndefined();
+    expect(task.rateLimitInfo).toBeUndefined();
+  });
+});
+
 describe('setTaskStatus', () => {
   it('sets the status correctly', () => {
     makeTask('t1');

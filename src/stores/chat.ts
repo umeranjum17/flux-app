@@ -39,6 +39,7 @@ interface ChatState {
   closeTab(taskId: string): void;
   reorderTabs(fromIndex: number, toIndex: number): void;
   addMessage(taskId: string, message: AgentMessage): void;
+  restoreMessages(taskId: string, messages: AgentMessage[]): void;
   ingestStreamMessage(taskId: string, message: AgentMessage): void;
   ingestStreamBatch(batch: Array<{ taskId: string; message: AgentMessage }>): void;
   setTaskStatus(taskId: string, status: TaskStatus): void;
@@ -188,6 +189,28 @@ export const useChatStore = create<ChatState>()(
         }
         applyLiveMessage(task, message);
         promoteTaskStatus(task, message);
+      });
+    },
+
+    restoreMessages(taskId, messages) {
+      if (messages.length === 0) return;
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task) return;
+
+        for (const message of messages) {
+          if (message.subagentId) {
+            appendSubagentMessage(task, message, false);
+            continue;
+          }
+
+          if (message.type === 'status' || message.type === 'rate_limit') {
+            continue;
+          }
+
+          appendMessage(task, message);
+          trackEditedFile(task, message);
+        }
       });
     },
 
@@ -686,7 +709,7 @@ function applyLiveMessage(task: Task, message: AgentMessage): void {
     task.pendingApproval = undefined;
   }
 
-  if (message.type !== 'rate_limit' && message.type !== 'permission_request' && message.type !== 'question_request' && message.type !== 'result') {
+  if (message.type !== 'rate_limit' && message.type !== 'permission_request' && message.type !== 'question_request') {
     if (task.status !== 'waiting_approval' && task.status !== 'waiting_input') {
       task.status = 'running';
     }

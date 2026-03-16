@@ -180,6 +180,10 @@ export function AppShell() {
         if (cancelled) return;
 
         const taskId = workspaceSession.taskId ?? crypto.randomUUID();
+        const restoredMessages = messages
+          .map((message) => restoreSessionMessage(message))
+          .filter((message): message is NonNullable<typeof message> => !!message);
+
         chatStore.createTask({
           id: taskId,
           title: workspaceSession.label || session.title || workspace.name,
@@ -192,12 +196,7 @@ export function AppShell() {
           workspaceId: workspace.id,
         });
 
-        for (const message of messages) {
-          const restored = restoreSessionMessage(message);
-          if (restored) {
-            chatStore.addMessage(taskId, restored);
-          }
-        }
+        chatStore.restoreMessages(taskId, restoredMessages);
 
         chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
       }
