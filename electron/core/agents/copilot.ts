@@ -71,6 +71,7 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
     }
   }
 
+
   return createCliAgentHandle(options, {
     agentId: 'copilot',
     label: 'GitHub Copilot',
@@ -131,6 +132,7 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
         // Any non-delta event: flush accumulated deltas first so ordering is
         // preserved (e.g. text always appears before the next tool_call).
         flushDeltas(ctx);
+
 
         // Suppress full assistant.message when deltas already delivered the content
         if (event.type === 'assistant.message' && hasReceivedTextDelta) {
