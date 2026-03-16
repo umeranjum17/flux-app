@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { EventEmitter } from 'events';
+import { PLAN_FORMAT_PREAMBLE } from './types';
 import type { AgentHandle, SpawnOptions, AgentMessage, TaskMode } from './types';
 import { ConversationLoop } from './loop';
 import { readFile } from '../tools/read';
@@ -184,7 +185,9 @@ Use absolute paths. Prefer search_files to locate code before making changes.`;
   if (mode === 'plan') {
     return `${base}
 
-MODE: PLAN — Analyze thoroughly. Explain trade-offs. Suggest concrete changes with file paths and line references. Do NOT modify files or run destructive commands.`;
+MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive commands.
+
+${PLAN_FORMAT_PREAMBLE}`;
   }
   return `${base}
 

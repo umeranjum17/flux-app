@@ -329,7 +329,7 @@ Working directory: ${cwd}`;
   if (mode === 'plan') {
     return `${base}
 
-MODE: PLAN — Analyze thoroughly. Explain trade-offs. Suggest concrete changes with file paths and line references. Do NOT modify files or run destructive commands.
+MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive commands.
 
 ${PLAN_FORMAT_PREAMBLE}`;
   }

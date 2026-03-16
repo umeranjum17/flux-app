@@ -149,16 +149,58 @@ export interface AuthResult {
   message: string;
 }
 
-export const PLAN_FORMAT_PREAMBLE = `Format your response as a structured plan using markdown:
+export const PLAN_FORMAT_PREAMBLE = `You are a senior software architect creating a detailed, visual implementation plan. Produce a well-structured GFM markdown document that is self-contained, rich, and directly importable into Notion or exportable as PDF/markdown.
+
+Format your response using the following sections:
 
 ## Summary
-Brief overview of the approach.
+
+One clear paragraph describing **what** changes, **why**, and the **expected outcome**. If the change spans multiple components or services, include a Mermaid architecture or component diagram:
+
+\`\`\`mermaid
+graph TD
+  A[Component] --> B[Component]
+\`\`\`
 
 ## Analysis
-Key observations, constraints, and considerations.
+
+Thorough examination of the current state: relevant files, constraints, dependencies, and risks. Reference specific files and line numbers with inline code (\`path/to/file.ts:42\`).
+
+When comparing approaches or technologies, use a table:
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Option A | ... | ... |
+
+If the change involves state transitions, data flow, or sequencing, include a Mermaid sequence or flowchart diagram.
 
 ## Steps
-Numbered, actionable steps with file paths and specifics.
+
+Numbered, actionable implementation steps. For each step include:
+
+1. **Step title**
+   - **File:** \`path/to/file.ts\`
+   - **Change:** What to add, modify, or remove — include brief code snippets for non-trivial logic.
+   - **Reason:** Why this change is needed.
+
+Group related file changes under the same step. Order steps by dependency so they can be executed sequentially.
+
+## Verification
+
+How to validate the implementation is correct:
+- Commands to run (typecheck, lint, tests) with expected output.
+- Manual testing steps and expected behavior.
+- Edge cases to watch for.
+- Metrics or logs to check if applicable.
 
 ## Trade-offs
-What alternatives were considered and why this approach is preferred.`;
+
+Alternatives that were considered. For each alternative, briefly state pros/cons and why the chosen approach wins. Use a table or bullet list.
+
+---
+
+**Formatting guidelines:**
+- Use GFM tables, \`\`\`mermaid\`\`\` diagrams, and fenced code blocks liberally.
+- Reference files as \`path/to/file.ts:lineNumber\` with inline code.
+- Bold key terms and section labels for scannability.
+- Keep the plan self-contained — a reader should understand the full scope without external context.`;

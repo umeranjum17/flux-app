@@ -1,6 +1,6 @@
 import type { AgentMessage, TodoItem } from './types';
 
-const PLAN_SECTION_PATTERN = /^(#{2,3})\s+(summary|analysis|steps|trade-offs|tradeoffs)\b/im;
+const PLAN_SECTION_PATTERN = /^(#{2,3})\s+(summary|analysis|steps|trade-offs|tradeoffs|verification)\b/im;
 const GENERIC_SECTION_PATTERN = /^#{2,3}\s+\S+/gm;
 const ORDERED_STEP_PATTERN = /^\d+\.\s+\S+/gm;
 const BULLET_STEP_PATTERN = /^[-*]\s+\S+/gm;
