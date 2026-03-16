@@ -1,8 +1,8 @@
 import { forwardRef, useState, useCallback, useRef, useEffect } from 'react';
 import { TerminalSquare, Settings2, Play, Plus, GripHorizontal } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { useChatStore } from '../../stores/chat';
 import { TerminalPanel, type TerminalPanelHandle } from '../terminal/TerminalPanel';
+import { RunPanel } from '../terminal/RunPanel';
 
 type BottomPanelTab = 'setup' | 'run' | 'terminal';
 
@@ -104,37 +104,4 @@ function SetupPanel() {
       Agent configuration and setup
     </div>
   );
-}
-
-function RunPanel() {
-  const activeTask = useChatStore((s) => {
-    const id = s.activeTaskId;
-    return id ? s.tasks.get(id) : undefined;
-  });
-
-  const cost = activeTask?.costUsd ?? 0;
-  const inputTokens = activeTask?.inputTokens ?? 0;
-  const outputTokens = activeTask?.outputTokens ?? 0;
-
-  return (
-    <div className="p-3 text-xs text-text-secondary space-y-2">
-      <div className="flex items-center gap-4">
-        <span>Cost: <strong className="text-text-primary">${cost.toFixed(4)}</strong></span>
-        <span>Input: <strong className="text-text-primary">{formatTokens(inputTokens)}</strong></span>
-        <span>Output: <strong className="text-text-primary">{formatTokens(outputTokens)}</strong></span>
-      </div>
-      {activeTask?.status && (
-        <div>Status: <strong className="text-text-primary">{activeTask.status}</strong></div>
-      )}
-      {!activeTask && (
-        <div className="text-text-tertiary">No active task</div>
-      )}
-    </div>
-  );
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
 }

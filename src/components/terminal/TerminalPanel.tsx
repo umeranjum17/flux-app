@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 import { TerminalTabs, type TerminalTab } from './TerminalTabs';
 
 const DARK_THEME = {
@@ -20,6 +21,7 @@ let termCounter = 0;
 
 export interface TerminalPanelHandle {
   focusActive: () => void;
+  openWorkspaceTerminal: (workspaceId: string) => void;
 }
 
 interface TerminalPanelProps {
@@ -35,23 +37,25 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRefs = useRef<Map<string, { term: any; fitAddon: any }>>(new Map());
 
-    useImperativeHandle(ref, () => ({
-      focusActive() {
-        if (activeId) {
-          const active = terminalRefs.current.get(activeId);
-          if (active) active.term.focus();
-        }
-      },
-    }));
-
-    const createTerminal = useCallback(async () => {
+    const createTerminal = useCallback(async (opts?: { workspaceId?: string; workspaceName?: string; workspaceBranch?: string }) => {
       const id = `term-${++termCounter}`;
-      const title = `Terminal ${termCounter}`;
+      const title = opts?.workspaceName
+        ? opts.workspaceName
+        : `Terminal ${termCounter}`;
 
-      setTabs((prev) => [...prev, { id, title }]);
+      setTabs((prev) => [...prev, {
+        id,
+        title,
+        workspaceId: opts?.workspaceId,
+        workspaceBranch: opts?.workspaceBranch,
+      }]);
       setActiveId(id);
 
-      await window.api.invoke('terminal:create', { id, cwd });
+      await window.api.invoke('terminal:create', {
+        id,
+        cwd: opts?.workspaceId ? undefined : cwd,
+        workspaceId: opts?.workspaceId,
+      });
 
       const { Terminal } = await import('@xterm/xterm');
       const { FitAddon } = await import('@xterm/addon-fit');
@@ -87,12 +91,53 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return id;
     }, [cwd]);
 
+    useImperativeHandle(ref, () => ({
+      focusActive() {
+        if (activeId) {
+          const active = terminalRefs.current.get(activeId);
+          if (active) active.term.focus();
+        }
+      },
+      openWorkspaceTerminal(workspaceId: string) {
+        // Check if a terminal for this workspace already exists
+        const existing = tabs.find((t) => t.workspaceId === workspaceId);
+        if (existing) {
+          setActiveId(existing.id);
+          const termRef = terminalRefs.current.get(existing.id);
+          if (termRef) termRef.term.focus();
+          return;
+        }
+        // Get workspace info and create terminal
+        const workspaces = useWorkspaceStore.getState().workspaces;
+        const ws = workspaces.get(workspaceId);
+        if (ws) {
+          createTerminal({
+            workspaceId,
+            workspaceName: ws.name,
+            workspaceBranch: ws.branch,
+          });
+        }
+      },
+    }), [activeId, tabs, createTerminal]);
+
     // Create first terminal on mount
     useEffect(() => {
       if (tabs.length === 0) {
         createTerminal();
       }
     }, []);
+
+    // Listen for workspace terminal open requests
+    useEffect(() => {
+      const handler = (e: Event) => {
+        const { workspaceId } = (e as CustomEvent).detail;
+        if (workspaceId && ref && 'current' in ref && ref.current) {
+          ref.current.openWorkspaceTerminal(workspaceId);
+        }
+      };
+      window.addEventListener('flux:open-workspace-terminal', handler);
+      return () => window.removeEventListener('flux:open-workspace-terminal', handler);
+    }, [ref]);
 
     // Listen for terminal data from main process
     useEffect(() => {
@@ -186,7 +231,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           activeId={activeId}
           onSelect={setActiveId}
           onClose={handleClose}
-          onCreate={createTerminal}
+          onCreate={() => createTerminal()}
         />
 
         {/* Terminal containers */}

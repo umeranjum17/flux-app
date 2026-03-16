@@ -59,7 +59,7 @@ export interface IpcChannels {
   'fs:read': { args: [{ filePath: string }]; result: { content: string | null; error: string | null } };
   'fs:listdirs': { args: [{ dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
   'fs:grep': { args: [{ pattern: string; cwd: string }]; result: Array<{ file: string; line: number; text: string }> };
-  'terminal:create': { args: [{ id: string; cwd?: string }]; result: { id: string } };
+  'terminal:create': { args: [{ id: string; cwd?: string; workspaceId?: string }]; result: { id: string } };
   'terminal:write': { args: [{ id: string; data: string }]; result: void };
   'terminal:resize': { args: [{ id: string; cols: number; rows: number }]; result: void };
   'terminal:kill': { args: [{ id: string }]; result: void };
@@ -124,6 +124,44 @@ export interface IpcChannels {
   'mcp:reconnect': { args: [{ taskId: string; serverName: string }]; result: void };
   'mcp:toggle': { args: [{ taskId: string; serverName: string; enabled: boolean }]; result: void };
 
+  // Workspace run commands
+  'workspace:run-command': {
+    args: [{ workspaceId: string; command: string }];
+    result: { terminalId: string };
+  };
+  'workspace:detect-scripts': {
+    args: [{ workspaceId: string }];
+    result: WorkspaceScript[];
+  };
+  'workspace:stop-run': {
+    args: [{ terminalId: string }];
+    result: void;
+  };
+
+  // Workspace merge & PR
+  'workspace:merge': {
+    args: [{ workspaceId: string; targetBranch: string; squash?: boolean }];
+    result: MergeResult;
+  };
+  'workspace:merge-preview': {
+    args: [{ workspaceId: string; targetBranch: string }];
+    result: MergePreview;
+  };
+  'workspace:create-pr': {
+    args: [{ workspaceId: string; title: string; body: string; targetBranch: string; draft?: boolean }];
+    result: { url: string; number: number };
+  };
+
+  // Worktree hygiene
+  'workspace:disk-usage': {
+    args: [{ parentRepo: string }];
+    result: WorkspaceDiskUsage[];
+  };
+  'workspace:prune-stale': {
+    args: [{ parentRepo: string; olderThanDays?: number }];
+    result: { pruned: string[] };
+  };
+
   // Project groups
   'project-group:create': { args: [{ name: string; projects?: string[] }]; result: ProjectGroup };
   'project-group:list': { args: []; result: ProjectGroup[] };
@@ -151,6 +189,8 @@ export interface IpcEvents {
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
   'workspace:updated': { workspaceId: string; branch: string; name: string };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
+  'workspace:run-output': { terminalId: string; data: string };
+  'workspace:run-exit': { terminalId: string; exitCode: number };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;
   'usage:live-update': LiveUsageOverview;
@@ -396,4 +436,28 @@ export interface McpServerStatus {
   status: 'connected' | 'disconnected' | 'error';
   error?: string;
   tools?: string[];
+}
+
+export interface WorkspaceScript {
+  name: string;
+  command: string;
+  source: 'package.json' | 'detected';
+}
+
+export interface MergePreview {
+  commitsAhead: number;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+  conflicts: string[];
+  canFastForward: boolean;
+}
+
+export interface WorkspaceDiskUsage {
+  workspaceId: string;
+  name: string;
+  branch: string;
+  sizeBytes: number;
+  lastActivity: number;
+  isStale: boolean;
 }

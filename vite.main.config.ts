@@ -15,6 +15,7 @@ export default defineConfig({
         'sqlite',
         'node:sqlite',
         'web-tree-sitter',
+        'node-pty',
         ...builtinModules,
         ...builtinModules.map((m) => `node:${m}`),
       ],

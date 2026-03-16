@@ -1,4 +1,4 @@
-import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive } from 'lucide-react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
@@ -52,6 +52,16 @@ export function WorkspaceActionBar() {
     await window.api.invoke('workspace:open-ide', { workspaceId: workspace.id });
   };
 
+  const handleOpenTerminal = () => {
+    const uiStore = useUiStore.getState();
+    uiStore.setBottomPanelOpen(true);
+    uiStore.setBottomPanelTab('terminal');
+    // Dispatch a custom event to tell TerminalPanel to open a workspace terminal
+    window.dispatchEvent(new CustomEvent('flux:open-workspace-terminal', {
+      detail: { workspaceId: workspace.id },
+    }));
+  };
+
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/35 px-3 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -68,6 +78,7 @@ export function WorkspaceActionBar() {
         {isRunning && (
           <ActionBtn icon={<Square size={12} />} label="Stop" onClick={handleStop} />
         )}
+        <ActionBtn icon={<TerminalSquare size={12} />} label="Terminal" onClick={handleOpenTerminal} />
         <ActionBtn icon={<ExternalLink size={12} />} label="Open IDE" onClick={handleOpenIde} />
         {hasChanges && !isMerged && (
           <>

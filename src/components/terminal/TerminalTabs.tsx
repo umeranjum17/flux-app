@@ -1,8 +1,10 @@
-import { Plus, X } from 'lucide-react';
+import { Plus, X, GitBranch } from 'lucide-react';
 
 export interface TerminalTab {
   id: string;
   title: string;
+  workspaceId?: string;
+  workspaceBranch?: string;
 }
 
 interface TerminalTabsProps {
@@ -26,7 +28,10 @@ export function TerminalTabs({ tabs, activeId, onSelect, onClose, onCreate }: Te
           }`}
           onClick={() => onSelect(tab.id)}
         >
-          <span className="truncate max-w-[100px]">{tab.title}</span>
+          {tab.workspaceBranch && (
+            <GitBranch size={10} className="shrink-0 text-accent" />
+          )}
+          <span className="truncate max-w-[120px]">{tab.title}</span>
           <button
             onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
             className="p-0.5 rounded hover:bg-bg-hover transition-colors"

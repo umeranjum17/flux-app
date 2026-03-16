@@ -159,6 +159,33 @@ export class WorkspaceLifecycleManager {
           }
         }))
     );
+
+    // Phase 3: Detect and log stale workspaces (>14 days inactive)
+    const STALE_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const staleWorkspaces = allWorkspaces.filter(ws =>
+      !ws.archivedAt &&
+      (now - (ws.updatedAt || ws.createdAt)) > STALE_THRESHOLD_MS
+    );
+    if (staleWorkspaces.length > 0) {
+      console.log(
+        `[lifecycle:reconcile] ${staleWorkspaces.length} stale workspace(s) detected:`,
+        staleWorkspaces.map(ws => `${ws.name} (${Math.round((now - ws.updatedAt) / (24 * 60 * 60 * 1000))}d idle)`).join(', '),
+      );
+    }
+
+    // Phase 4: Git worktree prune to clean up dead references
+    const parentRepos = new Set(allWorkspaces.map(ws => ws.parentRepo));
+    for (const repo of parentRepos) {
+      try {
+        const { execFile: execFileCb } = await import('child_process');
+        const { promisify: promisifyFn } = await import('util');
+        const execFileAsync = promisifyFn(execFileCb);
+        await execFileAsync('git', ['worktree', 'prune'], { cwd: repo, timeout: 10000 });
+      } catch {
+        // Best-effort cleanup
+      }
+    }
   }
 
   // -----------------------------------------------------------------------

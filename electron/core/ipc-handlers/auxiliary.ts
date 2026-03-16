@@ -3,6 +3,7 @@ import { execFile, spawn, type ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import * as pty from 'node-pty';
 
 import { agentManager } from '../agents/manager';
 import type { AgentHandle } from '../agents/types';
@@ -458,20 +459,24 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     }
   });
 
-  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd }: { id: string; cwd?: string }) => {
-    requireFields({ id }, 'id');
-    let shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
-    if (process.platform !== 'win32') {
-      const preferred = process.env.SHELL;
-      if (preferred && fs.existsSync(preferred)) {
-        shell = preferred;
-      }
-    }
-    const spawnCwd = getSshHost() ? getLocalCwd() : (termCwd ?? getCurrentCwd());
+  // PTY-based terminal management (node-pty)
+  const activePtys = new Map<string, pty.IPty>();
 
-    let proc: ChildProcess;
-    if (getSshHost()) {
-      proc = spawn(resolveSshCommand(), ['-tt', getSshHost()!], {
+  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId }: { id: string; cwd?: string; workspaceId?: string }) => {
+    requireFields({ id }, 'id');
+
+    // Resolve cwd: workspace worktree path > explicit cwd > current cwd
+    let spawnCwd: string;
+    if (workspaceId) {
+      const ws = workspaceStore.get(workspaceId);
+      spawnCwd = ws?.worktreePath ?? termCwd ?? getCurrentCwd();
+    } else {
+      spawnCwd = getSshHost() ? getLocalCwd() : (termCwd ?? getCurrentCwd());
+    }
+
+    if (getSshHost() && !workspaceId) {
+      // SSH: fall back to child_process with pseudo-tty allocation
+      const proc = spawn(resolveSshCommand(), ['-tt', getSshHost()!], {
         cwd: spawnCwd,
         env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -479,28 +484,48 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       if (termCwd) {
         safeWriteToChildStdin(proc, `cd ${toRemoteShellPath(termCwd)}\n`, `terminal:${id}`);
       }
-    } else {
-      const shellArgs = process.platform === 'win32' ? ['-NoLogo', '-NoExit'] : ['-i'];
-      proc = spawn(shell, shellArgs, {
-        cwd: spawnCwd,
-        env: extendedEnv({ TERM: 'xterm-256color' }),
-        stdio: ['pipe', 'pipe', 'pipe'],
+      attachChildStdinErrorHandler(proc, `terminal:${id}`);
+      activeTerminals.set(id, proc);
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        sendToRenderer('terminal:data', { id, data: data.toString() });
       });
+      proc.stderr?.on('data', (data: Buffer) => {
+        sendToRenderer('terminal:data', { id, data: data.toString() });
+      });
+      proc.on('exit', () => {
+        activeTerminals.delete(id);
+        sendToRenderer('terminal:exit', { id });
+      });
+      return { id };
     }
-    attachChildStdinErrorHandler(proc, `terminal:${id}`);
 
-    activeTerminals.set(id, proc);
+    // Local: use node-pty for proper PTY support
+    let shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
+    if (process.platform !== 'win32') {
+      const preferred = process.env.SHELL;
+      if (preferred && fs.existsSync(preferred)) {
+        shell = preferred;
+      }
+    }
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      sendToRenderer('terminal:data', { id, data: data.toString() });
+    const shellArgs = process.platform === 'win32' ? [] : ['-i'];
+    const ptyProcess = pty.spawn(shell, shellArgs, {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      cwd: spawnCwd,
+      env: extendedEnv({ TERM: 'xterm-256color' }) as Record<string, string>,
     });
 
-    proc.stderr?.on('data', (data: Buffer) => {
-      sendToRenderer('terminal:data', { id, data: data.toString() });
+    activePtys.set(id, ptyProcess);
+
+    ptyProcess.onData((data: string) => {
+      sendToRenderer('terminal:data', { id, data });
     });
 
-    proc.on('exit', () => {
-      activeTerminals.delete(id);
+    ptyProcess.onExit(() => {
+      activePtys.delete(id);
       sendToRenderer('terminal:exit', { id });
     });
 
@@ -508,15 +533,30 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   });
 
   ipcMain.handle('terminal:write', async (_event, { id, data }: { id: string; data: string }) => {
+    const ptyProc = activePtys.get(id);
+    if (ptyProc) {
+      ptyProc.write(data);
+      return;
+    }
+    // Fallback: legacy child_process terminal (SSH)
     const proc = activeTerminals.get(id);
     if (proc) safeWriteToChildStdin(proc, data, `terminal:${id}`);
   });
 
-  ipcMain.handle('terminal:resize', async (_event, { id: _id, cols: _cols, rows: _rows }: { id: string; cols: number; rows: number }) => {
-    // resize not supported without node-pty — no-op
+  ipcMain.handle('terminal:resize', async (_event, { id, cols, rows }: { id: string; cols: number; rows: number }) => {
+    const ptyProc = activePtys.get(id);
+    if (ptyProc) {
+      ptyProc.resize(cols, rows);
+    }
   });
 
   ipcMain.handle('terminal:kill', async (_event, { id }: { id: string }) => {
+    const ptyProc = activePtys.get(id);
+    if (ptyProc) {
+      ptyProc.kill();
+      activePtys.delete(id);
+      return;
+    }
     const proc = activeTerminals.get(id);
     if (proc) {
       proc.kill();

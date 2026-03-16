@@ -164,6 +164,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'project-group:rename',
     'project-group:delete',
     'workspace:list-multi',
+    'workspace:run-command',
+    'workspace:detect-scripts',
+    'workspace:stop-run',
+    'workspace:merge',
+    'workspace:merge-preview',
+    'workspace:create-pr',
+    'workspace:disk-usage',
+    'workspace:prune-stale',
   ];
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
