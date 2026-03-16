@@ -2,6 +2,19 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { DetectedAgent, AgentId, ThinkingLevel, ModelInfo } from '../lib/types';
 
+/**
+ * Map full Claude model IDs (as reported by the CLI/session) back to the
+ * short aliases used in CLAUDE_DEFAULTS so the selector stays consistent.
+ * Only applies when agentId is 'claude-code'.
+ */
+export function normalizeClaudeCodeModel(model: string, agentId?: string): string {
+  if (!model || (agentId && agentId !== 'claude-code')) return model;
+  if (/^claude-opus/.test(model)) return 'opus';
+  if (/^claude-sonnet/.test(model)) return 'sonnet';
+  if (/^claude-haiku/.test(model)) return 'haiku';
+  return model;
+}
+
 interface AgentState {
   agents: DetectedAgent[];
   selectedAgentId: AgentId;
@@ -119,11 +132,12 @@ export const useAgentStore = create<AgentState>()(
     },
 
     syncToWorkspace(agentId, model, thinking?) {
+      const normalizedModel = normalizeClaudeCodeModel(model, agentId);
       const current = get();
       const agentChanged = current.selectedAgentId !== agentId;
       set((state) => {
         state.selectedAgentId = agentId;
-        state.selectedModel = model;
+        state.selectedModel = normalizedModel;
         state.selectedThinking = thinking ?? 'medium';
         if (agentChanged) {
           state.dynamicModels = [];

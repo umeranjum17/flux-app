@@ -49,7 +49,12 @@ export function StatusLine() {
   }, []);
 
   const agentName = selectedAgent?.name ?? selectedAgentId;
-  const model = activeTask?.model ?? selectedModel;
+  const rawModel = activeTask?.model ?? selectedModel;
+  // Resolve to a friendly display name: exact match in dynamicModels first,
+  // then substring match for full Claude IDs (e.g. 'claude-opus-4-6' → 'Claude Opus 4.6').
+  const model = dynamicModels.find((m) => m.id === rawModel)?.name
+    ?? dynamicModels.find((m) => rawModel.includes(m.id))?.name
+    ?? rawModel;
   const thinking = activeTask?.thinking ?? selectedThinking;
   const cost = activeTask?.costUsd ?? 0;
   const tokens = (activeTask?.inputTokens ?? 0) + (activeTask?.outputTokens ?? 0);

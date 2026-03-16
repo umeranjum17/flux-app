@@ -15,7 +15,7 @@ import { BottomPanel } from './BottomPanel';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { type TerminalPanelHandle } from '../terminal/TerminalPanel';
 import { useUiStore } from '../../stores/ui';
-import { useAgentStore } from '../../stores/agent';
+import { useAgentStore, normalizeClaudeCodeModel } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { toast } from 'sonner';
@@ -188,7 +188,7 @@ export function AppShell() {
           id: taskId,
           title: workspaceSession.label || session.title || workspace.name,
           agentId: (session.agentId || workspace.agentId) as any,
-          model: session.model || workspace.model,
+          model: normalizeClaudeCodeModel(session.model || workspace.model, session.agentId || workspace.agentId),
           mode: session.mode,
           thinking,
           cwd: workspace.worktreePath,
