@@ -70,9 +70,9 @@ interface UiState {
   // File activity panel (per workspace/task)
   fileActivityPanelOpenContexts: Set<string>;
 
-  // Workspace side panel (right side: files, search, activity)
+  // Workspace side panel (right side: files, search, activity/review)
   workspacePanelOpen: boolean;
-  workspacePanelTab: 'files' | 'search' | 'activity' | 'changes';
+  workspacePanelTab: 'files' | 'search' | 'activity';
 
   // Smart terminal input
   inputMode: 'chat' | 'terminal';
@@ -121,9 +121,9 @@ interface UiState {
   setFileActivityPanelOpen(open: boolean, contextKey: string): void;
   toggleFileActivityPanel(contextKey: string): void;
   setWorkspacePanelOpen(open: boolean): void;
-  setWorkspacePanelTab(tab: 'files' | 'search' | 'activity' | 'changes'): void;
+  setWorkspacePanelTab(tab: 'files' | 'search' | 'activity'): void;
   toggleWorkspacePanel(): void;
-  openWorkspacePanelTab(tab: 'files' | 'search' | 'activity' | 'changes'): void;
+  openWorkspacePanelTab(tab: 'files' | 'search' | 'activity'): void;
   setInputMode(mode: 'chat' | 'terminal'): void;
   toggleInputMode(): void;
   addShellCommand(cmd: string): void;

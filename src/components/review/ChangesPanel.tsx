@@ -6,8 +6,8 @@ import { ReviewDiffViewer } from './ReviewDiffViewer';
 
 /**
  * ChangesPanel — overlay that shows the diff for the currently selected changed file.
- * The file list lives in WorkspaceSidePanel (PanelChangesTab) so both "All Files"
- * and "Changes" share the same sidebar → overlay UX pattern.
+ * The file list lives in WorkspaceSidePanel (PanelActivityTab) so both file activity
+ * and review changes share the same sidebar → overlay UX pattern.
  */
 export function ChangesPanel() {
   const open = useWorkspaceStore((s) => s.changesPanelOpen);
@@ -19,12 +19,12 @@ export function ChangesPanel() {
     useWorkspaceStore.getState().closeChangesPanel();
   }, []);
 
-  // Auto-open workspace side panel (Changes tab) so file list is available
+  // Auto-open workspace side panel (Activity tab) so the review file list is available
   useEffect(() => {
     if (open && !useUiStore.getState().workspacePanelOpen) {
-      useUiStore.getState().openWorkspacePanelTab('changes');
+      useUiStore.getState().openWorkspacePanelTab('activity');
     } else if (open) {
-      useUiStore.getState().setWorkspacePanelTab('changes');
+      useUiStore.getState().setWorkspacePanelTab('activity');
     }
   }, [open]);
 

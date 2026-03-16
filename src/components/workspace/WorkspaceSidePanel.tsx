@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight, GitCompareArrows } from 'lucide-react';
+import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -7,13 +7,12 @@ import { FileTree, type TreeNode } from '../explorer/FileTree';
 import { FileActivityPanel } from '../review/FileActivityPanel';
 import { FileChangelist } from '../review/FileChangelist';
 
-type PanelTab = 'files' | 'search' | 'activity' | 'changes';
+type PanelTab = 'files' | 'search' | 'activity';
 
 const PANEL_TABS: { id: PanelTab; icon: typeof Files; label: string }[] = [
   { id: 'files', icon: Files, label: 'Files' },
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'activity', icon: FilePen, label: 'Activity' },
-  { id: 'changes', icon: GitCompareArrows, label: 'Changes' },
 ];
 
 /**
@@ -38,19 +37,15 @@ function useEffectiveCwd(): string {
 export function WorkspaceSidePanel() {
   const open = useUiStore((s) => s.workspacePanelOpen);
   const activeTab = useUiStore((s) => s.workspacePanelTab);
-  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
 
   if (!open) return null;
-
-  // Only show the changes tab icon when a changes panel is active
-  const visibleTabs = changesPanelOpen ? PANEL_TABS : PANEL_TABS.filter((t) => t.id !== 'changes');
 
   return (
     <div className="w-[280px] shrink-0 border-l border-border/50 bg-bg-surface/30 flex flex-col">
       {/* Tab bar */}
       <div className="flex items-center justify-between border-b border-border/40 px-2 py-1">
         <div className="flex items-center gap-0.5">
-          {visibleTabs.map(({ id, icon: Icon, label }) => (
+          {PANEL_TABS.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => useUiStore.getState().setWorkspacePanelTab(id)}
@@ -75,7 +70,6 @@ export function WorkspaceSidePanel() {
         {activeTab === 'files' && <PanelFilesTab />}
         {activeTab === 'search' && <PanelSearchTab />}
         {activeTab === 'activity' && <PanelActivityTab />}
-        {activeTab === 'changes' && <PanelChangesTab />}
       </div>
     </div>
   );
@@ -299,6 +293,7 @@ function PanelSearchTab() {
 
 function PanelActivityTab() {
   const task = useChatStore((s) => s.getActiveTask());
+  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const contextKey = task?.workspaceId ?? task?.id ?? '';
 
   // Ensure the file-activity context is "open" while this tab is shown
@@ -307,6 +302,10 @@ function PanelActivityTab() {
       useUiStore.getState().setFileActivityPanelOpen(true, contextKey);
     }
   }, [contextKey]);
+
+  if (changesPanelOpen) {
+    return <PanelChangesTab />;
+  }
 
   return <FileActivityPanel embedded />;
 }
