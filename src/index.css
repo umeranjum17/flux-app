@@ -200,7 +200,160 @@ button:focus-visible {
   background: var(--plan-gradient);
   border-color: var(--color-border);
   box-shadow: var(--panel-shadow);
-  border-radius: 7px;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle left accent stripe on plan card */
+.premium-plan-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--color-plan) 0%, transparent 100%);
+  opacity: 0.5;
+  border-radius: 10px 0 0 10px;
+}
+
+/* Plan card header */
+.plan-card-header {
+  background: var(--surface-tint-soft);
+}
+
+.plan-card-icon-badge {
+  border: 1px solid var(--surface-border-soft);
+}
+
+/* Plan card sections */
+.plan-card-sections {
+  /* no dividers — sections use spacing instead */
+}
+
+.plan-card-section + .plan-card-section {
+  border-top: 1px solid hsl(0 0% 100% / 0.04);
+}
+
+.plan-section-header {
+  border: none;
+  border-radius: 0;
+}
+
+.plan-section-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-tint-soft);
+  border: 1px solid var(--surface-border-soft);
+  flex-shrink: 0;
+}
+
+.plan-step-count {
+  background: var(--surface-tint-medium);
+  color: var(--color-text-tertiary);
+  border: 1px solid var(--surface-border-soft);
+}
+
+/* Step timeline */
+.plan-step-timeline {
+  padding-left: 0;
+}
+
+.plan-step-item {
+  position: relative;
+}
+
+.plan-step-connector {
+  position: absolute;
+  left: 10px;
+  top: 22px;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.plan-step-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 160ms ease;
+  flex-shrink: 0;
+  margin-top: 1px;
+  position: relative;
+  z-index: 1;
+}
+
+.plan-step-badge:hover {
+  border-color: var(--color-plan);
+  color: var(--color-plan);
+  background: var(--surface-tint-medium);
+}
+
+.plan-step-badge-done {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+}
+
+.plan-step-badge-done:hover {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+  opacity: 0.85;
+}
+
+/* Progress bar */
+.plan-progress-track {
+  height: 3px;
+  width: 100%;
+  background: var(--color-border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.plan-progress-fill {
+  height: 100%;
+  background: var(--color-success);
+  border-radius: 99px;
+  transition: width 300ms ease;
+}
+
+/* Implement button */
+.plan-implement-btn {
+  background: var(--color-success);
+  box-shadow: 0 1px 3px hsl(148 42% 40% / 0.25);
+}
+
+.plan-implement-btn:hover {
+  background: hsl(148 42% 48%);
+  box-shadow: 0 2px 8px hsl(148 42% 40% / 0.35);
+  transform: translateY(-0.5px);
+}
+
+.plan-implement-btn:active {
+  transform: translateY(0);
+}
+
+/* Light theme plan card overrides */
+.theme-light .plan-card-section + .plan-card-section {
+  border-color: hsl(0 0% 0% / 0.06);
+}
+
+.theme-light .premium-plan-card::before {
+  background: linear-gradient(180deg, var(--color-plan) 0%, transparent 100%);
+  opacity: 0.6;
 }
 
 .premium-tool-card {

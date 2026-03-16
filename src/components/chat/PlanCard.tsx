@@ -13,6 +13,12 @@ import {
   Save,
   History,
   GitBranch,
+  FileText,
+  Search,
+  ListOrdered,
+  Scale,
+  ShieldCheck,
+  Lightbulb,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
@@ -20,6 +26,22 @@ import { useUiStore } from '../../stores/ui';
 import { markdownComponents } from './MarkdownComponents';
 import type { Task } from '../../lib/types';
 import { getLatestPlanText } from '../../lib/plan';
+
+/** Map section title keywords to icons and accent colors */
+function getSectionMeta(title: string): { icon: React.ReactNode; accent: string } {
+  const t = title.toLowerCase();
+  if (t.includes('summary') || t.includes('overview'))
+    return { icon: <FileText size={13} />, accent: 'text-info' };
+  if (t.includes('analysis') || t.includes('context'))
+    return { icon: <Search size={13} />, accent: 'text-warning' };
+  if (t.includes('step') || t.includes('implementation') || t.includes('plan'))
+    return { icon: <ListOrdered size={13} />, accent: 'text-success' };
+  if (t.includes('trade') || t.includes('consideration') || t.includes('risk'))
+    return { icon: <Scale size={13} />, accent: 'text-warning' };
+  if (t.includes('verification') || t.includes('test') || t.includes('validate'))
+    return { icon: <ShieldCheck size={13} />, accent: 'text-info' };
+  return { icon: <Lightbulb size={13} />, accent: 'text-text-secondary' };
+}
 
 interface PlanSection {
   title: string;
@@ -169,6 +191,22 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
     });
   }, [task, setTaskMode, setTaskStatus, showCheckpoint]);
 
+  // Compute total steps + checked count for progress display
+  const stepSections = useMemo(() => {
+    const allSteps: { sectionIdx: number; steps: StepInfo[] }[] = [];
+    sections.forEach((section, idx) => {
+      if (section.title.toLowerCase().includes('step')) {
+        const steps = extractSteps(section.content);
+        if (steps.length > 0) allSteps.push({ sectionIdx: idx, steps });
+      }
+    });
+    return allSteps;
+  }, [sections]);
+
+  const totalSteps = stepSections.reduce((sum, s) => sum + s.steps.length, 0);
+  const completedSteps = stepSections.reduce((sum, s) =>
+    sum + s.steps.filter((_, i) => checkedSteps.has(`${s.sectionIdx}:${i}`)).length, 0);
+
   const isDone = task.status === 'done';
   // Show action bar whenever plan text is available — the SDK may not call
   // ExitPlanMode, leaving the task stuck in 'running'. This ensures the user
@@ -180,14 +218,21 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
       isStreaming ? 'border-plan/20' : ''
     }`}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="plan-card-header flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-plan/10 text-plan">
-            <ClipboardList size={13} />
+          <div className="plan-card-icon-badge flex h-7 w-7 items-center justify-center rounded-lg bg-plan/10 text-plan">
+            <ClipboardList size={14} />
           </div>
-          <span className="text-[13px] font-medium text-text-primary">
-            {isStreaming ? 'Generating plan...' : 'Plan'}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-[13px] font-semibold text-text-primary leading-tight">
+              {isStreaming ? 'Generating plan...' : 'Plan'}
+            </span>
+            {!isStreaming && totalSteps > 0 && (
+              <span className="text-[11px] text-text-tertiary leading-tight">
+                {completedSteps}/{totalSteps} steps completed
+              </span>
+            )}
+          </div>
           {isStreaming && (
             <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
           )}
@@ -277,38 +322,51 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Plan sections */}
       {!editing && (
-        <div className="divide-y divide-border/60">
+        <div className="plan-card-sections">
           {sections.map((section, idx) => {
             const isExpanded = expandedSections.has(idx);
-            const steps = section.title.toLowerCase().includes('step')
-              ? extractSteps(section.content)
-              : [];
+            const isStepSection = section.title.toLowerCase().includes('step');
+            const steps = isStepSection ? extractSteps(section.content) : [];
+            const meta = getSectionMeta(section.title);
+            const sectionChecked = steps.filter((_, i) => checkedSteps.has(`${idx}:${i}`)).length;
 
             return (
-              <div key={idx}>
+              <div key={idx} className="plan-card-section">
                 <button
                   onClick={() => toggleSection(idx)}
-                  className="premium-toolbar-button flex w-full items-center gap-2 rounded-none px-4 py-2.5 text-left"
+                  className="plan-section-header flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-bg-hover/50"
                 >
+                  <span className={`plan-section-icon shrink-0 ${meta.accent}`}>
+                    {meta.icon}
+                  </span>
                   {isExpanded
-                    ? <ChevronDown size={13} className="text-text-tertiary shrink-0" />
-                    : <ChevronRight size={13} className="text-text-tertiary shrink-0" />
+                    ? <ChevronDown size={12} className="text-text-tertiary shrink-0" />
+                    : <ChevronRight size={12} className="text-text-tertiary shrink-0" />
                   }
-                  <span className="text-sm font-medium text-text-primary">{section.title}</span>
+                  <span className="text-[13px] font-semibold text-text-primary flex-1">{section.title}</span>
+                  {steps.length > 0 && (
+                    <span className="plan-step-count text-[10px] font-medium px-1.5 py-0.5 rounded-full">
+                      {sectionChecked}/{steps.length}
+                    </span>
+                  )}
                 </button>
                 {isExpanded && (
-                  <div className="px-4 pb-3 pl-9">
+                  <div className="px-4 pb-4 pt-1 pl-[2.75rem]">
                     {steps.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="plan-step-timeline relative">
                         {steps.map((step, stepIdx) => {
                           const stepKey = `${idx}:${stepIdx}`;
                           const checked = checkedSteps.has(stepKey);
+                          const isLast = stepIdx === steps.length - 1;
                           return (
-                            <div key={stepKey} className="flex items-start gap-2 text-sm group">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
+                            <div key={stepKey} className="plan-step-item flex items-start gap-3 group relative">
+                              {/* Timeline connector */}
+                              {!isLast && (
+                                <div className="plan-step-connector" />
+                              )}
+                              {/* Numbered badge */}
+                              <button
+                                onClick={() => {
                                   setCheckedSteps((prev) => {
                                     const next = new Set(prev);
                                     if (next.has(stepKey)) next.delete(stepKey);
@@ -316,12 +374,18 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                                     return next;
                                   });
                                 }}
-                                className="mt-1 shrink-0 accent-plan cursor-pointer"
-                              />
-                              <div className={`${checked ? 'text-text-tertiary line-through' : 'text-text-primary'} transition-colors min-w-0 flex-1`}>
-                                <span className="font-medium">{step.title}</span>
+                                className={`plan-step-badge shrink-0 ${checked ? 'plan-step-badge-done' : ''}`}
+                                title={checked ? 'Mark incomplete' : 'Mark complete'}
+                              >
+                                {checked ? <Check size={10} /> : <span className="text-[10px] font-semibold">{stepIdx + 1}</span>}
+                              </button>
+                              {/* Step content */}
+                              <div className={`plan-step-content flex-1 min-w-0 pb-4 ${checked ? 'opacity-50' : ''}`}>
+                                <span className={`text-[13px] font-medium leading-snug ${checked ? 'text-text-tertiary line-through' : 'text-text-primary'} transition-colors`}>
+                                  {step.title}
+                                </span>
                                 {step.body && (
-                                  <div className="markdown-prose mt-1 text-sm">
+                                  <div className="markdown-prose mt-1.5 text-[12.5px] text-text-secondary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                                       {step.body}
                                     </ReactMarkdown>
@@ -333,7 +397,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                         })}
                       </div>
                     ) : (
-                      <div className="markdown-prose text-sm text-text-primary">
+                      <div className="markdown-prose text-[13px] text-text-primary">
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                           {section.content}
                         </ReactMarkdown>
@@ -349,26 +413,39 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
       {/* Action bar */}
       {canAct && !editing && (
-        <div className="flex items-center justify-between border-t border-border px-4 py-3">
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showCheckpoint}
-                onChange={(e) => setShowCheckpoint(e.target.checked)}
-                className="accent-plan"
-              />
-              <GitBranch size={11} />
-              Checkpoint before implementing
-            </label>
+        <div className="plan-card-actions border-t border-border">
+          {/* Progress bar */}
+          {totalSteps > 0 && (
+            <div className="px-4 pt-3">
+              <div className="plan-progress-track">
+                <div
+                  className="plan-progress-fill"
+                  style={{ width: `${totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showCheckpoint}
+                  onChange={(e) => setShowCheckpoint(e.target.checked)}
+                  className="accent-plan"
+                />
+                <GitBranch size={11} />
+                Checkpoint before implementing
+              </label>
+            </div>
+            <button
+              onClick={handleImplement}
+              className="plan-implement-btn flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white transition-all"
+            >
+              <Play size={13} />
+              Implement Plan
+            </button>
           </div>
-          <button
-            onClick={handleImplement}
-            className="flex items-center gap-1.5 rounded-lg bg-success px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-success/85"
-          >
-            <Play size={13} />
-            Implement Plan
-          </button>
         </div>
       )}
     </div>
