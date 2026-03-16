@@ -9,6 +9,7 @@ import {
   mapClaudeEffort as _mapClaudeEffort,
 } from './claude-utils';
 import { repairSessionQueue } from './session-repair';
+import { classifyErrorContent } from './spawn-utils';
 
 export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
 
@@ -811,11 +812,14 @@ function mapClaudeEvent(event: Record<string, any>): AgentMessage | AgentMessage
   }
 
   if (event.type === 'error') {
+    const rawContent = event.message ?? event.error ?? 'Claude reported an error';
+    const classified = classifyErrorContent(rawContent);
     return {
       type: 'error',
       role: 'system',
-      content: event.message ?? event.error ?? 'Claude reported an error',
+      content: classified?.message ?? rawContent,
       timestamp: now,
+      ...(classified ? { errorKind: classified.errorKind } : {}),
     };
   }
 

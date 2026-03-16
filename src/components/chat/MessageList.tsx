@@ -441,6 +441,58 @@ function PlanActionBar({ task }: { task: Task }) {
   );
 }
 
+function AuthErrorBlock() {
+  const [running, setRunning] = React.useState(false);
+  const [result, setResult] = React.useState<{ ok: boolean; message: string } | null>(null);
+  const task = useChatStore.getState().getActiveTask();
+  const cwd = task?.cwd ?? process.cwd?.() ?? '/';
+
+  const handleLogin = async () => {
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await window.api.invoke('shell:exec', {
+        command: 'claude /login',
+        cwd,
+        timeout: 60_000,
+      }) as { stdout: string; stderr: string; exitCode: number };
+      if (res.exitCode === 0) {
+        setResult({ ok: true, message: 'Logged in successfully. You can now send a new message.' });
+      } else {
+        setResult({ ok: false, message: res.stderr || 'Login command failed. Try running it manually in your terminal.' });
+      }
+    } catch {
+      setResult({ ok: false, message: 'Could not run login command. Try running "claude /login" in your terminal.' });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-error/30 bg-error/5 p-4 space-y-3">
+      <span className="inline-block rounded px-2 py-0.5 text-xs font-semibold tracking-wide uppercase bg-error/15 text-error border border-error/20">
+        Authentication Required
+      </span>
+      <p className="text-sm text-text-secondary">
+        To resolve, please run <code className="px-1.5 py-0.5 rounded bg-bg-tertiary text-text-primary text-xs font-mono">claude /login</code> and then restart Conductor:
+      </p>
+      <button
+        onClick={handleLogin}
+        disabled={running}
+        className="inline-flex items-center gap-2 rounded-lg border border-border-primary bg-bg-secondary px-3 py-1.5 text-sm text-text-primary hover:bg-bg-tertiary transition-colors disabled:opacity-50"
+      >
+        <Play className="w-3 h-3" />
+        <code className="font-mono text-xs">claude /login</code>
+      </button>
+      {result && (
+        <p className={`text-xs ${result.ok ? 'text-success' : 'text-error'}`}>
+          {result.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function renderMessage(
   msg: AgentMessage,
   _idx: number,
@@ -515,6 +567,9 @@ function renderMessage(
       return <ThinkingBlock content={msg.content} active={isActiveRun} />;
 
     case 'error':
+      if (msg.errorKind === 'auth') {
+        return <AuthErrorBlock />;
+      }
       return (
         <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-error text-sm">
           {msg.content}

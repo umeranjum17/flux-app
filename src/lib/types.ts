@@ -37,6 +37,7 @@ export interface AgentMessage {
   content: string;
   timestamp: number;
   statusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
+  errorKind?: 'auth' | 'rate_limit' | 'network' | 'context';
   subagentId?: string;
   subagentName?: string;
   subagentStatus?: 'spawning' | 'running' | 'done' | 'error';

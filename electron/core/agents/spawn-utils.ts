@@ -182,6 +182,52 @@ export function filterStderrNoise(text: string): string | null {
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
+export type ErrorKind = 'auth' | 'rate_limit' | 'network' | 'context';
+
+const AUTH_PATTERNS = [
+  'authentication_error',
+  'oauth token has expired',
+  'unauthorized',
+  'invalid api key',
+  'invalid_api_key',
+  'failed to authenticate',
+  'authentication failed',
+];
+
+/**
+ * Detect well-known error categories from raw error text and return
+ * a user-friendly message + errorKind, or null if unrecognized.
+ */
+export function classifyErrorContent(content: string): { errorKind: ErrorKind; message: string } | null {
+  const lower = content.toLowerCase();
+
+  if (AUTH_PATTERNS.some(p => lower.includes(p))) {
+    return {
+      errorKind: 'auth',
+      message: 'Authentication failed. Please re-authenticate to continue.',
+    };
+  }
+  if (lower.includes('rate limit') || lower.includes('rate_limit') || lower.includes('overloaded')) {
+    return {
+      errorKind: 'rate_limit',
+      message: 'Rate limited by API. Wait a few minutes or switch to a different model.',
+    };
+  }
+  if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('network') || lower.includes('fetch failed')) {
+    return {
+      errorKind: 'network',
+      message: 'Network connectivity issue. Check your internet connection.',
+    };
+  }
+  if (lower.includes('context window') || lower.includes('context length') || lower.includes('too many tokens')) {
+    return {
+      errorKind: 'context',
+      message: 'Context window exceeded. Start a new session or use a model with larger context.',
+    };
+  }
+  return null;
+}
+
 export function isMeaningfulMessage(message: AgentMessage): boolean {
   if (
     message.type === 'error' ||

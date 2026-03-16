@@ -46,6 +46,7 @@ import {
 } from './utils';
 
 import { trackAgentPid, untrackAgentPid } from '../agents/pid-tracker';
+import { classifyErrorContent } from '../agents/spawn-utils';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -1051,7 +1052,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           if (!lifecycleManager.isTaskActive(options.taskId)) return;
 
           // ── Emit done + update workspace lifecycle ──
-          sendToRenderer('agent:done', { taskId: options.taskId, error: finalError });
+          const doneErrorKind = finalError ? classifyErrorContent(finalError)?.errorKind : undefined;
+          sendToRenderer('agent:done', { taskId: options.taskId, error: finalError, errorKind: doneErrorKind });
 
           if (workspace) {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
