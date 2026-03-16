@@ -50,6 +50,19 @@ export function isPlanMessage(message: AgentMessage, taskMode?: 'plan' | 'act'):
 }
 
 /**
+ * Clean a raw numbered-item title for display. Extracts the bold prefix
+ * if the model wrote `**Title**: details`, otherwise truncates long titles.
+ */
+function cleanStepLabel(raw: string): string {
+  const boldMatch = raw.match(/^\*\*(.+?)\*\*\s*[:–—-]/);
+  if (boldMatch) return boldMatch[1].trim();
+  const codeMatch = raw.match(/^`(.+?)`\s*[:–—-]/);
+  if (codeMatch) return codeMatch[1].trim();
+  if (raw.length > 80) return raw.slice(0, 80).replace(/\s+\S*$/, '').trim();
+  return raw;
+}
+
+/**
  * Extract numbered steps from plan text into TodoItem entries.
  * Looks for the "Steps" section first; falls back to all numbered lines.
  */
@@ -60,7 +73,7 @@ export function extractPlanSteps(planText: string): TodoItem[] {
   for (const line of source.split('\n')) {
     const match = line.match(/^\d+\.\s+(.+)/);
     if (match) {
-      items.push({ id: items.length + 1, label: match[1].trim(), status: 'pending' });
+      items.push({ id: items.length + 1, label: cleanStepLabel(match[1].trim()), status: 'pending' });
     }
   }
   return items;

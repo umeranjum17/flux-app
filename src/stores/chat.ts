@@ -60,7 +60,7 @@ interface ChatState {
   switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string): void;
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
-  updateTodoItem(taskId: string, stepId: number, status: TodoItem['status']): void;
+  updateTodoItem(taskId: string, stepId: number, status: TodoItem['status'], label?: string): void;
   addSystemActivity(taskId: string, activity: SystemActivity): void;
   addSystemActivityForWorkspace(workspaceId: string, activity: SystemActivity): void;
   scrollToFileEdit(toolCallId: string): boolean;
@@ -380,12 +380,15 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
-    updateTodoItem(taskId, stepId, status) {
+    updateTodoItem(taskId, stepId, status, label?) {
       set((state) => {
         const task = state.tasks.get(taskId);
         if (!task?.todoItems) return;
         const item = task.todoItems.find((t) => t.id === stepId);
-        if (item) item.status = status;
+        if (item) {
+          item.status = status;
+          if (label) item.label = label;
+        }
       });
     },
 

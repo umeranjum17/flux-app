@@ -49,6 +49,31 @@ describe('parseStepMarkers', () => {
     expect(parseStepMarkers('just some regular text')).toEqual([]);
     expect(parseStepMarkers('')).toEqual([]);
   });
+
+  it('extracts label from START marker with colon', () => {
+    expect(parseStepMarkers('[STEP 1 START: Set up database schema]')).toEqual([
+      { stepId: 1, status: 'in_progress', label: 'Set up database schema' },
+    ]);
+  });
+
+  it('preserves label when DONE wins over START', () => {
+    const markers = parseStepMarkers('[STEP 2 START: Add API endpoints] work [STEP 2 DONE]');
+    expect(markers).toEqual([{ stepId: 2, status: 'done', label: 'Add API endpoints' }]);
+  });
+
+  it('handles START without label (undefined)', () => {
+    const markers = parseStepMarkers('[STEP 3 START]');
+    expect(markers[0].label).toBeUndefined();
+  });
+
+  it('handles mixed labeled and unlabeled markers', () => {
+    const markers = parseStepMarkers(
+      '[STEP 1 START: Fix auth] done [STEP 1 DONE] [STEP 2 START]',
+    );
+    expect(markers).toHaveLength(2);
+    expect(markers).toContainEqual({ stepId: 1, status: 'done', label: 'Fix auth' });
+    expect(markers).toContainEqual({ stepId: 2, status: 'in_progress', label: undefined });
+  });
 });
 
 describe('getStepTrackableContent', () => {

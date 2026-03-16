@@ -750,13 +750,21 @@ export function buildWorkspaceSystemContext(
         '- Mark each step `in_progress` when you begin, `completed` when done.',
         '- This keeps the user informed of your progress in real time.',
       );
-    } else if (agentId === 'codex') {
+    } else if (agentId === 'codex' || agentId === 'copilot') {
       lines.push(
         '',
         '## Progress tracking',
-        'For multi-step tasks, track your progress by outputting markers:',
-        '- `[STEP <number> START]` when you begin a step.',
-        '- `[STEP <number> DONE]` when you complete a step.',
+        'For multi-step tasks, output progress markers on their own line:',
+        '- `[STEP 1 START: short description]` when you begin a step.',
+        '- `[STEP 1 DONE]` when you complete a step.',
+        '',
+        'The description after the colon is a short label (under 50 chars). Example:',
+        '```',
+        '[STEP 1 START: Set up database schema]',
+        '... working ...',
+        '[STEP 1 DONE]',
+        '[STEP 2 START: Add API endpoints]',
+        '```',
       );
     }
   } else if (mode === 'plan') {
@@ -765,6 +773,28 @@ export function buildWorkspaceSystemContext(
       '## Instructions',
       '- Analyze the codebase and create a detailed plan.',
       '- Do NOT modify files or run destructive commands.',
+      '',
+      '## Plan format',
+      'Structure your plan with these markdown sections:',
+      '',
+      '### Summary',
+      'One or two sentences describing the goal.',
+      '',
+      '### Analysis',
+      'Your findings from reading the code (free-form).',
+      '',
+      '### Steps',
+      'A numbered list of implementation steps. Each step MUST start with a SHORT title (under 60 characters), then details on the next line. Example:',
+      '',
+      '1. Add validation to login form',
+      '   Check email format and password length before submission.',
+      '',
+      '2. Create error display component',
+      '   Show inline errors below each field using the existing Alert component.',
+      '',
+      'IMPORTANT: Keep step titles short and action-oriented. Do NOT use bold markers, colons, or full sentences as titles.',
+      'Bad:  "1. **Authentication bug**: The login handler at line 45 fails when..."',
+      'Good: "1. Fix login handler validation"',
     );
   }
 
@@ -835,6 +865,19 @@ export async function writePlanFile(cwd: string, planText: string): Promise<stri
   }
 }
 
+/**
+ * Clean a raw numbered-item title for display. Extracts the bold prefix
+ * if the model wrote `**Title**: details`, otherwise truncates long titles.
+ */
+function cleanStepLabel(raw: string): string {
+  const boldMatch = raw.match(/^\*\*(.+?)\*\*\s*[:–—-]/);
+  if (boldMatch) return boldMatch[1].trim();
+  const codeMatch = raw.match(/^`(.+?)`\s*[:–—-]/);
+  if (codeMatch) return codeMatch[1].trim();
+  if (raw.length > 80) return raw.slice(0, 80).replace(/\s+\S*$/, '').trim();
+  return raw;
+}
+
 export function extractPlanTodoItems(sessionStore: SessionStore, sessionId: string): { label: string }[] {
   const messages = sessionStore.getMessages(sessionId);
   const planMsg = [...messages]
@@ -847,7 +890,7 @@ export function extractPlanTodoItems(sessionStore: SessionStore, sessionId: stri
   const items: { label: string }[] = [];
   for (const line of source.split('\n')) {
     const match = line.match(/^\d+\.\s+(.+)/);
-    if (match) items.push({ label: match[1].trim() });
+    if (match) items.push({ label: cleanStepLabel(match[1].trim()) });
   }
   return items;
 }
@@ -872,10 +915,9 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
   return [
     '',
     '## Progress tracking',
-    'Here are the plan steps. As you complete each step, output a line:',
-    '[STEP <number> DONE]',
-    'When you start working on a step, output:',
-    '[STEP <number> START]',
+    'Here are the plan steps. As you work through them, output markers on their own line:',
+    '- `[STEP <number> START: short description]` when you begin a step.',
+    '- `[STEP <number> DONE]` when you complete a step.',
     '',
     list,
     '',
@@ -885,27 +927,32 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
 export interface StepMarker {
   stepId: number;
   status: 'in_progress' | 'done';
+  /** Optional short label extracted from `[STEP N START: label]` */
+  label?: string;
 }
 
 /**
- * Scan a string for `[STEP N START]` and `[STEP N DONE]` markers.
+ * Scan a string for `[STEP N START]` / `[STEP N START: label]` and `[STEP N DONE]` markers.
  * Returns deduplicated markers — if a step appears as both START and DONE
- * in the same content block, the DONE wins.
+ * in the same content block, the DONE wins (but preserves the label from START).
  */
 export function parseStepMarkers(content: string): StepMarker[] {
   const markers = new Map<number, StepMarker>();
 
-  for (const m of content.matchAll(/\[STEP\s+(\d+)\s+START\]/gi)) {
+  // Match [STEP N START] or [STEP N START: some label]
+  for (const m of content.matchAll(/\[STEP\s+(\d+)\s+START(?:\s*:\s*([^\]]*))?\]/gi)) {
     const stepId = parseInt(m[1], 10);
+    const label = m[2]?.trim() || undefined;
     if (!markers.has(stepId)) {
-      markers.set(stepId, { stepId, status: 'in_progress' });
+      markers.set(stepId, { stepId, status: 'in_progress', label });
     }
   }
 
   for (const m of content.matchAll(/\[STEP\s+(\d+)\s+DONE\]/gi)) {
     const stepId = parseInt(m[1], 10);
-    // DONE always wins over START
-    markers.set(stepId, { stepId, status: 'done' });
+    // DONE always wins over START, but preserve the label if we already have one
+    const existing = markers.get(stepId);
+    markers.set(stepId, { stepId, status: 'done', label: existing?.label });
   }
 
   return Array.from(markers.values());

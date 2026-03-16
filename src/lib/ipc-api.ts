@@ -255,7 +255,7 @@ export interface IpcEvents {
   'agent:permission': { taskId: string; requestId: string; toolName: string; description: string; action?: string; path?: string };
   'agent:stall': { taskId: string; stallInfo: { type: string; toolName?: string; durationMs: number; autoRestartsRemaining: number } };
   'agent:todo': { taskId: string; todoItems: TodoItem[] };
-  'agent:todo-update': { taskId: string; stepId: number; status: TodoItem['status'] };
+  'agent:todo-update': { taskId: string; stepId: number; status: TodoItem['status']; label?: string };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };

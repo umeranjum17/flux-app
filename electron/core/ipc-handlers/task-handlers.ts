@@ -21,6 +21,7 @@ import {
   getAgentLabel,
   toStoredMessage,
   isRecord,
+  type NormalizedTodoItem,
   readAgentSessionId,
   runShellCommand,
   buildUserMessagePayload,
@@ -573,20 +574,20 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     // Emit deferred todo items now that the task is registered in the renderer
     let todoInitialized = false;
-    const pendingTodoUpdates: Array<{ stepId: number; status: 'in_progress' | 'done' }> = [];
+    const pendingTodoUpdates: Array<{ stepId: number; status: 'in_progress' | 'done'; label?: string }> = [];
 
-    const emitTodoUpdate = (taskId: string, stepId: number, status: 'in_progress' | 'done') => {
+    const emitTodoUpdate = (taskId: string, stepId: number, status: 'in_progress' | 'done', label?: string) => {
       if (!todoInitialized) {
-        pendingTodoUpdates.push({ stepId, status });
+        pendingTodoUpdates.push({ stepId, status, label });
         return;
       }
-      sendToRenderer('agent:todo-update', { taskId, stepId, status });
+      sendToRenderer('agent:todo-update', { taskId, stepId, status, ...(label ? { label } : {}) });
     };
 
     const flushTodoUpdates = (taskId: string) => {
       todoInitialized = true;
       for (const update of pendingTodoUpdates) {
-        sendToRenderer('agent:todo-update', { taskId, stepId: update.stepId, status: update.status });
+        sendToRenderer('agent:todo-update', { taskId, stepId: update.stepId, status: update.status, ...(update.label ? { label: update.label } : {}) });
       }
       pendingTodoUpdates.length = 0;
     };
@@ -758,8 +759,26 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         const trackable = getStepTrackableContent(message);
         if (trackable) {
           const markers = parseStepMarkers(trackable);
+          if (markers.length > 0 && !todoInitialized) {
+            // Auto-seed the todo list from step markers so the renderer has
+            // items to update. Without this, updates are buffered forever.
+            const labelMap = new Map(markers.filter((m) => m.label).map((m) => [m.stepId, m.label!]));
+            const doneIds = new Set(markers.filter((m) => m.status === 'done').map((m) => m.stepId));
+            const startIds = new Set(markers.filter((m) => m.status === 'in_progress').map((m) => m.stepId));
+            const maxStep = Math.max(...markers.map((m) => m.stepId));
+            const seeded: NormalizedTodoItem[] = [];
+            for (let step = 1; step <= maxStep; step++) {
+              seeded.push({
+                id: step,
+                label: labelMap.get(step) || `Step ${step}`,
+                status: doneIds.has(step) ? 'done' : startIds.has(step) ? 'in_progress' : 'pending',
+              });
+            }
+            sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: seeded });
+            flushTodoUpdates(options.taskId);
+          }
           for (const marker of markers) {
-            emitTodoUpdate(options.taskId, marker.stepId, marker.status);
+            emitTodoUpdate(options.taskId, marker.stepId, marker.status, marker.label);
           }
         }
       }
@@ -842,6 +861,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               if (freshMergeWs) {
                 await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
               }
+              // Merge is a one-shot action — emit agent:done now so the
+              // renderer finalizes the task without waiting for process exit.
+              sendToRenderer('agent:done', { taskId: options.taskId });
             } else {
               await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
 
@@ -1227,7 +1249,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             // detection, checkpoint, rename, and completion notification were
             // already emitted on turn completion.
             if (resultCompletionDone && !finalError) {
-              // Already handled — skip to finally cleanup
+              // Already handled — but still attempt merge outcome transition
+              // as a safety net in case the result handler's transition failed
+              // silently (e.g. git state wasn't ready yet during turn completion).
+              if (options.workspaceAction === 'merge' && options.mode === 'act') {
+                try {
+                  const freshMergeWs = workspaceStore.get(workspace.id) ?? workspace;
+                  await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
+                } catch (err) {
+                  console.error('[done-handler] Merge outcome safety-net failed:', err);
+                }
+              }
             } else {
 
             // Post-completion operations: branch detection, outcome transition,

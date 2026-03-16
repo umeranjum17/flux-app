@@ -85,19 +85,47 @@ interface StepInfo {
   body: string;
 }
 
+/**
+ * Clean up a raw step title extracted from numbered list items.
+ * If the model wrote a bold prefix like "**Fix login**: details here",
+ * extract just the bold part as the title and push the rest to the body.
+ */
+function cleanStepTitle(raw: string): { title: string; extraBody: string } {
+  // Pattern: **Bold title**: rest of line  or  **Bold title** - rest of line
+  const boldMatch = raw.match(/^\*\*(.+?)\*\*\s*[:–—-]\s*(.*)/);
+  if (boldMatch) {
+    return { title: boldMatch[1].trim(), extraBody: boldMatch[2].trim() };
+  }
+  // Pattern: `code title`: rest
+  const codeMatch = raw.match(/^`(.+?)`\s*[:–—-]\s*(.*)/);
+  if (codeMatch) {
+    return { title: codeMatch[1].trim(), extraBody: codeMatch[2].trim() };
+  }
+  // Truncate very long titles (over 80 chars) at a natural boundary
+  if (raw.length > 80) {
+    const truncated = raw.slice(0, 80).replace(/\s+\S*$/, '').trim();
+    return { title: truncated, extraBody: raw.slice(truncated.length).trim() };
+  }
+  return { title: raw, extraBody: '' };
+}
+
 function extractSteps(content: string): StepInfo[] {
   const steps: StepInfo[] = [];
   const lines = content.split('\n');
   let currentTitle = '';
+  let currentExtraBody = '';
   let currentBody: string[] = [];
 
   for (const line of lines) {
     const match = line.match(/^\d+\.\s+(.+)/);
     if (match) {
       if (currentTitle) {
-        steps.push({ title: currentTitle, body: currentBody.join('\n').trim() });
+        const fullBody = [currentExtraBody, ...currentBody].filter(Boolean).join('\n').trim();
+        steps.push({ title: currentTitle, body: fullBody });
       }
-      currentTitle = match[1];
+      const cleaned = cleanStepTitle(match[1]);
+      currentTitle = cleaned.title;
+      currentExtraBody = cleaned.extraBody;
       currentBody = [];
     } else if (currentTitle) {
       currentBody.push(line);
@@ -105,7 +133,8 @@ function extractSteps(content: string): StepInfo[] {
   }
 
   if (currentTitle) {
-    steps.push({ title: currentTitle, body: currentBody.join('\n').trim() });
+    const fullBody = [currentExtraBody, ...currentBody].filter(Boolean).join('\n').trim();
+    steps.push({ title: currentTitle, body: fullBody });
   }
 
   return steps;

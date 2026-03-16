@@ -125,8 +125,8 @@ export function useAgentStream() {
     });
 
     const unsubTodoUpdate = window.api.on('agent:todo-update', (data: unknown) => {
-      const { taskId, stepId, status } = data as { taskId: string; stepId: number; status: TodoItem['status'] };
-      useChatStore.getState().updateTodoItem(taskId, stepId, status);
+      const { taskId, stepId, status, label } = data as { taskId: string; stepId: number; status: TodoItem['status']; label?: string };
+      useChatStore.getState().updateTodoItem(taskId, stepId, status, label);
     });
 
     const unsubStall = window.api.on('agent:stall', (data: unknown) => {
