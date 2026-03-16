@@ -1,5 +1,5 @@
 import { AgentHandle, AgentMessage, SpawnOptions } from './types';
-import { createCliAgentHandle } from './cli-agent';
+import { createCliAgentHandle, CliAgentContext } from './cli-agent';
 
 export const COPILOT_STARTUP_TIMEOUT_MS = 30_000;
 
@@ -27,11 +27,49 @@ function classifyCopilotExit(code: number | null, stderr: string): string {
   return `GitHub Copilot exited with code ${code}${hint}`;
 }
 
+// Interval (ms) for coalescing token-level deltas into fewer IPC messages.
+// Copilot's --stream sends one event per token; without buffering, each tiny
+// delta triggers a SQLite write + IPC send + Zustand update, causing the UI to
+// bounce. 32 ms ≈ 2 animation frames — fast enough to feel live, slow enough
+// to batch dozens of tokens into a single message.
+const DELTA_FLUSH_INTERVAL_MS = 32;
+
 export function spawnCopilot(options: SpawnOptions): AgentHandle {
   // Streaming state: track whether deltas were received so we can suppress
   // the redundant full-content events that would otherwise double the text.
   let hasReceivedTextDelta = false;
   let hasReceivedReasoningDelta = false;
+
+  // --- Delta buffering ---
+  // Accumulate text / thinking deltas and flush them as a single merged
+  // AgentMessage on a short timer so the renderer gets fewer, larger updates.
+  let textBuffer = '';
+  let thinkingBuffer = '';
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flushDeltas(ctx: CliAgentContext) {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    const now = Date.now();
+    if (textBuffer) {
+      const chunk = textBuffer;
+      textBuffer = '';
+      ctx.emitMessage({ type: 'text', role: 'assistant', content: chunk, timestamp: now });
+    }
+    if (thinkingBuffer) {
+      const chunk = thinkingBuffer;
+      thinkingBuffer = '';
+      ctx.emitMessage({ type: 'thinking', role: 'assistant', content: chunk, timestamp: now });
+    }
+  }
+
+  function scheduleDeltaFlush(ctx: CliAgentContext) {
+    if (flushTimer === null) {
+      flushTimer = setTimeout(() => flushDeltas(ctx), DELTA_FLUSH_INTERVAL_MS);
+    }
+  }
 
   return createCliAgentHandle(options, {
     agentId: 'copilot',
@@ -74,18 +112,25 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
 
     hooks: {
       onEvent(event, ctx) {
-        // Track delta streaming to prevent content doubling.
-        // When --stream is on, the CLI sends token-level deltas followed by a
-        // full-content event. Without suppression the store's merge logic
-        // appends the full content to the accumulated deltas, visibly doubling text.
+        // Buffer token-level deltas instead of emitting each one individually.
+        // This coalesces many tiny IPC messages into fewer, larger ones,
+        // preventing the UI from bouncing on every token.
         if (event.type === 'assistant.message_delta') {
           hasReceivedTextDelta = true;
-          return false; // let default mapEvent handle the delta
+          textBuffer += event.data?.deltaContent ?? '';
+          scheduleDeltaFlush(ctx);
+          return true; // suppress default mapEvent — we emit on flush
         }
         if (event.type === 'assistant.reasoning_delta') {
           hasReceivedReasoningDelta = true;
-          return false;
+          thinkingBuffer += event.data?.deltaContent ?? '';
+          scheduleDeltaFlush(ctx);
+          return true;
         }
+
+        // Any non-delta event: flush accumulated deltas first so ordering is
+        // preserved (e.g. text always appears before the next tool_call).
+        flushDeltas(ctx);
 
         // Suppress full assistant.message when deltas already delivered the content
         if (event.type === 'assistant.message' && hasReceivedTextDelta) {
@@ -116,6 +161,26 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
           return { id: event.sessionId };
         }
         return null;
+      },
+
+      onBeforeFinish(_code, ctx) {
+        // Flush any remaining buffered deltas before finish so nothing is lost.
+        flushDeltas(ctx);
+        return false;
+      },
+
+      onStop() {
+        if (flushTimer !== null) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+      },
+
+      onCleanup() {
+        if (flushTimer !== null) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
       },
     },
   });

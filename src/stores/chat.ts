@@ -213,7 +213,15 @@ export const useChatStore = create<ChatState>()(
             continue;
           }
 
-          appendMessage(task, message);
+          // Merge consecutive text/thinking chunks that were persisted as
+          // separate rows during streaming (e.g. Copilot delta flushes).
+          const last = task.messages[task.messages.length - 1];
+          if (shouldMergeStreamChunk(last, message)) {
+            last.content += message.content;
+            last.timestamp = message.timestamp;
+          } else {
+            appendMessage(task, message);
+          }
           trackEditedFile(task, message);
         }
       });
