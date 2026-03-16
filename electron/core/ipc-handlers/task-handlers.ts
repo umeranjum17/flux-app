@@ -414,9 +414,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           'flux-plan': 'Flux Plan',
           'flux-todo': 'Flux Todo',
         };
+        const skillNames = skillIds.map((id) => SKILL_NAMES[id] ?? id);
         sendToRenderer('agent:skills', {
           taskId: options.taskId,
           skills: skillIds.map((id) => ({ id, name: SKILL_NAMES[id] ?? id })),
+        });
+        // Also emit as a status message so it's guaranteed visible
+        sendToRenderer('agent:message', {
+          taskId: options.taskId,
+          message: {
+            role: 'system',
+            type: 'status',
+            content: `Skills active: ${skillNames.join(', ')}`,
+            statusKind: 'diagnostic',
+            timestamp: Date.now(),
+          },
         });
       }
     }
