@@ -45,7 +45,6 @@ export function WorkspaceActionBar() {
 
   const handleArchive = async () => {
     await window.api.invoke('workspace:archive', { workspaceId: workspace.id });
-    useWorkspaceStore.getState().archiveWorkspace(workspace.id);
   };
 
   const handleOpenIde = async () => {

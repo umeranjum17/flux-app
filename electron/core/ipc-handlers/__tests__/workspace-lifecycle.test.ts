@@ -9,6 +9,23 @@ import { WorkspaceLifecycleManager } from '../../worktree/lifecycle';
  * and a mock sendToRenderer that records emissions.
  */
 
+vi.mock('../../agents/pid-tracker', () => ({
+  killOrphanedAgents: vi.fn(),
+}));
+
+vi.mock('child_process', () => ({
+  execFile: vi.fn(
+    (
+      _file: string,
+      _args: readonly string[],
+      _options: { cwd?: string; timeout?: number },
+      callback: (error: Error | null, stdout: string, stderr: string) => void,
+    ) => {
+      callback(new Error('mocked execFile failure'), '', '');
+    },
+  ),
+}));
+
 function createMockWorkspaceStore(initial?: Partial<Workspace>) {
   const data: Record<string, Partial<Workspace>> = {};
   if (initial) data[initial.id!] = initial;
@@ -40,8 +57,8 @@ function makeWorkspace(overrides?: Partial<Workspace>): Partial<Workspace> {
     id: WS_ID,
     status: 'idle' as WorkspaceStatus,
     outcome: 'in_progress' as WorkspaceOutcome,
-    worktreePath: '/tmp/test-worktree',
-    parentRepo: '/tmp/test-repo',
+    worktreePath: '/tmp',
+    parentRepo: '/nonexistent/test-repo',
     ...overrides,
   };
 }
@@ -609,10 +626,8 @@ describe('WorkspaceLifecycleManager', () => {
 
       await manager.reconcileOnStartup();
 
-      const archiveCalls = store.update.mock.calls.filter(
-        ([, updates]: [string, any]) => 'archivedAt' in updates
-      );
-      expect(archiveCalls.length).toBeGreaterThan(0);
+      expect(store.archive).toHaveBeenCalledWith(WS_ID);
+      expect(emissions).toContainEqual({ channel: 'workspace:archived', payload: { workspaceId: WS_ID } });
     });
 
     it('does not auto-archive when outcome is ready_for_pr (branch may still exist)', async () => {
@@ -625,10 +640,7 @@ describe('WorkspaceLifecycleManager', () => {
 
       await manager.reconcileOnStartup();
 
-      const archiveCalls = store.update.mock.calls.filter(
-        ([, updates]: [string, any]) => 'archivedAt' in updates
-      );
-      expect(archiveCalls).toHaveLength(0);
+      expect(store.archive).not.toHaveBeenCalled();
     });
   });
 

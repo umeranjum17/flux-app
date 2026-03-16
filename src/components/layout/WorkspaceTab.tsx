@@ -115,8 +115,7 @@ export function WorkspaceTab() {
         });
         break;
       case 'archive':
-        useWorkspaceStore.getState().archiveWorkspace(ws.id);
-        window.api.invoke('workspace:archive', { workspaceId: ws.id });
+        void window.api.invoke('workspace:archive', { workspaceId: ws.id });
         break;
       case 'delete':
         window.api.invoke('workspace:delete', { workspaceId: ws.id }).then(() => {
@@ -309,8 +308,7 @@ export function WorkspaceTab() {
                       title="Archive"
                       onClick={(e) => {
                         e.stopPropagation();
-                        useWorkspaceStore.getState().archiveWorkspace(ws.id);
-                        window.api.invoke('workspace:archive', { workspaceId: ws.id });
+                        void window.api.invoke('workspace:archive', { workspaceId: ws.id });
                       }}
                       className="shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
                     >

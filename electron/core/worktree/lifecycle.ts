@@ -146,7 +146,8 @@ export class WorkspaceLifecycleManager {
               if (fresh.outcome === 'in_progress') {
                 // No commits and worktree gone — auto-archive
                 console.log(`[lifecycle:reconcile] Auto-archiving ${ws.id} (worktree deleted, no commits)`);
-                this.workspaceStore.update(ws.id, { archivedAt: Date.now() });
+                this.workspaceStore.archive(ws.id);
+                this.sendToRenderer('workspace:archived', { workspaceId: ws.id });
               }
               // For higher outcomes (ready_for_pr, etc.) the branch may
               // still exist in git — log but don't touch the outcome

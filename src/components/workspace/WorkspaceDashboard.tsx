@@ -7,6 +7,7 @@ import { WorkspaceCard } from './WorkspaceCard';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { MergeDialog } from '../review/MergeDialog';
 import type { Workspace } from '../../lib/ipc-api';
+import { restoreWorkspaceChats } from '../../lib/workspace-state';
 
 export function WorkspaceDashboard() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
@@ -80,18 +81,12 @@ export function WorkspaceDashboard() {
 
   const handleArchive = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:archive', { workspaceId: ws.id });
-    useWorkspaceStore.getState().archiveWorkspace(ws.id);
-    const chatStore = useChatStore.getState();
-    for (const task of chatStore.tasks.values()) {
-      if (task.workspaceId === ws.id) {
-        chatStore.setTaskStatus(task.id, 'done');
-      }
-    }
   }, []);
 
   const handleUnarchive = useCallback(async (ws: Workspace) => {
     const restored = await window.api.invoke('workspace:unarchive', { workspaceId: ws.id }) as Workspace;
     useWorkspaceStore.getState().unarchiveWorkspace(ws.id, restored);
+    await restoreWorkspaceChats(restored, { activate: false });
   }, []);
 
   const handleDeleteArchived = useCallback(async (ws: Workspace) => {
