@@ -368,14 +368,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       sshHost: sshHost ?? undefined,
       dangerouslyBypassPermissions: (agentId === 'claude-code' && options.mode !== 'plan')
         || (agentId === 'codex' && options.mode === 'act')
+        || (agentId === 'copilot' && options.mode === 'act')
         || options.workspaceAction === 'merge',
       prompt: effectivePrompt,
       sessionId: agentId === 'claude-code' ? session.id : options.sessionId,
       resumeSessionId: agentId === 'codex'
         ? existingAgentSessionId
-        : agentId === 'claude-code'
-          ? claudeResumeId
-          : undefined,
+        : agentId === 'copilot'
+          ? (existingAgentSessionId ?? session.id)
+          : agentId === 'claude-code'
+            ? claudeResumeId
+            : undefined,
       fallbackContext: fallbackContext || undefined,
     };
     let detectedCodexSessionId: string | undefined = existingAgentSessionId;

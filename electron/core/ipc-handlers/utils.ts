@@ -17,7 +17,7 @@ export const MAX_ATTACHMENT_CHARS_PER_FILE = 12_000;
 export const MAX_TOTAL_ATTACHMENT_CHARS = 40_000;
 export const MAX_AUTO_RETRIES = 2;
 export const RECOVERY_DELAY_MS = 200;
-export const AGENTS_WITH_NATIVE_RESUME = new Set<AgentId>(['claude-code', 'codex']);
+export const AGENTS_WITH_NATIVE_RESUME = new Set<AgentId>(['claude-code', 'codex', 'copilot']);
 
 export function requireFields(obj: Record<string, unknown>, ...fields: string[]): void {
   for (const f of fields) {
@@ -63,6 +63,8 @@ export function getAgentLabel(agentId: AgentId): string {
       return 'Claude Code';
     case 'codex':
       return 'Codex';
+    case 'copilot':
+      return 'GitHub Copilot';
     case 'gemini':
       return 'Gemini';
     case 'openai':

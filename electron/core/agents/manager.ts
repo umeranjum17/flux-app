@@ -14,6 +14,7 @@ import type { SessionMessage } from '../session/types';
 import { spawnClaude } from './claude';
 import { loadMcpServers } from './mcp-config';
 import { spawnCodex } from './codex';
+import { spawnCopilot } from './copilot';
 import { spawnGemini } from './gemini';
 import { spawnOpenAI } from './openai';
 import { spawnOllama } from './ollama';
@@ -36,6 +37,13 @@ const AGENT_DEFS: Record<
     cmd: 'codex',
     envKeys: [],
     defaultModels: ['gpt-5.3-codex', 'gpt-5.4', 'gpt-5-codex', 'gpt-5-codex-mini', 'gpt-5.2-codex'],
+    supportsThinking: true,
+  },
+  copilot: {
+    name: 'GitHub Copilot',
+    cmd: 'copilot',
+    envKeys: [],
+    defaultModels: ['gpt-5.4', 'gpt-5.3-codex', 'claude-opus-4.6', 'claude-sonnet-4.6'],
     supportsThinking: true,
   },
   gemini: {
@@ -64,6 +72,7 @@ const AGENT_DEFS: Record<
 const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle> = {
   'claude-code': spawnClaude,
   codex: (opts) => spawnCodex(opts),
+  copilot: spawnCopilot,
   gemini: spawnGemini,
   openai: spawnOpenAI,
   ollama: spawnOllama,
@@ -119,8 +128,8 @@ class AgentManager {
         return { authenticated: false, message: `${def.name} CLI not found` };
       }
 
-      // claude-code and codex use subscription auth — presence is enough
-      if (id === 'claude-code' || id === 'codex') {
+      // claude-code, codex, and copilot use subscription/login auth — presence is enough
+      if (id === 'claude-code' || id === 'codex' || id === 'copilot') {
         return { authenticated: true, message: `${def.name} CLI detected (subscription auth)` };
       }
     }

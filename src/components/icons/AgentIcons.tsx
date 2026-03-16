@@ -26,6 +26,20 @@ export function CodexIcon({ size = 16, className }: IconProps) {
   return <OpenAIIcon size={size} className={className} />;
 }
 
+/** GitHub Copilot mark */
+export function CopilotIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M7 8.5A3.5 3.5 0 0 1 10.5 5H13.5A3.5 3.5 0 0 1 17 8.5V16.25C17 17.2165 16.2165 18 15.25 18H8.75C7.7835 18 7 17.2165 7 16.25V8.5Z" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8.5 16H15.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M9 12.5V10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M15 12.5V10.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <rect x="6" y="3" width="4" height="4" rx="1.2" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="14" y="3" width="4" height="4" rx="1.2" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
 /** Google Gemini — twin-star */
 export function GeminiIcon({ size = 16, className }: IconProps) {
   return (
@@ -54,6 +68,8 @@ export function AgentIcon({ agentId, size = 16, className }: IconProps & { agent
       return <ClaudeIcon size={size} className={className} />;
     case 'codex':
       return <CodexIcon size={size} className={className} />;
+    case 'copilot':
+      return <CopilotIcon size={size} className={className} />;
     case 'gemini':
       return <GeminiIcon size={size} className={className} />;
     case 'openai':
@@ -69,6 +85,7 @@ export function AgentIcon({ agentId, size = 16, className }: IconProps & { agent
 export const AGENT_COLORS: Record<string, string> = {
   'claude-code': 'text-orange-500',
   codex: 'text-emerald-400',
+  copilot: 'text-sky-400',
   gemini: 'text-blue-500',
   openai: 'text-emerald-400',
   ollama: 'text-violet-500',

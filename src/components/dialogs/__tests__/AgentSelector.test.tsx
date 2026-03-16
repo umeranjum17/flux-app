@@ -29,6 +29,17 @@ beforeEach(() => {
         envKeys: [],
       },
       {
+        id: 'copilot',
+        name: 'GitHub Copilot',
+        path: '/usr/bin/copilot',
+        version: '1.0.5',
+        available: true,
+        models: ['gpt-5.4', 'claude-sonnet-4.6'],
+        supportsThinking: true,
+        authStatus: 'authenticated',
+        envKeys: [],
+      },
+      {
         id: 'codex',
         name: 'Codex',
         path: '',
@@ -71,5 +82,15 @@ describe('AgentSelector', () => {
     const codexButtons = screen.getAllByRole('button', { name: /Codex/i }) as HTMLButtonElement[];
     expect(codexButtons.length).toBeGreaterThan(0);
     expect(codexButtons.every((button) => button.disabled)).toBe(true);
+  });
+
+  it('renders GitHub Copilot as a selectable provider', () => {
+    mockApi.invoke.mockResolvedValue([]);
+
+    render(<AgentSelector />);
+
+    const copilotButtons = screen.getAllByRole('button', { name: /GitHub Copilot/i });
+    expect(copilotButtons.length).toBeGreaterThan(0);
+    expect(copilotButtons.some((button) => !button.hasAttribute('disabled'))).toBe(true);
   });
 });

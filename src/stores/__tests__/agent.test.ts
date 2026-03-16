@@ -34,6 +34,7 @@ describe('setSelectedAgent', () => {
   it('sets the ID, clears dynamicModels, and triggers fetchModels', () => {
     const agents = [
       { id: 'claude-code', name: 'Claude Code', available: true, models: ['sonnet'] },
+      { id: 'copilot', name: 'GitHub Copilot', available: true, models: ['gpt-5.4'] },
       { id: 'codex', name: 'Codex', available: true, models: ['o3-mini'] },
     ] as any[];
     mockApi.invoke.mockResolvedValue([]);
@@ -47,6 +48,21 @@ describe('setSelectedAgent', () => {
     expect(state.dynamicModels).toEqual([]);
     expect(state.selectedModel).toBe('o3-mini');
     expect(mockApi.invoke).toHaveBeenCalledWith('agents:list-models', { agentId: 'codex' });
+  });
+
+  it('uses the provider fallback model when selecting Copilot', () => {
+    const agents = [
+      { id: 'copilot', name: 'GitHub Copilot', available: true, models: ['gpt-5.4', 'claude-sonnet-4.6'] },
+    ] as any[];
+    mockApi.invoke.mockResolvedValue([]);
+    useAgentStore.setState({ agents });
+
+    useAgentStore.getState().setSelectedAgent('copilot' as any);
+
+    const state = useAgentStore.getState();
+    expect(state.selectedAgentId).toBe('copilot');
+    expect(state.selectedModel).toBe('gpt-5.4');
+    expect(mockApi.invoke).toHaveBeenCalledWith('agents:list-models', { agentId: 'copilot' });
   });
 });
 

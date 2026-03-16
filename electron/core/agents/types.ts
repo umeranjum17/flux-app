@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 
-export type AgentId = 'claude-code' | 'codex' | 'gemini' | 'openai' | 'ollama';
+export type AgentId = 'claude-code' | 'codex' | 'copilot' | 'gemini' | 'openai' | 'ollama';
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 

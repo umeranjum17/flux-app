@@ -37,6 +37,23 @@ const CODEX_DEFAULTS: ModelInfo[] = [
   { id: 'gpt-5-codex-mini', name: 'GPT-5 Codex Mini' },
 ];
 
+const COPILOT_DEFAULTS: ModelInfo[] = [
+  { id: 'auto', name: 'Auto' },
+  { id: 'claude-opus-4.6', name: 'Claude Opus 4.6' },
+  { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3-Codex' },
+  { id: 'gpt-5.4', name: 'GPT-5.4' },
+  { id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex' },
+  { id: 'gpt-5.2', name: 'GPT-5.2' },
+  { id: 'gpt-5.1', name: 'GPT-5.1' },
+  { id: 'gpt-5-mini', name: 'GPT-5 Mini' },
+  { id: 'claude-opus-4.6-fast', name: 'Claude Opus 4.6 Fast' },
+  { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5' },
+  { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5' },
+  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview' },
+  { id: 'gpt-4.1', name: 'GPT-4.1' },
+];
+
 const CODEX_MODELS_CACHE_PATH = path.join(os.homedir(), '.codex', 'models_cache.json');
 
 const GEMINI_DEFAULTS: ModelInfo[] = [
@@ -69,6 +86,27 @@ async function fetchCodexModels(): Promise<ModelInfo[]> {
   }
 
   return CODEX_DEFAULTS;
+}
+
+async function fetchCopilotModels(): Promise<ModelInfo[]> {
+  try {
+    const { stdout } = await execFileAsync('copilot', ['--help'], {
+      timeout: 5000,
+      encoding: 'utf-8',
+      env: extendedEnv(),
+    });
+
+    const choicesMatch = stdout.match(/--model\s+<model>[\s\S]*?\(choices:\s*([\s\S]*?)\)\n/);
+    if (!choicesMatch?.[1]) {
+      return COPILOT_DEFAULTS;
+    }
+
+    const ids = Array.from(choicesMatch[1].matchAll(/"([^"]+)"/g)).map((match) => match[1]);
+    const models = ids.map((id) => ({ id, name: prettifyModelId(id) }));
+    return orderModels(models, COPILOT_DEFAULTS);
+  } catch {
+    return COPILOT_DEFAULTS;
+  }
 }
 
 async function fetchGeminiModels(): Promise<ModelInfo[]> {
@@ -207,6 +245,7 @@ async function fetchOllamaModels(): Promise<ModelInfo[]> {
 const fetcherMap: Record<AgentId, () => Promise<ModelInfo[]>> = {
   'claude-code': fetchClaudeModels,
   codex: fetchCodexModels,
+  copilot: fetchCopilotModels,
   gemini: fetchGeminiModels,
   openai: fetchOpenAIModels,
   ollama: fetchOllamaModels,

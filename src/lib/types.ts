@@ -6,7 +6,7 @@ export interface ProjectGroup {
   updatedAt: number;
 }
 
-export type AgentId = 'claude-code' | 'codex' | 'gemini' | 'openai' | 'ollama';
+export type AgentId = 'claude-code' | 'codex' | 'copilot' | 'gemini' | 'openai' | 'ollama';
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 export type ThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';
 export type TaskMode = 'plan' | 'act';
