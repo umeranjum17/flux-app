@@ -299,6 +299,45 @@ export function AppShell() {
     }
   }, [activeWorkspaceId]);
 
+  // Persist agent/model/thinking changes back to the active workspace so
+  // switching away and back remembers the user's last selection.
+  useEffect(() => {
+    let prev = {
+      agentId: useAgentStore.getState().selectedAgentId,
+      model: useAgentStore.getState().selectedModel,
+      thinking: useAgentStore.getState().selectedThinking,
+    };
+    const unsub = useAgentStore.subscribe((state) => {
+      const current = {
+        agentId: state.selectedAgentId,
+        model: state.selectedModel,
+        thinking: state.selectedThinking,
+      };
+      if (
+        current.agentId === prev.agentId &&
+        current.model === prev.model &&
+        current.thinking === prev.thinking
+      ) {
+        return;
+      }
+      prev = current;
+      const wsId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!wsId) return;
+      useWorkspaceStore.getState().updateWorkspace(wsId, {
+        agentId: current.agentId,
+        model: current.model,
+        thinking: current.thinking,
+      });
+      window.api.invoke('workspace:update', {
+        workspaceId: wsId,
+        agentId: current.agentId,
+        model: current.model,
+        thinking: current.thinking,
+      }).catch(() => {});
+    });
+    return unsub;
+  }, []);
+
   // Fetch git info when CWD changes
   useEffect(() => {
     if (!cwd) return;
