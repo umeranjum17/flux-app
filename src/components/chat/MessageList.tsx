@@ -10,6 +10,7 @@ import type { AgentId, AgentMessage, AgentHistoryEntry, Task } from '../../lib/t
 const AGENT_LABELS: Record<string, string> = {
   'claude-code': 'Claude',
   codex: 'Codex',
+  copilot: 'GitHub Copilot',
   gemini: 'Gemini',
   openai: 'OpenAI',
   ollama: 'Ollama',

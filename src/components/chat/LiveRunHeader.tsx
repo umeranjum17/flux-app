@@ -108,6 +108,8 @@ function formatAgentLabel(agentId: string): string {
       return 'ChatGPT';
     case 'gemini':
       return 'Gemini';
+    case 'copilot':
+      return 'GitHub Copilot';
     case 'ollama':
       return 'Ollama';
     default:
