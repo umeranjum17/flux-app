@@ -1088,13 +1088,14 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
   if (steps.length === 0) return '';
   const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
 
+  // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
+  // TodoWrite instructions. FLUX_LIFECYCLE (already in the prompt) handles
+  // progress tracking for all agents including claude-code.
   if (agentId === 'claude-code') {
     return [
       '',
-      '## Progress tracking',
-      'Use the `TodoWrite` tool to track your progress through these steps.',
-      'Call `TodoWrite` at the start to create the todo list, then update each',
-      'item to `in_progress` when you start it and `completed` when you finish.',
+      '## Plan steps',
+      'Here are the steps to implement:',
       '',
       list,
       '',

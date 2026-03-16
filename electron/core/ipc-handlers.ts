@@ -397,20 +397,20 @@ function extractPlanTodoItems(sessionStore: SessionStore, sessionId: string): { 
 }
 
 /** Build a step-tracking instruction block for the act prompt.
- *  For Claude Code, instructs the agent to use the native TodoWrite tool.
+ *  Claude Code has its own native TodoWrite — just list the steps.
  *  For other agents, falls back to [STEP N DONE/START] text markers.
  */
 function buildStepTrackingPrompt(steps: { label: string }[], agentId?: AgentId): string {
   if (steps.length === 0) return '';
   const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
 
+  // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
+  // TodoWrite instructions. Just list the plan steps for reference.
   if (agentId === 'claude-code') {
     return [
       '',
-      '## Progress tracking',
-      'Use the `TodoWrite` tool to track your progress through these steps.',
-      'Call `TodoWrite` at the start to create the todo list, then update each',
-      'item to `in_progress` when you start it and `completed` when you finish.',
+      '## Plan steps',
+      'Here are the steps to implement:',
       '',
       list,
       '',

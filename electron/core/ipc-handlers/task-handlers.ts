@@ -762,60 +762,77 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
-      if (!agentUsedTodoWrite) {
-        // Unified lifecycle protocol: parse FLUX_LIFECYCLE events from text
-        const trackable = getStepTrackableContent(message);
-        let handledByLifecycle = false;
-        if (trackable) {
-          const lifecycleEvents = parseAllLifecycleEvents(trackable);
-          if (lifecycleEvents.length > 0) {
-            // Lifecycle events are workspace-level signals (running, merged, etc.)
-            // — they should NOT feed into the todo list.
-            handledByLifecycle = true;
+      // Unified lifecycle protocol: always parse FLUX_LIFECYCLE events from text,
+      // even when Claude CLI's native TodoWrite has fired (agentUsedTodoWrite).
+      // FLUX_LIFECYCLE is Flux's own progress protocol and must not be blocked by
+      // Claude CLI's internal todo management.
+      const trackable = getStepTrackableContent(message);
+      let handledByLifecycle = false;
+      if (trackable) {
+        const lifecycleEvents = parseAllLifecycleEvents(trackable);
+        if (lifecycleEvents.length > 0) {
+          handledByLifecycle = true;
+          for (const evt of lifecycleEvents) {
+            if (evt.event === 'step_start' && typeof evt.step === 'number') {
+              if (!todoInitialized) {
+                // Auto-seed so the renderer has an item to update
+                sendToRenderer('agent:todo', {
+                  taskId: options.taskId,
+                  todoItems: [{ id: evt.step, label: evt.label || `Step ${evt.step}`, status: 'in_progress' }],
+                });
+                flushTodoUpdates(options.taskId);
+              }
+              emitTodoUpdate(options.taskId, evt.step, 'in_progress', evt.label);
+            } else if (evt.event === 'step_done' && typeof evt.step === 'number') {
+              emitTodoUpdate(options.taskId, evt.step, 'done');
+            }
+            // 'completed' events are handled by extractAgentWorkspaceName
           }
         }
+      }
 
-        // Fallback: FLUX_TODO JSON, todo blocks, checklists, step markers
-        // (covers Codex/Copilot that can't use TodoWrite or lifecycle step events)
-        if (!handledByLifecycle && trackable) {
-          todoBuffer += '\n' + trackable;
-          if (todoBuffer.length > MAX_TODO_BUFFER) {
-            todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
+      // Fallback: FLUX_TODO JSON, todo blocks, checklists, step markers
+      // (covers Codex/Copilot that can't use TodoWrite or lifecycle step events).
+      // Skip when Claude CLI's native TodoWrite is active — it provides its own
+      // structured updates and these fallback parsers are not relevant for it.
+      if (!agentUsedTodoWrite && !handledByLifecycle && trackable) {
+        todoBuffer += '\n' + trackable;
+        if (todoBuffer.length > MAX_TODO_BUFFER) {
+          todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
+        }
+
+        const progress = parseAgentTodos(todoBuffer);
+
+        if (progress.source === 'flux_todo' || progress.source === 'todo_block' || progress.source === 'checklist') {
+          const snapshot = JSON.stringify(progress.items);
+          if (snapshot !== lastTodoSnapshot) {
+            lastTodoSnapshot = snapshot;
+            sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: progress.items });
+            flushTodoUpdates(options.taskId);
           }
-
-          const progress = parseAgentTodos(todoBuffer);
-
-          if (progress.source === 'flux_todo' || progress.source === 'todo_block' || progress.source === 'checklist') {
-            const snapshot = JSON.stringify(progress.items);
-            if (snapshot !== lastTodoSnapshot) {
-              lastTodoSnapshot = snapshot;
-              sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: progress.items });
-              flushTodoUpdates(options.taskId);
+        } else if (progress.source === 'step_markers') {
+          const { markers } = progress;
+          if (markers.length > 0 && !todoInitialized) {
+            const labelMap = new Map(markers.filter((m) => m.label).map((m) => [m.stepId, m.label!]));
+            const doneIds = new Set(markers.filter((m) => m.status === 'done').map((m) => m.stepId));
+            const startIds = new Set(markers.filter((m) => m.status === 'in_progress').map((m) => m.stepId));
+            const maxStep = Math.max(...markers.map((m) => m.stepId));
+            const seeded: NormalizedTodoItem[] = [];
+            for (let step = 1; step <= maxStep; step++) {
+              seeded.push({
+                id: step,
+                label: labelMap.get(step) || `Step ${step}`,
+                status: doneIds.has(step) ? 'done' : startIds.has(step) ? 'in_progress' : 'pending',
+              });
             }
-          } else if (progress.source === 'step_markers') {
-            const { markers } = progress;
-            if (markers.length > 0 && !todoInitialized) {
-              const labelMap = new Map(markers.filter((m) => m.label).map((m) => [m.stepId, m.label!]));
-              const doneIds = new Set(markers.filter((m) => m.status === 'done').map((m) => m.stepId));
-              const startIds = new Set(markers.filter((m) => m.status === 'in_progress').map((m) => m.stepId));
-              const maxStep = Math.max(...markers.map((m) => m.stepId));
-              const seeded: NormalizedTodoItem[] = [];
-              for (let step = 1; step <= maxStep; step++) {
-                seeded.push({
-                  id: step,
-                  label: labelMap.get(step) || `Step ${step}`,
-                  status: doneIds.has(step) ? 'done' : startIds.has(step) ? 'in_progress' : 'pending',
-                });
-              }
-              sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: seeded });
-              flushTodoUpdates(options.taskId);
-            }
-            for (const marker of markers) {
-              const prevStatus = emittedStepStatuses.get(marker.stepId);
-              if (prevStatus === marker.status) continue;
-              emittedStepStatuses.set(marker.stepId, marker.status);
-              emitTodoUpdate(options.taskId, marker.stepId, marker.status, marker.label);
-            }
+            sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: seeded });
+            flushTodoUpdates(options.taskId);
+          }
+          for (const marker of markers) {
+            const prevStatus = emittedStepStatuses.get(marker.stepId);
+            if (prevStatus === marker.status) continue;
+            emittedStepStatuses.set(marker.stepId, marker.status);
+            emitTodoUpdate(options.taskId, marker.stepId, marker.status, marker.label);
           }
         }
       }
