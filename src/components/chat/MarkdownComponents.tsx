@@ -3,6 +3,7 @@ import { ClipboardCopy, Check } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { getHighlighter } from '../../lib/shiki';
 import type { Components } from 'react-markdown';
+import { MermaidBlock } from './MermaidBlock';
 
 export function CodeBlock({ children, language }: { children: string; language?: string }) {
   const [copied, setCopied] = useState(false);
@@ -62,14 +63,18 @@ export function CodeBlock({ children, language }: { children: string; language?:
 
 export const markdownComponents: Components = {
   code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || '');
-    const isBlock = match || (typeof children === 'string' && children.includes('\n'));
+    const match = /language-([A-Za-z0-9_-]+)/.exec(className || '');
+    const content = String(children).replace(/\n$/, '');
+    const language = match?.[1]?.toLowerCase();
+    const isBlock = Boolean(match) || content.includes('\n');
 
     if (isBlock) {
+      if (language === 'mermaid') {
+        return <MermaidBlock code={content} />;
+      }
+
       return (
-        <CodeBlock language={match?.[1]}>
-          {String(children).replace(/\n$/, '')}
-        </CodeBlock>
+        <CodeBlock language={language}>{content}</CodeBlock>
       );
     }
 

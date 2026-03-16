@@ -21,8 +21,10 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
 
   if (role === 'system') {
     return (
-      <div className="text-text-tertiary italic text-sm px-1">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <div className="markdown-prose px-1 text-sm italic text-text-tertiary">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+          {content}
+        </ReactMarkdown>
       </div>
     );
   }

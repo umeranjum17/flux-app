@@ -787,6 +787,28 @@ button:focus-visible {
   font-weight: 600;
   background: var(--color-bg-elevated);
 }
+.markdown-prose .mermaid-block {
+  margin: 0.75rem 0;
+}
+.mermaid-block {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--panel-gradient);
+}
+.mermaid-block-loading,
+.mermaid-block-diagram {
+  padding: 0.875rem 1rem;
+}
+.mermaid-block-diagram {
+  min-width: fit-content;
+}
+.mermaid-block-diagram svg {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+  max-width: none;
+}
 .markdown-prose p {
   margin: 0.5rem 0;
 }
