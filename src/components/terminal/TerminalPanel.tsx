@@ -74,6 +74,8 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const [profiles, setProfiles] = useState<ShellProfile[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRefs = useRef<Map<string, { term: any; fitAddon: any }>>(new Map());
+    // Buffer PTY data that arrives before the xterm Terminal instance is ready
+    const pendingDataRef = useRef<Map<string, string[]>>(new Map());
 
     // Load shell profiles
     useEffect(() => {
@@ -142,13 +144,25 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         term.loadAddon(fitAddon);
         term.loadAddon(new WebLinksAddon());
 
+        // Store the ref so the terminal:data listener can start writing to it.
+        // xterm buffers writes made before open(), so buffered data will render.
         terminalRefs.current.set(id, { term, fitAddon });
+
+        // Flush any PTY data that arrived before the terminal ref was stored
+        const buffered = pendingDataRef.current.get(id);
+        if (buffered) {
+          for (const chunk of buffered) {
+            term.write(chunk);
+          }
+          pendingDataRef.current.delete(id);
+        }
 
         requestAnimationFrame(() => {
           const el = document.getElementById(`terminal-${id}`);
           if (el) {
             term.open(el);
             fitAddon.fit();
+            term.focus();
             window.api.invoke('terminal:resize', { id, cols: term.cols, rows: term.rows });
           }
         });
@@ -160,6 +174,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         return id;
       } catch (err) {
         console.error('[TerminalPanel] Failed to create terminal:', err);
+        pendingDataRef.current.delete(id);
         setTabs((prev) => prev.filter((t) => t.id !== id));
         setActiveId((current) => current === id ? null : current);
         return null;
@@ -196,14 +211,28 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       },
     }), [activeId, tabs, createTerminal]);
 
-    // Create first terminal on mount
+    // Create first terminal on mount (or a pending workspace terminal)
     useEffect(() => {
       if (tabs.length === 0) {
+        const pendingWsId = useUiStore.getState().pendingWorkspaceTerminalId;
+        if (pendingWsId) {
+          useUiStore.getState().setPendingWorkspaceTerminalId(null);
+          const workspaces = useWorkspaceStore.getState().workspaces;
+          const ws = workspaces.get(pendingWsId);
+          if (ws) {
+            createTerminal({
+              workspaceId: pendingWsId,
+              workspaceName: ws.name,
+              workspaceBranch: ws.branch,
+            }).catch(() => {});
+            return;
+          }
+        }
         createTerminal().catch(() => {});
       }
     }, []);
 
-    // Listen for workspace terminal open requests
+    // Listen for workspace terminal open requests (when panel is already mounted)
     useEffect(() => {
       const handler = (e: Event) => {
         const { workspaceId } = (e as CustomEvent).detail;
@@ -220,7 +249,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       const cleanup = window.api.on('terminal:data', (...args: unknown[]) => {
         const { id, data } = args[0] as { id: string; data: string };
         const termRef = terminalRefs.current.get(id);
-        if (termRef) termRef.term.write(data);
+        if (termRef) {
+          termRef.term.write(data);
+        } else {
+          // Buffer data until the xterm Terminal is ready
+          const pending = pendingDataRef.current.get(id) ?? [];
+          pending.push(data);
+          pendingDataRef.current.set(id, pending);
+        }
       });
 
       const cleanupExit = window.api.on('terminal:exit', (...args: unknown[]) => {
@@ -228,6 +264,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         const termRef = terminalRefs.current.get(id);
         if (termRef) termRef.term.dispose();
         terminalRefs.current.delete(id);
+        pendingDataRef.current.delete(id);
         setTabs((prev) => {
           const next = prev.filter((t) => t.id !== id);
           setActiveId((current) => current === id ? (next[0]?.id ?? null) : current);
@@ -248,6 +285,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           void window.api.invoke('terminal:kill', { id });
         }
         terminalRefs.current.clear();
+        pendingDataRef.current.clear();
       };
     }, []);
 

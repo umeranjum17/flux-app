@@ -54,8 +54,10 @@ export function WorkspaceActionBar() {
 
   const handleOpenTerminal = () => {
     const uiStore = useUiStore.getState();
+    // Store the pending request so TerminalPanel picks it up even if it hasn't mounted yet
+    uiStore.setPendingWorkspaceTerminalId(workspace.id);
     uiStore.setBottomPanelOpen(true);
-    // Dispatch a custom event to tell TerminalPanel to open a workspace terminal
+    // Also dispatch the event for when the panel is already open
     window.dispatchEvent(new CustomEvent('flux:open-workspace-terminal', {
       detail: { workspaceId: workspace.id },
     }));

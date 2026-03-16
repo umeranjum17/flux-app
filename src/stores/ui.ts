@@ -49,6 +49,9 @@ interface UiState {
   // Bottom panel
   bottomPanelOpen: boolean;
 
+  // Pending workspace terminal request (set before panel mounts so TerminalPanel can pick it up)
+  pendingWorkspaceTerminalId: string | null;
+
   // SSH
   sshHost: string | null;
   sshConnected: boolean;
@@ -132,6 +135,7 @@ interface UiState {
   // Bottom panel
   toggleBottomPanel(): void;
   setBottomPanelOpen(open: boolean): void;
+  setPendingWorkspaceTerminalId(id: string | null): void;
 }
 
 function basename(p: string): string {
@@ -160,6 +164,7 @@ export const useUiStore = create<UiState>()(
     activeTerminalId: null,
     bottomPanelMode: 'agent',
     bottomPanelOpen: false,
+    pendingWorkspaceTerminalId: null,
     sshHost: null,
     sshConnected: false,
     environment: 'local',
@@ -528,6 +533,12 @@ export const useUiStore = create<UiState>()(
     setBottomPanelOpen(open) {
       set((state) => {
         state.bottomPanelOpen = open;
+      });
+    },
+
+    setPendingWorkspaceTerminalId(id) {
+      set((state) => {
+        state.pendingWorkspaceTerminalId = id;
       });
     },
 
