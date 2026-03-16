@@ -256,6 +256,7 @@ export interface IpcEvents {
   'agent:stall': { taskId: string; stallInfo: { type: string; toolName?: string; durationMs: number; autoRestartsRemaining: number } };
   'agent:todo': { taskId: string; todoItems: TodoItem[] };
   'agent:todo-update': { taskId: string; stepId: number; status: TodoItem['status']; label?: string };
+  'agent:skills': { taskId: string; skills: Array<{ id: string; name: string }> };
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
