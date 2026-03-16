@@ -195,7 +195,7 @@ export interface TodoItem {
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
-export type SystemActivityCategory = 'workspace' | 'checkpoint' | 'repomap' | 'stall' | 'sync';
+export type SystemActivityCategory = 'workspace' | 'checkpoint' | 'repomap' | 'stall' | 'sync' | 'ipc';
 
 export interface SystemActivity {
   id: string;
@@ -203,6 +203,10 @@ export interface SystemActivity {
   label: string;
   detail?: string;
   timestamp: number;
+  channel?: string;
+  phase?: 'request' | 'response' | 'event' | 'error';
+  direction?: 'renderer->main' | 'main->renderer';
+  payloadPreview?: string;
 }
 
 export interface EditedFileEntry {

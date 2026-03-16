@@ -577,12 +577,12 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       activeRunProcesses.set(terminalId, ptyProcess);
 
       ptyProcess.onData((data: string) => {
-        sendToRenderer('workspace:run-output', { terminalId, data });
+        sendToRenderer('workspace:run-output', { workspaceId, terminalId, data });
       });
 
       ptyProcess.onExit(({ exitCode }) => {
         activeRunProcesses.delete(terminalId);
-        sendToRenderer('workspace:run-exit', { terminalId, exitCode });
+        sendToRenderer('workspace:run-exit', { workspaceId, terminalId, exitCode });
       });
 
       return { terminalId };

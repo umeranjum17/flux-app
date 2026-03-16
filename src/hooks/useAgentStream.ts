@@ -3,8 +3,9 @@ import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
 import { useWorkspaceStore } from '../stores/workspace';
-import type { Checkpoint, RepoMapIpcStatus, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
+import type { Checkpoint, IpcActivity, RepoMapIpcStatus, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
 import type { AgentMessage, DiffData, SystemActivity, TodoItem } from '../lib/types';
+import { shouldRenderIpcActivity, toSystemActivity } from '../lib/ipc-activity';
 import { normalizeTrackedFilePath } from '../lib/path-utils';
 import { workspaceOutcomeConfig } from '../lib/workspace-status';
 
@@ -195,6 +196,25 @@ export function useAgentStream() {
       useChatStore.getState().addSystemActivity(activeTaskId, buildRepoMapActivity(status));
     });
 
+    const unsubIpcActivity = window.api.on('ipc:activity', (data: unknown) => {
+      const activity = data as IpcActivity;
+      if (!shouldRenderIpcActivity(activity)) {
+        return;
+      }
+
+      const systemActivity = toSystemActivity(activity);
+      const chatState = useChatStore.getState();
+
+      if (activity.taskId && chatState.tasks.has(activity.taskId)) {
+        chatState.addSystemActivity(activity.taskId, systemActivity);
+        return;
+      }
+
+      if (activity.workspaceId) {
+        useWorkspaceStore.getState().addWorkspaceActivity(activity.workspaceId, systemActivity);
+      }
+    });
+
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       flushMessages(); // flush any remaining
@@ -210,6 +230,7 @@ export function useAgentStream() {
       unsubCheckpoint();
       unsubWorkspaceUpdated();
       unsubRepoMapStatus();
+      unsubIpcActivity();
     };
   }, []);
 }

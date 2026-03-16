@@ -246,4 +246,31 @@ This depends on the agent honoring the structured plan prompt.`,
     expect(screen.getByText('Workspace is running')).not.toBeNull();
     expect(screen.queryByText('Ask Flux anything...')).toBeNull();
   });
+
+  it('renders ipc activity with expandable payload details', () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'IPC trace',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().addSystemActivity('task-1', {
+      id: 'ipc-1',
+      category: 'ipc',
+      label: 'task:spawn',
+      detail: 'response · task task-1 · session session-1',
+      payloadPreview: '{"session":{"id":"session-1"}}',
+      timestamp: 8,
+    });
+
+    render(<MessageList />);
+
+    expect(screen.getByText('task:spawn')).not.toBeNull();
+    expect(screen.getByText('· response · task task-1 · session session-1')).not.toBeNull();
+    expect(screen.getByText('payload')).not.toBeNull();
+    expect(screen.getByText('{"session":{"id":"session-1"}}')).not.toBeNull();
+  });
 });

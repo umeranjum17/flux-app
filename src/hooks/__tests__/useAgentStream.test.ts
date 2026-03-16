@@ -59,6 +59,7 @@ describe('useAgentStream', () => {
     expect(subscribedChannels).toContain('workspace:checkpoint');
     expect(subscribedChannels).toContain('workspace:updated');
     expect(subscribedChannels).toContain('repomap:status');
+    expect(subscribedChannels).toContain('ipc:activity');
   });
 
   it('unsubscribes all listeners on unmount', () => {
@@ -74,6 +75,7 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('workspace:checkpoint')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:updated')?.size).toBe(1);
     expect(mockApi._listeners.get('repomap:status')?.size).toBe(1);
+    expect(mockApi._listeners.get('ipc:activity')?.size).toBe(1);
 
     unmount();
 
@@ -87,6 +89,7 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('workspace:checkpoint')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:updated')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('repomap:status')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('ipc:activity')?.size ?? 0).toBe(0);
   });
 
   it('agent:message adds a message to the task', () => {
@@ -450,6 +453,72 @@ describe('useAgentStream', () => {
       label: 'Repo map ready',
       detail: '12 files · 42 tags indexed',
     }));
+  });
+
+  it('ipc activity is captured for task-scoped invoke traces', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('ipc:activity', {
+      id: 'ipc-1',
+      channel: 'task:spawn',
+      phase: 'response',
+      direction: 'renderer->main',
+      taskId: 'task-1',
+      workspaceId: 'ws-1',
+      timestamp: 10,
+      summary: 'session session-1',
+      payloadPreview: '{"session":{"id":"session-1"}}',
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.systemActivities).toEqual([
+      expect.objectContaining({
+        category: 'ipc',
+        label: 'task:spawn',
+        detail: 'response · task task-1 · workspace ws-1 · session session-1',
+        payloadPreview: '{"session":{"id":"session-1"}}',
+      }),
+    ]);
+  });
+
+  it('ipc activity is captured for workspace-scoped events without a task shell', () => {
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('ipc:activity', {
+      id: 'ipc-2',
+      channel: 'workspace:archived',
+      phase: 'event',
+      direction: 'main->renderer',
+      workspaceId: 'ws-1',
+      timestamp: 20,
+      payloadPreview: '{"workspaceId":"ws-1"}',
+    });
+
+    expect(useWorkspaceStore.getState().workspaceActivities.get('ws-1')).toEqual([
+      expect.objectContaining({
+        category: 'ipc',
+        label: 'workspace:archived',
+        detail: 'event · workspace ws-1',
+      }),
+    ]);
+  });
+
+  it('filters duplicate ipc events that already render elsewhere', () => {
+    createTestTask('task-1');
+    renderHook(() => useAgentStream());
+
+    mockApi._emit('ipc:activity', {
+      id: 'ipc-3',
+      channel: 'workspace:status',
+      phase: 'event',
+      direction: 'main->renderer',
+      workspaceId: 'ws-1',
+      timestamp: 30,
+    });
+
+    const task = useChatStore.getState().tasks.get('task-1');
+    expect(task?.systemActivities ?? []).toHaveLength(0);
   });
 
   it('callbacks receive data as first arg (not old _event, data pattern)', () => {
