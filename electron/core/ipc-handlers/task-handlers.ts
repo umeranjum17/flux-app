@@ -690,6 +690,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     const toolHeartbeats = new Map<string, NodeJS.Timeout>();
+    let resultCompletionDone = false;
 
     handle.on('message', (message) => {
       if (message.type === 'tool_call' && message.toolCallId) {
@@ -787,9 +788,154 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           lifecycleManager.taskStatusChanged(options.taskId, 'waiting_approval', { sessionId: session.id });
         } else if (message.type === 'question_request') {
           lifecycleManager.taskStatusChanged(options.taskId, 'waiting_input', { sessionId: session.id });
-        } else if (message.type !== 'rate_limit' && message.type !== 'result') {
+        } else if (message.type === 'result') {
+          // For stream-json agents (Claude Code) the process stays alive after
+          // a turn completes, so handle.on('done') only fires when the process
+          // exits. Transition workspace status to 'done' here so the UI shows
+          // workspace lifecycle events (Workspace is done, Checkpoint, etc.).
+          lifecycleManager.taskStatusChanged(options.taskId, 'done', { sessionId: session.id });
+        } else if (message.type !== 'rate_limit') {
           lifecycleManager.taskStatusChanged(options.taskId, 'running', { sessionId: session.id });
         }
+      }
+
+      // ── Turn-completion workspace operations for stream-json agents ──
+      // For agents like Claude Code that keep the process alive between turns,
+      // handle.on('done') only fires on process exit (stop or crash). Run the
+      // same post-completion workspace operations here so that Workspace,
+      // Checkpoint, and Workspace Updated events fire on turn completion.
+      if (message.type === 'result' && workspace && options.mode === 'act') {
+        resultCompletionDone = true;
+        void (async () => {
+          try {
+            // 1. Detect if the agent renamed the branch
+            try {
+              const { stdout: actualBranch } = await execFileAsync(
+                'git', ['branch', '--show-current'],
+                { cwd: workspace.worktreePath, timeout: 5000 },
+              );
+              const trimmedBranch = actualBranch.trim();
+              const freshWsBranch = workspaceStore.get(workspace.id)?.branch ?? workspace.branch;
+              if (trimmedBranch && trimmedBranch !== freshWsBranch) {
+                const nameSlug = trimmedBranch
+                  .replace(/^[^/]*\//, '')
+                  .replace(/-[a-z0-9]{4,8}$/, '')
+                  .replace(/[_-]+/g, ' ')
+                  .trim();
+                const newName = nameSlug
+                  ? nameSlug.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 40)
+                  : trimmedBranch;
+                workspaceStore.update(workspace.id, { branch: trimmedBranch, name: newName });
+                sendToRenderer('workspace:updated', {
+                  workspaceId: workspace.id,
+                  branch: trimmedBranch,
+                  name: newName,
+                });
+              }
+            } catch {
+              // Best-effort branch detection
+            }
+
+            // 2. Record checkpoint + outcome transition
+            if (options.workspaceAction === 'merge') {
+              const freshMergeWs = workspaceStore.get(workspace.id);
+              if (freshMergeWs) {
+                await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
+              }
+            } else {
+              await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
+
+              const freshWs = workspaceStore.get(workspace.id);
+              if (freshWs) {
+                await lifecycleManager.transitionOutcome(freshWs, 'task_completed');
+              }
+            }
+
+            // 3. Agent-driven workspace rename
+            if (options.workspaceAction !== 'merge' && workspace.branch.startsWith('flux/')) {
+              try {
+                const currentWs = workspaceStore.get(workspace.id) ?? workspace;
+                let agentName = extractAgentWorkspaceName(sessionStore, session.id);
+
+                if (!agentName) {
+                  try {
+                    const { stdout: logOut } = await execFileAsync(
+                      'git', ['log', '-1', '--format=%s'],
+                      { cwd: currentWs.worktreePath, timeout: 5000 },
+                    );
+                    const commitMsg = logOut.trim();
+                    if (commitMsg && !commitMsg.startsWith('[flux]')) {
+                      agentName = commitMsg.slice(0, 50);
+                    }
+                  } catch {
+                    // No commits — skip
+                  }
+                }
+
+                if (agentName) {
+                  const newBranch = branchNameFromLabel(agentName);
+                  let nextWorktreePath = currentWs.worktreePath;
+
+                  if (newBranch !== currentWs.branch) {
+                    try {
+                      await execFileAsync(
+                        'git', ['branch', '-m', currentWs.branch, newBranch],
+                        { cwd: currentWs.worktreePath, timeout: 10000 },
+                      );
+                    } catch {
+                      // Branch rename failed — keep old branch
+                    }
+
+                    const renameDirName = newBranch.replace(/^flux\//, '');
+                    nextWorktreePath = await moveWorktreeDirectory(
+                      currentWs.parentRepo,
+                      currentWs.worktreePath,
+                      renameDirName,
+                    );
+
+                    workspaceStore.update(workspace.id, {
+                      name: agentName,
+                      branch: newBranch,
+                      worktreePath: nextWorktreePath,
+                    });
+                    sendToRenderer('workspace:updated', {
+                      workspaceId: workspace.id,
+                      name: agentName,
+                      branch: newBranch,
+                      worktreePath: nextWorktreePath,
+                    });
+                  } else {
+                    workspaceStore.update(workspace.id, { name: agentName });
+                    sendToRenderer('workspace:updated', {
+                      workspaceId: workspace.id,
+                      name: agentName,
+                      branch: currentWs.branch,
+                    });
+                  }
+                }
+              } catch (err) {
+                console.error('[result-handler] Workspace rename failed:', err);
+              }
+            }
+
+            // 4. Completion notification
+            if (options.workspaceAction !== 'merge') {
+              try {
+                const currentWsData = workspaceStore.get(workspace.id);
+                const suggestedMergeTarget = currentWsData?.baseBranch || 'main';
+                sendToRenderer('workspace:completion', {
+                  workspaceId: workspace.id,
+                  taskId: options.taskId,
+                  suggestedMergeTarget,
+                });
+              } catch {
+                // Best-effort
+              }
+            }
+          } catch (err) {
+            console.error('[result-handler] Post-completion workspace ops failed:', err);
+          }
+        })();
       }
 
       if (message.type === 'permission_request') {
@@ -1075,6 +1221,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             lifecycleManager.taskCompleted(options.taskId, nextStatus, { sessionId: session.id });
 
+            // Skip post-completion ops if already run during result-message
+            // handling (stream-json agents like Claude Code). The done handler
+            // still runs quality gates and diff capture above, but branch
+            // detection, checkpoint, rename, and completion notification were
+            // already emitted on turn completion.
+            if (resultCompletionDone && !finalError) {
+              // Already handled — skip to finally cleanup
+            } else {
+
             // Post-completion operations: branch detection, outcome transition,
             // checkpoint recording, rename, completion notification.
             // Each operation is individually guarded so a failure in one
@@ -1212,6 +1367,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 }
               }
             }
+
+            } // end: resultCompletionDone else
           }
         } finally {
           // Canonical cleanup — releaseTask is idempotent so safe even if
