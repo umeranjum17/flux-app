@@ -287,7 +287,7 @@ export function MessageList() {
 
                 rendered.push(
                   <motion.div
-                    key={`${msg.timestamp}-${idx}`}
+                    key={msg._seqId ?? `${msg.timestamp}-${idx}`}
                     variants={messageVariants}
                     initial="initial"
                     animate="animate"

@@ -53,15 +53,17 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
       flushTimer = null;
     }
     const now = Date.now();
-    if (textBuffer) {
-      const chunk = textBuffer;
-      textBuffer = '';
-      ctx.emitMessage({ type: 'text', role: 'assistant', content: chunk, timestamp: now });
-    }
+    // Emit thinking before text — matches the natural LLM order (reasoning
+    // precedes response) and avoids unnecessary interleaving in the store.
     if (thinkingBuffer) {
       const chunk = thinkingBuffer;
       thinkingBuffer = '';
       ctx.emitMessage({ type: 'thinking', role: 'assistant', content: chunk, timestamp: now });
+    }
+    if (textBuffer) {
+      const chunk = textBuffer;
+      textBuffer = '';
+      ctx.emitMessage({ type: 'text', role: 'assistant', content: chunk, timestamp: now });
     }
   }
 

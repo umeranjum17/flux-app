@@ -71,6 +71,10 @@ interface ChatState {
 const MAX_TASKS = 20;
 const MAX_SYSTEM_ACTIVITIES = 40;
 
+// Monotonic counter for stable message IDs (used as React keys so that
+// merging streaming chunks doesn't remount/re-animate elements).
+let _nextSeqId = 1;
+
 export const useChatStore = create<ChatState>()(
   immer((set, get) => ({
     tasks: new Map(),
@@ -213,12 +217,14 @@ export const useChatStore = create<ChatState>()(
             continue;
           }
 
-          // Merge consecutive text/thinking chunks that were persisted as
-          // separate rows during streaming (e.g. Copilot delta flushes).
-          const last = task.messages[task.messages.length - 1];
-          if (shouldMergeStreamChunk(last, message)) {
-            last.content += message.content;
-            last.timestamp = message.timestamp;
+          // Merge text/thinking chunks that were persisted as separate rows
+          // during streaming (e.g. Copilot delta flushes that interleave
+          // text and thinking). Uses backward search so interleaved rows
+          // merge into the correct target instead of accumulating.
+          const mergeTarget = findStreamMergeTarget(task.messages, message);
+          if (mergeTarget) {
+            mergeTarget.content += message.content;
+            mergeTarget.timestamp = message.timestamp;
           } else {
             appendMessage(task, message);
           }
@@ -562,10 +568,14 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
     }
   }
 
-  const last = task.messages[task.messages.length - 1];
-  if (shouldMergeStreamChunk(last, message)) {
-    last.content += message.content;
-    last.timestamp = message.timestamp;
+  // Search backwards for a merge target of the same type within the current
+  // assistant turn. This handles interleaved text/thinking from agents like
+  // Copilot where flushDeltas emits both buffers in the same cycle — without
+  // this, each cycle would append new messages instead of merging.
+  const mergeTarget = findStreamMergeTarget(task.messages, message);
+  if (mergeTarget) {
+    mergeTarget.content += message.content;
+    mergeTarget.timestamp = message.timestamp;
   } else {
     appendMessage(task, message);
   }
@@ -584,6 +594,7 @@ function findLastResultIndex(messages: AgentMessage[]): number {
 }
 
 function appendMessage(task: Task, message: AgentMessage): void {
+  if (!message._seqId) message._seqId = _nextSeqId++;
   task.messages.push(message);
   if (message.type === 'result') {
     task.costUsd += message.costUsd ?? 0;
@@ -684,6 +695,28 @@ function shouldMergeStreamChunk(previous: AgentMessage | undefined, incoming: Ag
   if (incoming.role !== 'assistant') return false;
   if (incoming.type !== 'text' && incoming.type !== 'thinking') return false;
   return previous.role === incoming.role && previous.type === incoming.type;
+}
+
+/**
+ * Search backwards from the end of the message list for a merge target that
+ * matches the incoming message's type and role. Only looks past other
+ * text/thinking assistant messages — stops at any structural boundary
+ * (tool_call, tool_result, user message, etc.) to avoid merging across turns.
+ */
+function findStreamMergeTarget(messages: AgentMessage[], incoming: AgentMessage): AgentMessage | undefined {
+  if (incoming.role !== 'assistant') return undefined;
+  if (incoming.type !== 'text' && incoming.type !== 'thinking') return undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === 'assistant' && msg.type === incoming.type) {
+      return msg;
+    }
+    // Stop at non-streaming boundaries — don't merge across turns
+    if (msg.role !== 'assistant' || (msg.type !== 'text' && msg.type !== 'thinking')) {
+      break;
+    }
+  }
+  return undefined;
 }
 
 function promoteTaskStatus(task: Task, message: AgentMessage): void {

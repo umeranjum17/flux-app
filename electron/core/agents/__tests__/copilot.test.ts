@@ -291,12 +291,14 @@ describe('spawnCopilot — delta buffering integration', () => {
       console.log(`  [${i}] type=${m.type} content=${JSON.stringify(m.content)}`);
     }
 
-    // Both should be emitted as separate messages (different types)
+    // Both should be emitted as separate messages (different types).
+    // Thinking is emitted first to match natural LLM order (reasoning
+    // precedes response) and to reduce interleaving in the store.
     expect(messages).toHaveLength(2);
-    expect(messages[0].type).toBe('text');
-    expect(messages[0].content).toBe('here');
-    expect(messages[1].type).toBe('thinking');
-    expect(messages[1].content).toBe('hmm...');
+    expect(messages[0].type).toBe('thinking');
+    expect(messages[0].content).toBe('hmm...');
+    expect(messages[1].type).toBe('text');
+    expect(messages[1].content).toBe('here');
   });
 
   // -------------------------------------------------------------------------

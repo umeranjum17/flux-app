@@ -36,6 +36,9 @@ export interface AgentMessage {
   role: MessageRole;
   content: string;
   timestamp: number;
+  /** Stable sequence ID assigned when appended to the store — used as React key
+   *  so that merging streaming chunks doesn't remount/re-animate elements. */
+  _seqId?: number;
   statusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
   errorKind?: 'auth' | 'rate_limit' | 'network' | 'context';
   subagentId?: string;
