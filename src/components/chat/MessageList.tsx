@@ -301,6 +301,9 @@ export function MessageList() {
 
                 const mergedResult = mergedResultForCall.get(idx) ?? null;
 
+                const messageEl = taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode, expandedToolCallIds);
+                if (!messageEl) continue;
+
                 rendered.push(
                   <motion.div
                     key={msg._seqId ?? `${msg.timestamp}-${idx}`}
@@ -310,7 +313,7 @@ export function MessageList() {
                     exit="exit"
                     transition={messageTransition}
                   >
-                    {taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode, expandedToolCallIds)}
+                    {messageEl}
                   </motion.div>,
                 );
               }
@@ -554,7 +557,9 @@ function renderMessage(
   const highlightAsPlan = isPlanMessage(msg, taskMode as 'plan' | 'act' | undefined);
 
   switch (msg.type) {
-    case 'text':
+    case 'text': {
+      const hasMedia = (msg.images && msg.images.length > 0) || (msg.attachments && msg.attachments.length > 0);
+      if (!msg.content.trim() && !hasMedia) return null;
       return (
         <div className="my-0.5">
           <MessageBubble
@@ -566,8 +571,10 @@ function renderMessage(
           />
         </div>
       );
+    }
 
     case 'status':
+      if (!msg.content.trim()) return null;
       return (
         <ActivityIndicator
           label={msg.content}
@@ -603,6 +610,7 @@ function renderMessage(
     }
 
     case 'tool_result':
+      if (!msg.content.trim()) return null;
       return (
         <ToolResultBlock
           content={msg.content}

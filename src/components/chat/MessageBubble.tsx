@@ -16,6 +16,9 @@ interface MessageBubbleProps {
 export function MessageBubble({ content, role, images, attachments, highlightAsPlan = false }: MessageBubbleProps) {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
+  const hasMedia = (images && images.length > 0) || (attachments && attachments.length > 0);
+  if (!content.trim() && !hasMedia) return null;
+
   if (role === 'system') {
     return (
       <div className="text-text-tertiary italic text-sm px-1">

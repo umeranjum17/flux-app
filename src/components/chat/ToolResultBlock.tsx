@@ -12,6 +12,8 @@ const MAX_LINES = 3;
 export function ToolResultBlock({ content, isError, toolCallId }: ToolResultBlockProps) {
   const [expanded, setExpanded] = useState(false);
 
+  if (!content.trim()) return null;
+
   const lines = useMemo(() => content.split('\n'), [content]);
   const isTruncated = lines.length > MAX_LINES;
   const displayContent = expanded || !isTruncated

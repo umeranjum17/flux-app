@@ -23,6 +23,8 @@ export function BashPanel({ toolInput, resultContent, resultIsError }: PanelProp
     return match ? Number(match[1]) : null;
   }, [resultContent]);
 
+  if (!command && !resultContent) return null;
+
   return (
     <div className="premium-panel overflow-hidden rounded-lg">
       {command && (
@@ -86,7 +88,9 @@ export function ReadPanel({ toolInput, resultContent }: PanelProps) {
     };
   }, [resultContent, language, theme]);
 
-  const lineCount = resultContent ? resultContent.split('\n').length : 0;
+  if (!resultContent) return null;
+
+  const lineCount = resultContent.split('\n').length;
 
   return (
     <div className="premium-panel overflow-hidden rounded-lg">
