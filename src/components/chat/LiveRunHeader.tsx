@@ -4,9 +4,9 @@ import { useChatStore } from '../../stores/chat';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 
 const STALLED_THRESHOLDS: Record<string, number> = {
-  tool: 300_000,
-  thinking: 180_000,
-  default: 120_000,
+  tool: 900_000,
+  thinking: 540_000,
+  default: 360_000,
 };
 
 const phaseLabels = {

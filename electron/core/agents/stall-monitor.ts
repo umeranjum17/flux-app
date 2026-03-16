@@ -19,22 +19,22 @@ export interface StallMonitorOptions {
  * legitimately take minutes.
  */
 const TOOL_TIMEOUTS: Record<string, number> = {
-  Read: 60_000,
-  Glob: 60_000,
-  Edit: 60_000,
-  Write: 60_000,
-  NotebookEdit: 60_000,
-  Grep: 90_000,
-  Bash: 300_000,
-  Agent: 900_000,
-  shell: 300_000,
-  WebFetch: 120_000,
-  WebSearch: 120_000,
-  ToolSearch: 60_000,
+  Read: 180_000,
+  Glob: 180_000,
+  Edit: 180_000,
+  Write: 180_000,
+  NotebookEdit: 180_000,
+  Grep: 270_000,
+  Bash: 900_000,
+  Agent: 2_700_000,
+  shell: 900_000,
+  WebFetch: 360_000,
+  WebSearch: 360_000,
+  ToolSearch: 180_000,
 };
-const DEFAULT_TOOL_TIMEOUT = 120_000;
-const IDLE_TIMEOUT = 120_000;
-const HEALTH_CHECK_INTERVAL = 10_000;
+const DEFAULT_TOOL_TIMEOUT = 360_000;
+const IDLE_TIMEOUT = 360_000;
+const HEALTH_CHECK_INTERVAL = 30_000;
 
 function getToolTimeout(toolName: string | undefined): number {
   if (!toolName) return DEFAULT_TOOL_TIMEOUT;

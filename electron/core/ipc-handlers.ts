@@ -1689,7 +1689,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
                   const safetyTimer = setTimeout(() => {
                     fixHandle.removeAllListeners();
                     resolve();
-                  }, 120_000);
+                  }, 360_000);
 
                   fixHandle.on('message', (msg: AgentMessage) => {
                     if (msg.type === 'permission_request' && msg.requestId) {

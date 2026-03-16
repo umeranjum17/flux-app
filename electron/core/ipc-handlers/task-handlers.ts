@@ -1228,7 +1228,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                   const safetyTimer = setTimeout(() => {
                     fixHandle.removeAllListeners();
                     resolve();
-                  }, 120_000);
+                  }, 360_000);
 
                   fixHandle.on('message', (msg: AgentMessage) => {
                     if (msg.type === 'permission_request' && msg.requestId) {
