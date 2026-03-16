@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStepMarkers, getStepTrackableContent, extractTodoItemsFromPayload, isTodoTrackingToolCall } from '../utils';
+import { parseStepMarkers, getStepTrackableContent, extractTodoItemsFromPayload, isTodoTrackingToolCall, parseTodoBlock, parseFluxTodo, parseFluxTodoAll, parseAgentTodos } from '../utils';
 import type { AgentMessage } from '../../agents/types';
 
 describe('parseStepMarkers', () => {
@@ -159,5 +159,93 @@ describe('isTodoTrackingToolCall', () => {
     expect(isTodoTrackingToolCall('update_plan', {
       plan: [{ step: 'Ship the fix', status: 'pending' }],
     })).toBe(true);
+  });
+});
+
+describe('parseFluxTodo', () => {
+  it('parses FLUX_TODO: JSON lines', () => {
+    const items = parseFluxTodo('FLUX_TODO:{"todos":[{"label":"Step one","status":"done"}]}');
+    expect(items).toEqual([{ id: 1, label: 'Step one', status: 'done' }]);
+  });
+
+  it('still parses legacy FLUX_PROGRESS: JSON lines', () => {
+    const items = parseFluxTodo('FLUX_PROGRESS:{"todos":[{"label":"Legacy step","status":"pending"}]}');
+    expect(items).toEqual([{ id: 1, label: 'Legacy step', status: 'pending' }]);
+  });
+
+  it('returns null for unrelated content', () => {
+    expect(parseFluxTodo('just some text')).toBeNull();
+  });
+});
+
+describe('parseFluxTodoAll', () => {
+  it('returns items from the last FLUX_TODO line', () => {
+    const content = [
+      'FLUX_TODO:{"todos":[{"label":"A","status":"done"}]}',
+      'some other text',
+      'FLUX_TODO:{"todos":[{"label":"A","status":"done"},{"label":"B","status":"in_progress"}]}',
+    ].join('\n');
+    const items = parseFluxTodoAll(content);
+    expect(items).toHaveLength(2);
+    expect(items[1]).toEqual({ id: 2, label: 'B', status: 'in_progress' });
+  });
+
+  it('handles mixed FLUX_TODO and legacy FLUX_PROGRESS lines', () => {
+    const content = [
+      'FLUX_PROGRESS:{"todos":[{"label":"Old","status":"done"}]}',
+      'FLUX_TODO:{"todos":[{"label":"New","status":"in_progress"}]}',
+    ].join('\n');
+    const items = parseFluxTodoAll(content);
+    expect(items).toEqual([{ id: 1, label: 'New', status: 'in_progress' }]);
+  });
+});
+
+describe('parseTodoBlock', () => {
+  it('parses ```todo fenced blocks', () => {
+    const content = '```todo\n- [x] First step\n- [ ] Second step\n```';
+    const items = parseTodoBlock(content);
+    expect(items).toEqual([
+      { id: 1, label: 'First step', status: 'done' },
+      { id: 2, label: 'Second step', status: 'pending' },
+    ]);
+  });
+
+  it('still parses legacy ```progress fenced blocks', () => {
+    const content = '```progress\n- [x] Done step\n- [>] Active step\n```';
+    const items = parseTodoBlock(content);
+    expect(items).toEqual([
+      { id: 1, label: 'Done step', status: 'done' },
+      { id: 2, label: 'Active step', status: 'in_progress' },
+    ]);
+  });
+
+  it('returns empty for no blocks', () => {
+    expect(parseTodoBlock('no blocks here')).toEqual([]);
+  });
+});
+
+describe('parseAgentTodos', () => {
+  it('returns flux_todo source for FLUX_TODO lines', () => {
+    const result = parseAgentTodos('FLUX_TODO:{"todos":[{"label":"Step","status":"pending"}]}');
+    expect(result.source).toBe('flux_todo');
+    expect(result.items).toHaveLength(1);
+  });
+
+  it('returns todo_block source for fenced todo blocks', () => {
+    const result = parseAgentTodos('```todo\n- [ ] A task\n- [ ] Another\n```');
+    expect(result.source).toBe('todo_block');
+    expect(result.items).toHaveLength(2);
+  });
+
+  it('returns flux_todo source for legacy FLUX_PROGRESS lines', () => {
+    const result = parseAgentTodos('FLUX_PROGRESS:{"todos":[{"label":"Old","status":"done"}]}');
+    expect(result.source).toBe('flux_todo');
+    expect(result.items).toHaveLength(1);
+  });
+
+  it('returns none when no patterns match', () => {
+    const result = parseAgentTodos('just regular text');
+    expect(result.source).toBe('none');
+    expect(result.items).toEqual([]);
   });
 });

@@ -40,7 +40,7 @@ import {
   getStepTrackableContent,
   extractTodoItemsFromPayload,
   isTodoTrackingToolCall,
-  parseAgentProgress,
+  parseAgentTodos,
   extractAgentWorkspaceName,
   branchNameFromLabel,
   moveWorktreeDirectory,
@@ -684,10 +684,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     let agentUsedTodoWrite = false;
-    // Accumulated text buffer for FLUX_PROGRESS / checklist parsing (Codex/Copilot).
-    const MAX_PROGRESS_BUFFER = 50_000;
-    let progressBuffer = '';
-    let lastProgressSnapshot = '';
+    // Accumulated text buffer for FLUX_TODO / checklist parsing (Codex/Copilot).
+    const MAX_TODO_BUFFER = 50_000;
+    let todoBuffer = '';
+    let lastTodoSnapshot = '';
     const emittedStepStatuses = new Map<number, 'in_progress' | 'done'>();
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
@@ -789,20 +789,20 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           }
         }
 
-        // Fallback: FLUX_PROGRESS JSON, progress blocks, checklists, step markers
+        // Fallback: FLUX_TODO JSON, todo blocks, checklists, step markers
         // (covers Codex/Copilot that can't use TodoWrite or lifecycle step events)
         if (!handledByLifecycle && trackable) {
-          progressBuffer += '\n' + trackable;
-          if (progressBuffer.length > MAX_PROGRESS_BUFFER) {
-            progressBuffer = progressBuffer.slice(-MAX_PROGRESS_BUFFER / 2);
+          todoBuffer += '\n' + trackable;
+          if (todoBuffer.length > MAX_TODO_BUFFER) {
+            todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
           }
 
-          const progress = parseAgentProgress(progressBuffer);
+          const progress = parseAgentTodos(todoBuffer);
 
-          if (progress.source === 'flux_progress' || progress.source === 'progress_block' || progress.source === 'checklist') {
+          if (progress.source === 'flux_todo' || progress.source === 'todo_block' || progress.source === 'checklist') {
             const snapshot = JSON.stringify(progress.items);
-            if (snapshot !== lastProgressSnapshot) {
-              lastProgressSnapshot = snapshot;
+            if (snapshot !== lastTodoSnapshot) {
+              lastTodoSnapshot = snapshot;
               sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: progress.items });
               flushTodoUpdates(options.taskId);
             }
