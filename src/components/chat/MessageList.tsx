@@ -433,7 +433,7 @@ export function MessageList() {
             return null;
           })()}
 
-          {task.mode === 'plan' && taskId && planText && !planIsStale && (taskStatus === 'done' || isStreaming) && (
+          {task.mode === 'plan' && taskId && (planText || task.planData) && !planIsStale && (taskStatus === 'done' || isStreaming) && (
             <PlanCard task={task} isStreaming={taskStatus === 'running' && task.mode === 'plan'} />
           )}
 

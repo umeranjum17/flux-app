@@ -706,17 +706,10 @@ function buildWorkspaceSystemContext(
     );
   }
 
-  // Agent-specific progress tracking instructions (all modes)
-  if (agentId === 'claude-code') {
-    lines.push(
-      '',
-      '## Progress tracking',
-      'When your work has multiple steps, use the `TodoWrite` tool to track progress:',
-      '- Create a todo list at the start with all steps.',
-      '- Mark each step `in_progress` when you begin, `completed` when done.',
-      '- This keeps the user informed in real time.',
-    );
-  } else if (agentId === 'codex') {
+  // Agent-specific progress tracking instructions (all modes).
+  // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
+  // TodoWrite instructions. Only Codex/Copilot need explicit tracking markers.
+  if (agentId === 'codex') {
     lines.push(
       '',
       '## Progress tracking',

@@ -41,6 +41,7 @@ import {
   extractTodoItemsFromPayload,
   isTodoTrackingToolCall,
   parseAgentTodos,
+  parseFluxPlanFromContent,
   extractAgentWorkspaceName,
   branchNameFromLabel,
   moveWorktreeDirectory,
@@ -688,6 +689,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const MAX_TODO_BUFFER = 50_000;
     let todoBuffer = '';
     let lastTodoSnapshot = '';
+    let lastPlanSnapshot = '';
     const emittedStepStatuses = new Map<number, 'in_progress' | 'done'>();
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
@@ -766,12 +768,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       // These are NOT todo/progress items — they only signal workspace state
       // changes (working, ready_for_review, etc.).
       const trackable = getStepTrackableContent(message);
-      const handledByLifecycle = false;
       if (trackable) {
         const lifecycleEvents = parseAllWorkspaceEvents(trackable);
         for (const evt of lifecycleEvents) {
           if (evt.state === 'ready_for_review' || evt.state === 'merged') {
-            // Signal workspace completion — name extraction happens in extractAgentWorkspaceName
             logDiagnostic('lifecycle', `agent signalled ${evt.state}`, {
               taskId: options.taskId,
               workspaceName: evt.workspace_name,
@@ -781,11 +781,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
 
       // Fallback: FLUX_TODO JSON, todo blocks, checklists, step markers
-      // (covers Codex/Copilot that can't use TodoWrite or lifecycle step events).
+      // (covers Codex/Copilot that can't use TodoWrite).
       // Skip when Claude CLI's native TodoWrite is active — it provides its own
       // structured updates and these fallback parsers are not relevant for it.
-      if (!agentUsedTodoWrite && !handledByLifecycle && trackable) {
-        todoBuffer += '\n' + trackable;
+      if (!agentUsedTodoWrite && trackable) {
+        // Strip FLUX_WORKSPACE / legacy FLUX_LIFECYCLE lines before feeding
+        // into todo parsers — these are workspace state, not progress items.
+        const cleanedTrackable = trackable
+          .split('\n')
+          .filter(line => !line.match(/^FLUX_(?:WORKSPACE|LIFECYCLE):\s*\{/))
+          .join('\n');
+        todoBuffer += '\n' + cleanedTrackable;
         if (todoBuffer.length > MAX_TODO_BUFFER) {
           todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
         }
@@ -826,6 +832,18 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         }
       }
 
+      // Parse FLUX_PLAN: structured plan data from agent output
+      if (options.mode === 'plan' && trackable && trackable.includes('FLUX_PLAN:')) {
+        const planData = parseFluxPlanFromContent(todoBuffer);
+        if (planData) {
+          const snapshot = JSON.stringify(planData);
+          if (snapshot !== lastPlanSnapshot) {
+            lastPlanSnapshot = snapshot;
+            sendToRenderer('agent:plan', { taskId: options.taskId, planData });
+          }
+        }
+      }
+
       if (
         message.type === 'tool_call'
         && message.toolInput
@@ -854,7 +872,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           // For stream-json agents (Claude Code) the process stays alive after
           // a turn completes, so handle.on('done') only fires when the process
           // exits. Transition workspace status to 'done' here so the UI shows
-          // workspace lifecycle events (Workspace is done, Checkpoint, etc.).
+          // workspace state events (Workspace is done, Checkpoint, etc.).
           lifecycleManager.taskStatusChanged(options.taskId, 'done', { sessionId: session.id });
         } else if (message.type !== 'rate_limit') {
           lifecycleManager.taskStatusChanged(options.taskId, 'running', { sessionId: session.id });
@@ -1041,8 +1059,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         }
       }
       if (!(message.type === 'permission_request' && autoApprovePermission)) {
-        // Strip FLUX_LIFECYCLE lines from visible message content so they
-        // don't render as raw JSON in chat cards.
+        // Strip FLUX_WORKSPACE / legacy FLUX_LIFECYCLE lines from visible
+        // message content so they don't render as raw JSON in chat cards.
         const renderedMessage = (message.content && typeof message.content === 'string')
           ? {
             ...message,
@@ -1300,7 +1318,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           // Guard: stop may have fired during diff capture
           if (!lifecycleManager.isTaskActive(options.taskId)) return;
 
-          // ── Emit done + update workspace lifecycle ──
+          // ── Emit done + update workspace state ──
           const doneErrorKind = finalError ? classifyErrorContent(finalError)?.errorKind : undefined;
           sendToRenderer('agent:done', { taskId: options.taskId, error: finalError, errorKind: doneErrorKind });
 

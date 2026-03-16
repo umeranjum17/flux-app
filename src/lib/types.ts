@@ -193,6 +193,22 @@ export interface TodoItem {
   status: 'pending' | 'in_progress' | 'done';
 }
 
+export interface PlanSection {
+  title: string;
+  content: string;
+}
+
+export interface PlanStep {
+  title: string;
+  details: string;
+}
+
+export interface PlanData {
+  summary: string;
+  sections: PlanSection[];
+  steps: PlanStep[];
+}
+
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
 export type SystemActivityCategory = 'workspace' | 'checkpoint' | 'repomap' | 'stall' | 'sync' | 'ipc';
@@ -255,6 +271,7 @@ export interface Task {
   expandedToolCallIds: Set<string>;
   scrollToToolCallId: string | null;
   planRevisions?: string[];
+  planData?: PlanData;
   todoItems?: TodoItem[];
   currentStatus?: string;
   currentStatusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
