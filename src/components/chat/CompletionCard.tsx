@@ -74,7 +74,6 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
 
   const handleArchive = async () => {
     await window.api.invoke('workspace:archive', { workspaceId: workspace.id });
-    useWorkspaceStore.getState().archiveWorkspace(workspace.id);
   };
 
   const handleFileClick = (filePath: string) => {

@@ -29,7 +29,7 @@ import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
-import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { applyWorkspaceArchived, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 
 
@@ -269,7 +269,11 @@ export function AppShell() {
       const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
       useWorkspaceStore.getState().updateWorkspace(workspaceId, { branch, name });
     });
-    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); unsubUpdated(); };
+    const unsubArchived = window.api.on('workspace:archived', (data: unknown) => {
+      const { workspaceId } = data as { workspaceId: string };
+      applyWorkspaceArchived(workspaceId);
+    });
+    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); unsubUpdated(); unsubArchived(); };
   }, []);
 
   // Sync model selector and mode when the active workspace changes so each

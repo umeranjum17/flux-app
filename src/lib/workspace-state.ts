@@ -1,9 +1,11 @@
 import { useUiStore, type RecentProject } from '../stores/ui';
+import { useAgentStore, normalizeClaudeCodeModel } from '../stores/agent';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useChatStore } from '../stores/chat';
 import { useSessionStore } from '../stores/session';
-import type { Workspace, Session } from './ipc-api';
+import type { Workspace, Session, SessionMessage, WorkspaceSession } from './ipc-api';
 import type { AgentId, TaskMode, ThinkingLevel, FileAttachment } from './types';
+import { restoreSessionMessage } from './session-messages';
 
 function basename(value: string): string {
   return value.split('/').pop() || value.split('\\').pop() || value;
@@ -215,6 +217,76 @@ export async function createEmptyWorkspace(opts: {
   useWorkspaceStore.getState().addWorkspace(workspace);
   useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
   return workspace;
+}
+
+export function applyWorkspaceArchived(workspaceId: string): void {
+  const workspaceStore = useWorkspaceStore.getState();
+  const chatStore = useChatStore.getState();
+  const activeTask = chatStore.getActiveTask();
+  const wasActiveWorkspace = workspaceStore.activeWorkspaceId === workspaceId;
+  const wasActiveTaskForWorkspace = activeTask?.workspaceId === workspaceId;
+
+  workspaceStore.archiveWorkspace(workspaceId);
+  chatStore.removeTasksForWorkspace(workspaceId);
+
+  if (!wasActiveWorkspace && !wasActiveTaskForWorkspace) {
+    return;
+  }
+
+  const nextActiveTask = useChatStore.getState().getActiveTask();
+  if (nextActiveTask?.workspaceId && useWorkspaceStore.getState().workspaces.has(nextActiveTask.workspaceId)) {
+    useWorkspaceStore.getState().setActiveWorkspace(nextActiveTask.workspaceId);
+    return;
+  }
+
+  useWorkspaceStore.getState().setActiveWorkspace(null);
+}
+
+export async function restoreWorkspaceChats(
+  workspace: Workspace,
+  options?: { activate?: boolean; sessions?: WorkspaceSession[] },
+): Promise<void> {
+  const sessions = options?.sessions
+    ?? (await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[]);
+
+  useWorkspaceStore.getState().setWorkspaceSessions(workspace.id, sessions);
+
+  const chatStore = useChatStore.getState();
+  const thinking = workspace.thinking ?? useAgentStore.getState().selectedThinking;
+  const activate = options?.activate ?? true;
+
+  for (const workspaceSession of sessions) {
+    const existingTask = Array.from(chatStore.tasks.values()).find(
+      (task) => task.workspaceId === workspace.id && task.sessionId === workspaceSession.sessionId,
+    );
+    if (existingTask) continue;
+
+    const session = await window.api.invoke('sessions:get', { id: workspaceSession.sessionId }) as Session | null;
+    if (!session) continue;
+
+    const messages = await window.api.invoke('sessions:messages', { id: workspaceSession.sessionId }) as SessionMessage[];
+    const restoredMessages = messages
+      .map((message) => restoreSessionMessage(message))
+      .filter((message): message is NonNullable<typeof message> => !!message);
+    const taskId = workspaceSession.taskId ?? crypto.randomUUID();
+
+    chatStore.createTask({
+      id: taskId,
+      title: workspaceSession.label || session.title || workspace.name,
+      agentId: (session.agentId || workspace.agentId) as AgentId,
+      model: normalizeClaudeCodeModel(session.model || workspace.model, session.agentId || workspace.agentId),
+      mode: session.mode,
+      thinking,
+      cwd: workspace.worktreePath,
+      sessionId: session.id,
+      workspaceId: workspace.id,
+      activate,
+    });
+
+    chatStore.restoreMessages(taskId, restoredMessages);
+    chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
+    useSessionStore.getState().upsertSession(session);
+  }
 }
 
 export async function startWorkspaceChat(

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useChatStore } from '../chat';
 import type { AgentMessage } from '../../lib/types';
 
-function makeTask(id = 'task-1') {
+function makeTask(id = 'task-1', options?: { workspaceId?: string; activate?: boolean }) {
   useChatStore.getState().createTask({
     id,
     title: 'Test task',
@@ -11,6 +11,8 @@ function makeTask(id = 'task-1') {
     mode: 'act',
     thinking: 'medium',
     cwd: '/tmp',
+    workspaceId: options?.workspaceId,
+    activate: options?.activate,
   });
 }
 
@@ -43,6 +45,12 @@ describe('createTask', () => {
     makeTask('t2');
     expect(useChatStore.getState().activeTaskId).toBe('t2');
   });
+
+  it('can create a task without activating it', () => {
+    makeTask('t1');
+    makeTask('t2', { activate: false });
+    expect(useChatStore.getState().activeTaskId).toBe('t1');
+  });
 });
 
 describe('removeTask', () => {
@@ -73,6 +81,32 @@ describe('removeTask', () => {
     // active is t2
     useChatStore.getState().removeTask('t1');
     expect(useChatStore.getState().activeTaskId).toBe('t2');
+  });
+});
+
+describe('removeTasksForWorkspace', () => {
+  it('removes all tasks for a workspace and retargets the active task', () => {
+    makeTask('ws-1-a', { workspaceId: 'ws-1' });
+    makeTask('standalone');
+    makeTask('ws-1-b', { workspaceId: 'ws-1' });
+
+    useChatStore.getState().removeTasksForWorkspace('ws-1');
+
+    expect(useChatStore.getState().tasks.has('ws-1-a')).toBe(false);
+    expect(useChatStore.getState().tasks.has('ws-1-b')).toBe(false);
+    expect(useChatStore.getState().tasks.has('standalone')).toBe(true);
+    expect(useChatStore.getState().tabOrder).toEqual(['standalone']);
+    expect(useChatStore.getState().activeTaskId).toBe('standalone');
+  });
+
+  it('keeps the current task when removing a different workspace', () => {
+    makeTask('ws-1-a', { workspaceId: 'ws-1' });
+    makeTask('standalone');
+
+    useChatStore.getState().removeTasksForWorkspace('ws-1');
+
+    expect(useChatStore.getState().activeTaskId).toBe('standalone');
+    expect(useChatStore.getState().tasks.has('standalone')).toBe(true);
   });
 });
 

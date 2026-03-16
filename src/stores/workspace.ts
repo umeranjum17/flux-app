@@ -68,6 +68,32 @@ interface WorkspaceState {
 let changesPanelRequestVersion = 0;
 let changesPanelFileDiffVersion = 0;
 
+function clearWorkspaceUiState(state: {
+  activeWorkspaceId: string | null;
+  mergingWorkspaceId: string | null;
+  changesPanelOpen: boolean;
+  changesPanelWorkspaceId: string | null;
+  changesPanelFiles: DiffFile[];
+  changesPanelSelectedFile: string | null;
+  changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
+}, workspaceId: string): void {
+  if (state.activeWorkspaceId === workspaceId) {
+    state.activeWorkspaceId = null;
+  }
+  if (state.mergingWorkspaceId === workspaceId) {
+    state.mergingWorkspaceId = null;
+  }
+  if (state.changesPanelWorkspaceId === workspaceId) {
+    changesPanelRequestVersion += 1;
+    changesPanelFileDiffVersion += 1;
+    state.changesPanelOpen = false;
+    state.changesPanelWorkspaceId = null;
+    state.changesPanelFiles = [];
+    state.changesPanelSelectedFile = null;
+    state.changesPanelFileDiff = null;
+  }
+}
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   immer((set, get) => ({
     workspaces: new Map(),
@@ -116,12 +142,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     removeWorkspace(id) {
       set((state) => {
         state.workspaces.delete(id);
+        state.archivedWorkspaces.delete(id);
         state.checkpoints.delete(id);
         state.workspaceActivities.delete(id);
         state.workspaceSessions.delete(id);
-        if (state.activeWorkspaceId === id) {
-          state.activeWorkspaceId = null;
-        }
+        clearWorkspaceUiState(state, id);
       });
     },
 
@@ -172,13 +197,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           const archived = { ...ws, archivedAt: Date.now(), status: 'idle' as WorkspaceStatus };
           state.archivedWorkspaces.set(id, archived);
           state.workspaces.delete(id);
-          state.checkpoints.delete(id);
-          state.workspaceActivities.delete(id);
-          state.workspaceSessions.delete(id);
-          if (state.activeWorkspaceId === id) {
-            state.activeWorkspaceId = null;
-          }
         }
+        state.checkpoints.delete(id);
+        state.workspaceActivities.delete(id);
+        state.workspaceSessions.delete(id);
+        clearWorkspaceUiState(state, id);
       });
     },
 

@@ -35,8 +35,10 @@ interface ChatState {
     cwd: string;
     sessionId?: string;
     workspaceId?: string;
+    activate?: boolean;
   }): void;
   removeTask(taskId: string): void;
+  removeTasksForWorkspace(workspaceId: string): void;
   setActiveTask(taskId: string | null): void;
   closeTab(taskId: string): void;
   reorderTabs(fromIndex: number, toIndex: number): void;
@@ -73,6 +75,7 @@ interface ChatState {
     cwd: string;
     sessionId?: string;
     workspaceId?: string;
+    activate?: boolean;
   }): void;
   scrollToFileEdit(toolCallId: string): boolean;
   clearScrollTarget(): void;
@@ -106,11 +109,7 @@ export const useChatStore = create<ChatState>()(
               return t && (t.status === 'idle' || t.status === 'done' || t.status === 'error') && id !== state.activeTaskId;
             });
             if (oldest) {
-              const task = state.tasks.get(oldest);
-              if (task) {
-                task.subagents.clear();
-                task.diffs.clear();
-              }
+              clearTaskResources(state.tasks.get(oldest));
               state.tasks.delete(oldest);
               state.tabOrder = state.tabOrder.filter((id) => id !== oldest);
             }
@@ -141,7 +140,9 @@ export const useChatStore = create<ChatState>()(
             todoItems: [],
             systemActivities: [],
           });
-          state.activeTaskId = opts.id;
+          if (opts.activate !== false) {
+            state.activeTaskId = opts.id;
+          }
           return;
         }
 
@@ -160,23 +161,27 @@ export const useChatStore = create<ChatState>()(
         if (!state.tabOrder.includes(opts.id)) {
           state.tabOrder.push(opts.id);
         }
-        state.activeTaskId = opts.id;
+        if (opts.activate !== false) {
+          state.activeTaskId = opts.id;
+        }
       });
     },
 
     removeTask(taskId) {
       set((state) => {
-        const task = state.tasks.get(taskId);
-        if (task) {
-          task.subagents.clear();
-          task.diffs.clear();
-          task.editedFiles.clear();
-          task.expandedToolCallIds.clear();
-        }
-        state.tasks.delete(taskId);
-        state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
-        if (state.activeTaskId === taskId) {
-          state.activeTaskId = state.tabOrder.length > 0 ? state.tabOrder[state.tabOrder.length - 1] : null;
+        removeTaskFromState(state, taskId);
+      });
+    },
+
+    removeTasksForWorkspace(workspaceId) {
+      set((state) => {
+        const taskIds = Array.from(state.tasks.values())
+          .filter((task) => task.workspaceId === workspaceId)
+          .map((task) => task.id)
+          .sort((left, right) => state.tabOrder.indexOf(left) - state.tabOrder.indexOf(right));
+
+        for (const taskId of taskIds) {
+          removeTaskFromState(state, taskId);
         }
       });
     },
@@ -187,20 +192,7 @@ export const useChatStore = create<ChatState>()(
         window.api?.invoke('task:stop', { taskId }).catch(() => {});
       }
       set((state) => {
-        const tabIdx = state.tabOrder.indexOf(taskId);
-        const task = state.tasks.get(taskId);
-        if (task) {
-          task.subagents.clear();
-          task.diffs.clear();
-          task.editedFiles.clear();
-          task.expandedToolCallIds.clear();
-        }
-        state.tasks.delete(taskId);
-        state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
-        if (state.activeTaskId === taskId) {
-          const adjacentIdx = Math.min(tabIdx, state.tabOrder.length - 1);
-          state.activeTaskId = state.tabOrder.length > 0 ? state.tabOrder[adjacentIdx] : null;
-        }
+        removeTaskFromState(state, taskId);
       });
     },
 
@@ -473,6 +465,32 @@ export const useChatStore = create<ChatState>()(
     },
   })),
 );
+
+function clearTaskResources(task: Task | undefined): void {
+  if (!task) return;
+  task.subagents.clear();
+  task.diffs.clear();
+  task.editedFiles.clear();
+  task.expandedToolCallIds.clear();
+}
+
+function removeTaskFromState(
+  state: {
+    tasks: Map<string, Task>;
+    activeTaskId: string | null;
+    tabOrder: string[];
+  },
+  taskId: string,
+): void {
+  const tabIdx = state.tabOrder.indexOf(taskId);
+  clearTaskResources(state.tasks.get(taskId));
+  state.tasks.delete(taskId);
+  state.tabOrder = state.tabOrder.filter((id) => id !== taskId);
+  if (state.activeTaskId === taskId) {
+    const adjacentIdx = Math.min(tabIdx, state.tabOrder.length - 1);
+    state.activeTaskId = state.tabOrder.length > 0 ? state.tabOrder[Math.max(adjacentIdx, 0)] : null;
+  }
+}
 
 function isFileEditTool(toolName: string): boolean {
   const name = toolName.toLowerCase();
