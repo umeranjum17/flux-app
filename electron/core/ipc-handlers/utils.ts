@@ -378,6 +378,46 @@ export function parseFluxTodoFromBuffer(buffer: string): {
  * and return the items from the last valid one (most recent full state).
  * Used by `parseAgentTodos` which receives the accumulated buffer.
  */
+export interface FluxPlanData {
+  summary: string;
+  sections: Array<{ title: string; content: string }>;
+  steps: Array<{ title: string; details: string }>;
+}
+
+/**
+ * Parse a `FLUX_PLAN:{...}` JSON line from a string.
+ * Returns the structured plan data or null if not found / invalid.
+ */
+export function parseFluxPlan(content: string): FluxPlanData | null {
+  const match = content.match(/FLUX_PLAN:\s*(\{[\s\S]*\})/);
+  if (!match) return null;
+
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || typeof data.summary !== 'string') return null;
+    return {
+      summary: data.summary ?? '',
+      sections: Array.isArray(data.sections) ? data.sections : [],
+      steps: Array.isArray(data.steps) ? data.steps : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Scan full content for the last valid `FLUX_PLAN:` line.
+ */
+export function parseFluxPlanFromContent(content: string): FluxPlanData | null {
+  let lastPlan: FluxPlanData | null = null;
+  for (const line of content.split('\n')) {
+    if (!line.includes('FLUX_PLAN:')) continue;
+    const parsed = parseFluxPlan(line);
+    if (parsed) lastPlan = parsed;
+  }
+  return lastPlan;
+}
+
 export function parseFluxTodoAll(content: string): NormalizedTodoItem[] {
   let lastItems: NormalizedTodoItem[] = [];
   for (const line of content.split('\n')) {
@@ -953,27 +993,20 @@ export function buildWorkspaceSystemContext(
       '- Analyze the codebase and create a detailed plan.',
       '- Do NOT modify files or run destructive commands.',
       '',
-      '## Plan format',
-      'Structure your plan with these markdown sections:',
+      '## Plan output',
+      'After completing your analysis, output your plan as a single-line JSON on its own line, prefixed with `FLUX_PLAN:`.',
       '',
-      '### Summary',
-      'One or two sentences describing the goal.',
+      'Format: `FLUX_PLAN:{"summary":"...","sections":[{"title":"...","content":"..."},...],"steps":[{"title":"...","details":"..."},...]}`',
       '',
-      '### Analysis',
-      'Your findings from reading the code (free-form).',
+      '- `summary`: 1-2 sentences describing the goal.',
+      '- `sections`: Array of analysis sections. Each has a short `title` (e.g. "Analysis", "Trade-offs", "Verification") and markdown `content`.',
+      '- `steps`: Array of implementation steps. Each has a short action-oriented `title` (under 60 chars) and `details` with specifics.',
       '',
-      '### Steps',
-      'A numbered list of implementation steps. Each step MUST start with a SHORT title (under 60 characters), then details on the next line. Example:',
+      'Example:',
+      'FLUX_PLAN:{"summary":"Add form validation to the login page.","sections":[{"title":"Analysis","content":"The login form at `src/Login.tsx` currently submits without validation."}],"steps":[{"title":"Add validation to login form","details":"Check email format and password length before submission."},{"title":"Create error display component","details":"Show inline errors below each field using the existing Alert component."}]}',
       '',
-      '1. Add validation to login form',
-      '   Check email format and password length before submission.',
-      '',
-      '2. Create error display component',
-      '   Show inline errors below each field using the existing Alert component.',
-      '',
-      'IMPORTANT: Keep step titles short and action-oriented. Do NOT use bold markers, colons, or full sentences as titles.',
-      'Bad:  "1. **Authentication bug**: The login handler at line 45 fails when..."',
-      'Good: "1. Fix login handler validation"',
+      'IMPORTANT: Output FLUX_PLAN on a single line. Keep step titles short and action-oriented.',
+      'You may also include free-form markdown text before the FLUX_PLAN line to explain your analysis.',
     );
   }
 

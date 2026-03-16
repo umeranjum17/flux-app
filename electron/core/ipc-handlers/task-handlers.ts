@@ -41,6 +41,7 @@ import {
   extractTodoItemsFromPayload,
   isTodoTrackingToolCall,
   parseAgentTodos,
+  parseFluxPlanFromContent,
   extractAgentWorkspaceName,
   branchNameFromLabel,
   moveWorktreeDirectory,
@@ -688,6 +689,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const MAX_TODO_BUFFER = 50_000;
     let todoBuffer = '';
     let lastTodoSnapshot = '';
+    let lastPlanSnapshot = '';
     const emittedStepStatuses = new Map<number, 'in_progress' | 'done'>();
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
@@ -833,6 +835,18 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             if (prevStatus === marker.status) continue;
             emittedStepStatuses.set(marker.stepId, marker.status);
             emitTodoUpdate(options.taskId, marker.stepId, marker.status, marker.label);
+          }
+        }
+      }
+
+      // Parse FLUX_PLAN: structured plan data from agent output
+      if (options.mode === 'plan' && trackable && trackable.includes('FLUX_PLAN:')) {
+        const planData = parseFluxPlanFromContent(todoBuffer);
+        if (planData) {
+          const snapshot = JSON.stringify(planData);
+          if (snapshot !== lastPlanSnapshot) {
+            lastPlanSnapshot = snapshot;
+            sendToRenderer('agent:plan', { taskId: options.taskId, planData });
           }
         }
       }
