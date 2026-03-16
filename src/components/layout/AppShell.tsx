@@ -269,7 +269,27 @@ export function AppShell() {
       const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
       useWorkspaceStore.getState().updateWorkspace(workspaceId, { branch, name });
     });
-    return () => { unsub(); unsubOutcome(); unsubCheckpoint(); unsubUpdated(); };
+    const unsubCreated = window.api.on('workspace:created', (data: unknown) => {
+      const { workspace } = data as { workspace: Workspace };
+      useWorkspaceStore.getState().addWorkspace(workspace);
+    });
+    const unsubDeleted = window.api.on('workspace:deleted', (data: unknown) => {
+      const { workspaceId } = data as { workspaceId: string };
+      useWorkspaceStore.getState().removeWorkspace(workspaceId);
+    });
+    const unsubArchived = window.api.on('workspace:archived', (data: unknown) => {
+      const { workspaceId } = data as { workspaceId: string };
+      useWorkspaceStore.getState().archiveWorkspace(workspaceId);
+    });
+    return () => {
+      unsub();
+      unsubOutcome();
+      unsubCheckpoint();
+      unsubUpdated();
+      unsubCreated();
+      unsubDeleted();
+      unsubArchived();
+    };
   }, []);
 
   // Sync model selector and mode when the active workspace changes so each

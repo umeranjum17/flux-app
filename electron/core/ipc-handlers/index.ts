@@ -44,6 +44,86 @@ const USAGE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const USAGE_POLL_INITIAL_DELAY_MS = 5 * 1000;  // 5s after startup
 let usagePollTimer: NodeJS.Timeout | null = null;
 
+const TRACKED_RENDERER_EVENT_CHANNELS = new Set([
+  'workspace:created',
+  'workspace:deleted',
+  'workspace:archived',
+  'workspace:completion',
+  'workspace:run-exit',
+  'config:changed',
+  'usage:live-update',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function truncate(value: string, max = 220): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 3)}...`;
+}
+
+function safePreview(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const json = JSON.stringify(value);
+    if (!json || json === '{}' || json === '[]' || json === 'null') return undefined;
+    return truncate(json);
+  } catch {
+    return undefined;
+  }
+}
+
+function extractActivityContext(payload: unknown): {
+  taskId?: string;
+  workspaceId?: string;
+  sessionId?: string;
+  terminalId?: string;
+} {
+  if (!isRecord(payload)) return {};
+  const workspace = isRecord(payload.workspace) ? payload.workspace : undefined;
+  return {
+    ...(getString(payload.taskId) ? { taskId: getString(payload.taskId) } : {}),
+    ...(getString(payload.workspaceId) ? { workspaceId: getString(payload.workspaceId) } : {}),
+    ...(workspace && getString(workspace.id) ? { workspaceId: getString(workspace.id) } : {}),
+    ...(getString(payload.sessionId) ? { sessionId: getString(payload.sessionId) } : {}),
+    ...(getString(payload.terminalId) ? { terminalId: getString(payload.terminalId) } : {}),
+  };
+}
+
+function buildRendererActivitySummary(channel: string, payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  if (channel === 'workspace:completion' && getString(payload.suggestedMergeTarget)) {
+    return `merge to ${payload.suggestedMergeTarget}`;
+  }
+  if (channel === 'workspace:created' && isRecord(payload.workspace) && getString(payload.workspace.name)) {
+    return truncate(payload.workspace.name as string, 80);
+  }
+  if (channel === 'workspace:run-exit' && typeof payload.exitCode === 'number') {
+    return `exit ${payload.exitCode}`;
+  }
+  return undefined;
+}
+
+function buildRendererActivity(channel: string, payload: unknown) {
+  const preview = safePreview(payload);
+  const summary = buildRendererActivitySummary(channel, payload);
+  return {
+    id: `ipc:${channel}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    channel,
+    phase: 'event',
+    direction: 'main->renderer',
+    timestamp: Date.now(),
+    ...extractActivityContext(payload),
+    ...(summary ? { summary } : {}),
+    ...(preview ? { payloadPreview: preview } : {}),
+  };
+}
+
 let currentCwd = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
 let localCwd = currentCwd;
 let sshHost: string | null = null;
@@ -67,6 +147,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
     try {
       mainWindow.webContents.send(channel, payload);
+      if (channel !== 'ipc:activity' && TRACKED_RENDERER_EVENT_CHANNELS.has(channel)) {
+        mainWindow.webContents.send('ipc:activity', buildRendererActivity(channel, payload));
+      }
       return true;
     } catch (error) {
       console.warn(`[ipc-handlers] Failed to send ${channel}`, error);

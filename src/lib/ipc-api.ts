@@ -261,8 +261,8 @@ export interface IpcEvents {
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
   'workspace:updated': { workspaceId: string; branch: string; name: string };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
-  'workspace:run-output': { terminalId: string; data: string };
-  'workspace:run-exit': { terminalId: string; exitCode: number };
+  'workspace:run-output': { workspaceId: string; terminalId: string; data: string };
+  'workspace:run-exit': { workspaceId: string; terminalId: string; exitCode: number };
   'workspace:created': { workspace: Workspace };
   'workspace:deleted': { workspaceId: string };
   'workspace:archived': { workspaceId: string };
@@ -272,6 +272,23 @@ export interface IpcEvents {
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;
   'usage:live-update': LiveUsageOverview;
+  'ipc:activity': IpcActivity;
+}
+
+export type IpcActivityPhase = 'request' | 'response' | 'event' | 'error';
+
+export interface IpcActivity {
+  id: string;
+  channel: string;
+  phase: IpcActivityPhase;
+  direction: 'renderer->main' | 'main->renderer';
+  timestamp: number;
+  taskId?: string;
+  workspaceId?: string;
+  sessionId?: string;
+  terminalId?: string;
+  summary?: string;
+  payloadPreview?: string;
 }
 
 export interface RepoMapIpcConfig {
