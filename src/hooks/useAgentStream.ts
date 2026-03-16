@@ -128,6 +128,11 @@ export function useAgentStream() {
       useChatStore.getState().setTodoItems(taskId, todoItems);
     });
 
+    const unsubPlan = window.api.on('agent:plan', (data: unknown) => {
+      const { taskId, planData } = data as { taskId: string; planData: import('../lib/types').PlanData };
+      useChatStore.getState().setPlanData(taskId, planData);
+    });
+
     const unsubTodoUpdate = window.api.on('agent:todo-update', (data: unknown) => {
       const { taskId, stepId, status, label } = data as { taskId: string; stepId: number; status: TodoItem['status']; label?: string };
       useChatStore.getState().updateTodoItem(taskId, stepId, status, label);
@@ -204,24 +209,8 @@ export function useAgentStream() {
       useChatStore.getState().addSystemActivity(activeTaskId, buildRepoMapActivity(status));
     });
 
-    const unsubIpcActivity = window.api.on('ipc:activity', (data: unknown) => {
-      const activity = data as IpcActivity;
-      if (!shouldRenderIpcActivity(activity)) {
-        return;
-      }
-
-      const systemActivity = toSystemActivity(activity);
-      const chatState = useChatStore.getState();
-
-      if (activity.taskId && chatState.tasks.has(activity.taskId)) {
-        chatState.addSystemActivity(activity.taskId, systemActivity);
-        return;
-      }
-
-      if (activity.workspaceId) {
-        useWorkspaceStore.getState().addWorkspaceActivity(activity.workspaceId, systemActivity);
-      }
-    });
+    // IPC activity events are too noisy for end-user UI — skip them entirely.
+    const unsubIpcActivity = window.api.on('ipc:activity', () => {});
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -231,6 +220,7 @@ export function useAgentStream() {
       unsubPermission();
       unsubDiff();
       unsubTodo();
+      unsubPlan();
       unsubTodoUpdate();
       unsubSkills();
       unsubStall();

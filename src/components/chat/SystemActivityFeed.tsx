@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, ArrowRightLeft, GitBranch, GitCommitHorizontal, RefreshCw, Activity, ChevronDown, Sparkles } from 'lucide-react';
 import type { SystemActivity } from '../../lib/types';
 
@@ -38,8 +38,8 @@ const CATEGORY_META: Record<
   },
   ipc: {
     Icon: ArrowRightLeft,
-    accent: 'text-info',
-    accentBg: 'bg-info/10',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-tertiary',
     label: 'IPC',
   },
   skill: {
@@ -77,22 +77,12 @@ export function SystemActivityInlineItem({ activity }: { activity: SystemActivit
           {formatRelativeTime(activity.timestamp)}
         </span>
       </div>
-      {activity.payloadPreview && (
-        <details className="ml-[18px] mt-1">
-          <summary className="cursor-pointer select-none text-[10px] text-text-tertiary/60 hover:text-text-secondary/80">
-            payload
-          </summary>
-          <pre className="mt-1 whitespace-pre-wrap break-all rounded-md border border-border/30 bg-bg-primary/60 px-2 py-1 text-[10px] leading-relaxed text-text-secondary">
-            {activity.payloadPreview}
-          </pre>
-        </details>
-      )}
     </div>
   );
 }
 
 /** Minimum group size before collapsing. Groups smaller than this render individually. */
-const COLLAPSE_THRESHOLD = 3;
+const COLLAPSE_THRESHOLD = 2;
 
 /**
  * Groups consecutive activities of the same category into an expandable block.
@@ -121,11 +111,11 @@ export function SystemActivityGroup({ activities }: { activities: SystemActivity
 
   if (expanded) {
     return (
-      <div className="flex flex-col rounded-md border border-border/30 bg-bg-surface/30 px-2 py-1">
+      <div className="flex flex-col">
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="flex items-center gap-1.5 pb-0.5 text-[11px] leading-none text-text-tertiary hover:text-text-secondary transition-colors"
+          className="flex items-center gap-1.5 py-0.5 text-[11px] leading-none text-text-tertiary hover:text-text-secondary transition-colors"
         >
           <span
             className={`inline-flex shrink-0 items-center justify-center rounded-full p-0.5 ${meta.accentBg} ${meta.accent}`}
@@ -138,7 +128,7 @@ export function SystemActivityGroup({ activities }: { activities: SystemActivity
           </span>
           <ChevronDown size={10} className="ml-auto rotate-180 transition-transform" />
         </button>
-        <div className="flex flex-col pl-5 mt-0.5 border-l border-border/20 ml-[7px]">
+        <div className="flex flex-col pl-5 ml-[7px]">
           {activities.map((a) => (
             <SystemActivityInlineItem key={a.id} activity={a} />
           ))}
@@ -170,22 +160,22 @@ export function SystemActivityGroup({ activities }: { activities: SystemActivity
   );
 }
 
-/**
- * Partitions a flat array of activities into runs of consecutive same-category items.
- * Each run becomes either a single item or a collapsible group.
- */
+/** Categories hidden from the activity feed — too noisy for end users. */
+const HIDDEN_CATEGORIES = new Set<SystemActivity['category']>(['ipc', 'sync']);
+
 export function groupActivitiesByCategory(activities: SystemActivity[]): SystemActivity[][] {
-  if (activities.length === 0) return [];
+  const visible = activities.filter((a) => !HIDDEN_CATEGORIES.has(a.category));
+  if (visible.length === 0) return [];
 
   const groups: SystemActivity[][] = [];
-  let currentGroup: SystemActivity[] = [activities[0]];
+  let currentGroup: SystemActivity[] = [visible[0]];
 
-  for (let i = 1; i < activities.length; i++) {
-    if (activities[i].category === currentGroup[0].category) {
-      currentGroup.push(activities[i]);
+  for (let i = 1; i < visible.length; i++) {
+    if (visible[i].category === currentGroup[0].category) {
+      currentGroup.push(visible[i]);
     } else {
       groups.push(currentGroup);
-      currentGroup = [activities[i]];
+      currentGroup = [visible[i]];
     }
   }
   groups.push(currentGroup);

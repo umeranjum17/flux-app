@@ -1,4 +1,4 @@
-import { buildLifecyclePrompt } from '../lifecycle-protocol';
+import { buildWorkspacePrompt } from '../workspace-protocol';
 import type { AgentId, TaskMode } from '../types';
 import type { FluxSkill, SkillContext } from './types';
 import { fluxWorkspaceSkill } from './flux-workspace';
@@ -43,9 +43,9 @@ export interface ComposeSkillsOptions {
  * Returns null if no skills are relevant (e.g. no workspace, merge action).
  *
  * Skills are wrapped in <flux-skill> tags for clear boundary markers.
- * The lifecycle protocol (FLUX_LIFECYCLE) is still injected for backward
- * compatibility with Claude Code's native step tracking. The new FLUX_SIGNAL
- * protocol in the todo skill handles agents without native tools.
+ * The workspace state protocol (FLUX_WORKSPACE) is injected for lifecycle
+ * transitions. The FLUX_SIGNAL protocol in the todo skill handles progress
+ * tracking for agents without native tools.
  */
 export function composeSkillPrompts(options: ComposeSkillsOptions): string | null {
   const ctx: SkillContext = {
@@ -65,11 +65,10 @@ export function composeSkillPrompts(options: ComposeSkillsOptions): string | nul
     }
   }
 
-  // Lifecycle protocol is still injected in act mode for agents that use it
-  // (Claude Code emits FLUX_LIFECYCLE natively; other agents use FLUX_SIGNAL
-  // from the todo skill). Both protocols are parsed by the handler.
+  // Workspace state protocol is injected in act mode so agents can report
+  // lifecycle transitions (working → ready_for_review → completed).
   if (options.mode === 'act' && options.workspace) {
-    sections.push(buildLifecyclePrompt());
+    sections.push(buildWorkspacePrompt());
   }
 
   if (sections.length === 0) return null;

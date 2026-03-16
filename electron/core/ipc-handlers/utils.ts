@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
-import { parseLifecycleEvent } from '../agents/lifecycle-protocol';
+import { parseWorkspaceEvent } from '../agents/workspace-protocol';
 import { composeSkillPrompts } from '../agents/skills';
 import { parseFluxSignal } from '../agents/skills/signal-parser';
 import { logDiagnostic } from '../diagnostics/logger';
@@ -380,6 +380,46 @@ export function parseFluxTodoFromBuffer(buffer: string): {
  * and return the items from the last valid one (most recent full state).
  * Used by `parseAgentTodos` which receives the accumulated buffer.
  */
+export interface FluxPlanData {
+  summary: string;
+  sections: Array<{ title: string; content: string }>;
+  steps: Array<{ title: string; details: string }>;
+}
+
+/**
+ * Parse a `FLUX_PLAN:{...}` JSON line from a string.
+ * Returns the structured plan data or null if not found / invalid.
+ */
+export function parseFluxPlan(content: string): FluxPlanData | null {
+  const match = content.match(/FLUX_PLAN:\s*(\{[\s\S]*\})/);
+  if (!match) return null;
+
+  try {
+    const data = JSON.parse(match[1]);
+    if (!data || typeof data.summary !== 'string') return null;
+    return {
+      summary: data.summary ?? '',
+      sections: Array.isArray(data.sections) ? data.sections : [],
+      steps: Array.isArray(data.steps) ? data.steps : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Scan full content for the last valid `FLUX_PLAN:` line.
+ */
+export function parseFluxPlanFromContent(content: string): FluxPlanData | null {
+  let lastPlan: FluxPlanData | null = null;
+  for (const line of content.split('\n')) {
+    if (!line.includes('FLUX_PLAN:')) continue;
+    const parsed = parseFluxPlan(line);
+    if (parsed) lastPlan = parsed;
+  }
+  return lastPlan;
+}
+
 export function parseFluxTodoAll(content: string): NormalizedTodoItem[] {
   let lastItems: NormalizedTodoItem[] = [];
   for (const line of content.split('\n')) {
@@ -903,7 +943,7 @@ const WORKSPACE_NAME_PATTERN = /WORKSPACE_NAME:\s*(.+)/i;
  * Extract a workspace name suggested by the agent from its session messages.
  * Checks (in priority order):
  *   1. FLUX_SIGNAL completed event with workspace_name (new unified protocol)
- *   2. FLUX_LIFECYCLE completed event with workspace_name (legacy)
+ *   2. FLUX_WORKSPACE completed/ready_for_review event with workspace_name
  *   3. Legacy WORKSPACE_NAME: marker
  * Searches result/text messages from last → first.
  */
@@ -925,10 +965,10 @@ export function extractAgentWorkspaceName(
       return fluxSignal.workspace_name.trim().slice(0, 50);
     }
 
-    // Check for lifecycle completed event (legacy)
-    const lifecycleEvent = parseLifecycleEvent(m.content);
-    if (lifecycleEvent?.event === 'completed' && lifecycleEvent.workspace_name) {
-      return lifecycleEvent.workspace_name.trim().slice(0, 50);
+    // Check for FLUX_WORKSPACE state event
+    const wsEvent = parseWorkspaceEvent(m.content);
+    if (wsEvent && (wsEvent.state === 'completed' || wsEvent.state === 'ready_for_review') && wsEvent.workspace_name) {
+      return wsEvent.workspace_name.trim().slice(0, 50);
     }
 
     // Fallback to legacy WORKSPACE_NAME: marker
@@ -1013,8 +1053,8 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
   const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
 
   // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
-  // TodoWrite instructions. FLUX_LIFECYCLE (already in the prompt) handles
-  // progress tracking for all agents including claude-code.
+  // TodoWrite instructions. FLUX_WORKSPACE (already in the prompt) handles
+  // workspace state for all agents including claude-code.
   if (agentId === 'claude-code') {
     return [
       '',

@@ -24,7 +24,7 @@ import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { markdownComponents } from './MarkdownComponents';
-import type { Task } from '../../lib/types';
+import type { Task, PlanSection, PlanStep } from '../../lib/types';
 import { getLatestPlanText } from '../../lib/plan';
 
 /** Map section title keywords to icons and accent colors */
@@ -43,11 +43,7 @@ function getSectionMeta(title: string): { icon: React.ReactNode; accent: string 
   return { icon: <Lightbulb size={13} />, accent: 'text-text-secondary' };
 }
 
-interface PlanSection {
-  title: string;
-  content: string;
-}
-
+/** Fallback: parse markdown headings into sections when no FLUX_PLAN data is available */
 function parsePlanSections(text: string): PlanSection[] {
   const sections: PlanSection[] = [];
   const lines = text.split('\n');
@@ -55,7 +51,7 @@ function parsePlanSections(text: string): PlanSection[] {
   let currentContent: string[] = [];
 
   for (const line of lines) {
-    const headingMatch = line.match(/^##\s+(.+)/);
+    const headingMatch = line.match(/^#{2,3}\s+(.+)/);
     if (headingMatch) {
       if (currentTitle || currentContent.length > 0) {
         sections.push({
@@ -63,7 +59,7 @@ function parsePlanSections(text: string): PlanSection[] {
           content: currentContent.join('\n').trim(),
         });
       }
-      currentTitle = headingMatch[1];
+      currentTitle = headingMatch[1].replace(/^#+\s*/, '');
       currentContent = [];
     } else {
       currentContent.push(line);
@@ -80,61 +76,36 @@ function parsePlanSections(text: string): PlanSection[] {
   return sections;
 }
 
-interface StepInfo {
-  title: string;
-  body: string;
-}
-
-/**
- * Clean up a raw step title extracted from numbered list items.
- * If the model wrote a bold prefix like "**Fix login**: details here",
- * extract just the bold part as the title and push the rest to the body.
- */
-function cleanStepTitle(raw: string): { title: string; extraBody: string } {
-  // Pattern: **Bold title**: rest of line  or  **Bold title** - rest of line
-  const boldMatch = raw.match(/^\*\*(.+?)\*\*\s*[:–—-]\s*(.*)/);
-  if (boldMatch) {
-    return { title: boldMatch[1].trim(), extraBody: boldMatch[2].trim() };
-  }
-  // Pattern: `code title`: rest
-  const codeMatch = raw.match(/^`(.+?)`\s*[:–—-]\s*(.*)/);
-  if (codeMatch) {
-    return { title: codeMatch[1].trim(), extraBody: codeMatch[2].trim() };
-  }
-  // Truncate very long titles (over 80 chars) at a natural boundary
-  if (raw.length > 80) {
-    const truncated = raw.slice(0, 80).replace(/\s+\S*$/, '').trim();
-    return { title: truncated, extraBody: raw.slice(truncated.length).trim() };
-  }
-  return { title: raw, extraBody: '' };
-}
-
-function extractSteps(content: string): StepInfo[] {
-  const steps: StepInfo[] = [];
+/** Fallback: extract numbered steps from markdown when no FLUX_PLAN data */
+function extractStepsFromMarkdown(content: string): PlanStep[] {
+  const steps: PlanStep[] = [];
   const lines = content.split('\n');
   let currentTitle = '';
-  let currentExtraBody = '';
   let currentBody: string[] = [];
 
   for (const line of lines) {
     const match = line.match(/^\d+\.\s+(.+)/);
     if (match) {
       if (currentTitle) {
-        const fullBody = [currentExtraBody, ...currentBody].filter(Boolean).join('\n').trim();
-        steps.push({ title: currentTitle, body: fullBody });
+        steps.push({ title: currentTitle, details: currentBody.join('\n').trim() });
       }
-      const cleaned = cleanStepTitle(match[1]);
-      currentTitle = cleaned.title;
-      currentExtraBody = cleaned.extraBody;
-      currentBody = [];
+      const raw = match[1];
+      // Clean bold prefix: **Title**: details
+      const boldMatch = raw.match(/^\*\*(.+?)\*\*\s*[:–—-]\s*(.*)/);
+      if (boldMatch) {
+        currentTitle = boldMatch[1].trim();
+        currentBody = boldMatch[2].trim() ? [boldMatch[2].trim()] : [];
+      } else {
+        currentTitle = raw.length > 80 ? raw.slice(0, 80).replace(/\s+\S*$/, '').trim() : raw;
+        currentBody = raw.length > 80 ? [raw.slice(currentTitle.length).trim()] : [];
+      }
     } else if (currentTitle) {
       currentBody.push(line);
     }
   }
 
   if (currentTitle) {
-    const fullBody = [currentExtraBody, ...currentBody].filter(Boolean).join('\n').trim();
-    steps.push({ title: currentTitle, body: fullBody });
+    steps.push({ title: currentTitle, details: currentBody.join('\n').trim() });
   }
 
   return steps;
@@ -159,7 +130,29 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
 
   const planText = useMemo(() => getLatestPlanText(task.messages), [task.messages]);
 
-  const sections = useMemo(() => parsePlanSections(planText), [planText]);
+  // Use structured FLUX_PLAN data when available, fall back to markdown parsing
+  const sections: PlanSection[] = useMemo(() => {
+    if (task.planData) {
+      const result: PlanSection[] = [];
+      if (task.planData.summary) {
+        result.push({ title: 'Summary', content: task.planData.summary });
+      }
+      result.push(...task.planData.sections);
+      if (task.planData.steps.length > 0) {
+        result.push({ title: 'Steps', content: '' });
+      }
+      return result;
+    }
+    return parsePlanSections(planText);
+  }, [task.planData, planText]);
+
+  const steps: PlanStep[] = useMemo(() => {
+    if (task.planData) return task.planData.steps;
+    // Fallback: extract from the "Steps" section in markdown
+    const stepsSection = sections.find((s) => s.title.toLowerCase().includes('step'));
+    return stepsSection ? extractStepsFromMarkdown(stepsSection.content) : [];
+  }, [task.planData, sections]);
+
   const revisions = task.planRevisions ?? [];
 
   const toggleSection = useCallback((idx: number) => {
@@ -220,21 +213,8 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
     });
   }, [task, setTaskMode, setTaskStatus, showCheckpoint]);
 
-  // Compute total steps + checked count for progress display
-  const stepSections = useMemo(() => {
-    const allSteps: { sectionIdx: number; steps: StepInfo[] }[] = [];
-    sections.forEach((section, idx) => {
-      if (section.title.toLowerCase().includes('step')) {
-        const steps = extractSteps(section.content);
-        if (steps.length > 0) allSteps.push({ sectionIdx: idx, steps });
-      }
-    });
-    return allSteps;
-  }, [sections]);
-
-  const totalSteps = stepSections.reduce((sum, s) => sum + s.steps.length, 0);
-  const completedSteps = stepSections.reduce((sum, s) =>
-    sum + s.steps.filter((_, i) => checkedSteps.has(`${s.sectionIdx}:${i}`)).length, 0);
+  const totalSteps = steps.length;
+  const completedSteps = steps.filter((_, i) => checkedSteps.has(`step:${i}`)).length;
 
   const isDone = task.status === 'done';
   // Show action bar whenever plan text is available — the SDK may not call
@@ -355,9 +335,9 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
           {sections.map((section, idx) => {
             const isExpanded = expandedSections.has(idx);
             const isStepSection = section.title.toLowerCase().includes('step');
-            const steps = isStepSection ? extractSteps(section.content) : [];
+            const sectionSteps = isStepSection ? steps : [];
             const meta = getSectionMeta(section.title);
-            const sectionChecked = steps.filter((_, i) => checkedSteps.has(`${idx}:${i}`)).length;
+            const sectionChecked = sectionSteps.filter((_, i) => checkedSteps.has(`step:${i}`)).length;
 
             return (
               <div key={idx} className="plan-card-section">
@@ -373,20 +353,20 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                     : <ChevronRight size={12} className="text-text-tertiary shrink-0" />
                   }
                   <span className="text-[13px] font-semibold text-text-primary flex-1">{section.title}</span>
-                  {steps.length > 0 && (
+                  {sectionSteps.length > 0 && (
                     <span className="plan-step-count text-[10px] font-medium px-1.5 py-0.5 rounded-full">
-                      {sectionChecked}/{steps.length}
+                      {sectionChecked}/{sectionSteps.length}
                     </span>
                   )}
                 </button>
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-1 pl-[2.75rem]">
-                    {steps.length > 0 ? (
+                    {sectionSteps.length > 0 ? (
                       <div className="plan-step-timeline relative">
-                        {steps.map((step, stepIdx) => {
-                          const stepKey = `${idx}:${stepIdx}`;
+                        {sectionSteps.map((step, stepIdx) => {
+                          const stepKey = `step:${stepIdx}`;
                           const checked = checkedSteps.has(stepKey);
-                          const isLast = stepIdx === steps.length - 1;
+                          const isLast = stepIdx === sectionSteps.length - 1;
                           return (
                             <div key={stepKey} className="plan-step-item flex items-start gap-3 group relative">
                               {/* Timeline connector */}
@@ -421,10 +401,10 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
                                     {step.title}
                                   </ReactMarkdown>
                                 </span>
-                                {step.body && (
+                                {step.details && (
                                   <div className="markdown-prose mt-1.5 text-[12.5px] text-text-secondary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                      {step.body}
+                                      {step.details}
                                     </ReactMarkdown>
                                   </div>
                                 )}
