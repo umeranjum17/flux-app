@@ -36,14 +36,13 @@ import { normalizeTrackedFilePath } from '../../lib/path-utils';
 function SkillBadges({ skills }: { skills: Array<{ id: string; name: string }> }) {
   if (skills.length === 0) return null;
   return (
-    <div className="flex items-center gap-2 py-1">
-      <Sparkles size={13} className="text-accent shrink-0" />
-      <span className="text-[11px] font-medium text-text-secondary">Skills</span>
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex items-center gap-1.5 py-0.5">
+      <Sparkles size={11} className="text-text-tertiary/60 shrink-0" />
+      <div className="flex flex-wrap gap-1">
         {skills.map((s) => (
           <span
             key={s.id}
-            className="inline-flex items-center rounded-full bg-accent/12 px-2 py-0.5 text-[11px] font-medium text-accent"
+            className="inline-flex items-center rounded-full bg-bg-tertiary px-1.5 py-px text-[10px] text-text-tertiary"
           >
             {s.name}
           </span>
