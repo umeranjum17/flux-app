@@ -49,7 +49,7 @@ import {
 
 import { trackAgentPid, untrackAgentPid } from '../agents/pid-tracker';
 import { classifyErrorContent } from '../agents/spawn-utils';
-import { parseAllLifecycleEvents } from '../agents/lifecycle-protocol';
+import { parseAllWorkspaceEvents } from '../worktree/workspace-protocol';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -762,31 +762,20 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
-      // Unified lifecycle protocol: always parse FLUX_LIFECYCLE events from text,
-      // even when Claude CLI's native TodoWrite has fired (agentUsedTodoWrite).
-      // FLUX_LIFECYCLE is Flux's own progress protocol and must not be blocked by
-      // Claude CLI's internal todo management.
+      // Workspace lifecycle protocol: parse FLUX_LIFECYCLE state transitions.
+      // These are NOT todo/progress items — they only signal workspace state
+      // changes (working, ready_for_review, etc.).
       const trackable = getStepTrackableContent(message);
-      let handledByLifecycle = false;
+      const handledByLifecycle = false;
       if (trackable) {
-        const lifecycleEvents = parseAllLifecycleEvents(trackable);
-        if (lifecycleEvents.length > 0) {
-          handledByLifecycle = true;
-          for (const evt of lifecycleEvents) {
-            if (evt.event === 'step_start' && typeof evt.step === 'number') {
-              if (!todoInitialized) {
-                // Auto-seed so the renderer has an item to update
-                sendToRenderer('agent:todo', {
-                  taskId: options.taskId,
-                  todoItems: [{ id: evt.step, label: evt.label || `Step ${evt.step}`, status: 'in_progress' }],
-                });
-                flushTodoUpdates(options.taskId);
-              }
-              emitTodoUpdate(options.taskId, evt.step, 'in_progress', evt.label);
-            } else if (evt.event === 'step_done' && typeof evt.step === 'number') {
-              emitTodoUpdate(options.taskId, evt.step, 'done');
-            }
-            // 'completed' events are handled by extractAgentWorkspaceName
+        const lifecycleEvents = parseAllWorkspaceEvents(trackable);
+        for (const evt of lifecycleEvents) {
+          if (evt.state === 'ready_for_review' || evt.state === 'merged') {
+            // Signal workspace completion — name extraction happens in extractAgentWorkspaceName
+            logDiagnostic('lifecycle', `agent signalled ${evt.state}`, {
+              taskId: options.taskId,
+              workspaceName: evt.workspace_name,
+            });
           }
         }
       }
@@ -1059,7 +1048,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             ...message,
             content: message.content
               .split('\n')
-              .filter((line: string) => !line.match(/^FLUX_LIFECYCLE:\s*\{/))
+              .filter((line: string) => !line.match(/^FLUX_(?:LIFECYCLE|WORKSPACE):\s*\{/))
               .join('\n')
               .trim(),
           }

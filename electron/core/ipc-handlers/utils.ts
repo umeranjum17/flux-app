@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
-import { buildLifecyclePrompt, parseLifecycleEvent } from '../agents/lifecycle-protocol';
+import { buildWorkspaceProtocolPrompt, parseWorkspaceEvent } from '../worktree/workspace-protocol';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv, resolveSshCommand } from '../process-utils';
 import type { SessionStore } from '../session/store';
@@ -926,7 +926,7 @@ export function buildWorkspaceSystemContext(
       '- After committing, summarize what you changed.',
     );
 
-    lines.push('', buildLifecyclePrompt());
+    lines.push('', buildWorkspaceProtocolPrompt());
 
     if (agentId === 'codex' || agentId === 'copilot') {
       lines.push(
@@ -985,7 +985,7 @@ const WORKSPACE_NAME_PATTERN = /WORKSPACE_NAME:\s*(.+)/i;
 /**
  * Extract a workspace name suggested by the agent from its session messages.
  * Checks (in priority order):
- *   1. FLUX_LIFECYCLE completed event with workspace_name
+ *   1. FLUX_WORKSPACE completed event with workspace_name
  *   2. Legacy WORKSPACE_NAME: marker
  * Searches result/text messages from last → first.
  */
@@ -1001,9 +1001,9 @@ export function extractAgentWorkspaceName(
     if (m.type !== 'result' && m.type !== 'text') continue;
     if (!m.content) continue;
 
-    // Check for lifecycle completed event first
-    const lifecycleEvent = parseLifecycleEvent(m.content);
-    if (lifecycleEvent?.event === 'completed' && lifecycleEvent.workspace_name) {
+    // Check for lifecycle ready_for_review/merged event with workspace_name
+    const lifecycleEvent = parseWorkspaceEvent(m.content);
+    if (lifecycleEvent?.workspace_name && (lifecycleEvent.state === 'ready_for_review' || lifecycleEvent.state === 'merged')) {
       return lifecycleEvent.workspace_name.trim().slice(0, 50);
     }
 
@@ -1089,7 +1089,7 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
   const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
 
   // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
-  // TodoWrite instructions. FLUX_LIFECYCLE (already in the prompt) handles
+  // TodoWrite instructions. FLUX_WORKSPACE (already in the prompt) handles
   // progress tracking for all agents including claude-code.
   if (agentId === 'claude-code') {
     return [
