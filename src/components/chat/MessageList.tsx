@@ -29,7 +29,7 @@ import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
 import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
-import { SystemActivityFeed } from './SystemActivityFeed';
+import { SystemActivityInlineItem } from './SystemActivityFeed';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
@@ -187,10 +187,35 @@ export function MessageList() {
           <AnimatePresence initial={false}>
             {(() => {
               const rendered: React.ReactNode[] = [];
+              let activityCursor = 0;
+
+              // Helper: flush any system activities whose timestamp <= cutoff
+              const flushActivities = (cutoff: number) => {
+                while (activityCursor < systemActivities.length && systemActivities[activityCursor].timestamp <= cutoff) {
+                  const activity = systemActivities[activityCursor];
+                  rendered.push(
+                    <motion.div
+                      key={`sys-activity-${activity.id}`}
+                      variants={messageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={messageTransition}
+                    >
+                      <SystemActivityInlineItem activity={activity} />
+                    </motion.div>,
+                  );
+                  activityCursor++;
+                }
+              };
+
               for (let idx = 0; idx < messages.length; idx++) {
                 const msg = messages[idx];
                 if (mergedResultIndices.has(idx)) continue;
                 if (!planIsStale && isPlanMessage(msg, task.mode)) continue;
+
+                // Flush activities that occurred before this message
+                flushActivities(msg.timestamp);
 
                 if (isSubagentMarker(msg)) {
                   const groupIds: string[] = [];
@@ -273,6 +298,10 @@ export function MessageList() {
                   </motion.div>,
                 );
               }
+
+              // Flush any remaining activities after the last message
+              flushActivities(Infinity);
+
               return rendered;
             })()}
           </AnimatePresence>
@@ -281,10 +310,6 @@ export function MessageList() {
             <div className="pl-1">
               <StreamingCursor />
             </div>
-          )}
-
-          {systemActivities.length > 0 && (
-            <SystemActivityFeed activities={systemActivities} />
           )}
 
           {isActiveRun && task.currentStatus && (

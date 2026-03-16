@@ -163,7 +163,7 @@ This depends on the agent honoring the structured plan prompt.`,
     expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
   });
 
-  it('renders background system activities in the chat timeline', () => {
+  it('renders background system activities inline in the chat timeline', () => {
     useChatStore.getState().createTask({
       id: 'task-1',
       title: 'Workspace task',
@@ -189,8 +189,8 @@ This depends on the agent honoring the structured plan prompt.`,
 
     render(<MessageList />);
 
-    expect(screen.getByText('Background activity')).not.toBeNull();
+    expect(screen.getByText('Checkpoint')).not.toBeNull();
     expect(screen.getByText('Checkpoint saved')).not.toBeNull();
-    expect(screen.getByText('3 files · +18 / -4')).not.toBeNull();
+    expect(screen.getByText('· 3 files · +18 / -4')).not.toBeNull();
   });
 });
