@@ -27,11 +27,24 @@ function classifyCopilotExit(code: number | null, stderr: string): string {
   return `GitHub Copilot exited with code ${code}${hint}`;
 }
 
+function isCopilotFileEditTool(toolName: string): boolean {
+  const name = toolName.toLowerCase();
+  return name.includes('edit') || name.includes('write') || name.includes('patch');
+}
+
+function extractCopilotFilePath(args: Record<string, any>): string | undefined {
+  return (args.file_path ?? args.path ?? args.filePath ?? args.fileName) as string | undefined;
+}
+
 export function spawnCopilot(options: SpawnOptions): AgentHandle {
   // Streaming state: track whether deltas were received so we can suppress
   // the redundant full-content events that would otherwise double the text.
   let hasReceivedTextDelta = false;
   let hasReceivedReasoningDelta = false;
+
+  // Track file-edit tool call IDs so we can suppress their progress events
+  // (progress events break the tool_call → tool_result merge in the renderer).
+  const fileEditToolCallIds = new Set<string>();
 
   return createCliAgentHandle(options, {
     agentId: 'copilot',
@@ -105,6 +118,27 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
           return true;
         }
 
+        // Track file-edit tool calls so we can suppress their progress events.
+        // Progress events between tool_call and tool_result break the inline
+        // merge in the renderer (Codex doesn't emit these for file edits).
+        if (event.type === 'tool.execution_start') {
+          const toolName = (event.data?.toolName ?? '') as string;
+          const toolCallId = event.data?.toolCallId as string | undefined;
+          if (toolCallId && isCopilotFileEditTool(toolName)) {
+            fileEditToolCallIds.add(toolCallId);
+          }
+        }
+        if (event.type === 'tool.execution_progress') {
+          const toolCallId = event.data?.toolCallId as string | undefined;
+          if (toolCallId && fileEditToolCallIds.has(toolCallId)) {
+            return true; // suppress progress for file edits
+          }
+        }
+        if (event.type === 'tool.execution_complete') {
+          const toolCallId = event.data?.toolCallId as string | undefined;
+          if (toolCallId) fileEditToolCallIds.delete(toolCallId);
+        }
+
         return false;
       },
 
@@ -162,13 +196,33 @@ function mapCopilotEvent(event: Record<string, any>): AgentMessage | null {
   }
 
   if (event.type === 'tool.execution_start') {
+    const toolName = (event.data?.toolName ?? 'unknown') as string;
+    const args = (event.data?.arguments ?? {}) as Record<string, any>;
+
+    // Normalize file-edit tools to match the Codex pattern: only pass the
+    // file path in toolInput and set filePath explicitly.  The actual diff
+    // data arrives later via the agent:diff IPC event (git diff).
+    if (isCopilotFileEditTool(toolName)) {
+      const filePath = extractCopilotFilePath(args);
+      return {
+        type: 'tool_call',
+        role: 'assistant',
+        content: `Calling: ${toolName}`,
+        timestamp: now,
+        toolName,
+        toolInput: { path: filePath ?? '' },
+        toolCallId: event.data?.toolCallId,
+        ...(filePath ? { filePath } : {}),
+      };
+    }
+
     return {
       type: 'tool_call',
       role: 'assistant',
-      content: `Using tool: ${event.data?.toolName ?? 'unknown'}`,
+      content: `Using tool: ${toolName}`,
       timestamp: now,
-      toolName: event.data?.toolName,
-      toolInput: event.data?.arguments ?? {},
+      toolName,
+      toolInput: args,
       toolCallId: event.data?.toolCallId,
     };
   }

@@ -160,19 +160,22 @@ export function MessageList() {
   // Build set of message indices where agent switches happened
   const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
 
-  // Build a set of tool_result indices that are merged into their preceding tool_call
+  // Build maps for merging tool_result into its preceding tool_call.
+  // Look past intermediate status messages (e.g. tool.execution_progress) that may
+  // sit between a tool_call and its corresponding tool_result.
   const mergedResultIndices = new Set<number>();
+  const mergedResultForCall = new Map<number, AgentMessage>();
   for (let i = 0; i < messages.length - 1; i++) {
     const msg = messages[i];
-    const next = messages[i + 1];
-    if (
-      msg.type === 'tool_call' &&
-      next.type === 'tool_result' &&
-      next.toolCallId &&
-      msg.toolCallId &&
-      next.toolCallId === msg.toolCallId
-    ) {
-      mergedResultIndices.add(i + 1);
+    if (msg.type !== 'tool_call' || !msg.toolCallId) continue;
+    for (let j = i + 1; j < messages.length; j++) {
+      const candidate = messages[j];
+      if (candidate.type === 'status' && candidate.toolCallId === msg.toolCallId) continue;
+      if (candidate.type === 'tool_result' && candidate.toolCallId === msg.toolCallId) {
+        mergedResultIndices.add(j);
+        mergedResultForCall.set(i, candidate);
+      }
+      break;
     }
   }
 
@@ -296,7 +299,7 @@ export function MessageList() {
                   }
                 }
 
-                const mergedResult = mergedResultIndices.has(idx + 1) ? messages[idx + 1] : null;
+                const mergedResult = mergedResultForCall.get(idx) ?? null;
 
                 rendered.push(
                   <motion.div
