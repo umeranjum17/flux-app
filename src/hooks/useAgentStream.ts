@@ -69,13 +69,14 @@ export function useAgentStream() {
         flushMessages();
       }
 
-      const { taskId, error } = data as { taskId: string; error?: string };
+      const { taskId, error, errorKind } = data as { taskId: string; error?: string; errorKind?: string };
       if (error) {
         useChatStore.getState().addMessage(taskId, {
           type: 'error',
           role: 'system',
           content: error,
           timestamp: Date.now(),
+          ...(errorKind ? { errorKind: errorKind as AgentMessage['errorKind'] } : {}),
         });
       }
       useChatStore.getState().setTaskStatus(taskId, error ? 'error' : 'done');

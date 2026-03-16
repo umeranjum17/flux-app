@@ -7,6 +7,7 @@ import {
   filterStderrNoise,
   isMeaningfulMessage,
   terminateAgentProcess,
+  classifyErrorContent,
   type StartupWatchdog,
 } from './spawn-utils';
 import { classifySpawnError, attachChildStdinErrorHandler } from '../process-utils';
@@ -269,11 +270,13 @@ export function createCliAgentHandle(
     if (!actionable) return;
     lastStderrError = actionable;
 
+    const classified = classifyErrorContent(actionable);
     emitMessage({
       type: 'error',
       role: 'system',
-      content: actionable,
+      content: classified?.message ?? actionable,
       timestamp: Date.now(),
+      ...(classified ? { errorKind: classified.errorKind } : {}),
     });
   });
 
