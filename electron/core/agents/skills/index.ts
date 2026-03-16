@@ -1,4 +1,4 @@
-import { buildWorkspacePrompt } from '../workspace-protocol';
+import { buildWorkspaceProtocolPrompt } from '../../worktree/workspace-protocol';
 import type { AgentId, TaskMode } from '../types';
 import type { FluxSkill, SkillContext } from './types';
 import { fluxWorkspaceSkill } from './flux-workspace';
@@ -68,7 +68,7 @@ export function composeSkillPrompts(options: ComposeSkillsOptions): string | nul
   // Workspace state protocol is injected in act mode so agents can report
   // lifecycle transitions (working → ready_for_review → completed).
   if (options.mode === 'act' && options.workspace) {
-    sections.push(buildWorkspacePrompt());
+    sections.push(buildWorkspaceProtocolPrompt());
   }
 
   if (sections.length === 0) return null;

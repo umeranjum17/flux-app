@@ -50,7 +50,7 @@ import {
 
 import { trackAgentPid, untrackAgentPid } from '../agents/pid-tracker';
 import { classifyErrorContent } from '../agents/spawn-utils';
-import { parseAllWorkspaceEvents } from '../agents/workspace-protocol';
+import { parseAllWorkspaceEvents } from '../worktree/workspace-protocol';
 import { parseAllFluxSignals } from '../agents/skills/signal-parser';
 import { getActiveSkillIds } from '../agents/skills';
 import { execFile } from 'child_process';
@@ -800,9 +800,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         // 1. Parse FLUX_WORKSPACE events (workspace state protocol)
         const wsEvents = parseAllWorkspaceEvents(trackable);
         for (const evt of wsEvents) {
-          console.log(`[workspace-protocol] ${options.taskId}: state=${evt.state}${evt.workspace_name ? ` name="${evt.workspace_name}"` : ''}`);
-          // 'completed' / 'ready_for_review' events with workspace_name are
-          // handled by extractAgentWorkspaceName at task completion time.
+          if (evt.state === 'ready_for_review' || evt.state === 'merged') {
+            logDiagnostic('lifecycle', `agent signalled ${evt.state}`, {
+              taskId: options.taskId,
+              workspaceName: evt.workspace_name,
+            });
+          }
         }
 
         // 2. Parse FLUX_SIGNAL events (unified protocol from skills)
@@ -1125,7 +1128,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             ...message,
             content: message.content
               .split('\n')
-              .filter((line: string) => !line.match(/^FLUX_(?:WORKSPACE|LIFECYCLE):\s*\{/))
+              .filter((line: string) => !line.match(/^FLUX_(?:LIFECYCLE|WORKSPACE):\s*\{/))
               .join('\n')
               .trim(),
           }

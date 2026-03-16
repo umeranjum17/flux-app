@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
-import { parseWorkspaceEvent } from '../agents/workspace-protocol';
+import { parseWorkspaceEvent } from '../worktree/workspace-protocol';
 import { composeSkillPrompts } from '../agents/skills';
 import { parseFluxSignal } from '../agents/skills/signal-parser';
 import { logDiagnostic } from '../diagnostics/logger';
@@ -965,9 +965,9 @@ export function extractAgentWorkspaceName(
       return fluxSignal.workspace_name.trim().slice(0, 50);
     }
 
-    // Check for FLUX_WORKSPACE state event
+    // Check for workspace lifecycle event
     const wsEvent = parseWorkspaceEvent(m.content);
-    if (wsEvent && (wsEvent.state === 'completed' || wsEvent.state === 'ready_for_review') && wsEvent.workspace_name) {
+    if (wsEvent?.workspace_name && (wsEvent.state === 'ready_for_review' || wsEvent.state === 'merged')) {
       return wsEvent.workspace_name.trim().slice(0, 50);
     }
 
@@ -1054,7 +1054,7 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
 
   // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
   // TodoWrite instructions. FLUX_WORKSPACE (already in the prompt) handles
-  // workspace state for all agents including claude-code.
+  // progress tracking for all agents including claude-code.
   if (agentId === 'claude-code') {
     return [
       '',
