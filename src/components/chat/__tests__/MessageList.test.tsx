@@ -1,11 +1,22 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MessageList } from '../MessageList';
 import { useChatStore } from '../../../stores/chat';
 import { useWorkspaceStore } from '../../../stores/workspace';
+import { renderMermaidDiagram } from '../../../lib/mermaid';
+
+vi.mock('../../../lib/mermaid', () => ({
+  renderMermaidDiagram: vi.fn(),
+}));
+
+const renderMermaidDiagramMock = vi.mocked(renderMermaidDiagram);
 
 beforeEach(() => {
   cleanup();
+  renderMermaidDiagramMock.mockReset();
+  renderMermaidDiagramMock.mockResolvedValue({
+    svg: '<svg viewBox="0 0 120 40"><text x="10" y="20">Plan Diagram</text></svg>',
+  });
   useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
   useWorkspaceStore.setState({
     workspaces: new Map(),
@@ -177,6 +188,54 @@ This depends on the agent honoring the structured plan prompt.`,
     expect(screen.getByText(/^Analysis$/)).not.toBeNull();
     expect(screen.getByText(/^Steps$/)).not.toBeNull();
     expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
+  });
+
+  it('renders Mermaid diagrams inside the plan card', async () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Planning',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'plan',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: `## Summary
+Visualize the rollout.
+
+\`\`\`mermaid
+graph TD
+  A[Prompt] --> B[Plan]
+  B --> C[Diagram]
+\`\`\`
+
+## Analysis
+Mermaid diagrams should render inside plan content.
+
+## Steps
+1. Route Mermaid fences through a dedicated renderer.
+2. Verify the plan card shows the generated SVG.
+
+## Trade-offs
+This adds a renderer dependency but keeps markdown output visual.`,
+      timestamp: 7,
+    });
+
+    const { container } = render(<MessageList />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.premium-plan-card .mermaid-block svg')).not.toBeNull();
+    });
+
+    expect(renderMermaidDiagramMock).toHaveBeenCalledWith(
+      'graph TD\n  A[Prompt] --> B[Plan]\n  B --> C[Diagram]',
+      'dark',
+      expect.stringMatching(/^mermaid-/),
+    );
   });
 
   it('renders background system activities inline in the chat timeline', () => {
