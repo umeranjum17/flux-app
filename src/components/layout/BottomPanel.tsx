@@ -2,6 +2,8 @@ import { forwardRef, useState, useCallback, useRef } from 'react';
 import {
   Maximize2, Minimize2,
   PanelBottomClose,
+  Terminal as TerminalIcon,
+  Play,
 } from 'lucide-react';
 import { TerminalPanel, type TerminalPanelHandle } from '../terminal/TerminalPanel';
 import { RunPanel } from '../terminal/RunPanel';

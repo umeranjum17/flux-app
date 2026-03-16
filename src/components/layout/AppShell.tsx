@@ -747,7 +747,11 @@ export function AppShell() {
               </div>
             </div>
 
-            {bottomPanelOpen && <BottomPanel ref={termRef} />}
+            {bottomPanelOpen && (
+              <ErrorBoundary>
+                <BottomPanel ref={termRef} />
+              </ErrorBoundary>
+            )}
 
             <StatusLine />
           </div>
