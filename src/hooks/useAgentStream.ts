@@ -201,24 +201,8 @@ export function useAgentStream() {
       useChatStore.getState().addSystemActivity(activeTaskId, buildRepoMapActivity(status));
     });
 
-    const unsubIpcActivity = window.api.on('ipc:activity', (data: unknown) => {
-      const activity = data as IpcActivity;
-      if (!shouldRenderIpcActivity(activity)) {
-        return;
-      }
-
-      const systemActivity = toSystemActivity(activity);
-      const chatState = useChatStore.getState();
-
-      if (activity.taskId && chatState.tasks.has(activity.taskId)) {
-        chatState.addSystemActivity(activity.taskId, systemActivity);
-        return;
-      }
-
-      if (activity.workspaceId) {
-        useWorkspaceStore.getState().addWorkspaceActivity(activity.workspaceId, systemActivity);
-      }
-    });
+    // IPC activity events are too noisy for end-user UI — skip them entirely.
+    const unsubIpcActivity = window.api.on('ipc:activity', () => {});
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
