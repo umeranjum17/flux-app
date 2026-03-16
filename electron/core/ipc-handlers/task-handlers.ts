@@ -40,6 +40,7 @@ import {
   getStepTrackableContent,
   extractTodoItemsFromPayload,
   isTodoTrackingToolCall,
+  parseAgentProgress,
   extractAgentWorkspaceName,
   branchNameFromLabel,
   moveWorktreeDirectory,
@@ -683,6 +684,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     let agentUsedTodoWrite = false;
+    // Accumulated text buffer for FLUX_PROGRESS / checklist parsing (Codex/Copilot).
+    const MAX_PROGRESS_BUFFER = 50_000;
+    let progressBuffer = '';
+    let lastProgressSnapshot = '';
+    const emittedStepStatuses = new Map<number, 'in_progress' | 'done'>();
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
@@ -783,27 +789,47 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           }
         }
 
-        // Fallback: legacy [STEP N START/DONE] markers for backward compat
+        // Fallback: FLUX_PROGRESS JSON, progress blocks, checklists, step markers
+        // (covers Codex/Copilot that can't use TodoWrite or lifecycle step events)
         if (!handledByLifecycle && trackable) {
-          const markers = parseStepMarkers(trackable);
-          if (markers.length > 0 && !todoInitialized) {
-            const labelMap = new Map(markers.filter((m) => m.label).map((m) => [m.stepId, m.label!]));
-            const doneIds = new Set(markers.filter((m) => m.status === 'done').map((m) => m.stepId));
-            const startIds = new Set(markers.filter((m) => m.status === 'in_progress').map((m) => m.stepId));
-            const maxStep = Math.max(...markers.map((m) => m.stepId));
-            const seeded: NormalizedTodoItem[] = [];
-            for (let step = 1; step <= maxStep; step++) {
-              seeded.push({
-                id: step,
-                label: labelMap.get(step) || `Step ${step}`,
-                status: doneIds.has(step) ? 'done' : startIds.has(step) ? 'in_progress' : 'pending',
-              });
-            }
-            sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: seeded });
-            flushTodoUpdates(options.taskId);
+          progressBuffer += '\n' + trackable;
+          if (progressBuffer.length > MAX_PROGRESS_BUFFER) {
+            progressBuffer = progressBuffer.slice(-MAX_PROGRESS_BUFFER / 2);
           }
-          for (const marker of markers) {
-            emitTodoUpdate(options.taskId, marker.stepId, marker.status, marker.label);
+
+          const progress = parseAgentProgress(progressBuffer);
+
+          if (progress.source === 'flux_progress' || progress.source === 'progress_block' || progress.source === 'checklist') {
+            const snapshot = JSON.stringify(progress.items);
+            if (snapshot !== lastProgressSnapshot) {
+              lastProgressSnapshot = snapshot;
+              sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: progress.items });
+              flushTodoUpdates(options.taskId);
+            }
+          } else if (progress.source === 'step_markers') {
+            const { markers } = progress;
+            if (markers.length > 0 && !todoInitialized) {
+              const labelMap = new Map(markers.filter((m) => m.label).map((m) => [m.stepId, m.label!]));
+              const doneIds = new Set(markers.filter((m) => m.status === 'done').map((m) => m.stepId));
+              const startIds = new Set(markers.filter((m) => m.status === 'in_progress').map((m) => m.stepId));
+              const maxStep = Math.max(...markers.map((m) => m.stepId));
+              const seeded: NormalizedTodoItem[] = [];
+              for (let step = 1; step <= maxStep; step++) {
+                seeded.push({
+                  id: step,
+                  label: labelMap.get(step) || `Step ${step}`,
+                  status: doneIds.has(step) ? 'done' : startIds.has(step) ? 'in_progress' : 'pending',
+                });
+              }
+              sendToRenderer('agent:todo', { taskId: options.taskId, todoItems: seeded });
+              flushTodoUpdates(options.taskId);
+            }
+            for (const marker of markers) {
+              const prevStatus = emittedStepStatuses.get(marker.stepId);
+              if (prevStatus === marker.status) continue;
+              emittedStepStatuses.set(marker.stepId, marker.status);
+              emitTodoUpdate(options.taskId, marker.stepId, marker.status, marker.label);
+            }
           }
         }
       }

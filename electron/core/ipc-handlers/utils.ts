@@ -201,6 +201,193 @@ export function isTodoTrackingToolCall(
   return extractTodoItemsFromPayload(toolInput).length > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Progress block & checklist parsers for Codex / Copilot
+// ---------------------------------------------------------------------------
+
+const PROGRESS_BLOCK_RE = /```progress\s*\n([\s\S]*?)```/g;
+
+const CHECKLIST_LINE_RE = /^[-*]\s*\[(x|X|>|~|!| )\]\s+(.+)/;
+
+function checkboxToStatus(marker: string): NormalizedTodoItem['status'] {
+  if (marker === 'x' || marker === 'X') return 'done';
+  if (marker === '>' || marker === '~' || marker === '!') return 'in_progress';
+  return 'pending';
+}
+
+/**
+ * Parse fenced `\`\`\`progress` blocks into todo items.
+ * Returns items from the LAST complete block found (most recent state).
+ */
+export function parseProgressBlock(content: string): NormalizedTodoItem[] {
+  let lastItems: NormalizedTodoItem[] = [];
+
+  for (const blockMatch of content.matchAll(PROGRESS_BLOCK_RE)) {
+    const blockContent = blockMatch[1];
+    const items: NormalizedTodoItem[] = [];
+    for (const line of blockContent.split('\n')) {
+      const lineMatch = line.trim().match(CHECKLIST_LINE_RE);
+      if (lineMatch) {
+        items.push({
+          id: items.length + 1,
+          label: lineMatch[2].trim(),
+          status: checkboxToStatus(lineMatch[1]),
+        });
+      }
+    }
+    if (items.length > 0) {
+      lastItems = items;
+    }
+  }
+
+  return lastItems;
+}
+
+/**
+ * Parse markdown checklist lines into NormalizedTodoItem[].
+ * Supports: `- [x]` (done), `- [~]`/`- [>]` (in_progress), `- [ ]` (pending).
+ */
+export function parseMarkdownChecklist(content: string): NormalizedTodoItem[] {
+  const items: NormalizedTodoItem[] = [];
+  for (const line of content.split('\n')) {
+    const m = line.trim().match(CHECKLIST_LINE_RE);
+    if (!m) continue;
+    const label = m[2].trim();
+    if (!label) continue;
+    items.push({ id: items.length + 1, label, status: checkboxToStatus(m[1]) });
+  }
+  return items;
+}
+
+/**
+ * Try all non-TodoWrite parsers against accumulated text, in priority order:
+ * 1. FLUX_PROGRESS: JSON lines (structured, distinctive prefix)
+ * 2. Fenced ```progress blocks (explicitly requested format)
+ * 3. Markdown checklists with 2+ consecutive items (common LLM output)
+ * 4. [STEP N START/DONE] markers (legacy fallback)
+ *
+ * Returns items from the first parser that produces results.
+ */
+export function parseAgentProgress(content: string): {
+  items: NormalizedTodoItem[];
+  markers: StepMarker[];
+  source: 'flux_progress' | 'progress_block' | 'checklist' | 'step_markers' | 'none';
+} {
+  // 1. Try FLUX_PROGRESS: JSON lines (last occurrence wins — full state each time)
+  const fluxItems = parseFluxProgressAll(content);
+  if (fluxItems.length > 0) {
+    return { items: fluxItems, markers: [], source: 'flux_progress' };
+  }
+
+  // 2. Try fenced progress blocks
+  const progressItems = parseProgressBlock(content);
+  if (progressItems.length > 0) {
+    return { items: progressItems, markers: [], source: 'progress_block' };
+  }
+
+  // 3. Try markdown checklists (require 2+ consecutive items to avoid false positives)
+  const checklistItems = parseStandaloneChecklist(content);
+  if (checklistItems.length > 0) {
+    return { items: checklistItems, markers: [], source: 'checklist' };
+  }
+
+  // 4. Fall back to step markers
+  const markers = parseStepMarkers(content);
+  if (markers.length > 0) {
+    return { items: [], markers, source: 'step_markers' };
+  }
+
+  return { items: [], markers: [], source: 'none' };
+}
+
+/**
+ * Parse standalone markdown checklists from free-form text.
+ * Requires 2+ consecutive checklist items to avoid false positives
+ * from random single checkboxes in agent output.
+ */
+function parseStandaloneChecklist(content: string): NormalizedTodoItem[] {
+  const checklistLine = /^[\s]*[-*]\s*\[([ xX~>!])\]\s+(.+)/;
+  const lines = content.split('\n');
+  let bestRun: NormalizedTodoItem[] = [];
+  let currentRun: NormalizedTodoItem[] = [];
+
+  for (const line of lines) {
+    const match = line.match(checklistLine);
+    if (match) {
+      const marker = match[1];
+      const label = match[2].trim();
+      if (label) {
+        let status: NormalizedTodoItem['status'] = 'pending';
+        if (marker === 'x' || marker === 'X') status = 'done';
+        else if (marker === '~' || marker === '>' || marker === '!') status = 'in_progress';
+        currentRun.push({ id: currentRun.length + 1, label, status });
+      }
+    } else {
+      if (currentRun.length > bestRun.length) {
+        bestRun = currentRun;
+      }
+      currentRun = [];
+    }
+  }
+  if (currentRun.length > bestRun.length) {
+    bestRun = currentRun;
+  }
+  return bestRun.length >= 2 ? bestRun : [];
+}
+
+/**
+ * Attempt to parse a `FLUX_PROGRESS:{...}` JSON line from a string.
+ * Returns the extracted todo items or null if no valid progress line is found.
+ */
+export function parseFluxProgress(content: string): NormalizedTodoItem[] | null {
+  const match = content.match(/FLUX_PROGRESS:\s*(\{[\s\S]*\})/);
+  if (!match) return null;
+
+  try {
+    const data = JSON.parse(match[1]);
+    const items = extractTodoItemsFromPayload(data);
+    return items.length > 0 ? items : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Scan a buffer of accumulated text for complete `FLUX_PROGRESS:` lines.
+ * Returns the last successfully parsed todo list (each emission is the full state)
+ * and the remaining un-consumed text.
+ */
+export function parseFluxProgressFromBuffer(buffer: string): {
+  todos: NormalizedTodoItem[] | null;
+  remaining: string;
+} {
+  const lines = buffer.split('\n');
+  const remaining = lines.pop() ?? '';
+  let lastTodos: NormalizedTodoItem[] | null = null;
+
+  for (const line of lines) {
+    const parsed = parseFluxProgress(line);
+    if (parsed) lastTodos = parsed;
+  }
+
+  return { todos: lastTodos, remaining };
+}
+
+/**
+ * Scan the full content for ALL `FLUX_PROGRESS:` occurrences and return
+ * the items from the last valid one (most recent full state).
+ * Used by `parseAgentProgress` which receives the accumulated buffer.
+ */
+export function parseFluxProgressAll(content: string): NormalizedTodoItem[] {
+  let lastItems: NormalizedTodoItem[] = [];
+  for (const line of content.split('\n')) {
+    if (!line.includes('FLUX_PROGRESS:')) continue;
+    const parsed = parseFluxProgress(line);
+    if (parsed) lastItems = parsed;
+  }
+  return lastItems;
+}
+
 export function readAgentSessionId(metadata: Record<string, unknown> | undefined, agentId: AgentId): string | undefined {
   if (!metadata) return undefined;
   const agentSessions = metadata.agentSessions;
@@ -740,6 +927,25 @@ export function buildWorkspaceSystemContext(
     );
 
     lines.push('', buildLifecyclePrompt());
+
+    if (agentId === 'codex' || agentId === 'copilot') {
+      lines.push(
+        '',
+        '## Progress tracking',
+        'For multi-step tasks, track your progress by outputting a single-line JSON prefixed with `FLUX_PROGRESS:` on its own line.',
+        'Each time you begin or complete a step, output the **full** todo list with current statuses.',
+        '',
+        'Format: `FLUX_PROGRESS:{"todos":[{"label":"short step description","status":"pending|in_progress|done"},...]}`',
+        '',
+        '- Emit the full list each time (not just the changed item).',
+        '- Use `"in_progress"` for the step you are currently working on.',
+        '- Use `"done"` for completed steps, `"pending"` for steps not yet started.',
+        '- Keep step labels short (under 50 characters).',
+        '',
+        'Example:',
+        'FLUX_PROGRESS:{"todos":[{"label":"Set up database schema","status":"done"},{"label":"Add API endpoints","status":"in_progress"},{"label":"Write tests","status":"pending"}]}',
+      );
+    }
   } else if (mode === 'plan') {
     lines.push(
       '',
