@@ -1,4 +1,4 @@
-import { AgentHandle, AgentMessage, SpawnOptions } from './types';
+import { AgentHandle, AgentMessage, SpawnOptions, PLAN_FORMAT_PREAMBLE } from './types';
 import { createCliAgentHandle } from './cli-agent';
 
 export const COPILOT_STARTUP_TIMEOUT_MS = 30_000;
@@ -78,7 +78,10 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
         args.push(`--resume=${opts.resumeSessionId}`);
       }
 
-      args.push('--prompt', opts.prompt);
+      const prompt = opts.mode === 'plan'
+        ? `${PLAN_FORMAT_PREAMBLE}\n\n${opts.prompt}`
+        : opts.prompt;
+      args.push('--prompt', prompt);
       return args;
     },
 
