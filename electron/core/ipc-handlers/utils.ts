@@ -5,7 +5,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
-import { buildLifecyclePrompt, parseLifecycleEvent } from '../agents/lifecycle-protocol';
+import { buildWorkspacePrompt, parseWorkspaceEvent } from '../agents/workspace-protocol';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv, resolveSshCommand } from '../process-utils';
 import type { SessionStore } from '../session/store';
@@ -926,7 +926,7 @@ export function buildWorkspaceSystemContext(
       '- After committing, summarize what you changed.',
     );
 
-    lines.push('', buildLifecyclePrompt());
+    lines.push('', buildWorkspacePrompt());
 
     if (agentId === 'codex' || agentId === 'copilot') {
       lines.push(
@@ -975,6 +975,8 @@ export function buildWorkspaceSystemContext(
       'Bad:  "1. **Authentication bug**: The login handler at line 45 fails when..."',
       'Good: "1. Fix login handler validation"',
     );
+
+    lines.push('', buildWorkspacePrompt());
   }
 
   return lines.join('\n');
@@ -985,7 +987,7 @@ const WORKSPACE_NAME_PATTERN = /WORKSPACE_NAME:\s*(.+)/i;
 /**
  * Extract a workspace name suggested by the agent from its session messages.
  * Checks (in priority order):
- *   1. FLUX_LIFECYCLE completed event with workspace_name
+ *   1. FLUX_WORKSPACE completed/ready_for_review event with workspace_name
  *   2. Legacy WORKSPACE_NAME: marker
  * Searches result/text messages from last → first.
  */
@@ -1001,10 +1003,10 @@ export function extractAgentWorkspaceName(
     if (m.type !== 'result' && m.type !== 'text') continue;
     if (!m.content) continue;
 
-    // Check for lifecycle completed event first
-    const lifecycleEvent = parseLifecycleEvent(m.content);
-    if (lifecycleEvent?.event === 'completed' && lifecycleEvent.workspace_name) {
-      return lifecycleEvent.workspace_name.trim().slice(0, 50);
+    // Check for FLUX_WORKSPACE state event first
+    const wsEvent = parseWorkspaceEvent(m.content);
+    if (wsEvent && (wsEvent.state === 'completed' || wsEvent.state === 'ready_for_review') && wsEvent.workspace_name) {
+      return wsEvent.workspace_name.trim().slice(0, 50);
     }
 
     // Fallback to legacy WORKSPACE_NAME: marker
@@ -1089,8 +1091,8 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
   const list = steps.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
 
   // Claude CLI has its own native TodoWrite tool — don't inject Flux-specific
-  // TodoWrite instructions. FLUX_LIFECYCLE (already in the prompt) handles
-  // progress tracking for all agents including claude-code.
+  // TodoWrite instructions. FLUX_WORKSPACE (already in the prompt) handles
+  // workspace state for all agents including claude-code.
   if (agentId === 'claude-code') {
     return [
       '',
