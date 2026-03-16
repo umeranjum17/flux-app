@@ -462,7 +462,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   // PTY-based terminal management (node-pty)
   const activePtys = new Map<string, pty.IPty>();
 
-  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId }: { id: string; cwd?: string; workspaceId?: string }) => {
+  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId, shell: requestedShell }: { id: string; cwd?: string; workspaceId?: string; shell?: string }) => {
     requireFields({ id }, 'id');
 
     // Resolve cwd: workspace worktree path > explicit cwd > current cwd
@@ -497,18 +497,21 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
         activeTerminals.delete(id);
         sendToRenderer('terminal:exit', { id });
       });
-      return { id };
+      return { id, shellName: 'ssh' };
     }
 
     // Local: use node-pty for proper PTY support
-    let shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
-    if (process.platform !== 'win32') {
+    let shell: string;
+    if (requestedShell && fs.existsSync(requestedShell)) {
+      shell = requestedShell;
+    } else if (process.platform === 'win32') {
+      shell = 'powershell.exe';
+    } else {
       const preferred = process.env.SHELL;
-      if (preferred && fs.existsSync(preferred)) {
-        shell = preferred;
-      }
+      shell = (preferred && fs.existsSync(preferred)) ? preferred : '/bin/sh';
     }
 
+    const shellName = path.basename(shell).replace(/\.exe$/i, '');
     const shellArgs = process.platform === 'win32' ? [] : ['-i'];
     const ptyProcess = pty.spawn(shell, shellArgs, {
       name: 'xterm-256color',
@@ -529,7 +532,31 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       sendToRenderer('terminal:exit', { id });
     });
 
-    return { id };
+    return { id, shellName };
+  });
+
+  ipcMain.handle('terminal:get-profiles', async () => {
+    const profiles: Array<{ name: string; path: string; icon: string }> = [];
+    if (process.platform === 'win32') {
+      profiles.push(
+        { name: 'PowerShell', path: 'powershell.exe', icon: 'terminal' },
+        { name: 'Command Prompt', path: 'cmd.exe', icon: 'terminal' },
+      );
+      // Check for Git Bash
+      const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+      if (fs.existsSync(gitBash)) {
+        profiles.push({ name: 'Git Bash', path: gitBash, icon: 'terminal' });
+      }
+    } else {
+      const shellPaths = ['/bin/zsh', '/bin/bash', '/bin/sh', '/usr/bin/fish', '/usr/local/bin/fish'];
+      for (const sp of shellPaths) {
+        if (fs.existsSync(sp)) {
+          const name = path.basename(sp);
+          profiles.push({ name, path: sp, icon: 'terminal' });
+        }
+      }
+    }
+    return profiles;
   });
 
   ipcMain.handle('terminal:write', async (_event, { id, data }: { id: string; data: string }) => {

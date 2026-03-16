@@ -1,20 +1,56 @@
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { TerminalTabs, type TerminalTab } from './TerminalTabs';
+import { TerminalTabs, type TerminalTab, type ShellProfile } from './TerminalTabs';
 
 const DARK_THEME = {
-  background: '#181a20',
-  foreground: '#e0e0e0',
-  cursor: '#e0e0e0',
-  selectionBackground: '#3a3f4b',
+  background: '#1e1e1e',
+  foreground: '#cccccc',
+  cursor: '#aeafad',
+  cursorAccent: '#000000',
+  selectionBackground: '#264f78',
+  selectionForeground: '#ffffff',
+  black: '#000000',
+  red: '#cd3131',
+  green: '#0dbc79',
+  yellow: '#e5e510',
+  blue: '#2472c8',
+  magenta: '#bc3fbc',
+  cyan: '#11a8cd',
+  white: '#e5e5e5',
+  brightBlack: '#666666',
+  brightRed: '#f14c4c',
+  brightGreen: '#23d18b',
+  brightYellow: '#f5f543',
+  brightBlue: '#3b8eea',
+  brightMagenta: '#d670d6',
+  brightCyan: '#29b8db',
+  brightWhite: '#e5e5e5',
 };
 
 const LIGHT_THEME = {
-  background: '#fafaf8',
-  foreground: '#1e1e1e',
-  cursor: '#1e1e1e',
+  background: '#ffffff',
+  foreground: '#383a42',
+  cursor: '#383a42',
+  cursorAccent: '#ffffff',
   selectionBackground: '#add6ff',
+  selectionForeground: '#000000',
+  black: '#000000',
+  red: '#e45649',
+  green: '#50a14f',
+  yellow: '#c18401',
+  blue: '#4078f2',
+  magenta: '#a626a4',
+  cyan: '#0184bc',
+  white: '#a0a1a7',
+  brightBlack: '#5c6370',
+  brightRed: '#e06c75',
+  brightGreen: '#98c379',
+  brightYellow: '#d19a66',
+  brightBlue: '#61afef',
+  brightMagenta: '#c678dd',
+  brightCyan: '#56b6c2',
+  brightWhite: '#ffffff',
 };
 
 let termCounter = 0;
@@ -22,6 +58,7 @@ let termCounter = 0;
 export interface TerminalPanelHandle {
   focusActive: () => void;
   openWorkspaceTerminal: (workspaceId: string) => void;
+  createTerminal: (opts?: { shell?: string }) => void;
 }
 
 interface TerminalPanelProps {
@@ -34,28 +71,55 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const appTheme = useUiStore((s) => s.theme);
     const [tabs, setTabs] = useState<TerminalTab[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
+    const [profiles, setProfiles] = useState<ShellProfile[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRefs = useRef<Map<string, { term: any; fitAddon: any }>>(new Map());
 
-    const createTerminal = useCallback(async (opts?: { workspaceId?: string; workspaceName?: string; workspaceBranch?: string }) => {
+    // Load shell profiles
+    useEffect(() => {
+      window.api.invoke('terminal:get-profiles').then((p) => {
+        setProfiles(p as ShellProfile[]);
+      }).catch(() => {});
+    }, []);
+
+    const createTerminal = useCallback(async (opts?: {
+      workspaceId?: string;
+      workspaceName?: string;
+      workspaceBranch?: string;
+      shell?: string;
+    }) => {
       const id = `term-${++termCounter}`;
-      const title = opts?.workspaceName
+
+      // Placeholder title until we get shellName back
+      const placeholderTitle = opts?.workspaceName
         ? opts.workspaceName
         : `Terminal ${termCounter}`;
 
       setTabs((prev) => [...prev, {
         id,
-        title,
+        title: placeholderTitle,
         workspaceId: opts?.workspaceId,
         workspaceBranch: opts?.workspaceBranch,
       }]);
       setActiveId(id);
 
-      await window.api.invoke('terminal:create', {
+      const result = await window.api.invoke('terminal:create', {
         id,
         cwd: opts?.workspaceId ? undefined : cwd,
         workspaceId: opts?.workspaceId,
-      });
+        shell: opts?.shell,
+      }) as { id: string; shellName: string };
+
+      // Update tab with shell info
+      setTabs((prev) => prev.map((t) =>
+        t.id === id
+          ? {
+            ...t,
+            shellName: result.shellName,
+            title: opts?.workspaceName || result.shellName || placeholderTitle,
+          }
+          : t
+      ));
 
       const { Terminal } = await import('@xterm/xterm');
       const { FitAddon } = await import('@xterm/addon-fit');
@@ -64,9 +128,13 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       const currentTheme = useUiStore.getState().theme;
       const term = new Terminal({
         cursorBlink: true,
+        cursorStyle: 'bar',
         fontSize: 13,
+        lineHeight: 1.2,
         fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Cascadia Code", monospace',
         theme: currentTheme === 'dark' ? DARK_THEME : LIGHT_THEME,
+        scrollback: 10000,
+        allowProposedApi: true,
       });
 
       const fitAddon = new FitAddon();
@@ -99,7 +167,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
       },
       openWorkspaceTerminal(workspaceId: string) {
-        // Check if a terminal for this workspace already exists
         const existing = tabs.find((t) => t.workspaceId === workspaceId);
         if (existing) {
           setActiveId(existing.id);
@@ -107,7 +174,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           if (termRef) termRef.term.focus();
           return;
         }
-        // Get workspace info and create terminal
         const workspaces = useWorkspaceStore.getState().workspaces;
         const ws = workspaces.get(workspaceId);
         if (ws) {
@@ -117,6 +183,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             workspaceBranch: ws.branch,
           });
         }
+      },
+      createTerminal(opts?: { shell?: string }) {
+        createTerminal({ shell: opts?.shell });
       },
     }), [activeId, tabs, createTerminal]);
 
@@ -211,6 +280,19 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
     }, [visible, activeId]);
 
+    // Focus terminal when switching tabs
+    useEffect(() => {
+      if (activeId) {
+        requestAnimationFrame(() => {
+          const termRef = terminalRefs.current.get(activeId);
+          if (termRef) {
+            termRef.fitAddon.fit();
+            termRef.term.focus();
+          }
+        });
+      }
+    }, [activeId]);
+
     const handleClose = useCallback((id: string) => {
       window.api.invoke('terminal:kill', { id });
       const termRef = terminalRefs.current.get(id);
@@ -218,32 +300,64 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       terminalRefs.current.delete(id);
       setTabs((prev) => {
         const next = prev.filter((t) => t.id !== id);
-        if (activeId === id && next.length > 0) setActiveId(next[0].id);
+        if (activeId === id && next.length > 0) setActiveId(next[next.length - 1].id);
+        else if (next.length === 0) setActiveId(null);
         return next;
       });
     }, [activeId]);
 
+    const handleClear = useCallback((id: string) => {
+      const termRef = terminalRefs.current.get(id);
+      if (termRef) {
+        termRef.term.clear();
+      }
+    }, []);
+
+    const handleRename = useCallback((id: string, name: string) => {
+      setTabs((prev) => prev.map((t) => t.id === id ? { ...t, title: name } : t));
+    }, []);
+
+    const handleCreate = useCallback((shell?: string) => {
+      createTerminal({ shell });
+    }, [createTerminal]);
+
     return (
       <div className={`flex flex-col flex-1 min-h-0 ${visible ? '' : 'hidden'}`}>
-        {/* Terminal tabs */}
+        {/* Terminal tabs + toolbar */}
         <TerminalTabs
           tabs={tabs}
           activeId={activeId}
+          profiles={profiles}
           onSelect={setActiveId}
           onClose={handleClose}
-          onCreate={() => createTerminal()}
+          onCreate={handleCreate}
+          onClear={handleClear}
+          onRename={handleRename}
         />
 
         {/* Terminal containers */}
-        <div ref={containerRef} className="flex-1 overflow-hidden relative">
+        <div ref={containerRef} className="flex-1 overflow-hidden relative bg-[#1e1e1e] dark:bg-[#1e1e1e]">
           {tabs.map((tab) => (
             <div
               key={tab.id}
               id={`terminal-${tab.id}`}
-              className="absolute inset-0"
+              className="absolute inset-0 p-0.5"
               style={{ display: tab.id === activeId ? 'block' : 'none' }}
             />
           ))}
+
+          {/* Empty state when no terminals */}
+          {tabs.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <button
+                onClick={() => createTerminal()}
+                className="flex items-center gap-2 px-4 py-2 text-xs text-text-tertiary hover:text-text-primary bg-bg-hover/50 hover:bg-bg-hover rounded-md transition-colors"
+              >
+                <span className="text-base">+</span>
+                Create Terminal
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
