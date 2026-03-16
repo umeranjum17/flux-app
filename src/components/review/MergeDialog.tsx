@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { X, GitMerge, GitPullRequest, AlertTriangle, FileText, Plus, Minus, GitCommit, Loader2 } from 'lucide-react';
+import { X, GitMerge, GitPullRequest, AlertTriangle, FileText, Plus, Minus, GitCommit, Loader2, Zap } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { startWorkspaceMerge } from '../../lib/workspace-state';
@@ -32,6 +32,15 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     if (!defaultBranch) return;
     setTargetBranch((current) => current.trim() || defaultBranch);
   }, [defaultBranch]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !merging) onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [merging, onClose]);
 
   // Load merge preview when target branch changes
   const loadPreview = useCallback(async () => {
@@ -143,7 +152,16 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
         <div className="px-5 py-4 space-y-4">
           {/* Summary */}
           <div className="text-xs text-text-secondary">
-            Merging <span className="font-mono text-text-primary">{workspace.branch}</span> into target branch
+            Merging{' '}
+            <span className="font-mono text-text-primary truncate max-w-[200px] inline-block align-bottom" title={workspace.branch}>
+              {workspace.branch}
+            </span>
+            {targetBranch.trim() && (
+              <>
+                {' '}into{' '}
+                <span className="font-mono text-text-primary">{targetBranch.trim()}</span>
+              </>
+            )}
           </div>
 
           {/* Error */}
@@ -217,7 +235,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
               <ModeButton
                 active={mode === 'agent'}
                 onClick={() => setMode('agent')}
-                icon={<GitMerge size={12} />}
+                icon={<Zap size={12} />}
                 label="Agent Merge"
                 desc="Agent handles conflicts"
               />
@@ -283,6 +301,12 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
+          {preview && preview.conflicts.length > 0 && mode === 'direct' && (
+            <span className="flex items-center gap-1 text-[11px] text-amber-400 mr-auto">
+              <AlertTriangle size={11} />
+              Conflicts detected — consider Agent Merge
+            </span>
+          )}
           <button
             onClick={onClose}
             className="px-3 py-1.5 text-xs rounded-lg text-text-secondary hover:bg-bg-hover transition-colors"
