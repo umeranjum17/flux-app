@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { getWorkspaceListSignal } from '../../lib/workspace-status';
+import { getWorkspaceListSignal, getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
 import { toast } from 'sonner';
@@ -284,6 +284,7 @@ export function WorkspaceTab() {
                 const signal = getWorkspaceListSignal(ws, operation);
                 const isActive = ws.id === activeWorkspaceId;
                 const wsGlobalIdx = globalIdx++;
+                const lifecycle = workspaceLifecycleConfig[getWorkspaceLifecycleState(ws)];
                 const isArchiving = isWorkspaceArchiving(operation);
                 const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
 
@@ -305,6 +306,9 @@ export function WorkspaceTab() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center">
                         <span className="truncate text-[13px] font-medium text-text-primary">{ws.name}</span>
+                        <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${lifecycle.badgeClass}`}>
+                          {isArchiving ? 'Archiving' : lifecycle.label}
+                        </span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
                         <GitBranch size={10} className="opacity-50" />

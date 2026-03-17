@@ -18,12 +18,6 @@ const AGENT_LABELS: Record<string, string> = {
 import { MessageBubble } from './MessageBubble';
 import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
-import {
-  ToolCallGroup,
-  buildMergedToolResultLookup,
-  collectConsecutiveToolCallEntries,
-  isStructuredTodoToolCall,
-} from './ToolCallGroup';
 import { LifecycleCard } from './LifecycleCard';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ApprovalPrompt } from './ApprovalPrompt';
@@ -227,10 +221,24 @@ export function MessageList() {
   // Build set of message indices where agent switches happened
   const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
 
-  const { mergedResultIndices, mergedResultForCall } = useMemo(
-    () => buildMergedToolResultLookup(messages),
-    [messages],
-  );
+  // Build maps for merging tool_result into its preceding tool_call.
+  // Look past intermediate status messages (e.g. tool.execution_progress) that may
+  // sit between a tool_call and its corresponding tool_result.
+  const mergedResultIndices = new Set<number>();
+  const mergedResultForCall = new Map<number, AgentMessage>();
+  for (let i = 0; i < messages.length - 1; i++) {
+    const msg = messages[i];
+    if (msg.type !== 'tool_call' || !msg.toolCallId) continue;
+    for (let j = i + 1; j < messages.length; j++) {
+      const candidate = messages[j];
+      if (candidate.type === 'status' && candidate.toolCallId === msg.toolCallId) continue;
+      if (candidate.type === 'tool_result' && candidate.toolCallId === msg.toolCallId) {
+        mergedResultIndices.add(j);
+        mergedResultForCall.set(i, candidate);
+      }
+      break;
+    }
+  }
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -304,6 +312,7 @@ export function MessageList() {
                     .filter((entry): entry is { id: string; state: NonNullable<typeof entry>['state'] } => !!entry);
 
                   if (group.length > 0) {
+                    const stage = msg.subagentStatus === 'done' || msg.subagentStatus === 'error' ? 'finished' : 'running';
                     rendered.push(
                       <motion.div
                         key={`subagent-group-${msg.timestamp}-${idx}`}
@@ -313,7 +322,7 @@ export function MessageList() {
                         exit="exit"
                         transition={messageTransition}
                       >
-                        <SubagentBlock subagents={group} taskMode={task.mode} />
+                        <SubagentBlock subagents={group} stage={stage} taskMode={task.mode} />
                       </motion.div>,
                     );
                   }
@@ -348,37 +357,6 @@ export function MessageList() {
                         </div>
                       </motion.div>,
                     );
-                  }
-                }
-
-                if (msg.type === 'tool_call' && !isStructuredTodoToolCall(msg)) {
-                  const group = collectConsecutiveToolCallEntries(
-                    messages,
-                    idx,
-                    mergedResultIndices,
-                    mergedResultForCall,
-                    {
-                      isRunning: () => isActiveRun,
-                      expandedToolCallIds,
-                      stopAtIndex: (groupIndex) => agentSwitchIndices.has(groupIndex),
-                    },
-                  );
-
-                  if (group.entries.length > 1) {
-                    rendered.push(
-                      <motion.div
-                        key={`tool-group-${msg._seqId ?? `${msg.timestamp}-${idx}`}`}
-                        variants={messageVariants}
-                        initial="initial"
-                        animate="animate"
-                        exit="exit"
-                        transition={messageTransition}
-                      >
-                        <ToolCallGroup entries={group.entries} />
-                      </motion.div>,
-                    );
-                    idx = group.nextIndex;
-                    continue;
                   }
                 }
 
@@ -619,7 +597,13 @@ function renderMessage(
       );
 
     case 'tool_call': {
-      if (isStructuredTodoToolCall(msg)) return null;
+      // Todo-style tool calls are shown in the sticky TodoBar above input.
+      const toolNameLower = (msg.toolName ?? '').toLowerCase();
+      const hasStructuredTodoPayload = Boolean(
+        msg.toolInput
+        && (Array.isArray(msg.toolInput.todos) || Array.isArray(msg.toolInput.plan)),
+      );
+      if (toolNameLower.includes('todo') || toolNameLower === 'update_plan' || hasStructuredTodoPayload) return null;
 
       return (
         <ToolCallBlock
