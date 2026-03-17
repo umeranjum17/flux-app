@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { AgentHandle, SpawnOptions, AgentMessage, QuestionField, PLAN_FORMAT_PREAMBLE } from './types';
+import { AgentHandle, SpawnOptions, AgentMessage, QuestionField } from './types';
 import { createCliAgentHandle } from './cli-agent';
 import { safeWriteToChildStdin } from '../process-utils';
 import {
@@ -136,10 +136,7 @@ export function spawnCodex(
         args.push(opts.resumeSessionId!);
       }
 
-      const prompt = opts.mode === 'plan'
-        ? `${PLAN_FORMAT_PREAMBLE}\n\n${opts.prompt}`
-        : opts.prompt;
-      args.push('--', prompt);
+      args.push('--', opts.prompt);
 
       return args;
     },

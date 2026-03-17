@@ -1,5 +1,5 @@
 import { ChildProcess } from 'child_process';
-import { AgentHandle, SpawnOptions, AgentMessage, PLAN_FORMAT_PREAMBLE } from './types';
+import { AgentHandle, SpawnOptions, AgentMessage } from './types';
 import { createCliAgentHandle, CliAgentContext } from './cli-agent';
 import { safeWriteToChildStdin } from '../process-utils';
 import {
@@ -311,6 +311,9 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       if (opts.dangerouslyBypassPermissions) {
         args.push('--dangerously-skip-permissions');
       } else if (opts.mode === 'plan') {
+        // Use plan permission mode for read-only enforcement at the CLI level.
+        // The flux-plan skill prompt overrides Claude's native plan output behavior
+        // (file writing, ExitPlanMode) with Flux's structured markdown format.
         args.push('--permission-mode', 'plan');
       }
 
@@ -435,9 +438,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
       },
 
       sendInitialPrompt(proc) {
-        const promptText = options.mode === 'plan'
-          ? `${PLAN_FORMAT_PREAMBLE}\n\n${options.prompt}`
-          : options.prompt;
+        const promptText = options.prompt;
         writeClaudeUserMessage(proc, promptText, options.images);
       },
     },
