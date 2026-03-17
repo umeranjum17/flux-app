@@ -125,7 +125,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Needs input. Agent asked a question.')).not.toBeNull();
     expect(scoped.queryByText('Needs Input')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-input.bg-info')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-input.bg-warning')).not.toBeNull();
   });
 
   it('uses a change signal when an idle workspace has unreviewed changes', () => {
