@@ -42,6 +42,7 @@ export const workspaceLifecycleConfig: Record<
     color: string;
     label: string;
     pulse?: boolean;
+    glow?: string;
     detail: string;
     badgeClass: string;
     accentColor: string;
@@ -49,7 +50,7 @@ export const workspaceLifecycleConfig: Record<
   }
 > = {
   idle: {
-    color: 'bg-text-tertiary',
+    color: 'bg-text-tertiary/50',
     label: 'Idle',
     detail: 'Waiting for the next task.',
     badgeClass: 'bg-bg-secondary text-text-tertiary',
@@ -77,6 +78,7 @@ export const workspaceLifecycleConfig: Record<
   planned: {
     color: 'bg-info',
     label: 'Planned',
+    glow: 'dot-glow-info',
     detail: 'Plan ready for your review.',
     badgeClass: 'bg-info/12 text-info',
     accentColor: 'bg-info',
@@ -86,6 +88,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-warning',
     label: 'Needs Approval',
     pulse: true,
+    glow: 'dot-glow-warning',
     detail: 'Paused — waiting for your approval.',
     badgeClass: 'bg-warning/12 text-warning',
     accentColor: 'bg-warning',
@@ -95,18 +98,20 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-info',
     label: 'Needs Input',
     pulse: true,
+    glow: 'dot-glow-info',
     detail: 'Agent asked a question.',
     badgeClass: 'bg-info/12 text-info',
     accentColor: 'bg-info',
     cardTint: 'lifecycle-tint-info',
   },
   ready_for_review: {
-    color: 'bg-info',
+    color: 'bg-accent',
     label: 'Ready for Review',
+    glow: 'dot-glow-accent',
     detail: 'Changes are ready to review.',
-    badgeClass: 'bg-info/12 text-info',
-    accentColor: 'bg-info',
-    cardTint: 'lifecycle-tint-info',
+    badgeClass: 'bg-accent/12 text-accent',
+    accentColor: 'bg-accent',
+    cardTint: 'lifecycle-tint-coding',
   },
   reviewing: {
     color: 'bg-warning',
@@ -119,6 +124,7 @@ export const workspaceLifecycleConfig: Record<
   changes_requested: {
     color: 'bg-error',
     label: 'Changes Requested',
+    glow: 'dot-glow-error',
     detail: 'Reviewer requested changes.',
     badgeClass: 'bg-error/12 text-error',
     accentColor: 'bg-error',
@@ -127,6 +133,7 @@ export const workspaceLifecycleConfig: Record<
   ready_to_merge: {
     color: 'bg-success',
     label: 'Ready to Merge',
+    glow: 'dot-glow-success',
     detail: 'Reviewed and ready to merge.',
     badgeClass: 'bg-success/12 text-success',
     accentColor: 'bg-success',
@@ -142,7 +149,7 @@ export const workspaceLifecycleConfig: Record<
     cardTint: 'lifecycle-tint-coding',
   },
   merged: {
-    color: 'bg-success',
+    color: 'bg-success/60',
     label: 'Merged',
     detail: 'Successfully merged.',
     badgeClass: 'bg-success/12 text-success',
@@ -152,6 +159,7 @@ export const workspaceLifecycleConfig: Record<
   blocked: {
     color: 'bg-error',
     label: 'Blocked',
+    glow: 'dot-glow-error',
     detail: 'Last run failed — needs attention.',
     badgeClass: 'bg-error/12 text-error',
     accentColor: 'bg-error',

@@ -156,6 +156,14 @@ describe('classifySpawnError', () => {
     expect(info.suggestion).toContain('Install');
   });
 
+  it('classifies ENOENT with missing cwd as CWD_NOT_FOUND', () => {
+    const err = Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' });
+    const info = classifySpawnError(err, { command: 'claude', cwd: '/nonexistent/worktree/path' });
+    expect(info.code).toBe('CWD_NOT_FOUND');
+    expect(info.userMessage).toContain('Working directory not found');
+    expect(info.suggestion).toContain('workspace');
+  });
+
   it('classifies EACCES as PERMISSION_DENIED', () => {
     const err = Object.assign(new Error('EACCES'), { code: 'EACCES' });
     const info = classifySpawnError(err, { command: 'gemini' });

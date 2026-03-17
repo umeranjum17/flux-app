@@ -600,6 +600,37 @@ button:focus-visible {
   box-shadow: 0 0 6px 1px currentColor;
 }
 
+/* Status dot glow animations — gentle breathing for attention states */
+@keyframes dot-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 var(--dot-glow-color); }
+  50% { box-shadow: 0 0 6px 2px var(--dot-glow-color); }
+}
+
+.dot-glow-accent {
+  --dot-glow-color: var(--color-accent);
+  animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
+.dot-glow-info {
+  --dot-glow-color: var(--color-info);
+  animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
+.dot-glow-warning {
+  --dot-glow-color: var(--color-warning);
+  animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
+.dot-glow-error {
+  --dot-glow-color: var(--color-error);
+  animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
+.dot-glow-success {
+  --dot-glow-color: var(--color-success);
+  animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
 /* Drag region for frameless window */
 .drag-region {
   -webkit-app-region: drag;

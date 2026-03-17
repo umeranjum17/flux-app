@@ -50,7 +50,7 @@ export function WorkspaceCard({
     >
       <div className="flex items-center gap-2.5 px-2.5 py-[7px]">
         {/* Status dot */}
-        <span className={`inline-block h-[5px] w-[5px] shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/40' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
+        <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/40' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''} ${!isArchived && lifecycle.glow ? lifecycle.glow : ''}`} />
 
         {/* Name */}
         <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">

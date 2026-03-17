@@ -69,7 +69,7 @@ export function WorkspaceActionBar() {
         <GitBranch size={13} className="shrink-0 text-text-tertiary" />
         <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>
         <span className={`lifecycle-badge ${lifecycle.badgeClass}`}>
-          <span className={`inline-block h-[5px] w-[5px] rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''}`} />
+          <span className={`inline-block h-[6px] w-[6px] rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''} ${lifecycle.glow ?? ''}`} />
           {lifecycle.label}
         </span>
       </div>

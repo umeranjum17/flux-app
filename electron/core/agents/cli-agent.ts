@@ -319,7 +319,7 @@ export function createCliAgentHandle(
   // Process spawn error
   proc.on('error', (err: Error) => {
     try { proc.kill(); } catch {}
-    const info = classifySpawnError(err, { command: config.defaultCommand, sshHost: options.sshHost });
+    const info = classifySpawnError(err, { command: config.defaultCommand, sshHost: options.sshHost, cwd: options.cwd });
     const content = `Failed to start ${config.label}: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
     emitMessage({
       type: 'error',

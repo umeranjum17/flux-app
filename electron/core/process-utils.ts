@@ -315,12 +315,27 @@ export interface SpawnErrorInfo {
 
 export function classifySpawnError(
   err: Error,
-  context: { command: string; sshHost?: string },
+  context: { command: string; sshHost?: string; cwd?: string },
 ): SpawnErrorInfo {
   const msg = err.message ?? '';
   const code = (err as NodeJS.ErrnoException).code ?? '';
 
   if (code === 'ENOENT' || /ENOENT/.test(msg)) {
+    // Check if the ENOENT is about the cwd rather than the command.
+    // Node emits ENOENT for a missing cwd too, so disambiguate by checking
+    // whether the cwd actually exists on disk.
+    if (context.cwd) {
+      try {
+        fs.accessSync(context.cwd);
+      } catch {
+        return {
+          code: 'CWD_NOT_FOUND',
+          userMessage: `Working directory not found: ${context.cwd}`,
+          suggestion: 'The workspace directory may have been removed. Try creating a new workspace',
+        };
+      }
+    }
+
     if (context.sshHost) {
       return {
         code: 'SSH_NOT_FOUND',
