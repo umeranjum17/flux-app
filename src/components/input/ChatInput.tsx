@@ -828,8 +828,8 @@ export function ChatInput({ focused }: ChatInputProps) {
   const shellClasses = isTerminal
     ? 'border-l-2 border-l-green-500/70 border-t border-r border-b border-border/80 bg-green-950/10'
     : mode === 'plan'
-      ? 'border border-sky-500/30 bg-sky-950/[0.06]'
-      : 'border border-orange-500/30 bg-orange-950/[0.06]';
+      ? 'border border-sky-500/30 bg-sky-950/[0.03]'
+      : 'border border-orange-500/30 bg-orange-950/[0.03]';
 
   return (
     <div className="relative w-full">
@@ -894,7 +894,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         </div>
       )}
 
-      <div className={`premium-input-shell px-3 py-2.5 transition-colors ${isTerminal ? 'focus-within:border-border-focus/60' : mode === 'plan' ? 'focus-within:border-sky-500/50' : 'focus-within:border-orange-500/50'} ${shellClasses}`}>
+      <div className={`premium-input-shell px-3 py-2.5 transition-colors ${isTerminal ? 'focus-within:border-border-focus/60' : mode === 'plan' ? 'focus-within:border-sky-500/40' : 'focus-within:border-orange-500/40'} ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
           <div className="mb-1.5 flex items-center gap-1.5">
@@ -1104,7 +1104,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       onClick={() => useUiStore.getState().setMode('plan')}
                       className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'plan'
-                          ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30'
+                          ? 'bg-white/10 text-text-primary ring-1 ring-white/15'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1115,7 +1115,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       onClick={() => useUiStore.getState().setMode('act')}
                       className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'act'
-                          ? 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30'
+                          ? 'bg-white/10 text-text-primary ring-1 ring-white/15'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
