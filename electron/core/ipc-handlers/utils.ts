@@ -1170,7 +1170,7 @@ const ORPHAN_JSON_CLOSER = /^\s*["']?\}\s*$/gm;
 export function stripFluxTokens(text: string): string {
   let result = text.replace(FLUX_LINE_PATTERN, '');
   result = result.replace(ORPHAN_JSON_CLOSER, '');
-  return result.replace(/\n{3,}/g, '\n\n').trim();
+  return result.replace(/\n{3,}/g, '\n\n');
 }
 
 export interface RateLimitInfo {

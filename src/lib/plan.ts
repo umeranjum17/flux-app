@@ -5,7 +5,7 @@ const FLUX_TOKEN_RE = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\
 /** Strip FLUX protocol tokens so they don't leak into plan text. */
 export function stripFluxTokens(text: string): string {
   const cleaned = text.replace(FLUX_TOKEN_RE, '');
-  return cleaned.replace(/\n{3,}/g, '\n\n').trim();
+  return cleaned.replace(/\n{3,}/g, '\n\n');
 }
 
 const PLAN_SECTION_PATTERN = /^(#{2,3})\s+(summary|analysis|steps|trade-offs|tradeoffs|verification)\b/im;

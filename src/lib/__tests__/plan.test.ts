@@ -141,7 +141,7 @@ Simple implementation without mobile support.`,
       const result = stripFluxTokens(input);
       expect(result).not.toContain('FLUX_WORKSPACE_LIFECYCLE');
       expect(result).not.toContain('FLUX_SIGNAL');
-      expect(result).toBe('');
+      expect(result.trim()).toBe('');
     });
 
     it('strips tokens embedded in surrounding text', () => {
@@ -153,13 +153,17 @@ Simple implementation without mobile support.`,
       expect(result).toContain('Some text after.');
     });
 
+    it('preserves leading and trailing whitespace', () => {
+      expect(stripFluxTokens('\n\nHello world\n\n')).toBe('\n\nHello world\n\n');
+    });
+
     it('returns text unchanged when no tokens present', () => {
       expect(stripFluxTokens('Hello world')).toBe('Hello world');
     });
 
     it('strips legacy FLUX_WORKSPACE and FLUX_LIFECYCLE prefixes', () => {
-      expect(stripFluxTokens('FLUX_WORKSPACE: {"state":"working"}')).toBe('');
-      expect(stripFluxTokens('FLUX_LIFECYCLE: {"state":"merged"}')).toBe('');
+      expect(stripFluxTokens('FLUX_WORKSPACE: {"state":"working"}').trim()).toBe('');
+      expect(stripFluxTokens('FLUX_LIFECYCLE: {"state":"merged"}').trim()).toBe('');
     });
   });
 });
