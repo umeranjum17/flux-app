@@ -25,6 +25,7 @@ import {
   attachChildStdinErrorHandler,
   safeWriteToChildStdin,
 } from '../process-utils';
+import { setupShellIntegration, parseShellIntegrationEvents } from '../terminal/shell-integration';
 import { executeBash } from '../tools/bash';
 import { suggestCompletion, availableCompletionProviders } from '../completion/service';
 import { getCheckpointDiff, listCheckpoints, revertToCheckpoint } from '../checkpoint/manager';
@@ -597,19 +598,27 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     }
 
     const shellName = path.basename(shell).replace(/\.exe$/i, '');
-    const shellArgs = process.platform === 'win32' ? [] : ['-i'];
-    const ptyProcess = pty.spawn(shell, shellArgs, {
+    const integration = process.platform === 'win32'
+      ? { args: [] as string[], env: {} as Record<string, string> }
+      : setupShellIntegration(shell);
+    const ptyProcess = pty.spawn(shell, integration.args, {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
       cwd: spawnCwd,
-      env: extendedEnv({ TERM: 'xterm-256color' }) as Record<string, string>,
+      env: extendedEnv({ TERM: 'xterm-256color', ...integration.env }) as Record<string, string>,
     });
 
     activePtys.set(id, ptyProcess);
 
     ptyProcess.onData((data: string) => {
       sendToRenderer('terminal:data', { id, data });
+
+      // Parse shell integration OSC sequences and emit structured events
+      const events = parseShellIntegrationEvents(data);
+      for (const event of events) {
+        sendToRenderer('terminal:integration', { id, event });
+      }
     });
 
     ptyProcess.onExit(({ exitCode }) => {

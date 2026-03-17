@@ -268,9 +268,19 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
         });
       });
 
+      const cleanupIntegration = window.api.on('terminal:integration', (...args: unknown[]) => {
+        const { id, event } = args[0] as { id: string; event: { type: string; cwd?: string; exitCode?: number } };
+        if (event.type === 'cwd' && event.cwd) {
+          setTabs((prev) => prev.map((t) =>
+            t.id === id ? { ...t, cwd: event.cwd } : t
+          ));
+        }
+      });
+
       return () => {
         cleanup();
         cleanupExit();
+        cleanupIntegration();
       };
     }, []);
 

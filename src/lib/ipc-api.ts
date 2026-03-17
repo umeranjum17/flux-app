@@ -268,6 +268,7 @@ export interface IpcEvents {
   'workspace:operation': WorkspaceOperation;
   'terminal:data': { id: string; data: string };
   'terminal:exit': { id: string; exitCode?: number };
+  'terminal:integration': { id: string; event: TerminalIntegrationEvent };
   'config:changed': { config: FluxConfig };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;
@@ -612,3 +613,9 @@ export interface ActiveTaskInfo {
   isAlive: boolean;
   pid?: number;
 }
+
+export type TerminalIntegrationEvent =
+  | { type: 'cwd'; cwd: string }
+  | { type: 'prompt-start' }
+  | { type: 'command-start' }
+  | { type: 'command-finish'; exitCode: number };

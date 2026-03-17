@@ -6,6 +6,7 @@ export interface TerminalTab {
   shellName?: string;
   workspaceId?: string;
   workspaceBranch?: string;
+  cwd?: string;
 }
 
 interface TerminalTabsProps {
@@ -35,7 +36,9 @@ export function TerminalTabs({
               onClick={() => onSelect(tab.id)}
             >
               <SquareTerminal size={12} className={isActive ? 'text-text-secondary' : 'text-text-tertiary'} />
-              <span className="truncate max-w-[100px]">{tab.title}</span>
+              <span className="truncate max-w-[140px]" title={tab.cwd ?? tab.title}>
+                {tab.cwd ? `${tab.title}: ${tab.cwd.split('/').pop() || tab.cwd}` : tab.title}
+              </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
                 className={`p-0.5 rounded transition-colors shrink-0 ${
