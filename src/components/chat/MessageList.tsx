@@ -28,19 +28,11 @@ import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
 import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
-
-const FLUX_TOKEN_RE = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{[^}]*\}/g;
-/** Strip FLUX protocol tokens that survived streaming delta splits. */
-function stripFluxTokens(text: string): string {
-  if (!FLUX_TOKEN_RE.test(text)) return text;
-  FLUX_TOKEN_RE.lastIndex = 0;
-  return text.replace(FLUX_TOKEN_RE, '').replace(/\n{3,}/g, '\n\n').trim();
-}
 import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
 import { SystemActivityInlineItem, SystemActivityGroup, groupActivitiesByCategory } from './SystemActivityFeed';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { getLatestPlanText, isPlanMessage } from '../../lib/plan';
+import { getLatestPlanText, isPlanMessage, stripFluxTokens } from '../../lib/plan';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
 
 const messageVariants = {
