@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, BookOpen, Square, Gauge, RefreshCw } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, Square, Gauge, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -11,7 +11,7 @@ import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
-import type { FluxConfig, RateLimitInfo, Session } from '../../lib/ipc-api';
+import type { FluxConfig, LiveUsageOverview, Session } from '../../lib/ipc-api';
 import type { FileAttachment, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
@@ -52,8 +52,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [showCompletionPicker, setShowCompletionPicker] = useState(false);
   const [completionProviders, setCompletionProviders] = useState<string[]>([]);
   const [showRateLimits, setShowRateLimits] = useState(false);
-  const [cachedRateLimits, setCachedRateLimits] = useState<RateLimitInfo[]>([]);
-  const [rateLimitsUpdatedAt, setRateLimitsUpdatedAt] = useState<number | null>(null);
+  const [liveOverview, setLiveOverview] = useState<LiveUsageOverview | null>(null);
 
   // Guard against accidental sends in completed/merged workspaces
   const [pendingTerminalSend, setPendingTerminalSend] = useState(false);
@@ -107,55 +106,57 @@ export function ChatInput({ focused }: ChatInputProps) {
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const refreshRateLimits = useCallback(async () => {
+  const refreshLiveUsage = useCallback(async () => {
     try {
-      const result = await window.api.invoke('usage:rate-limits') as RateLimitInfo[] | undefined;
-      if (!Array.isArray(result)) {
-        setCachedRateLimits([]);
-        setRateLimitsUpdatedAt(Date.now());
-        return;
-      }
-      setCachedRateLimits(result);
-      const newestFetchedAt = result.reduce(
-        (max, entry) => Math.max(max, entry.fetchedAt ?? 0),
-        0,
-      );
-      setRateLimitsUpdatedAt(newestFetchedAt > 0 ? newestFetchedAt : Date.now());
+      const result = await window.api.invoke('usage:live') as LiveUsageOverview;
+      setLiveOverview(result);
     } catch {
-      setCachedRateLimits([]);
-      setRateLimitsUpdatedAt(Date.now());
+      // keep previous state
     }
   }, []);
 
   useEffect(() => {
-    void refreshRateLimits();
-    const interval = setInterval(() => {
-      void refreshRateLimits();
-    }, 60_000);
+    void refreshLiveUsage();
+    const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
+      setLiveOverview(data as LiveUsageOverview);
+    });
     const cleanupMessage = window.api.on('agent:message', (...args: unknown[]) => {
       const data = args[0] as { message?: { type?: string } } | undefined;
       if (data?.message?.type === 'rate_limit') {
-        void refreshRateLimits();
+        void refreshLiveUsage();
       }
     });
     const cleanupDone = window.api.on('agent:done', () => {
-      void refreshRateLimits();
+      void refreshLiveUsage();
     });
     return () => {
-      clearInterval(interval);
+      cleanupLiveUpdate();
       cleanupMessage();
       cleanupDone();
     };
-  }, [refreshRateLimits]);
+  }, [refreshLiveUsage]);
 
   const isMac = window.api?.platform === 'darwin';
   const activeTaskRateLimit = useMemo(
     () => normalizeTaskRateLimit(activeTask?.rateLimitInfo, activeTask?.agentId),
     [activeTask?.rateLimitInfo, activeTask?.agentId],
   );
+  const liveRateLimits = useMemo(
+    () => (liveOverview?.providers ?? []).flatMap((p) =>
+      p.windows.map((w) => ({
+        providerId: w.providerId,
+        status: w.status,
+        resetsAt: w.resetsAt ?? 0,
+        rateLimitType: w.windowLabel,
+        utilization: w.usedPercent,
+        fetchedAt: w.fetchedAt,
+      } satisfies import('../../lib/ipc-api').RateLimitInfo)),
+    ),
+    [liveOverview],
+  );
   const visibleRateLimits = useMemo(
-    () => mergeRateLimits(cachedRateLimits, activeTaskRateLimit),
-    [cachedRateLimits, activeTaskRateLimit],
+    () => mergeRateLimits(liveRateLimits, activeTaskRateLimit),
+    [liveRateLimits, activeTaskRateLimit],
   );
   const highestSeverity = useMemo(
     () => computeHighestSeverity(visibleRateLimits),
@@ -1058,27 +1059,41 @@ export function ChatInput({ focused }: ChatInputProps) {
                     </button>
                   )}
 
-                  {/* Plan / Act mode toggle */}
-                  <button
-                    type="button"
-                    onClick={() => useUiStore.getState().toggleMode()}
-                    className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium ${
-                      mode === 'plan'
-                        ? 'border border-plan/20 bg-plan/10 text-plan'
-                        : 'text-text-secondary'
-                    }`}
-                    title={`${mode === 'plan' ? 'Plan' : 'Act'} mode (Shift+Tab to toggle)`}
+                  {/* Plan / Act mode toggle — Cline-style segmented pill */}
+                  <div
+                    className="inline-flex items-center rounded-full border border-border/60 bg-bg-elevated/50 p-0.5 text-[11px] font-medium"
+                    title="Shift+Tab to toggle"
                   >
-                    <BookOpen size={12} />
-                    {mode === 'plan' && <span>Plan</span>}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => useUiStore.getState().setMode('plan')}
+                      className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                        mode === 'plan'
+                          ? 'bg-plan/15 text-plan'
+                          : 'text-text-tertiary hover:text-text-secondary'
+                      }`}
+                    >
+                      Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => useUiStore.getState().setMode('act')}
+                      className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                        mode === 'act'
+                          ? 'bg-accent/15 text-accent'
+                          : 'text-text-tertiary hover:text-text-secondary'
+                      }`}
+                    >
+                      Act
+                    </button>
+                  </div>
 
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => {
                         if (!showRateLimits) {
-                          void refreshRateLimits();
+                          void refreshLiveUsage();
                         }
                         setShowRateLimits((open) => !open);
                       }}
@@ -1118,7 +1133,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                             </p>
                             <button
                               type="button"
-                              onClick={() => void refreshRateLimits()}
+                              onClick={() => void refreshLiveUsage()}
                               className="rounded p-1 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
                               title="Refresh rate limits"
                               aria-label="Refresh rate limits"
@@ -1157,7 +1172,7 @@ export function ChatInput({ focused }: ChatInputProps) {
 
                           <div className="mt-2 flex items-center justify-between">
                             <p className="text-[10px] text-text-tertiary">
-                              {rateLimitsUpdatedAt ? `Updated ${formatRelativeTime(rateLimitsUpdatedAt)}` : 'Not refreshed yet'}
+                              {liveOverview?.updatedAt ? `Updated ${formatRelativeTime(liveOverview.updatedAt)}` : 'Not refreshed yet'}
                             </p>
                             <button
                               type="button"
