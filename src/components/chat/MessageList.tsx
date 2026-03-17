@@ -18,6 +18,7 @@ const AGENT_LABELS: Record<string, string> = {
 import { MessageBubble } from './MessageBubble';
 import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
+import { LifecycleCard } from './LifecycleCard';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ApprovalPrompt } from './ApprovalPrompt';
 import { QuestionPrompt } from './QuestionPrompt';
@@ -655,6 +656,14 @@ function renderMessage(
         </div>
       );
     }
+
+    case 'lifecycle':
+      return (
+        <LifecycleCard
+          state={msg.lifecycleState ?? 'unknown'}
+          label={msg.lifecycleLabel ?? 'Lifecycle event'}
+        />
+      );
 
     case 'status':
       if (!msg.content.trim()) return null;

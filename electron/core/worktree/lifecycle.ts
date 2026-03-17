@@ -16,6 +16,21 @@ import { resolveGitState, computeNextOutcome } from './outcome';
 import type { WorkspaceOutcomeTrigger } from './outcome';
 import type { WorkspaceStore } from './store';
 
+// ---------------------------------------------------------------------------
+// Valid outcome transitions
+// ---------------------------------------------------------------------------
+
+const validOutcomeTransitions: Record<WorkspaceOutcome, WorkspaceOutcome[]> = {
+  in_progress: ['planned', 'ready_for_pr'],
+  planned: ['in_progress', 'ready_for_pr'],
+  ready_for_pr: ['reviewing', 'in_progress', 'ready_to_merge', 'merged'],
+  reviewing: ['changes_requested', 'ready_to_merge', 'merged'],
+  changes_requested: ['in_progress', 'ready_for_pr', 'reviewing'],
+  ready_to_merge: ['merged', 'in_progress'],
+  merged: ['ready_to_archive'],
+  ready_to_archive: [],
+};
+
 // Lazy-load logDiagnostic to avoid importing 'electron' in test environments
 let _logDiagnostic: typeof import('../diagnostics/logger').logDiagnostic | undefined;
 function getLogDiagnostic() {
@@ -269,13 +284,18 @@ export class WorkspaceLifecycleManager {
   // Outcome control
   // -----------------------------------------------------------------------
 
-  /** Set outcome directly, with optional force to override terminal outcomes. */
+  /** Set outcome directly, with optional force to override transition enforcement. */
   setOutcome(workspaceId: string, outcome: WorkspaceOutcome, opts?: { force?: boolean }): void {
     const current = this.workspaceStore.get(workspaceId)?.outcome;
     if (current === outcome && !opts?.force) return;
+
     if (opts?.force) {
       getLogDiagnostic()('outcome', 'forced outcome override', { workspaceId, from: current, to: outcome });
+    } else if (current && !validOutcomeTransitions[current]?.includes(outcome)) {
+      console.error(`[outcome] Blocked invalid outcome transition: ${current} → ${outcome} for ${workspaceId}`);
+      return;
     }
+
     console.log(`[outcome] ${workspaceId}: ${current} → ${outcome}`);
     this.workspaceStore.update(workspaceId, { outcome });
     this.sendToRenderer('workspace:outcome', { workspaceId, outcome });
@@ -299,7 +319,7 @@ export class WorkspaceLifecycleManager {
     if (next !== null && next !== fresh.outcome) {
       // Guard: skip demotions when git state had errors (could be stale data)
       const outcomeRank: Record<string, number> = {
-        in_progress: 0, ready_for_pr: 1, ready_to_merge: 2, merged: 3, ready_to_archive: 4,
+        in_progress: 0, planned: 1, ready_for_pr: 2, reviewing: 3, changes_requested: 3, ready_to_merge: 4, merged: 5, ready_to_archive: 6,
       };
       if (gitState.warnings.length > 0 && (outcomeRank[next] ?? 0) < (outcomeRank[fresh.outcome] ?? 0)) {
         getLogDiagnostic()('outcome', 'skipping demotion due to git warnings', {

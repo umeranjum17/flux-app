@@ -23,6 +23,7 @@
 export type WorkspaceLifecycleState =
   | 'idle'
   | 'working'
+  | 'planned'
   | 'ready_for_review'
   | 'merged';
 
@@ -40,6 +41,7 @@ const LIFECYCLE_REGEX = /FLUX_(?:WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
 const VALID_STATES = new Set<WorkspaceLifecycleState>([
   'idle',
   'working',
+  'planned',
   'ready_for_review',
   'merged',
 ]);
@@ -105,9 +107,10 @@ export function buildWorkspaceProtocolPrompt(): string {
     'Signal workspace state transitions by emitting a JSON line:',
     '`FLUX_LIFECYCLE: {"state":"<state>"}`',
     '',
-    'Allowed states: `working`, `ready_for_review`',
+    'Allowed states: `working`, `planned`, `ready_for_review`',
     '',
     '- Emit `working` when you begin making changes.',
+    '- Emit `planned` when your plan is complete and ready for user review.',
     '- Emit `ready_for_review` when all work is committed and done.',
     '  Optionally include `"workspace_name":"Short Description"` (3-5 words).',
     '',

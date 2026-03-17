@@ -38,9 +38,11 @@ const execFileAsync = promisify(execFile);
 
 export type WorkspaceOutcomeTrigger =
   | 'task_completed'
+  | 'plan_completed'
   | 'task_completed_merge'
   | 'task_error'
   | 'agent_stopped'
+  | 'agent_signal_ready_for_review'
   | 'sync'
   | 'unarchived';
 
@@ -169,7 +171,7 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
 // ---------------------------------------------------------------------------
 
 /** Terminal outcomes that cannot be changed by automated triggers. */
-const TERMINAL_OUTCOMES = new Set<WorkspaceOutcome>(['merged', 'ready_to_merge', 'ready_to_archive']);
+const TERMINAL_OUTCOMES = new Set<WorkspaceOutcome>(['merged', 'ready_to_merge', 'ready_to_archive', 'reviewing']);
 
 /**
  * Pure function: given the current outcome, the trigger, and the git state,
@@ -199,9 +201,20 @@ export function computeNextOutcome(
   }
 
   switch (trigger) {
+    case 'plan_completed':
+      if (current === 'in_progress') return 'planned';
+      return null;
+
     case 'task_completed':
       if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
+      if (current === 'planned' && gitState.hasCommits) return 'ready_for_pr';
+      if (current === 'changes_requested' && gitState.hasCommits) return 'ready_for_pr';
       if (current === 'ready_for_pr' && gitState.isMerged) return 'merged';
+      return null;
+
+    case 'agent_signal_ready_for_review':
+      if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
+      if (current === 'changes_requested' && gitState.hasCommits) return 'ready_for_pr';
       return null;
 
     case 'task_error':
@@ -210,6 +223,7 @@ export function computeNextOutcome(
 
     case 'agent_stopped':
       if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
+      if (current === 'changes_requested' && gitState.hasCommits) return 'ready_for_pr';
       return null;
 
     case 'sync':
@@ -244,10 +258,13 @@ export type EmitOutcomeFn = (workspaceId: string, outcome: WorkspaceOutcome) => 
 /** Outcomes ranked by progression — used to detect demotions. */
 const OUTCOME_RANK: Record<WorkspaceOutcome, number> = {
   in_progress: 0,
-  ready_for_pr: 1,
-  ready_to_merge: 2,
-  merged: 3,
-  ready_to_archive: 4,
+  planned: 1,
+  ready_for_pr: 2,
+  reviewing: 3,
+  changes_requested: 3,
+  ready_to_merge: 4,
+  merged: 5,
+  ready_to_archive: 6,
 };
 
 export async function transitionWorkspaceOutcome(

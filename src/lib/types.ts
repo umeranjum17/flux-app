@@ -32,7 +32,7 @@ export interface QuestionField {
 }
 
 export interface AgentMessage {
-  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'question_request' | 'rate_limit' | 'quality_gate' | 'shell_result';
+  type: 'text' | 'status' | 'tool_call' | 'tool_result' | 'thinking' | 'error' | 'result' | 'permission_request' | 'question_request' | 'rate_limit' | 'quality_gate' | 'shell_result' | 'lifecycle';
   role: MessageRole;
   content: string;
   timestamp: number;
@@ -77,6 +77,8 @@ export interface AgentMessage {
   retryAttempt?: number;
   maxRetries?: number;
   isPreExisting?: boolean;
+  lifecycleState?: string;
+  lifecycleLabel?: string;
   rateLimitInfo?: {
     providerId?: 'claude-code' | 'codex';
     status: string;

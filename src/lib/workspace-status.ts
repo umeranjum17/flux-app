@@ -12,7 +12,10 @@ export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; lab
 
 export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; label: string }> = {
   in_progress: { color: 'text-text-tertiary', label: 'In Progress' },
-  ready_for_pr: { color: 'text-accent', label: 'Ready for PR' },
+  planned: { color: 'text-info', label: 'Planned' },
+  ready_for_pr: { color: 'text-accent', label: 'Ready for Review' },
+  reviewing: { color: 'text-warning', label: 'Reviewing' },
+  changes_requested: { color: 'text-error', label: 'Changes Requested' },
   ready_to_merge: { color: 'text-success', label: 'Ready to Merge' },
   merged: { color: 'text-success', label: 'Merged' },
   ready_to_archive: { color: 'text-warning', label: 'Ready to Archive' },
@@ -22,9 +25,12 @@ export type WorkspaceLifecycleState =
   | 'idle'
   | 'coding'
   | 'planning'
+  | 'planned'
   | 'awaiting_approval'
   | 'awaiting_input'
   | 'ready_for_review'
+  | 'reviewing'
+  | 'changes_requested'
   | 'ready_to_merge'
   | 'merging'
   | 'merged'
@@ -68,6 +74,14 @@ export const workspaceLifecycleConfig: Record<
     accentColor: 'bg-info',
     cardTint: 'lifecycle-tint-info',
   },
+  planned: {
+    color: 'bg-info',
+    label: 'Planned',
+    detail: 'Plan ready for your review.',
+    badgeClass: 'bg-info/12 text-info',
+    accentColor: 'bg-info',
+    cardTint: 'lifecycle-tint-info',
+  },
   awaiting_approval: {
     color: 'bg-warning',
     label: 'Needs Approval',
@@ -93,6 +107,22 @@ export const workspaceLifecycleConfig: Record<
     badgeClass: 'bg-info/12 text-info',
     accentColor: 'bg-info',
     cardTint: 'lifecycle-tint-info',
+  },
+  reviewing: {
+    color: 'bg-warning',
+    label: 'Reviewing',
+    detail: 'Changes are being reviewed.',
+    badgeClass: 'bg-warning/12 text-warning',
+    accentColor: 'bg-warning',
+    cardTint: 'lifecycle-tint-warning',
+  },
+  changes_requested: {
+    color: 'bg-error',
+    label: 'Changes Requested',
+    detail: 'Reviewer requested changes.',
+    badgeClass: 'bg-error/12 text-error',
+    accentColor: 'bg-error',
+    cardTint: 'lifecycle-tint-error',
   },
   ready_to_merge: {
     color: 'bg-success',
@@ -143,9 +173,12 @@ export function getWorkspaceLifecycleState(
   if (workspace.status === 'waiting_approval') return 'awaiting_approval';
   if (workspace.status === 'waiting_input') return 'awaiting_input';
 
-  if (isTerminalOutcome(workspace.outcome)) return 'merged';
+  if (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive') return 'merged';
   if (workspace.outcome === 'ready_to_merge') return 'ready_to_merge';
+  if (workspace.outcome === 'reviewing') return 'reviewing';
+  if (workspace.outcome === 'changes_requested') return 'changes_requested';
   if (workspace.outcome === 'ready_for_pr') return 'ready_for_review';
+  if (workspace.outcome === 'planned') return 'planned';
 
   return 'idle';
 }
