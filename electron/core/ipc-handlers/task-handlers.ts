@@ -729,10 +729,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     // when re-parsing the accumulated buffer.
     let lastLifecycleCount = 0;
     let lastFluxSignalCount = 0;
-    // Deferred outcome trigger: set when the agent emits a signal during
-    // streaming (before commits may exist). The actual transitionOutcome
-    // call happens in the result/done handler where git state is reliable.
-    let pendingOutcomeTrigger: import('../worktree/outcome').WorkspaceOutcomeTrigger | null = null;
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
@@ -852,18 +848,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               });
             }
 
-            if (evt.state === 'ready_for_review' || evt.state === 'planned' || evt.state === 'merged') {
-              logDiagnostic('lifecycle', `agent signalled ${evt.state}`, {
-                taskId: options.taskId,
-                workspaceName: evt.workspace_name,
-              });
-
-              // Defer outcome transition to result/done handler where git
-              // state is reliable (agent may not have committed yet).
-              if (evt.state === 'ready_for_review') {
-                pendingOutcomeTrigger = 'agent_signal_ready_for_review';
-              } else if (evt.state === 'planned') {
-                pendingOutcomeTrigger = 'plan_completed';
+            // Agent explicitly declared its state — set outcome directly
+            // without git state checks. The agent knows its own state.
+            if (workspace) {
+              const outcomeMap: Record<string, import('../worktree/types').WorkspaceOutcome> = {
+                ready_for_review: 'ready_for_pr',
+                planned: 'planned',
+                merged: 'merged',
+              };
+              const outcome = outcomeMap[evt.state];
+              if (outcome) {
+                logDiagnostic('lifecycle', `agent signalled ${evt.state} → setting outcome ${outcome}`, {
+                  taskId: options.taskId,
+                  workspaceName: evt.workspace_name,
+                });
+                lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
               }
             }
           }
@@ -903,14 +902,16 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             }
             // 'completed' signal → trigger workspace lifecycle transition
             else if (sig.type === 'completed') {
-              logDiagnostic('flux-signal', 'agent signalled completed', {
+              const outcome: import('../worktree/types').WorkspaceOutcome = options.mode === 'plan' ? 'planned' : 'ready_for_pr';
+              logDiagnostic('flux-signal', `agent signalled completed → setting outcome ${outcome}`, {
                 taskId: options.taskId,
                 workspaceName: sig.workspace_name,
               });
 
-              // Defer outcome transition to result/done handler where git
-              // state is reliable (agent may not have committed yet).
-              pendingOutcomeTrigger = options.mode === 'plan' ? 'plan_completed' : 'agent_signal_ready_for_review';
+              // Agent explicitly declared completion — set outcome directly.
+              if (workspace) {
+                lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
+              }
 
               // Emit a lifecycle message to the renderer
               const lifecycleMessage = {
@@ -1077,8 +1078,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
               const freshWs = workspaceStore.get(workspace.id);
               if (freshWs) {
-                const trigger = pendingOutcomeTrigger ?? (options.mode === 'plan' ? 'plan_completed' : 'task_completed');
-                pendingOutcomeTrigger = null;
+                const trigger = options.mode === 'plan' ? 'plan_completed' : 'task_completed';
                 await lifecycleManager.transitionOutcome(freshWs, trigger);
               }
             }
@@ -1542,8 +1542,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
                   const freshWs = workspaceStore.get(workspace.id);
                   if (freshWs) {
-                    const trigger = finalError ? 'task_error' : (pendingOutcomeTrigger ?? 'task_completed');
-                    pendingOutcomeTrigger = null;
+                    const trigger = finalError ? 'task_error' : 'task_completed';
                     await lifecycleManager.transitionOutcome(freshWs, trigger);
                   }
                 }
