@@ -175,7 +175,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         'When you finish the plan, emit these signals on their own lines (not inside a code block):',
         '',
-        'FLUX_LIFECYCLE: {"state":"planned"}',
+        'FLUX_WORKSPACE_LIFECYCLE: {"state":"planned"}',
         'FLUX_SIGNAL: {"type":"completed","workspace_name":"Plan: Fix Token Refresh"}',
       );
     }

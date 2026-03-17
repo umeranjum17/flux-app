@@ -6,7 +6,7 @@ import type { FluxSignal, FluxSignalType } from './types';
  * Format: `FLUX_SIGNAL: {"type":"step_start","step":1,"label":"..."}`
  *
  * This is the unified signal protocol used by skills. It coexists with the
- * older FLUX_LIFECYCLE and FLUX_TODO protocols for backward compatibility.
+ * older FLUX_WORKSPACE_LIFECYCLE and FLUX_TODO protocols for backward compatibility.
  */
 
 const SIGNAL_REGEX = /FLUX_SIGNAL:\s*(\{.*\})/;

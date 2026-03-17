@@ -37,6 +37,13 @@ describe('parseWorkspaceEvent', () => {
     expect(result).toEqual({ state: 'idle' });
   });
 
+  it('accepts canonical FLUX_WORKSPACE_LIFECYCLE prefix', () => {
+    const result = parseWorkspaceEvent(
+      'FLUX_WORKSPACE_LIFECYCLE: {"state":"working"}',
+    );
+    expect(result).toEqual({ state: 'working' });
+  });
+
   it('accepts legacy FLUX_WORKSPACE prefix', () => {
     const result = parseWorkspaceEvent(
       'FLUX_WORKSPACE: {"state":"working"}',
@@ -140,7 +147,7 @@ describe('parseAllWorkspaceEvents', () => {
 describe('buildWorkspaceProtocolPrompt', () => {
   it('returns instructions with allowed lifecycle states', () => {
     const prompt = buildWorkspaceProtocolPrompt();
-    expect(prompt).toContain('FLUX_LIFECYCLE');
+    expect(prompt).toContain('FLUX_WORKSPACE_LIFECYCLE');
     expect(prompt).toContain('working');
     expect(prompt).toContain('ready_for_review');
     expect(prompt).toContain('workspace_name');
