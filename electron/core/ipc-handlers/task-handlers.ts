@@ -930,7 +930,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
 
       if (
-        message.type === 'tool_call'
+        !agentUsedTodoWrite
+        && message.type === 'tool_call'
         && message.toolInput
         && isTodoTrackingToolCall(message.toolName, message.toolInput)
       ) {

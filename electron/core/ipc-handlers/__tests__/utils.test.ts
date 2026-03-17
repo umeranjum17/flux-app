@@ -176,6 +176,32 @@ describe('isTodoTrackingToolCall', () => {
       plan: [{ step: 'Ship the fix', status: 'pending' }],
     })).toBe(true);
   });
+
+  it('recognizes TodoWrite by name', () => {
+    expect(isTodoTrackingToolCall('TodoWrite', {
+      todos: [{ content: 'Do something', status: 'pending' }],
+    })).toBe(true);
+  });
+
+  it('recognizes tool calls with explicit todos key', () => {
+    expect(isTodoTrackingToolCall('some_custom_tool', {
+      todos: [{ content: 'A task', status: 'pending' }],
+    })).toBe(true);
+  });
+
+  it('does NOT match unrelated tools with items/steps/tasks keys', () => {
+    expect(isTodoTrackingToolCall('Glob', {
+      items: ['file1.ts', 'file2.ts'],
+    })).toBe(false);
+
+    expect(isTodoTrackingToolCall('BatchProcess', {
+      steps: [{ title: 'Step one' }, { title: 'Step two' }],
+    })).toBe(false);
+
+    expect(isTodoTrackingToolCall('Read', {
+      tasks: [{ text: 'something' }],
+    })).toBe(false);
+  });
 });
 
 describe('parseFluxTodo', () => {

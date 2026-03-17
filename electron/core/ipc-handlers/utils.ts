@@ -192,15 +192,24 @@ export function isTodoTrackingToolCall(
   toolInput: Record<string, unknown> | undefined,
 ): boolean {
   const normalizedToolName = toolName?.toLowerCase() ?? '';
+  // Match only by tool name — payload-shape sniffing caused false positives
+  // (any tool with `items`, `steps`, or `tasks` keys was misidentified).
   if (normalizedToolName.includes('todo') || normalizedToolName === 'update_plan') {
     return true;
   }
 
+  // Tier 2: only match if the payload explicitly contains a `todos` key,
+  // which is unambiguous. Generic keys like `items`/`steps`/`tasks` are too
+  // common in unrelated tool calls (e.g. Glob results, batch operations).
   if (!toolInput) {
     return false;
   }
 
-  return extractTodoItemsFromPayload(toolInput).length > 0;
+  if (Array.isArray(toolInput.todos)) {
+    return extractTodoItemsFromPayload(toolInput).length > 0;
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
