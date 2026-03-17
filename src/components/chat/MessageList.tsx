@@ -34,6 +34,8 @@ import { SystemActivityInlineItem, SystemActivityGroup, groupActivitiesByCategor
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getLatestPlanText, isPlanMessage, stripFluxTokens } from '../../lib/plan';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
+import { buildMergedToolResultLookup, getToolCallDisplayTier, type ToolCallDisplayTier } from '../../lib/tool-call-display';
+import { ToolCallGroup, type ToolCallGroupItem } from './ToolCallGroup';
 
 const messageVariants = {
   initial: { opacity: 0, y: 14, scale: 0.985 },
@@ -221,24 +223,10 @@ export function MessageList() {
   // Build set of message indices where agent switches happened
   const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
 
-  // Build maps for merging tool_result into its preceding tool_call.
-  // Look past intermediate status messages (e.g. tool.execution_progress) that may
-  // sit between a tool_call and its corresponding tool_result.
-  const mergedResultIndices = new Set<number>();
-  const mergedResultForCall = new Map<number, AgentMessage>();
-  for (let i = 0; i < messages.length - 1; i++) {
-    const msg = messages[i];
-    if (msg.type !== 'tool_call' || !msg.toolCallId) continue;
-    for (let j = i + 1; j < messages.length; j++) {
-      const candidate = messages[j];
-      if (candidate.type === 'status' && candidate.toolCallId === msg.toolCallId) continue;
-      if (candidate.type === 'tool_result' && candidate.toolCallId === msg.toolCallId) {
-        mergedResultIndices.add(j);
-        mergedResultForCall.set(i, candidate);
-      }
-      break;
-    }
-  }
+  const { mergedResultIndices, mergedResultForCall } = useMemo(
+    () => buildMergedToolResultLookup(messages),
+    [messages],
+  );
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -361,8 +349,79 @@ export function MessageList() {
                 }
 
                 const mergedResult = mergedResultForCall.get(idx) ?? null;
+                const displayTier = msg.type === 'tool_call'
+                  ? getToolCallDisplayTier(msg, mergedResult)
+                  : null;
 
-                const messageEl = taskId && renderMessage(msg, idx, taskId, taskStatus, mergedResult, task.mode, expandedToolCallIds);
+                if (displayTier === 'hidden') continue;
+
+                if (displayTier === 'routine') {
+                  const toolItems: ToolCallGroupItem[] = [];
+                  let cursor = idx;
+
+                  while (cursor < messages.length) {
+                    if (mergedResultIndices.has(cursor)) {
+                      cursor += 1;
+                      continue;
+                    }
+
+                    const candidate = messages[cursor];
+                    if (candidate.type !== 'tool_call') break;
+                    if (!planIsStale && isPlanMessage(candidate, task.mode)) break;
+                    if (activityCursor < systemActivities.length && systemActivities[activityCursor].timestamp <= candidate.timestamp && cursor !== idx) {
+                      break;
+                    }
+
+                    const candidateResult = mergedResultForCall.get(cursor) ?? null;
+                    const candidateTier = getToolCallDisplayTier(candidate, candidateResult);
+
+                    if (candidateTier === 'hidden') {
+                      cursor += 1;
+                      continue;
+                    }
+
+                    if (candidateTier !== 'routine') {
+                      if (cursor === idx) break;
+                      break;
+                    }
+
+                    toolItems.push({
+                      message: candidate,
+                      mergedResult: candidateResult,
+                      isRunning: isActiveRun,
+                      key: String(candidate._seqId ?? `${candidate.timestamp}-${cursor}`),
+                    });
+                    cursor += 1;
+                  }
+
+                  if (toolItems.length > 0) {
+                    rendered.push(
+                      <motion.div
+                        key={`tool-group-${toolItems[0].key}`}
+                        variants={messageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={messageTransition}
+                      >
+                        <ToolCallGroup items={toolItems} />
+                      </motion.div>,
+                    );
+                    idx = cursor - 1;
+                    continue;
+                  }
+                }
+
+                const messageEl = taskId && renderMessage(
+                  msg,
+                  idx,
+                  taskId,
+                  taskStatus,
+                  mergedResult,
+                  task.mode,
+                  expandedToolCallIds,
+                  displayTier ?? undefined,
+                );
                 if (!messageEl) continue;
 
                 rendered.push(
@@ -556,6 +615,7 @@ function renderMessage(
   mergedResult?: AgentMessage | null,
   taskMode?: string,
   expandedToolCallIds?: Set<string>,
+  toolCallDisplayTier?: ToolCallDisplayTier,
 ) {
   const isActiveRun = taskStatus === 'running' || taskStatus === 'waiting_approval' || taskStatus === 'waiting_input';
   const highlightAsPlan = isPlanMessage(msg, taskMode as 'plan' | 'act' | undefined);
@@ -597,13 +657,7 @@ function renderMessage(
       );
 
     case 'tool_call': {
-      // Todo-style tool calls are shown in the sticky TodoBar above input.
-      const toolNameLower = (msg.toolName ?? '').toLowerCase();
-      const hasStructuredTodoPayload = Boolean(
-        msg.toolInput
-        && (Array.isArray(msg.toolInput.todos) || Array.isArray(msg.toolInput.plan)),
-      );
-      if (toolNameLower.includes('todo') || toolNameLower === 'update_plan' || hasStructuredTodoPayload) return null;
+      if (toolCallDisplayTier === 'hidden') return null;
 
       return (
         <ToolCallBlock
@@ -618,6 +672,7 @@ function renderMessage(
           diff={msg.diff}
           filePath={msg.filePath}
           forceExpanded={msg.toolCallId ? expandedToolCallIds?.has(msg.toolCallId) : undefined}
+          importance={toolCallDisplayTier === 'important' ? 'important' : 'routine'}
         />
       );
     }

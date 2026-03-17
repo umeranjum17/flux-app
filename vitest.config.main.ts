@@ -1,3 +1,4 @@
+import path from 'path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -14,7 +15,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@electron': '/home/umera/github/flux-app/electron',
+      '@electron': path.resolve(__dirname, 'electron'),
     },
   },
 });

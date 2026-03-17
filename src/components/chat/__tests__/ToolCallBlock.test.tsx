@@ -53,4 +53,21 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Sync renderer todo bar')).not.toBeNull();
     expect(screen.queryByText(/\{/)).toBeNull();
   });
+
+  it('auto-expands important error output', () => {
+    render(
+      <ToolCallBlock
+        toolName="Bash"
+        content="Using tool: Bash"
+        toolInput={{ command: 'npm test' }}
+        resultContent="Command failed\nexit code: 1"
+        resultIsError
+        isComplete
+        importance="important"
+      />,
+    );
+
+    expect(screen.getByText(/Command failed/)).not.toBeNull();
+    expect(screen.getByText(/exit code: 1/)).not.toBeNull();
+  });
 });

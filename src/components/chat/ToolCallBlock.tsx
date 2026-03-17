@@ -1,4 +1,4 @@
-import React, { Component, useState, useMemo } from 'react';
+import React, { Component, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Terminal,
@@ -17,6 +17,7 @@ import {
   Download,
 } from 'lucide-react';
 import { BashPanel, ReadPanel, EditDiffPanel, SearchPanel, GlobPanel, GenericPanel } from './ToolPanels';
+import { formatToolCallLabel, isFileEditToolName, type ToolCallImportance } from '../../lib/tool-call-display';
 
 const EXPAND_TRANSITION = {
   duration: 0.18,
@@ -65,6 +66,7 @@ interface ToolCallBlockProps {
   diff?: string;
   filePath?: string;
   forceExpanded?: boolean;
+  importance?: ToolCallImportance;
 }
 
 interface TodoItem {
@@ -94,13 +96,6 @@ function getToolIcon(toolName: string) {
   if (name.includes('agent'))
     return { Icon: Download, color: 'text-accent' };
   return { Icon: Wrench, color: 'text-text-secondary' };
-}
-
-function formatToolLabel(toolName: string): string {
-  return toolName
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim();
 }
 
 function getToolDescription(toolName: string, toolInput?: Record<string, unknown>, resultContent?: string): string {
@@ -170,11 +165,6 @@ function countDiffStats(content: string): { added: number; removed: number } | n
   }
   if (added === 0 && removed === 0) return null;
   return { added, removed };
-}
-
-function isFileEditTool(toolName: string): boolean {
-  const name = toolName.toLowerCase();
-  return name.includes('edit') || name.includes('write') || name.includes('patch');
 }
 
 /**
@@ -281,8 +271,9 @@ export function ToolCallBlock({
   diff,
   filePath,
   forceExpanded,
+  importance = 'routine',
 }: ToolCallBlockProps) {
-  const isEdit = isFileEditTool(toolName);
+  const isEdit = isFileEditToolName(toolName);
   const resolvedFilePath = filePath ?? (toolInput?.file_path as string | undefined) ?? (toolInput?.path as string | undefined);
   const [expanded, setExpanded] = useState(false);
   const isExpanded = expanded || (forceExpanded ?? false);
@@ -300,11 +291,17 @@ export function ToolCallBlock({
   );
 
   const diffStats = useMemo(() => {
-    if (!isFileEditTool(toolName)) return null;
+    if (!isFileEditToolName(toolName)) return null;
     const diffSource = resolvedDiff ?? resultContent;
     if (!diffSource) return null;
     return countDiffStats(diffSource);
   }, [toolName, resolvedDiff, resultContent]);
+
+  useEffect(() => {
+    if (importance === 'important' && resultIsError) {
+      setExpanded(true);
+    }
+  }, [importance, resultIsError]);
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
@@ -320,10 +317,18 @@ export function ToolCallBlock({
   }, [isRunning, isComplete, resultIsError, Icon, color]);
 
   const hasExpandableContent = !!resultContent || !!resolvedDiff || shouldShowSemanticBody;
+  const rowTone = resultIsError
+    ? 'border border-error/20 bg-error/5'
+    : importance === 'important'
+      ? 'border border-border/40 bg-bg-secondary/30'
+      : '';
+  const chevronTone = importance === 'important'
+    ? 'ml-auto shrink-0 text-text-tertiary/70'
+    : 'ml-auto shrink-0 text-text-tertiary/50 opacity-0 transition-opacity group-hover:opacity-100';
 
   return (
     <div
-      className="tool-call-row group"
+      className={`tool-call-row group rounded-md ${rowTone}`}
       data-tool-call-id={toolCallId}
       {...(isEdit && resolvedFilePath ? { 'data-file-edit': resolvedFilePath } : {})}
     >
@@ -335,7 +340,7 @@ export function ToolCallBlock({
           {statusIcon}
         </span>
         <span className="text-[13px] font-medium text-text-secondary">
-          {formatToolLabel(toolName)}
+          {formatToolCallLabel(toolName)}
         </span>
         {description ? (
           <span className="text-[13px] text-text-tertiary truncate min-w-0 flex-1">
@@ -351,7 +356,7 @@ export function ToolCallBlock({
           </span>
         )}
         {hasExpandableContent && (
-          <span className="shrink-0 text-text-tertiary/50 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className={chevronTone}>
             {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </span>
         )}

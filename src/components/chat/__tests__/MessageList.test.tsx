@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MessageList } from '../MessageList';
 import { useChatStore } from '../../../stores/chat';
 import { useWorkspaceStore } from '../../../stores/workspace';
@@ -59,6 +60,90 @@ describe('MessageList', () => {
     expect(screen.getByText('Initializing Claude session')).not.toBeNull();
     expect(document.querySelector('[data-status-kind="startup"]')).not.toBeNull();
     expect(document.querySelector('.animate-spin')).not.toBeNull();
+  });
+
+  it('groups routine tool calls while keeping important ones visible', async () => {
+    const user = userEvent.setup();
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Tool compaction',
+      agentId: 'copilot',
+      model: 'gpt-5.4',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Calling report_intent',
+      timestamp: 1,
+      toolName: 'report_intent',
+      toolInput: { intent: 'Exploring UI' },
+      toolCallId: 'intent-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Calling Read',
+      timestamp: 2,
+      toolName: 'Read',
+      toolInput: { path: 'src/example.ts' },
+      toolCallId: 'read-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: 'const value = 1;',
+      timestamp: 3,
+      toolCallId: 'read-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Calling Glob',
+      timestamp: 4,
+      toolName: 'Glob',
+      toolInput: { pattern: 'src/**/*.ts' },
+      toolCallId: 'glob-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: '["src/example.ts"]',
+      timestamp: 5,
+      toolCallId: 'glob-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Calling Edit',
+      timestamp: 6,
+      toolName: 'Edit',
+      toolInput: { path: 'src/example.ts', old_string: 'value = 1', new_string: 'value = 2' },
+      toolCallId: 'edit-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: 'Applied edit',
+      timestamp: 7,
+      toolCallId: 'edit-1',
+    });
+
+    render(<MessageList />);
+
+    expect(screen.queryByText('Report intent')).toBeNull();
+    expect(screen.getByText('Tool activity')).not.toBeNull();
+    expect(screen.getByText('Read · Glob')).not.toBeNull();
+    expect(screen.getByText('Edit')).not.toBeNull();
+    expect(screen.queryByText('src/example.ts (1 lines)')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /Tool activity/i }));
+
+    expect(screen.getByText('src/example.ts (1 lines)')).not.toBeNull();
+    expect(screen.getByText('src/**/*.ts · 1 files')).not.toBeNull();
   });
 
   it('renders question requests inline', () => {
@@ -154,7 +239,6 @@ describe('MessageList', () => {
       thinking: 'medium',
       cwd: '/workspace',
     });
-    useChatStore.getState().setTaskStatus('task-1', 'done');
     useChatStore.getState().addMessage('task-1', {
       type: 'text',
       role: 'assistant',
@@ -176,17 +260,18 @@ Only structured plan markdown should be treated as plan content.
 3. Render interim updates as normal assistant text.
 
 ## Trade-offs
-This depends on the agent honoring the structured plan prompt.`,
+      This depends on the agent honoring the structured plan prompt.`,
       timestamp: 6,
     });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
 
     render(<MessageList />);
 
     expect(screen.getByText("I'll inspect the repo first and then map the fix to exact files.")).not.toBeNull();
-    expect(screen.getByText(/^Summary$/)).not.toBeNull();
-    expect(screen.getByText(/^Analysis$/)).not.toBeNull();
-    expect(screen.getByText(/^Steps$/)).not.toBeNull();
+    expect(document.querySelector('.premium-plan-card')).not.toBeNull();
+    expect(screen.getByText('Plan')).not.toBeNull();
     expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
+    expect(screen.getByText('Detect real plan output.')).not.toBeNull();
   });
 
   it('preserves nearby assistant text when FLUX_SIGNAL lines contain nested JSON', () => {
@@ -217,7 +302,7 @@ This depends on the agent honoring the structured plan prompt.`,
     expect(screen.queryByText(/Investigate Copilot text trimming/)).toBeNull();
   });
 
-  it('renders Mermaid diagrams inside the plan card', async () => {
+  it('preserves Mermaid markdown inside the plan summary', async () => {
     useChatStore.getState().createTask({
       id: 'task-1',
       title: 'Planning',
@@ -227,7 +312,6 @@ This depends on the agent honoring the structured plan prompt.`,
       thinking: 'medium',
       cwd: '/workspace',
     });
-    useChatStore.getState().setTaskStatus('task-1', 'done');
     useChatStore.getState().addMessage('task-1', {
       type: 'text',
       role: 'assistant',
@@ -248,21 +332,20 @@ Mermaid diagrams should render inside plan content.
 2. Verify the plan card shows the generated SVG.
 
 ## Trade-offs
-This adds a renderer dependency but keeps markdown output visual.`,
+      This adds a renderer dependency but keeps markdown output visual.`,
       timestamp: 7,
     });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
 
     const { container } = render(<MessageList />);
 
     await waitFor(() => {
-      expect(container.querySelector('.premium-plan-card .mermaid-block svg')).not.toBeNull();
+      expect(container.querySelector('.premium-plan-card')).not.toBeNull();
     });
 
-    expect(renderMermaidDiagramMock).toHaveBeenCalledWith(
-      'graph TD\n  A[Prompt] --> B[Plan]\n  B --> C[Diagram]',
-      'dark',
-      expect.stringMatching(/^mermaid-/),
-    );
+    expect(screen.getByText(/Visualize the rollout\./)).not.toBeNull();
+    expect(screen.getByText(/graph TD/)).not.toBeNull();
+    expect(renderMermaidDiagramMock).not.toHaveBeenCalled();
   });
 
   it('renders background system activities inline in the chat timeline', () => {
@@ -333,7 +416,7 @@ This adds a renderer dependency but keeps markdown output visual.`,
     expect(screen.queryByText('Ask Flux anything...')).toBeNull();
   });
 
-  it('renders ipc activity with expandable payload details', () => {
+  it('keeps ipc activity hidden from the inline activity feed', () => {
     useChatStore.getState().createTask({
       id: 'task-1',
       title: 'IPC trace',
@@ -354,9 +437,7 @@ This adds a renderer dependency but keeps markdown output visual.`,
 
     render(<MessageList />);
 
-    expect(screen.getByText('task:spawn')).not.toBeNull();
-    expect(screen.getByText('· response · task task-1 · session session-1')).not.toBeNull();
-    expect(screen.getByText('payload')).not.toBeNull();
-    expect(screen.getByText('{"session":{"id":"session-1"}}')).not.toBeNull();
+    expect(screen.queryByText('task:spawn')).toBeNull();
+    expect(screen.getByText('Waiting for first output...')).not.toBeNull();
   });
 });

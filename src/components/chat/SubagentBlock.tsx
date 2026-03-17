@@ -8,6 +8,8 @@ import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
 import { ResultBlock } from './ResultBlock';
 import { isPlanMessage } from '../../lib/plan';
+import { buildMergedToolResultLookup, getToolCallDisplayTier, type ToolCallDisplayTier } from '../../lib/tool-call-display';
+import { ToolCallGroup, type ToolCallGroupItem } from './ToolCallGroup';
 
 interface SubagentBlockProps {
   subagents: Array<{
@@ -104,34 +106,76 @@ function SubagentMessageList({
   messages: AgentMessage[];
   taskMode?: 'plan' | 'act';
 }) {
-  const mergedResultIndices = useMemo(() => {
-    const merged = new Set<number>();
-    for (let i = 0; i < messages.length - 1; i++) {
-      const current = messages[i];
-      const next = messages[i + 1];
-      if (
-        current.type === 'tool_call' &&
-        current.toolCallId &&
-        next.type === 'tool_result' &&
-        next.toolCallId === current.toolCallId
-      ) {
-        merged.add(i + 1);
-      }
-    }
-    return merged;
-  }, [messages]);
+  const { mergedResultIndices, mergedResultForCall } = useMemo(
+    () => buildMergedToolResultLookup(messages),
+    [messages],
+  );
 
   return (
     <>
-      {messages.map((message, index) => {
-        if (mergedResultIndices.has(index)) return null;
-        const mergedResult = mergedResultIndices.has(index + 1) ? messages[index + 1] : null;
-        return (
-          <div key={`${message.timestamp}-${index}`}>
-            {renderSubagentMessage(message, mergedResult, taskMode)}
-          </div>
-        );
-      })}
+      {(() => {
+        const rendered: React.ReactNode[] = [];
+
+        for (let index = 0; index < messages.length; index++) {
+          if (mergedResultIndices.has(index)) continue;
+          const message = messages[index];
+          const mergedResult = mergedResultForCall.get(index) ?? null;
+          const displayTier = message.type === 'tool_call'
+            ? getToolCallDisplayTier(message, mergedResult)
+            : null;
+
+          if (displayTier === 'hidden') continue;
+
+          if (displayTier === 'routine') {
+            const toolItems: ToolCallGroupItem[] = [];
+            let cursor = index;
+
+            while (cursor < messages.length) {
+              if (mergedResultIndices.has(cursor)) {
+                cursor += 1;
+                continue;
+              }
+
+              const candidate = messages[cursor];
+              if (candidate.type !== 'tool_call') break;
+
+              const candidateResult = mergedResultForCall.get(cursor) ?? null;
+              const candidateTier = getToolCallDisplayTier(candidate, candidateResult);
+              if (candidateTier === 'hidden') {
+                cursor += 1;
+                continue;
+              }
+              if (candidateTier !== 'routine') break;
+
+              toolItems.push({
+                message: candidate,
+                mergedResult: candidateResult,
+                isRunning: candidate.subagentStatus === 'running',
+                key: `${candidate.timestamp}-${cursor}`,
+              });
+              cursor += 1;
+            }
+
+            if (toolItems.length > 0) {
+              rendered.push(
+                <div key={`subagent-tool-group-${toolItems[0].key}`}>
+                  <ToolCallGroup items={toolItems} />
+                </div>,
+              );
+              index = cursor - 1;
+              continue;
+            }
+          }
+
+          rendered.push(
+            <div key={`${message.timestamp}-${index}`}>
+              {renderSubagentMessage(message, mergedResult, taskMode, displayTier ?? undefined)}
+            </div>,
+          );
+        }
+
+        return rendered;
+      })()}
     </>
   );
 }
@@ -140,6 +184,7 @@ function renderSubagentMessage(
   message: AgentMessage,
   mergedResult?: AgentMessage | null,
   taskMode?: 'plan' | 'act',
+  toolCallDisplayTier?: ToolCallDisplayTier,
 ) {
   switch (message.type) {
     case 'text':
@@ -155,6 +200,7 @@ function renderSubagentMessage(
     case 'thinking':
       return <ThinkingBlock content={message.content} active={message.subagentStatus === 'running'} />;
     case 'tool_call':
+      if (toolCallDisplayTier === 'hidden') return null;
       return (
         <ToolCallBlock
           toolName={message.toolName ?? 'unknown'}
@@ -165,6 +211,7 @@ function renderSubagentMessage(
           resultContent={mergedResult?.content}
           resultIsError={mergedResult?.isError}
           isComplete={!!mergedResult}
+          importance={toolCallDisplayTier === 'important' ? 'important' : 'routine'}
         />
       );
     case 'tool_result':
