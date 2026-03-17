@@ -178,7 +178,6 @@ describe('spawnCopilot — delta buffering integration', () => {
       'thinking',    // "Let me analyze..."     (coalesced)
       'text',        // "I'll fix the bug."      (coalesced)
       'tool_call',   // edit_file
-      'status',      // "Editing..." progress
       'tool_result', // "File edited"
       'text',        // "Done! Changes applied." (coalesced)
       'result',      // completion
@@ -187,7 +186,7 @@ describe('spawnCopilot — delta buffering integration', () => {
     // Verify content was coalesced, not token-by-token
     expect(messages[0].content).toBe('Let me analyze...');
     expect(messages[1].content).toBe('I\'ll fix the bug.');
-    expect(messages[5].content).toBe('Done! Changes applied.');
+    expect(messages[4].content).toBe('Done! Changes applied.');
   });
 
   // -------------------------------------------------------------------------
@@ -299,6 +298,31 @@ describe('spawnCopilot — delta buffering integration', () => {
     expect(messages[0].content).toBe('hmm...');
     expect(messages[1].type).toBe('text');
     expect(messages[1].content).toBe('here');
+  });
+
+  it('coalesces interleaved thinking and text deltas into stable grouped flushes', () => {
+    spawn();
+
+    emitLine(proc, { type: 'assistant.reasoning_delta', data: { deltaContent: 'Let me ' } });
+    emitLine(proc, { type: 'assistant.message_delta', data: { deltaContent: 'I can ' } });
+    emitLine(proc, { type: 'assistant.reasoning_delta', data: { deltaContent: 'think first. ' } });
+    emitLine(proc, { type: 'assistant.message_delta', data: { deltaContent: 'help now.' } });
+
+    expect(messages).toHaveLength(0);
+
+    vi.advanceTimersByTime(50);
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({
+      type: 'thinking',
+      role: 'assistant',
+      content: 'Let me think first. ',
+    });
+    expect(messages[1]).toMatchObject({
+      type: 'text',
+      role: 'assistant',
+      content: 'I can help now.',
+    });
   });
 
   // -------------------------------------------------------------------------

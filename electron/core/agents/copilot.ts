@@ -2,6 +2,7 @@ import { AgentHandle, AgentMessage, SpawnOptions } from './types';
 import { createCliAgentHandle } from './cli-agent';
 
 export const COPILOT_STARTUP_TIMEOUT_MS = 30_000;
+const COPILOT_DELTA_FLUSH_MS = 32;
 
 function classifyCopilotExit(code: number | null, stderr: string): string {
   const normalized = stderr.toLowerCase();
@@ -37,14 +38,59 @@ function extractCopilotFilePath(args: Record<string, any>): string | undefined {
 }
 
 export function spawnCopilot(options: SpawnOptions): AgentHandle {
-  // Streaming state: track whether deltas were received so we can suppress
-  // the redundant full-content events that would otherwise double the text.
+  // Streaming state: coalesce rapid token deltas before emitting them to the
+  // renderer. Copilot often alternates tiny reasoning/text deltas; buffering
+  // keeps the stream stable and suppresses the redundant full-content events
+  // that usually follow.
   let hasReceivedTextDelta = false;
   let hasReceivedReasoningDelta = false;
+  let textDeltaBuffer = '';
+  let reasoningDeltaBuffer = '';
+  let flushTimer: NodeJS.Timeout | null = null;
 
   // Track file-edit tool call IDs so we can suppress their progress events
   // (progress events break the tool_call → tool_result merge in the renderer).
   const fileEditToolCallIds = new Set<string>();
+
+  const clearFlushTimer = () => {
+    if (!flushTimer) return;
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  };
+
+  const flushDeltas = (emitMessage: (message: AgentMessage) => void) => {
+    clearFlushTimer();
+    if (!reasoningDeltaBuffer && !textDeltaBuffer) return;
+
+    const timestamp = Date.now();
+
+    if (reasoningDeltaBuffer) {
+      emitMessage({
+        type: 'thinking',
+        role: 'assistant',
+        content: reasoningDeltaBuffer,
+        timestamp,
+      });
+      reasoningDeltaBuffer = '';
+    }
+
+    if (textDeltaBuffer) {
+      emitMessage({
+        type: 'text',
+        role: 'assistant',
+        content: textDeltaBuffer,
+        timestamp: Date.now(),
+      });
+      textDeltaBuffer = '';
+    }
+  };
+
+  const scheduleFlush = (emitMessage: (message: AgentMessage) => void) => {
+    if (flushTimer) return;
+    flushTimer = setTimeout(() => {
+      flushDeltas(emitMessage);
+    }, COPILOT_DELTA_FLUSH_MS);
+  };
 
   return createCliAgentHandle(options, {
     agentId: 'copilot',
@@ -86,19 +132,23 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
     classifyExit: classifyCopilotExit,
 
     hooks: {
-      onEvent(event, _ctx) {
-        // Track delta streaming to prevent content doubling.
-        // When --stream is on, the CLI sends token-level deltas followed by a
-        // full-content event. Without suppression the store's merge logic
-        // appends the full content to the accumulated deltas, visibly doubling text.
+      onEvent(event, ctx) {
+        // Track delta streaming to prevent content doubling and to reduce
+        // churn from token-level updates.
         if (event.type === 'assistant.message_delta') {
+          textDeltaBuffer += (event.data?.deltaContent ?? '') as string;
           hasReceivedTextDelta = true;
-          return false; // let default mapEvent handle the delta
+          scheduleFlush(ctx.emitMessage);
+          return true;
         }
         if (event.type === 'assistant.reasoning_delta') {
+          reasoningDeltaBuffer += (event.data?.deltaContent ?? '') as string;
           hasReceivedReasoningDelta = true;
-          return false;
+          scheduleFlush(ctx.emitMessage);
+          return true;
         }
+
+        flushDeltas(ctx.emitMessage);
 
         // Suppress full assistant.message when deltas already delivered the content
         if (event.type === 'assistant.message' && hasReceivedTextDelta) {
@@ -109,6 +159,11 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
         if (event.type === 'assistant.reasoning' && hasReceivedReasoningDelta) {
           hasReceivedReasoningDelta = false;
           return true;
+        }
+
+        if (event.type === 'result' || event.type === 'abort') {
+          hasReceivedTextDelta = false;
+          hasReceivedReasoningDelta = false;
         }
 
         // Suppress partial tool results — the final tool.execution_complete
@@ -150,6 +205,19 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
           return { id: event.sessionId };
         }
         return null;
+      },
+
+      onBeforeFinish(_code, ctx) {
+        flushDeltas(ctx.emitMessage);
+        return false;
+      },
+
+      onStop() {
+        clearFlushTimer();
+      },
+
+      onCleanup() {
+        clearFlushTimer();
       },
     },
   });

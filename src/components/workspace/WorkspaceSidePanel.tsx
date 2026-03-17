@@ -5,7 +5,6 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
 import { FileActivityPanel } from '../review/FileActivityPanel';
-import { FileChangelist } from '../review/FileChangelist';
 
 type PanelTab = 'files' | 'search' | 'activity';
 
@@ -293,7 +292,6 @@ function PanelSearchTab() {
 
 function PanelActivityTab() {
   const task = useChatStore((s) => s.getActiveTask());
-  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const contextKey = task?.workspaceId ?? task?.id ?? '';
 
   // Ensure the file-activity context is "open" while this tab is shown
@@ -303,101 +301,5 @@ function PanelActivityTab() {
     }
   }, [contextKey]);
 
-  if (changesPanelOpen) {
-    return <PanelChangesTab />;
-  }
-
   return <FileActivityPanel embedded />;
-}
-
-/* ---------- Changes tab (changed files list for diff overlay) ---------- */
-
-function PanelChangesTab() {
-  const files = useWorkspaceStore((s) => s.changesPanelFiles);
-  const selectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
-  const workspaceId = useWorkspaceStore((s) => s.changesPanelWorkspaceId);
-  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-
-  const workspace = workspaceId ? workspaces.get(workspaceId) : null;
-
-  const totalAdded = useMemo(() => files.reduce((s, f) => s + f.additions, 0), [files]);
-  const totalDeleted = useMemo(() => files.reduce((s, f) => s + f.deletions, 0), [files]);
-
-  const handleDiscard = useCallback(async (filePath: string) => {
-    if (!workspaceId) return;
-    await window.api.invoke('workspace:discard-file', { workspaceId, filePath });
-    useWorkspaceStore.getState().refreshChangesPanelFiles();
-  }, [workspaceId]);
-
-  // Keyboard navigation: up/down arrows to cycle files
-  useEffect(() => {
-    if (!changesPanelOpen || files.length === 0) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      const active = document.activeElement;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-
-      e.preventDefault();
-      const store = useWorkspaceStore.getState();
-      const currentIdx = store.changesPanelFiles.findIndex((f) => f.path === store.changesPanelSelectedFile);
-      const len = store.changesPanelFiles.length;
-      if (len === 0) return;
-
-      let nextIdx: number;
-      if (e.key === 'ArrowDown') {
-        nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % len;
-      } else {
-        nextIdx = currentIdx < 0 ? len - 1 : (currentIdx - 1 + len) % len;
-      }
-      store.changesPanelSelectFile(store.changesPanelFiles[nextIdx].path);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [changesPanelOpen, files.length]);
-
-  if (!changesPanelOpen) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-        <p className="text-[11px] text-text-tertiary text-center">No changes panel open. Use &ldquo;Review Changes&rdquo; on a workspace to view diffs.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate text-[12px] font-medium text-text-secondary">
-            Changes
-            {files.length > 0 && (
-              <span className="text-[11px] text-text-tertiary ml-1.5">
-                {files.length} file{files.length !== 1 ? 's' : ''}
-                {totalAdded > 0 && <span className="text-success ml-1">+{totalAdded}</span>}
-                {totalDeleted > 0 && <span className="text-error ml-1">-{totalDeleted}</span>}
-              </span>
-            )}
-          </p>
-          {workspace && (
-            <p className="text-[10px] font-mono text-text-tertiary truncate mt-0.5">{workspace.branch}</p>
-          )}
-        </div>
-        <button
-          onClick={() => useWorkspaceStore.getState().closeChangesPanel()}
-          className="p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors"
-          title="Close changes"
-        >
-          <X size={13} />
-        </button>
-      </div>
-
-      <FileChangelist
-        files={files}
-        selectedFile={selectedFile}
-        onSelect={(path) => useWorkspaceStore.getState().changesPanelSelectFile(path)}
-        onDiscard={handleDiscard}
-        hideSummary
-      />
-    </div>
-  );
 }

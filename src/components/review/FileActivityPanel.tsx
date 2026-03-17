@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { X, FilePen } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { X, FilePen, Undo2 } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -11,17 +11,19 @@ function FileRow({
   entry,
   isActive,
   onClick,
+  onDiscard,
 }: {
   entry: EditedFileEntry;
   isActive: boolean;
   onClick: () => void;
+  onDiscard?: () => void;
 }) {
   const { basename, context } = getDisplayPath(entry.filePath);
 
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+      className={`group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
         isActive
           ? 'bg-accent/10 text-accent'
           : 'text-text-secondary hover:bg-bg-hover/50 hover:text-text-primary'
@@ -44,6 +46,15 @@ function FileRow({
           <span className="text-text-tertiary">±0</span>
         )}
       </span>
+      {onDiscard && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDiscard(); }}
+          className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-error hover:bg-error/10 transition-all"
+          title="Discard changes"
+        >
+          <Undo2 size={11} />
+        </button>
+      )}
     </button>
   );
 }
@@ -53,6 +64,8 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const scrollToFileEdit = useChatStore((s) => s.scrollToFileEdit);
   const openChangesPanel = useWorkspaceStore((s) => s.openChangesPanel);
   const changesPanelSelectFile = useWorkspaceStore((s) => s.changesPanelSelectFile);
+  const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
+  const changesPanelSelectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
   const panelRef = useRef<HTMLDivElement>(null);
   const [workspaceFallbackFiles, setWorkspaceFallbackFiles] = useState<EditedFileEntry[]>([]);
   const [loadingFallback, setLoadingFallback] = useState(false);
@@ -64,6 +77,8 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const files = trackedFiles.length > 0 ? trackedFiles : workspaceFallbackFiles;
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
+
+  const sortedFiles = [...files].sort((a, b) => b.timestamp - a.timestamp);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +127,38 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Keyboard navigation (up/down) when changes panel is open
+  useEffect(() => {
+    if (!changesPanelOpen || sortedFiles.length === 0) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+
+      e.preventDefault();
+      const store = useWorkspaceStore.getState();
+      const currentIdx = sortedFiles.findIndex((f) => f.filePath === store.changesPanelSelectedFile);
+      const len = sortedFiles.length;
+      if (len === 0) return;
+
+      let nextIdx: number;
+      if (e.key === 'ArrowDown') {
+        nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % len;
+      } else {
+        nextIdx = currentIdx < 0 ? len - 1 : (currentIdx - 1 + len) % len;
+      }
+      store.changesPanelSelectFile(sortedFiles[nextIdx].filePath);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [changesPanelOpen, sortedFiles]);
+
+  const handleDiscard = useCallback(async (filePath: string) => {
+    if (!workspaceId) return;
+    await window.api.invoke('workspace:discard-file', { workspaceId, filePath });
+    useWorkspaceStore.getState().refreshChangesPanelFiles();
+  }, [workspaceId]);
 
   const wrapperClass = embedded
     ? 'flex min-h-0 flex-1 flex-col'
@@ -165,14 +212,17 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
 
       {/* File list */}
       <div className="flex-1 overflow-y-auto px-1 py-1 space-y-0.5">
-        {files
-          .sort((a, b) => b.timestamp - a.timestamp)
-          .map((entry) => (
+        {sortedFiles.map((entry) => (
             <FileRow
               key={entry.filePath}
               entry={entry}
-              isActive={false}
+              isActive={changesPanelOpen && changesPanelSelectedFile === entry.filePath}
               onClick={async () => {
+                // When changes panel is already open, just select the file
+                if (changesPanelOpen) {
+                  await changesPanelSelectFile(entry.filePath);
+                  return;
+                }
                 // Copilot inline diffs don't render well — open full Changes Panel directly
                 const isCopilot = task?.agentId === 'copilot';
                 if (!isCopilot) {
@@ -183,6 +233,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
                 await openChangesPanel(workspaceId);
                 await changesPanelSelectFile(entry.filePath);
               }}
+              onDiscard={changesPanelOpen && workspaceId ? () => handleDiscard(entry.filePath) : undefined}
             />
           ))}
       </div>
