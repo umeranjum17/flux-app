@@ -729,6 +729,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     // when re-parsing the accumulated buffer.
     let lastLifecycleCount = 0;
     let lastFluxSignalCount = 0;
+    // Guard against emitting duplicate lifecycle messages for the same state
+    let lastEmittedLifecycleState = '';
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
@@ -832,7 +834,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               completed: 'Completed',
               merged: 'Changes merged',
             };
-            if (lifecycleLabels[evt.state]) {
+            if (lifecycleLabels[evt.state] && evt.state !== lastEmittedLifecycleState) {
+              lastEmittedLifecycleState = evt.state;
               const lifecycleMessage = {
                 type: 'lifecycle' as const,
                 role: 'system' as const,
@@ -913,20 +916,24 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
               }
 
-              // Emit a lifecycle message to the renderer
-              const lifecycleMessage = {
-                type: 'lifecycle' as const,
-                role: 'system' as const,
-                content: '',
-                timestamp: Date.now(),
-                lifecycleState: options.mode === 'plan' ? 'planned' : 'ready_for_review',
-                lifecycleLabel: options.mode === 'plan' ? 'Plan completed' : 'Ready for review',
-              };
-              sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
-              sendToRenderer('agent:message', {
-                taskId: options.taskId,
-                message: lifecycleMessage,
-              });
+              // Emit a lifecycle message to the renderer (skip if already emitted by WORKSPACE_LIFECYCLE handler)
+              const completedLifecycleState = options.mode === 'plan' ? 'planned' : 'ready_for_review';
+              if (completedLifecycleState !== lastEmittedLifecycleState) {
+                lastEmittedLifecycleState = completedLifecycleState;
+                const lifecycleMessage = {
+                  type: 'lifecycle' as const,
+                  role: 'system' as const,
+                  content: '',
+                  timestamp: Date.now(),
+                  lifecycleState: completedLifecycleState,
+                  lifecycleLabel: options.mode === 'plan' ? 'Plan completed' : 'Ready for review',
+                };
+                sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
+                sendToRenderer('agent:message', {
+                  taskId: options.taskId,
+                  message: lifecycleMessage,
+                });
+              }
             }
           }
         }

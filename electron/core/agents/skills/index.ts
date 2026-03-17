@@ -1,4 +1,3 @@
-import { buildWorkspaceProtocolPrompt } from '../../worktree/workspace-protocol';
 import type { AgentId, TaskMode } from '../types';
 import type { FluxSkill, SkillContext } from './types';
 import { fluxWorkspaceSkill } from './flux-workspace';
@@ -65,11 +64,9 @@ export function composeSkillPrompts(options: ComposeSkillsOptions): string | nul
     }
   }
 
-  // Workspace state protocol is injected in both plan and act modes so agents
-  // can report lifecycle transitions (working → planned → ready_for_review).
-  if (options.workspace) {
-    sections.push(buildWorkspaceProtocolPrompt());
-  }
+  // Note: the fluxWorkspaceSkill already handles completion signals via FLUX_SIGNAL.
+  // The legacy FLUX_WORKSPACE_LIFECYCLE protocol is no longer injected to avoid
+  // duplicate lifecycle messages in the UI.
 
   if (sections.length === 0) return null;
   return sections.join('\n\n');
