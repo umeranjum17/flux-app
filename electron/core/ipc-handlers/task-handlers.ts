@@ -1156,8 +1156,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             content: message.content
               .split('\n')
               .filter((line: string) => !line.match(/^FLUX_(?:LIFECYCLE|WORKSPACE|SIGNAL):\s*\{/))
-              .join('\n')
-              .trim(),
+              .join('\n'),
           }
           : message;
         sendToRenderer('agent:message', { taskId: options.taskId, message: renderedMessage });
