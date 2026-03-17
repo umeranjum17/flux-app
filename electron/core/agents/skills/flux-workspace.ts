@@ -173,9 +173,8 @@ export const fluxWorkspaceSkill: FluxSkill = {
         'The numbered steps in your "### Steps" section become the todo items the implementing',
         'agent will work through. Keep step titles short and action-oriented.',
         '',
-        'When you finish the plan, emit these signals on their own lines (not inside a code block):',
+        'When you finish the plan, emit this signal on its own line (not inside a code block):',
         '',
-        'FLUX_WORKSPACE_LIFECYCLE: {"state":"planned"}',
         'FLUX_SIGNAL: {"type":"completed","workspace_name":"Plan: Fix Token Refresh"}',
       );
     }
