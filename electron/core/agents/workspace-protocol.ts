@@ -32,7 +32,7 @@ export interface FluxWorkspaceEvent {
 // ---------------------------------------------------------------------------
 
 // Match FLUX_WORKSPACE_LIFECYCLE (canonical), FLUX_WORKSPACE, and legacy FLUX_LIFECYCLE
-const WORKSPACE_REGEX = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
+const WORKSPACE_REGEX = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*(\{[^}]*\})/;
 const VALID_STATES = new Set<FluxWorkspaceState>([
   'working',
   'ready_for_review',

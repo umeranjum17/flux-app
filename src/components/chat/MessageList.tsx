@@ -28,6 +28,14 @@ import { ActivityIndicator } from './ActivityIndicator';
 import { SubagentBlock } from './SubagentBlock';
 import { TaskFooter } from './TaskFooter';
 import { PlanCard } from './PlanCard';
+
+const FLUX_TOKEN_RE = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{[^}]*\}/g;
+/** Strip FLUX protocol tokens that survived streaming delta splits. */
+function stripFluxTokens(text: string): string {
+  if (!FLUX_TOKEN_RE.test(text)) return text;
+  FLUX_TOKEN_RE.lastIndex = 0;
+  return text.replace(FLUX_TOKEN_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+}
 import { ShellResultBlock } from './ShellResultBlock';
 import { CompletionCard, useWorkspaceCompletion } from './CompletionCard';
 import { SystemActivityInlineItem, SystemActivityGroup, groupActivitiesByCategory } from './SystemActivityFeed';
@@ -520,7 +528,7 @@ function PlanActionBar({ task }: { task: Task }) {
   const handleCopyPlan = () => {
     const planText = task.messages
       .filter((m) => m.role === 'assistant' && m.type === 'text')
-      .map((m) => m.content)
+      .map((m) => stripFluxTokens(m.content))
       .join('\n\n');
     navigator.clipboard.writeText(planText);
     setCopied(true);
@@ -620,11 +628,12 @@ function renderMessage(
   switch (msg.type) {
     case 'text': {
       const hasMedia = (msg.images && msg.images.length > 0) || (msg.attachments && msg.attachments.length > 0);
-      if (!msg.content.trim() && !hasMedia) return null;
+      const displayContent = msg.role === 'assistant' ? stripFluxTokens(msg.content) : msg.content;
+      if (!displayContent.trim() && !hasMedia) return null;
       return (
         <div className="my-0.5">
           <MessageBubble
-            content={msg.content}
+            content={displayContent}
             role={msg.role as 'user' | 'assistant' | 'system'}
             images={msg.images}
             attachments={msg.attachments}
