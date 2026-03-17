@@ -1137,6 +1137,8 @@ const FLUX_TOKEN_PATTERN = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGN
 
 /** Strip FLUX protocol tokens from text so they don't render in the UI. */
 export function stripFluxTokens(text: string): string {
+  if (!FLUX_TOKEN_PATTERN.test(text)) return text;
+  FLUX_TOKEN_PATTERN.lastIndex = 0;
   return text.replace(FLUX_TOKEN_PATTERN, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
