@@ -59,19 +59,15 @@ export interface TerminalPanelHandle {
   focusActive: () => void;
   openWorkspaceTerminal: (workspaceId: string) => void;
   createTerminal: (opts?: { shell?: string }) => void;
+  openRunTerminal: (workspaceId: string, command: string, label: string) => void;
 }
 
-interface TerminalPanelProps {
-  visible?: boolean;
-}
-
-export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
-  function TerminalPanel({ visible = true }, ref) {
+export const TerminalPanel = forwardRef<TerminalPanelHandle>(
+  function TerminalPanel(_props, ref) {
     const cwd = useUiStore((s) => s.cwd);
     const appTheme = useUiStore((s) => s.theme);
     const setActiveTerminalId = useUiStore((s) => s.setActiveTerminalId);
     const setBottomPanelOpen = useUiStore((s) => s.setBottomPanelOpen);
-    const setBottomPanelTab = useUiStore((s) => s.setBottomPanelTab);
     const [tabs, setTabs] = useState<TerminalTab[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [profiles, setProfiles] = useState<ShellProfile[]>([]);
@@ -92,6 +88,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       workspaceName?: string;
       workspaceBranch?: string;
       shell?: string;
+      command?: string;
     }) => {
       const id = `term-${++termCounter}`;
 
@@ -115,6 +112,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           cwd: opts?.workspaceId ? undefined : cwd,
           workspaceId: opts?.workspaceId,
           shell: opts?.shell,
+          command: opts?.command,
         }) as { id: string; shellName: string };
 
         // Update tab with shell info
@@ -194,7 +192,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       },
       openWorkspaceTerminal(workspaceId: string) {
         setBottomPanelOpen(true);
-        setBottomPanelTab('terminal');
         const existing = tabs.find((t) => t.workspaceId === workspaceId);
         if (existing) {
           setActiveId(existing.id);
@@ -215,10 +212,17 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       },
       createTerminal(opts?: { shell?: string }) {
         setBottomPanelOpen(true);
-        setBottomPanelTab('terminal');
         createTerminal({ shell: opts?.shell }).catch(() => {});
       },
-    }), [activeId, tabs, createTerminal, setActiveTerminalId, setBottomPanelOpen, setBottomPanelTab]);
+      openRunTerminal(workspaceId: string, command: string, label: string) {
+        setBottomPanelOpen(true);
+        createTerminal({
+          workspaceId,
+          workspaceName: label,
+          command,
+        }).catch(() => {});
+      },
+    }), [activeId, tabs, createTerminal, setActiveTerminalId, setBottomPanelOpen]);
 
     // Create first terminal on mount (or a pending workspace terminal)
     useEffect(() => {
@@ -230,7 +234,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         const pendingWsId = useUiStore.getState().pendingWorkspaceTerminalId;
         if (pendingWsId) {
           useUiStore.getState().setPendingWorkspaceTerminalId(null);
-          setBottomPanelTab('terminal');
           const workspaces = useWorkspaceStore.getState().workspaces;
           const ws = workspaces.get(pendingWsId);
           if (ws) {
@@ -244,7 +247,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
         createTerminal().catch(() => {});
       }
-    }, [tabs.length, createTerminal, setBottomPanelTab]);
+    }, [tabs.length, createTerminal]);
 
     // Listen for workspace terminal open requests (when panel is already mounted)
     useEffect(() => {
@@ -329,16 +332,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return () => observer.disconnect();
     }, [activeId]);
 
-    // Refit when becoming visible
-    useEffect(() => {
-      if (visible && activeId) {
-        requestAnimationFrame(() => {
-          const termRef = terminalRefs.current.get(activeId);
-          if (termRef) termRef.fitAddon.fit();
-        });
-      }
-    }, [visible, activeId]);
-
     // Focus terminal when switching tabs
     useEffect(() => {
       if (activeId) {
@@ -378,12 +371,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     const handleCreate = useCallback((shell?: string) => {
       setBottomPanelOpen(true);
-      setBottomPanelTab('terminal');
       createTerminal({ shell }).catch(() => {});
-    }, [createTerminal, setBottomPanelOpen, setBottomPanelTab]);
+    }, [createTerminal, setBottomPanelOpen]);
 
     return (
-      <div className={`flex flex-col flex-1 min-h-0 ${visible ? '' : 'hidden'}`}>
+      <div className="flex flex-col flex-1 min-h-0">
         {/* Terminal tabs + toolbar */}
         <TerminalTabs
           tabs={tabs}

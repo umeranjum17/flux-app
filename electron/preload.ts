@@ -87,12 +87,6 @@ function enrichActivity(activity: IpcActivity): IpcActivity {
 function extractSummary(channel: string, payload: unknown): string | undefined {
   if (!isRecord(payload)) return undefined;
 
-  if (channel === 'workspace:run-command' && getString(payload.command)) {
-    return truncate(payload.command as string, 120);
-  }
-  if (channel === 'workspace:run-exit' && typeof payload.exitCode === 'number') {
-    return `exit ${payload.exitCode}`;
-  }
   if (channel === 'workspace:completion' && getString(payload.suggestedMergeTarget)) {
     return `merge to ${payload.suggestedMergeTarget}`;
   }

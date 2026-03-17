@@ -205,17 +205,9 @@ export interface IpcChannels {
   'config:import': { args: [{ json: string }]; result: { success: boolean; error?: string } };
 
   // Workspace run commands
-  'workspace:run-command': {
-    args: [{ workspaceId: string; command: string }];
-    result: { terminalId: string };
-  };
   'workspace:detect-scripts': {
     args: [{ workspaceId: string }];
     result: WorkspaceScript[];
-  };
-  'workspace:stop-run': {
-    args: [{ terminalId: string }];
-    result: void;
   };
 
   // Workspace merge & PR
@@ -270,13 +262,11 @@ export interface IpcEvents {
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
   'workspace:updated': { workspaceId: string; branch: string; name: string };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
-  'workspace:run-output': { workspaceId: string; terminalId: string; data: string };
-  'workspace:run-exit': { workspaceId: string; terminalId: string; exitCode: number };
   'workspace:created': { workspace: Workspace };
   'workspace:deleted': { workspaceId: string };
   'workspace:archived': { workspaceId: string };
   'terminal:data': { id: string; data: string };
-  'terminal:exit': { id: string };
+  'terminal:exit': { id: string; exitCode?: number };
   'config:changed': { config: FluxConfig };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;

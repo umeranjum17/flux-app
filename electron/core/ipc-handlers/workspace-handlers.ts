@@ -4,7 +4,6 @@ import { promisify } from 'util';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import * as pty from 'node-pty';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
 import type { WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
@@ -495,8 +494,6 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   // Phase 2: Run/Preview from Worktree
   // -----------------------------------------------------------------------
 
-  const activeRunProcesses = new Map<string, pty.IPty>();
-
   ipcMain.handle(
     'workspace:detect-scripts',
     async (_event, { workspaceId }: { workspaceId: string }) => {
@@ -540,53 +537,6 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       return scripts;
     },
   );
-
-  ipcMain.handle(
-    'workspace:run-command',
-    async (_event, { workspaceId, command }: { workspaceId: string; command: string }) => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-      const terminalId = `run-${crypto.randomUUID().slice(0, 8)}`;
-
-      let shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/sh';
-      if (process.platform !== 'win32') {
-        const preferred = process.env.SHELL;
-        if (preferred && fs.existsSync(preferred)) {
-          shell = preferred;
-        }
-      }
-
-      const ptyProcess = pty.spawn(shell, ['-c', command], {
-        name: 'xterm-256color',
-        cols: 120,
-        rows: 30,
-        cwd: workspace.worktreePath,
-        env: extendedEnv({ TERM: 'xterm-256color' }) as Record<string, string>,
-      });
-
-      activeRunProcesses.set(terminalId, ptyProcess);
-
-      ptyProcess.onData((data: string) => {
-        sendToRenderer('workspace:run-output', { workspaceId, terminalId, data });
-      });
-
-      ptyProcess.onExit(({ exitCode }) => {
-        activeRunProcesses.delete(terminalId);
-        sendToRenderer('workspace:run-exit', { workspaceId, terminalId, exitCode });
-      });
-
-      return { terminalId };
-    },
-  );
-
-  ipcMain.handle('workspace:stop-run', async (_event, { terminalId }: { terminalId: string }) => {
-    const proc = activeRunProcesses.get(terminalId);
-    if (proc) {
-      proc.kill();
-      activeRunProcesses.delete(terminalId);
-    }
-  });
 
   // -----------------------------------------------------------------------
   // Phase 3: Merge & PR Workflow

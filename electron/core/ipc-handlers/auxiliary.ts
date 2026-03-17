@@ -547,7 +547,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   // PTY-based terminal management (node-pty)
   const activePtys = new Map<string, pty.IPty>();
 
-  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId, shell: requestedShell }: { id: string; cwd?: string; workspaceId?: string; shell?: string }) => {
+  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId, shell: requestedShell, command }: { id: string; cwd?: string; workspaceId?: string; shell?: string; command?: string }) => {
     requireFields({ id }, 'id');
 
     // Resolve cwd: workspace worktree path > explicit cwd > current cwd
@@ -612,10 +612,18 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       sendToRenderer('terminal:data', { id, data });
     });
 
-    ptyProcess.onExit(() => {
+    ptyProcess.onExit(({ exitCode }) => {
       activePtys.delete(id);
-      sendToRenderer('terminal:exit', { id });
+      sendToRenderer('terminal:exit', { id, exitCode });
     });
+
+    // If a command was provided, write it to the PTY after a short delay
+    // so the shell has time to initialize
+    if (command) {
+      setTimeout(() => {
+        ptyProcess.write(command + '\n');
+      }, 100);
+    }
 
     return { id, shellName };
   });

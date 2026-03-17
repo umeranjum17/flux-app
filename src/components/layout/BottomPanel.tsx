@@ -2,24 +2,21 @@ import { forwardRef, useState, useCallback, useRef } from 'react';
 import {
   Maximize2, Minimize2,
   PanelBottomClose,
-  Terminal as TerminalIcon,
-  Play,
 } from 'lucide-react';
 import { TerminalPanel, type TerminalPanelHandle } from '../terminal/TerminalPanel';
 import { RunPanel } from '../terminal/RunPanel';
 import { useUiStore } from '../../stores/ui';
-
-type PanelTab = 'terminal' | 'output';
+import { useWorkspaceStore } from '../../stores/workspace';
 
 export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(_props, ref) {
   const [height, setHeight] = useState(260);
   const [maximized, setMaximized] = useState(false);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
   const prevHeight = useRef(260);
+  const terminalRef = useRef<TerminalPanelHandle | null>(null);
 
   const toggleBottomPanel = useUiStore((s) => s.toggleBottomPanel);
-  const activeTab = useUiStore((s) => s.bottomPanelTab);
-  const setBottomPanelTab = useUiStore((s) => s.setBottomPanelTab);
+  const hasWorkspace = useWorkspaceStore((s) => !!s.activeWorkspaceId);
 
   // Drag to resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -53,11 +50,6 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
     }
   }, [maximized, height]);
 
-  const panelTabs: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'terminal', label: 'TERMINAL', icon: <TerminalIcon size={12} /> },
-    { id: 'output', label: 'OUTPUT', icon: <Play size={12} /> },
-  ];
-
   return (
     <div
       className="flex shrink-0 flex-col border-t border-border bg-bg-secondary"
@@ -71,23 +63,12 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
         <div className="h-[1px] w-8 rounded bg-text-tertiary/20 group-hover:bg-accent/60 transition-colors" />
       </div>
 
-      {/* VS Code-style panel header */}
+      {/* Panel header */}
       <div className="flex items-center h-[30px] px-2 bg-bg-secondary select-none shrink-0">
-        {/* Panel tabs */}
         <div className="flex items-center gap-0.5 flex-1">
-          {panelTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setBottomPanelTab(tab.id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase rounded transition-colors ${
-                activeTab === tab.id
-                  ? 'text-text-primary'
-                  : 'text-text-tertiary hover:text-text-secondary'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <span className="text-[11px] font-semibold tracking-wide uppercase text-text-primary px-2.5 py-1">
+            TERMINAL
+          </span>
         </div>
 
         {/* Panel actions */}
@@ -111,10 +92,16 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
         </div>
       </div>
 
+      {/* Run toolbar (shown when workspace is active) */}
+      {hasWorkspace && <RunPanel terminalRef={terminalRef} />}
+
       {/* Panel content */}
       <div className="flex-1 overflow-hidden">
-        <TerminalPanel ref={ref} visible={activeTab === 'terminal'} />
-        {activeTab === 'output' && <RunPanel />}
+        <TerminalPanel ref={(handle) => {
+          terminalRef.current = handle;
+          if (typeof ref === 'function') ref(handle);
+          else if (ref) ref.current = handle;
+        }} />
       </div>
     </div>
   );
