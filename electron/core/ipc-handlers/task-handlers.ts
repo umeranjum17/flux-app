@@ -712,12 +712,18 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     let agentUsedTodoWrite = false;
-    // Accumulated text buffer for FLUX_TODO / checklist parsing (Codex/Copilot).
+    // Accumulated text buffer for signal parsing (FLUX_LIFECYCLE, FLUX_SIGNAL,
+    // FLUX_TODO, checklists). Streaming deltas split signals across multiple
+    // messages, so we must parse from the accumulated buffer.
     const MAX_TODO_BUFFER = 50_000;
     let todoBuffer = '';
     let lastTodoSnapshot = '';
     let lastPlanSnapshot = '';
     const emittedStepStatuses = new Map<number, 'in_progress' | 'done'>();
+    // Track already-processed lifecycle/signal events to avoid duplicates
+    // when re-parsing the accumulated buffer.
+    let lastLifecycleCount = 0;
+    let lastFluxSignalCount = 0;
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
@@ -791,62 +797,83 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
-      // Parse workspace state + FLUX_SIGNAL events from agent output.
-      // FLUX_WORKSPACE logs state transitions; FLUX_SIGNAL handles progress tracking.
+      // Accumulate text into the signal buffer for parsing FLUX_LIFECYCLE,
+      // FLUX_SIGNAL, FLUX_TODO, etc. Streaming deltas split signals across
+      // multiple messages, so we must parse from the accumulated buffer.
       const trackable = getStepTrackableContent(message);
       if (trackable) {
-        // 1. Parse FLUX_WORKSPACE events (workspace state protocol)
-        //    These signals now trigger actual outcome transitions.
-        const wsEvents = parseAllWorkspaceEvents(trackable);
-        for (const evt of wsEvents) {
-          // Emit a lifecycle card to the renderer for all valid states
-          const lifecycleLabels: Record<string, string> = {
-            working: 'Work started',
-            planned: 'Plan completed',
-            ready_for_review: 'Ready for review',
-            merged: 'Changes merged',
-          };
-          if (lifecycleLabels[evt.state]) {
-            sendToRenderer('agent:message', {
-              taskId: options.taskId,
-              message: {
+        todoBuffer += '\n' + trackable;
+        if (todoBuffer.length > MAX_TODO_BUFFER) {
+          todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
+          // Reset counts since we sliced the buffer — some previously counted
+          // events may have been trimmed, but the remaining ones will be
+          // re-parsed and de-duped on the next pass.
+          lastLifecycleCount = 0;
+          lastFluxSignalCount = 0;
+        }
+
+        // 1. Parse FLUX_LIFECYCLE events from accumulated buffer.
+        //    Only process newly discovered events (skip already-emitted ones).
+        const allWsEvents = parseAllWorkspaceEvents(todoBuffer);
+        if (allWsEvents.length > lastLifecycleCount) {
+          const newEvents = allWsEvents.slice(lastLifecycleCount);
+          lastLifecycleCount = allWsEvents.length;
+
+          for (const evt of newEvents) {
+            const lifecycleLabels: Record<string, string> = {
+              working: 'Work started',
+              planned: 'Plan completed',
+              ready_for_review: 'Ready for review',
+              merged: 'Changes merged',
+            };
+            if (lifecycleLabels[evt.state]) {
+              const lifecycleMessage = {
                 type: 'lifecycle' as const,
                 role: 'system' as const,
                 content: '',
                 timestamp: Date.now(),
                 lifecycleState: evt.state,
                 lifecycleLabel: lifecycleLabels[evt.state],
-              },
-            });
-          }
+              };
+              sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
+              sendToRenderer('agent:message', {
+                taskId: options.taskId,
+                message: lifecycleMessage,
+              });
+            }
 
-          if (evt.state === 'ready_for_review' || evt.state === 'planned' || evt.state === 'merged') {
-            logDiagnostic('lifecycle', `agent signalled ${evt.state}`, {
-              taskId: options.taskId,
-              workspaceName: evt.workspace_name,
-            });
+            if (evt.state === 'ready_for_review' || evt.state === 'planned' || evt.state === 'merged') {
+              logDiagnostic('lifecycle', `agent signalled ${evt.state}`, {
+                taskId: options.taskId,
+                workspaceName: evt.workspace_name,
+              });
 
-            if (workspace) {
-              const fresh = workspaceStore.get(workspace.id);
-              if (fresh) {
-                if (evt.state === 'ready_for_review') {
-                  lifecycleManager.transitionOutcome(fresh, 'agent_signal_ready_for_review').catch((err) => {
-                    console.warn('[task-handler] Failed to transition outcome on ready_for_review signal:', err);
-                  });
-                } else if (evt.state === 'planned') {
-                  lifecycleManager.transitionOutcome(fresh, 'plan_completed').catch((err) => {
-                    console.warn('[task-handler] Failed to transition outcome on planned signal:', err);
-                  });
+              if (workspace) {
+                const fresh = workspaceStore.get(workspace.id);
+                if (fresh) {
+                  if (evt.state === 'ready_for_review') {
+                    lifecycleManager.transitionOutcome(fresh, 'agent_signal_ready_for_review').catch((err) => {
+                      console.warn('[task-handler] Failed to transition outcome on ready_for_review signal:', err);
+                    });
+                  } else if (evt.state === 'planned') {
+                    lifecycleManager.transitionOutcome(fresh, 'plan_completed').catch((err) => {
+                      console.warn('[task-handler] Failed to transition outcome on planned signal:', err);
+                    });
+                  }
                 }
               }
             }
           }
         }
 
-        // 2. Parse FLUX_SIGNAL events (unified protocol from skills)
-        const fluxSignals = parseAllFluxSignals(trackable);
-        if (fluxSignals.length > 0) {
-          for (const sig of fluxSignals) {
+        // 2. Parse FLUX_SIGNAL events from accumulated buffer.
+        //    Only process newly discovered events.
+        const allFluxSignals = parseAllFluxSignals(todoBuffer);
+        if (allFluxSignals.length > lastFluxSignalCount) {
+          const newSignals = allFluxSignals.slice(lastFluxSignalCount);
+          lastFluxSignalCount = allFluxSignals.length;
+
+          for (const sig of newSignals) {
             if (sig.type === 'step_start' && typeof sig.step === 'number') {
               if (!todoInitialized) {
                 sendToRenderer('agent:todo', {
@@ -859,7 +886,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             } else if (sig.type === 'step_done' && typeof sig.step === 'number') {
               emitTodoUpdate(options.taskId, sig.step, 'done');
             } else if (sig.type === 'todo_update' && sig.todos) {
-              // Full snapshot — replace entire todo list
               const todoItems: NormalizedTodoItem[] = sig.todos.map((t, i) => ({
                 id: i + 1,
                 label: t.label,
@@ -884,16 +910,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       if (!agentUsedTodoWrite && trackable) {
         // Strip FLUX_WORKSPACE / legacy FLUX_LIFECYCLE lines before feeding
         // into todo parsers — these are workspace state, not progress items.
-        const cleanedTrackable = trackable
+        const todoOnlyBuffer = todoBuffer
           .split('\n')
           .filter(line => !line.match(/^FLUX_(?:WORKSPACE|LIFECYCLE):\s*\{/))
           .join('\n');
-        todoBuffer += '\n' + cleanedTrackable;
-        if (todoBuffer.length > MAX_TODO_BUFFER) {
-          todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
-        }
 
-        const progress = parseAgentTodos(todoBuffer);
+        const progress = parseAgentTodos(todoOnlyBuffer);
 
         if (progress.source === 'flux_todo' || progress.source === 'todo_block' || progress.source === 'checklist') {
           const snapshot = JSON.stringify(progress.items);
