@@ -284,6 +284,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
+      if (!fs.existsSync(workspace.worktreePath)) {
+        throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
+      }
+
       const taskId = providedTaskId ?? crypto.randomUUID();
       const result = await spawnTaskRun({
         taskId,
@@ -314,6 +318,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
+      }
+
+      if (!fs.existsSync(workspace.worktreePath)) {
+        throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
       }
 
       const taskId = providedTaskId ?? crypto.randomUUID();
