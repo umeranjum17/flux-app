@@ -30,7 +30,7 @@ export function BashPanel({ toolInput, resultContent, resultIsError }: PanelProp
       {command && (
         <div className="flex items-center gap-2 border-b border-border/60 bg-bg-elevated px-3 py-1.5">
           <span className="text-text-tertiary/60 text-xs select-none">$</span>
-          <code className="text-[12px] font-mono text-text-primary flex-1 break-all leading-5">
+          <code className="text-[11px] font-mono text-text-secondary flex-1 break-all leading-5">
             {command}
           </code>
           {timeout != null && (
@@ -39,7 +39,7 @@ export function BashPanel({ toolInput, resultContent, resultIsError }: PanelProp
           {exitCode !== null && (
             <span
               className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                exitCode === 0 ? 'bg-success/15 text-success' : 'bg-error/15 text-error'
+                exitCode === 0 ? 'bg-bg-hover/50 text-text-tertiary' : 'bg-error/10 text-error/70'
               }`}
             >
               {exitCode}
@@ -50,8 +50,8 @@ export function BashPanel({ toolInput, resultContent, resultIsError }: PanelProp
       {resultContent && (
         <div className="max-h-60 overflow-auto">
           <pre
-            className={`px-3 py-2 text-[12px] font-mono whitespace-pre-wrap leading-5 ${
-              resultIsError ? 'text-error/85' : 'text-text-secondary'
+            className={`px-3 py-2 text-[11px] font-mono whitespace-pre-wrap leading-5 ${
+              resultIsError ? 'text-error/70' : 'text-text-tertiary'
             }`}
           >
             {resultContent}
@@ -95,19 +95,19 @@ export function ReadPanel({ toolInput, resultContent }: PanelProps) {
   return (
     <div className="premium-panel overflow-hidden rounded-lg">
       {filePath && (
-        <div className="flex items-center justify-between border-b border-border/60 bg-bg-elevated px-3 py-2 text-xs">
-          <span className="font-mono text-text-secondary truncate">{filePath}</span>
-          <span className="text-text-tertiary shrink-0 ml-2">{lineCount} lines</span>
+        <div className="flex items-center justify-between border-b border-border/60 bg-bg-elevated px-3 py-1.5 text-xs">
+          <span className="font-mono text-text-tertiary truncate">{filePath}</span>
+          <span className="text-text-tertiary/60 shrink-0 ml-2">{lineCount} lines</span>
         </div>
       )}
       <div className="max-h-96 overflow-auto">
         {highlightedHtml ? (
           <div
-            className="shiki-wrapper [&>pre]:px-3 [&>pre]:py-2 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-5"
+            className="shiki-wrapper [&>pre]:px-3 [&>pre]:py-2 [&>pre]:!bg-transparent [&>pre]:font-mono [&>pre]:text-[12px] [&>pre]:leading-5"
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}
           />
         ) : (
-          <pre className="bg-transparent px-3 py-2 font-mono text-[13px] text-text-secondary leading-5 whitespace-pre-wrap">
+          <pre className="bg-transparent px-3 py-2 font-mono text-[12px] text-text-tertiary leading-5 whitespace-pre-wrap">
             {resultContent}
           </pre>
         )}
@@ -123,12 +123,12 @@ export function EditDiffPanel({ diff, filePath }: { diff?: string; filePath?: st
   if (hunks.length === 0) {
     return diff ? (
       <div className="premium-panel overflow-hidden rounded-lg">
-        <pre className="bg-transparent px-3 py-2 font-mono text-[13px] text-text-secondary leading-5 whitespace-pre-wrap">
+        <pre className="bg-transparent px-3 py-2 font-mono text-[12px] text-text-tertiary leading-5 whitespace-pre-wrap">
           {diff}
         </pre>
       </div>
     ) : (
-      <div className="text-[12px] text-text-tertiary">
+      <div className="text-[11px] text-text-tertiary">
         File modified{filePath ? `: ${filePath}` : ''}
       </div>
     );
@@ -161,7 +161,7 @@ export function SearchPanel({ toolInput, resultContent }: PanelProps) {
   if (groups.size === 0) {
     return resultContent ? (
       <div className="premium-panel overflow-hidden rounded-lg">
-        <pre className="bg-transparent px-3 py-2 font-mono text-[13px] text-text-secondary whitespace-pre-wrap max-h-80 overflow-auto">
+        <pre className="bg-transparent px-3 py-2 font-mono text-[12px] text-text-tertiary whitespace-pre-wrap max-h-80 overflow-auto">
           {resultContent}
         </pre>
       </div>
@@ -172,19 +172,19 @@ export function SearchPanel({ toolInput, resultContent }: PanelProps) {
     <div className="premium-panel max-h-96 overflow-auto rounded-lg">
       {Array.from(groups.entries()).map(([file, lines]) => (
         <div key={file}>
-          <div className="sticky top-0 z-10 border-b border-border/60 bg-bg-elevated px-3 py-2 text-xs font-mono text-text-secondary">
+          <div className="sticky top-0 z-10 border-b border-border/60 bg-bg-elevated px-3 py-1.5 text-xs font-mono text-text-tertiary">
             {file}
-            <span className="text-text-tertiary ml-2">({lines.length})</span>
+            <span className="text-text-tertiary/60 ml-2">({lines.length})</span>
           </div>
           {lines.slice(0, 20).map((line, i) => (
             <div
               key={i}
-              className="flex border-b border-border/10 text-[13px] font-mono last:border-b-0"
+              className="flex border-b border-border/10 text-[12px] font-mono last:border-b-0"
             >
               <span className="min-w-[3rem] shrink-0 bg-bg-primary/20 px-2 py-0.5 text-right text-text-tertiary/40 select-none">
                 {line.lineNum}
               </span>
-              <span className="min-w-0 flex-1 whitespace-pre-wrap px-3 py-0.5 text-text-secondary">
+              <span className="min-w-0 flex-1 whitespace-pre-wrap px-3 py-0.5 text-text-tertiary">
                 {highlightPattern(line.content, pattern)}
               </span>
             </div>
@@ -223,7 +223,7 @@ export function GlobPanel({ toolInput, resultContent }: PanelProps) {
       {paths.map((p) => (
         <div
           key={p}
-          className="flex items-center gap-2 border-b border-border/10 px-3 py-1.5 text-[13px] font-mono text-text-secondary last:border-b-0"
+          className="flex items-center gap-2 border-b border-border/10 px-3 py-1 text-[12px] font-mono text-text-tertiary last:border-b-0"
         >
           {p.includes('.') ? (
             <FileText size={12} className="text-text-tertiary/50 shrink-0" />
@@ -243,10 +243,10 @@ export function GenericPanel({ toolInput, resultContent, resultIsError }: PanelP
     <div className="space-y-2">
       {toolInput && Object.keys(toolInput).length > 0 && (
         <div className="premium-panel overflow-hidden rounded-lg">
-          <div className="border-b border-border/60 bg-bg-elevated px-3 py-2 text-[11px] text-text-tertiary uppercase tracking-wider">
+          <div className="border-b border-border/60 bg-bg-elevated px-3 py-1.5 text-[10px] text-text-tertiary/60 uppercase tracking-wider">
             Input
           </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap bg-transparent px-3 py-2 text-[13px] font-mono text-text-secondary">
+          <pre className="overflow-x-auto whitespace-pre-wrap bg-transparent px-3 py-2 text-[12px] font-mono text-text-tertiary">
             {JSON.stringify(toolInput, null, 2)}
           </pre>
         </div>
@@ -258,8 +258,8 @@ export function GenericPanel({ toolInput, resultContent, resultIsError }: PanelP
           }`}
         >
           <pre
-            className={`max-h-80 overflow-auto overflow-x-auto whitespace-pre-wrap px-3 py-2 text-[13px] font-mono ${
-              resultIsError ? 'bg-error/5 text-error/85' : 'bg-transparent text-text-secondary'
+            className={`max-h-80 overflow-auto overflow-x-auto whitespace-pre-wrap px-3 py-2 text-[12px] font-mono ${
+              resultIsError ? 'bg-error/5 text-error/70' : 'bg-transparent text-text-tertiary'
             }`}
           >
             {resultContent}
@@ -278,7 +278,7 @@ function highlightPattern(text: string, pattern: string): React.ReactNode {
     if (parts.length === 1) return text;
     return parts.map((part, i) =>
       regex.test(part) ? (
-        <mark key={i} className="bg-warning/25 text-text-primary rounded-sm px-0.5">
+        <mark key={i} className="bg-text-tertiary/15 text-text-secondary rounded-sm px-0.5">
           {part}
         </mark>
       ) : (

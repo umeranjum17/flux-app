@@ -84,21 +84,21 @@ interface QuestionItem {
 
 export function getToolIcon(toolName: string) {
   const name = toolName.toLowerCase();
-  if (name.includes('todo')) return { Icon: ListTodo, color: 'text-info', bg: 'bg-info/10' };
-  if (name.includes('question')) return { Icon: CircleHelp, color: 'text-info', bg: 'bg-info/10' };
+  if (name.includes('todo')) return { Icon: ListTodo, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
+  if (name.includes('question')) return { Icon: CircleHelp, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('bash') || name.includes('command') || name.includes('shell'))
-    return { Icon: SquareTerminal, color: 'text-warning', bg: 'bg-warning/10' };
+    return { Icon: SquareTerminal, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('read') || name.includes('view'))
-    return { Icon: FileText, color: 'text-info', bg: 'bg-info/10' };
+    return { Icon: FileText, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('write') || name.includes('edit') || name.includes('patch'))
-    return { Icon: FilePen, color: 'text-info', bg: 'bg-info/10' };
+    return { Icon: FilePen, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('grep') || name.includes('search'))
-    return { Icon: FileSearch2, color: 'text-success', bg: 'bg-success/10' };
+    return { Icon: FileSearch2, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('glob') || name.includes('find'))
-    return { Icon: FolderSearch, color: 'text-success', bg: 'bg-success/10' };
+    return { Icon: FolderSearch, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('agent'))
-    return { Icon: Sparkles, color: 'text-accent', bg: 'bg-accent/10' };
-  return { Icon: Wrench, color: 'text-text-secondary', bg: 'bg-bg-hover/60' };
+    return { Icon: Sparkles, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
+  return { Icon: Wrench, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
 }
 
 function getToolDescription(toolName: string, toolInput?: Record<string, unknown>, resultContent?: string): string {
@@ -308,15 +308,15 @@ export function ToolCallBlock({
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
-      return { icon: <Loader2 size={13} className="text-accent animate-spin shrink-0" />, badgeBg: 'bg-accent/10' };
+      return { icon: <Loader2 size={12} className="text-text-tertiary animate-spin shrink-0" />, badgeBg: 'bg-bg-hover/50' };
     }
     if (isComplete && resultIsError) {
-      return { icon: <XCircle size={13} className="text-error shrink-0" />, badgeBg: 'bg-error/10' };
+      return { icon: <XCircle size={12} className="text-error/70 shrink-0" />, badgeBg: 'bg-error/5' };
     }
     if (isComplete) {
-      return { icon: <CheckCircle size={13} className="text-success shrink-0" />, badgeBg: 'bg-success/10' };
+      return { icon: <CheckCircle size={12} className="text-text-tertiary/70 shrink-0" />, badgeBg: 'bg-bg-hover/50' };
     }
-    return { icon: <Icon size={13} className={`${color} shrink-0`} />, badgeBg: bg };
+    return { icon: <Icon size={12} className={`${color} shrink-0`} />, badgeBg: bg };
   }, [isRunning, isComplete, resultIsError, Icon, color, bg]);
 
   const hasExpandableContent = !!resultContent || !!resolvedDiff || shouldShowSemanticBody;
@@ -337,30 +337,30 @@ export function ToolCallBlock({
     >
       <button
         onClick={() => hasExpandableContent && setExpanded(!isExpanded)}
-        className="flex w-full items-center gap-2.5 py-1.5 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
+        className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
-        <span className={`tool-icon-badge w-6 h-6 rounded-md ${statusIcon.badgeBg}`}>
+        <span className={`tool-icon-badge w-5 h-5 rounded ${statusIcon.badgeBg}`}>
           {statusIcon.icon}
         </span>
-        <span className="text-[13px] font-medium text-text-secondary">
+        <span className="text-[12px] font-medium text-text-secondary">
           {formatToolCallLabel(toolName)}
         </span>
         {description ? (
-          <span className="text-[13px] text-text-tertiary truncate min-w-0 flex-1">
+          <span className="text-[12px] text-text-tertiary truncate min-w-0 flex-1">
             {description}
           </span>
         ) : (
           <span className="flex-1" />
         )}
         {diffStats && (
-          <span className="ml-auto flex items-center gap-1 shrink-0 text-[12px] font-mono">
-            <span className="text-success">+{diffStats.added}</span>
-            <span className="text-error">-{diffStats.removed}</span>
+          <span className="ml-auto flex items-center gap-1 shrink-0 text-[11px] font-mono text-text-tertiary">
+            <span>+{diffStats.added}</span>
+            <span>-{diffStats.removed}</span>
           </span>
         )}
         {hasExpandableContent && (
           <span className={chevronTone}>
-            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
         )}
       </button>

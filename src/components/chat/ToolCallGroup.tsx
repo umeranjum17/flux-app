@@ -45,20 +45,20 @@ export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupP
     <div className="tool-call-row group">
       <button
         onClick={() => setExpanded((current) => !current)}
-        className="flex w-full items-center gap-2.5 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-bg-hover/40"
+        className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-bg-hover/40"
       >
-        <span className={`tool-icon-badge w-6 h-6 rounded-md ${hasRunningItems ? 'bg-accent/10' : dominantIcon.bg}`}>
+        <span className={`tool-icon-badge w-5 h-5 rounded ${hasRunningItems ? 'bg-bg-hover/50' : dominantIcon.bg}`}>
           {hasRunningItems ? (
-            <Loader2 size={13} className="shrink-0 animate-spin text-accent" />
+            <Loader2 size={12} className="shrink-0 animate-spin text-text-tertiary" />
           ) : (
-            <dominantIcon.Icon size={13} className={`shrink-0 ${dominantIcon.color}`} />
+            <dominantIcon.Icon size={12} className={`shrink-0 ${dominantIcon.color}`} />
           )}
         </span>
-        <span className="text-[13px] font-medium text-text-secondary">{label}</span>
-        <span className="min-w-0 flex-1 truncate text-[13px] text-text-tertiary">{summary}</span>
-        <span className="shrink-0 rounded-full bg-bg-elevated px-1.5 py-0.5 text-[11px] font-medium text-text-tertiary">{items.length}</span>
+        <span className="text-[12px] font-medium text-text-secondary">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] text-text-tertiary">{summary}</span>
+        <span className="shrink-0 rounded-full bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary">{items.length}</span>
         <span className="ml-1 shrink-0 text-text-tertiary/70">
-          {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
       </button>
 

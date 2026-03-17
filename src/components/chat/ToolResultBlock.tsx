@@ -22,7 +22,7 @@ export function ToolResultBlock({ content, isError, toolCallId }: ToolResultBloc
 
   return (
     <div className="rounded-md bg-bg-elevated/60 p-3">
-      <pre className="text-[13px] font-mono text-text-secondary overflow-x-auto whitespace-pre-wrap">
+      <pre className="text-[12px] font-mono text-text-tertiary overflow-x-auto whitespace-pre-wrap">
         <code>{displayContent}</code>
       </pre>
 
