@@ -170,7 +170,7 @@ export function WorkspaceDashboard() {
             )}
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-px">
             {workspaceList.map((ws) => (
               <WorkspaceCard
                 key={ws.id}

@@ -40,60 +40,64 @@ export function WorkspaceCard({
   return (
     <button
       onClick={isArchived ? undefined : onSelect}
-      className={`lifecycle-row group w-full text-left transition-all ${lifecycle.cardTint} ${
+      className={`group relative w-full text-left transition-colors rounded-md ${
         isArchived
-          ? 'lifecycle-card-archived'
+          ? 'opacity-45'
           : isActive
-            ? 'lifecycle-row-active'
-            : ''
+            ? 'bg-bg-hover/80'
+            : 'hover:bg-bg-hover/50'
       }`}
     >
-      <div className="flex items-center gap-2.5 px-3 py-[5px]">
+      <div className="flex items-center gap-2.5 px-2.5 py-[7px]">
         {/* Status dot */}
-        <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/50' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
+        <span className={`inline-block h-[5px] w-[5px] shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/40' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''}`} />
 
         {/* Name */}
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-primary">
+        <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">
           {workspace.name}
         </span>
 
-        {/* Status text */}
-        <span className="shrink-0 text-[11px] text-text-tertiary">
-          {isArchived ? 'Archived' : lifecycle.label}
-        </span>
-
-        {/* Outcome selector */}
+        {/* Hover actions — replace status text on hover */}
         {!isArchived && (
-          <div onClick={(e) => e.stopPropagation()}>
+          <div
+            className="hidden shrink-0 items-center gap-0.5 group-hover:flex"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {isRunning && (
+              <IconAction icon={<Square size={11} />} label="Stop" onClick={onStop} variant="warning" />
+            )}
+            <IconAction icon={<MessageSquare size={11} />} label="Chat" onClick={onSelect} />
+            <IconAction icon={<ExternalLink size={11} />} label="IDE" onClick={onOpenIde} />
+            <IconAction icon={<Eye size={11} />} label="Review" onClick={onReview} />
+            <IconAction icon={<GitMerge size={11} />} label="Merge" onClick={onMerge} />
+            {onArchive && <IconAction icon={<Trash2 size={11} />} label="Archive" onClick={onArchive} variant="danger" />}
+          </div>
+        )}
+
+        {isArchived && (
+          <div
+            className="flex shrink-0 items-center gap-0.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {onUnarchive && <IconAction icon={<ArchiveRestore size={11} />} label="Unarchive" onClick={onUnarchive} />}
+            <IconAction icon={<Trash2 size={11} />} label="Delete" onClick={onDelete} variant="danger" />
+          </div>
+        )}
+
+        {/* Status / outcome — hidden on hover when actions show */}
+        {!isArchived && (
+          <div className="flex shrink-0 items-center gap-2 group-hover:hidden" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[11px] text-text-tertiary/70">
+              {lifecycle.label}
+            </span>
             <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />
           </div>
         )}
-      </div>
 
-      {/* Actions — revealed on hover */}
-      <div
-        className={`flex items-center gap-1 border-t border-border/30 px-3 py-1 transition-opacity ${
-          isArchived ? 'opacity-100' : 'hidden group-hover:flex opacity-0 group-hover:opacity-100'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isArchived ? (
-          <>
-            {onUnarchive && <CardAction icon={<ArchiveRestore size={12} />} label="Unarchive" onClick={onUnarchive} />}
-            <CardAction icon={<Trash2 size={12} />} label="Delete" onClick={onDelete} variant="danger" />
-          </>
-        ) : (
-          <>
-            {isRunning && (
-              <CardAction icon={<Square size={12} />} label="Stop" onClick={onStop} variant="warning" />
-            )}
-            <CardAction icon={<MessageSquare size={12} />} label="Chat" onClick={onSelect} />
-            <CardAction icon={<ExternalLink size={12} />} label="IDE" onClick={onOpenIde} />
-            <CardAction icon={<Eye size={12} />} label="Review" onClick={onReview} />
-            <CardAction icon={<GitMerge size={12} />} label="Merge" onClick={onMerge} />
-            <div className="flex-1" />
-            {onArchive && <CardAction icon={<Trash2 size={12} />} label="Archive" onClick={onArchive} variant="danger" />}
-          </>
+        {isArchived && (
+          <span className="shrink-0 text-[11px] text-text-tertiary/50">
+            Archived
+          </span>
         )}
       </div>
     </button>
@@ -125,13 +129,13 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`lifecycle-badge items-center gap-1 ${config.color} hover:opacity-80 transition-opacity`}
+        className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${config.color} opacity-60 hover:opacity-100 transition-opacity`}
       >
         {config.label}
-        <ChevronDown size={10} />
+        <ChevronDown size={8} className="opacity-50" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[150px] rounded-xl border border-border/80 bg-bg-secondary py-1 shadow-xl">
+        <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-border/60 bg-bg-secondary py-0.5 shadow-lg">
           {outcomeOptions.map((opt) => {
             const optConfig = workspaceOutcomeConfig[opt];
             return (
@@ -139,7 +143,7 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
                 key={opt}
                 onClick={() => handleSelect(opt)}
                 className={`w-full px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-bg-hover ${
-                  opt === outcome ? 'font-semibold' : ''
+                  opt === outcome ? 'font-medium' : 'font-normal'
                 } ${optConfig.color}`}
               >
                 {optConfig.label}
@@ -152,7 +156,7 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
   );
 }
 
-function CardAction({ icon, label, onClick, variant }: {
+function IconAction({ icon, label, onClick, variant }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
@@ -168,10 +172,9 @@ function CardAction({ icon, label, onClick, variant }: {
     <button
       onClick={onClick}
       title={label}
-      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-text-tertiary transition-colors ${colors}`}
+      className={`inline-flex items-center justify-center rounded-md p-1 text-text-tertiary transition-colors ${colors}`}
     >
       {icon}
-      <span>{label}</span>
     </button>
   );
 }
