@@ -92,10 +92,9 @@ function extractFilePaths(text: string): string[] {
 
 interface PlanCardProps {
   task: Task;
-  isStreaming?: boolean;
 }
 
-export function PlanCard({ task, isStreaming }: PlanCardProps) {
+export function PlanCard({ task }: PlanCardProps) {
   const [copied, setCopied] = useState(false);
 
   const setTaskStatus = useChatStore((s) => s.setTaskStatus);
@@ -182,9 +181,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
   const canAct = planText.length > 0;
 
   return (
-    <div className={`premium-plan-card overflow-hidden rounded-lg ${
-      isStreaming ? 'border-plan/20' : ''
-    }`}>
+    <div className="premium-plan-card overflow-hidden rounded-lg">
       {/* Header */}
       <div className="plan-card-header flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2.5">
@@ -192,12 +189,9 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             <ClipboardList size={14} />
           </div>
           <span className="text-[13px] font-semibold text-text-primary">
-            {isStreaming ? 'Generating plan...' : 'Plan'}
+            Plan
           </span>
-          {isStreaming && (
-            <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
-          )}
-          {!isStreaming && steps.length > 0 && (
+          {steps.length > 0 && (
             <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
               <span>{steps.length} step{steps.length === 1 ? '' : 's'}</span>
               {affectedFileCount > 0 && (
@@ -209,7 +203,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             </div>
           )}
         </div>
-        {canAct && !isStreaming && (
+        {canAct && (
           <button
             onClick={handleCopyPlan}
             className="premium-toolbar-button rounded-lg p-1.5 text-text-tertiary hover:text-text-secondary"
@@ -221,14 +215,14 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
       </div>
 
       {/* Summary */}
-      {summary && !isStreaming && (
+      {summary && (
         <div className="px-4 py-3 border-b border-border/50">
           <p className="text-[13px] text-text-secondary leading-relaxed">{summary}</p>
         </div>
       )}
 
       {/* Steps */}
-      {steps.length > 0 && !isStreaming && (
+      {steps.length > 0 && (
         <div className="px-4 py-3">
           <ol className="plan-steps-list space-y-2.5">
             {steps.map((step, idx) => {
@@ -305,7 +299,7 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
         ))}
 
       {/* Considerations */}
-      {considerations && !isStreaming && (
+      {considerations && (
         <div className="px-4 py-2.5 border-t border-border/50">
           <div className="flex items-start gap-2 text-[12px] text-text-tertiary">
             <AlertTriangle size={12} className="shrink-0 mt-0.5 text-warning" />
@@ -318,19 +312,8 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
         </div>
       )}
 
-      {/* Streaming fallback — show raw content */}
-      {isStreaming && !summary && sections.length === 0 && planText && (
-        <div className="px-4 py-3">
-          <div className="markdown-prose text-[13px] text-text-primary">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {planText}
-            </ReactMarkdown>
-          </div>
-        </div>
-      )}
-
       {/* Action bar */}
-      {canAct && !isStreaming && (
+      {canAct && (
         <div className="plan-card-actions flex items-center justify-end border-t border-border px-4 py-3">
           <button
             onClick={handleImplement}
