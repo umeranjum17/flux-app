@@ -9,44 +9,44 @@ const CATEGORY_META: Record<
 > = {
   workspace: {
     Icon: GitBranch,
-    accent: 'text-info',
-    accentBg: 'bg-info/10',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'Workspace',
   },
   checkpoint: {
     Icon: GitCommitHorizontal,
-    accent: 'text-success',
-    accentBg: 'bg-success/10',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'Checkpoint',
   },
   repomap: {
     Icon: Activity,
-    accent: 'text-accent',
-    accentBg: 'bg-accent/10',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'Repo map',
   },
   stall: {
     Icon: AlertTriangle,
-    accent: 'text-warning',
-    accentBg: 'bg-warning/10',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'Stall',
   },
   sync: {
     Icon: RefreshCw,
-    accent: 'text-text-secondary',
-    accentBg: 'bg-bg-tertiary',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'Sync',
   },
   ipc: {
     Icon: ArrowRightLeft,
     accent: 'text-text-tertiary',
-    accentBg: 'bg-bg-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'IPC',
   },
   skill: {
     Icon: Sparkles,
-    accent: 'text-accent',
-    accentBg: 'bg-accent/10',
+    accent: 'text-text-tertiary',
+    accentBg: 'bg-bg-hover/50',
     label: 'Skill',
   },
 };
@@ -129,7 +129,7 @@ function SkillActivityItem({
               key={s.id}
               className="flex items-start gap-2 rounded-md bg-bg-tertiary/50 px-2.5 py-1.5 transition-colors hover:bg-bg-tertiary"
             >
-              <Sparkles size={10} className="text-accent mt-0.5 shrink-0" />
+              <Sparkles size={10} className="text-text-tertiary mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <span className="text-[11px] font-medium text-text-secondary">{s.name}</span>
                 {s.description && (

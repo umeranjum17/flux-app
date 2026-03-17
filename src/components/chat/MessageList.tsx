@@ -18,7 +18,7 @@ const AGENT_LABELS: Record<string, string> = {
 import { MessageBubble } from './MessageBubble';
 import { ToolCallBlock } from './ToolCallBlock';
 import { ToolResultBlock } from './ToolResultBlock';
-import { LifecycleCard } from './LifecycleCard';
+import { LifecycleCard, LifecycleGroup } from './LifecycleCard';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ApprovalPrompt } from './ApprovalPrompt';
 import { QuestionPrompt } from './QuestionPrompt';
@@ -348,6 +348,62 @@ export function MessageList() {
                   }
                 }
 
+                // Group consecutive lifecycle messages into a single
+                // collapsible row to reduce visual noise.
+                if (msg.type === 'lifecycle') {
+                  const lifecycleBatch: AgentMessage[] = [msg];
+                  let cursor = idx + 1;
+                  while (cursor < messages.length) {
+                    if (mergedResultIndices.has(cursor)) { cursor += 1; continue; }
+                    const next = messages[cursor];
+                    if (next.type === 'lifecycle') {
+                      lifecycleBatch.push(next);
+                      cursor += 1;
+                    } else if (next.type === 'status' && !next.content.trim()) {
+                      cursor += 1;
+                    } else {
+                      break;
+                    }
+                  }
+
+                  if (lifecycleBatch.length === 1) {
+                    // Single lifecycle — render inline
+                    rendered.push(
+                      <motion.div
+                        key={msg._seqId ?? `lifecycle-${msg.timestamp}-${idx}`}
+                        variants={messageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={messageTransition}
+                      >
+                        <LifecycleCard
+                          state={msg.lifecycleState ?? 'unknown'}
+                          label={msg.lifecycleLabel ?? 'Lifecycle event'}
+                        />
+                      </motion.div>,
+                    );
+                  } else {
+                    // Multiple lifecycle events — show only the latest
+                    // with a collapsible group behind it.
+                    const latest = lifecycleBatch[lifecycleBatch.length - 1];
+                    rendered.push(
+                      <motion.div
+                        key={`lifecycle-group-${lifecycleBatch[0].timestamp}-${idx}`}
+                        variants={messageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={messageTransition}
+                      >
+                        <LifecycleGroup items={lifecycleBatch} latest={latest} />
+                      </motion.div>,
+                    );
+                  }
+                  idx = cursor - 1;
+                  continue;
+                }
+
                 const mergedResult = mergedResultForCall.get(idx) ?? null;
                 const displayTier = msg.type === 'tool_call'
                   ? getToolCallDisplayTier(msg, mergedResult)
@@ -366,10 +422,18 @@ export function MessageList() {
                     }
 
                     const candidate = messages[cursor];
+                    // Skip over lifecycle/status messages — they'll render
+                    // separately without fragmenting the tool call group.
+                    if (candidate.type === 'lifecycle' || (candidate.type === 'status' && !candidate.content.trim())) {
+                      cursor += 1;
+                      continue;
+                    }
                     if (candidate.type !== 'tool_call') break;
                     if (!planIsStale && isPlanMessage(candidate, task.mode)) break;
-                    if (activityCursor < systemActivities.length && systemActivities[activityCursor].timestamp <= candidate.timestamp && cursor !== idx) {
-                      break;
+
+                    // Absorb interleaved system activities instead of breaking
+                    while (activityCursor < systemActivities.length && systemActivities[activityCursor].timestamp <= candidate.timestamp) {
+                      activityCursor++;
                     }
 
                     const candidateResult = mergedResultForCall.get(cursor) ?? null;
