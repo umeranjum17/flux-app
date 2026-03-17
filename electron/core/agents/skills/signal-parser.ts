@@ -9,7 +9,7 @@ import type { FluxSignal, FluxSignalType } from './types';
  * older FLUX_WORKSPACE_LIFECYCLE and FLUX_TODO protocols for backward compatibility.
  */
 
-const SIGNAL_REGEX = /FLUX_SIGNAL:\s*(\{.*\})/;
+const SIGNAL_REGEX = /^\s*FLUX_SIGNAL:\s*(\{.*\})/;
 const VALID_TYPES = new Set<FluxSignalType>([
   'step_start',
   'step_done',
@@ -45,8 +45,12 @@ export function parseFluxSignal(text: string): FluxSignal | null {
 
 /**
  * Extract ALL FLUX_SIGNAL events from a multi-line text block.
+ *
+ * @param typeFilter — when provided, only signals whose type is in this set
+ *   are returned. Use this to parse only progress signals mid-stream and
+ *   defer completion signals to turn end.
  */
-export function parseAllFluxSignals(text: string): FluxSignal[] {
+export function parseAllFluxSignals(text: string, typeFilter?: Set<FluxSignalType>): FluxSignal[] {
   const signals: FluxSignal[] = [];
   for (const line of text.split('\n')) {
     const match = line.match(SIGNAL_REGEX);
@@ -62,6 +66,7 @@ export function parseAllFluxSignals(text: string): FluxSignal[] {
     if (!parsed || typeof parsed !== 'object') continue;
     const signalType = parsed.type;
     if (typeof signalType !== 'string' || !VALID_TYPES.has(signalType as FluxSignalType)) continue;
+    if (typeFilter && !typeFilter.has(signalType as FluxSignalType)) continue;
 
     const signal = normalizeSignal(parsed, signalType as FluxSignalType);
     if (signal) signals.push(signal);

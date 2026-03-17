@@ -1133,13 +1133,21 @@ export function getStepTrackableContent(message: AgentMessage): string | null {
   }
 }
 
-const FLUX_TOKEN_PATTERN = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{[^}]*\}/g;
+// Matches FLUX protocol lines — complete or incomplete JSON (streaming may split
+// the closing brace into a separate message). Uses multiline mode so ^ anchors
+// to each line start.
+const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{.*$/gm;
+
+// Matches orphaned JSON closing fragments left over from a streaming-split signal
+// (e.g. `"}` or `"}\n` on its own). Only matches when the entire line is just
+// a closing brace with optional leading quote/whitespace.
+const ORPHAN_JSON_CLOSER = /^\s*["']?\}\s*$/gm;
 
 /** Strip FLUX protocol tokens from text so they don't render in the UI. */
 export function stripFluxTokens(text: string): string {
-  if (!FLUX_TOKEN_PATTERN.test(text)) return text;
-  FLUX_TOKEN_PATTERN.lastIndex = 0;
-  return text.replace(FLUX_TOKEN_PATTERN, '').replace(/\n{3,}/g, '\n\n').trim();
+  let result = text.replace(FLUX_LINE_PATTERN, '');
+  result = result.replace(ORPHAN_JSON_CLOSER, '');
+  return result.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export interface RateLimitInfo {
