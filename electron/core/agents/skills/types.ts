@@ -44,7 +44,7 @@ export interface FluxSkill {
  * All structured JSON signals emitted by agents use this prefix:
  *   FLUX_SIGNAL: {"type":"<signal_type>", ...}
  *
- * This replaces the older FLUX_TODO, FLUX_LIFECYCLE, and WORKSPACE_NAME
+ * This replaces the older FLUX_TODO, FLUX_WORKSPACE_LIFECYCLE, and WORKSPACE_NAME
  * protocols with one unified, parseable contract.
  */
 export type FluxSignalType =

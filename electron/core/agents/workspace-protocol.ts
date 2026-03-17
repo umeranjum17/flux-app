@@ -31,15 +31,15 @@ export interface FluxWorkspaceEvent {
 // Parser
 // ---------------------------------------------------------------------------
 
-// Match both new FLUX_WORKSPACE and legacy FLUX_LIFECYCLE prefixes
-const WORKSPACE_REGEX = /FLUX_(?:WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
+// Match FLUX_WORKSPACE_LIFECYCLE (canonical), FLUX_WORKSPACE, and legacy FLUX_LIFECYCLE
+const WORKSPACE_REGEX = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
 const VALID_STATES = new Set<FluxWorkspaceState>([
   'working',
   'ready_for_review',
   'completed',
 ]);
 
-// Map legacy FLUX_LIFECYCLE event types to workspace states
+// Map legacy FLUX_LIFECYCLE/FLUX_WORKSPACE_LIFECYCLE event types to workspace states
 const LEGACY_EVENT_TO_STATE: Record<string, FluxWorkspaceState> = {
   step_start: 'working',
   step_done: 'working',

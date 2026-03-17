@@ -4,7 +4,7 @@
  *
  * Agents emit JSON events on their own line:
  *
- *   FLUX_LIFECYCLE: {"state":"ready_for_review"}
+ *   FLUX_WORKSPACE_LIFECYCLE: {"state":"ready_for_review"}
  *
  * These represent high-level workspace lifecycle states, NOT task progress.
  * Task progress (steps, todos) is tracked separately via FLUX_TODO / TodoWrite.
@@ -37,7 +37,7 @@ export interface WorkspaceLifecycleEvent {
 // Parser
 // ---------------------------------------------------------------------------
 
-const LIFECYCLE_REGEX = /FLUX_(?:WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
+const LIFECYCLE_REGEX = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
 const VALID_STATES = new Set<WorkspaceLifecycleState>([
   'idle',
   'working',
@@ -70,7 +70,7 @@ function parseEventFromLine(line: string): WorkspaceLifecycleEvent | null {
 
 /**
  * Try to extract a workspace lifecycle event from a text string.
- * Scans each line for `FLUX_LIFECYCLE: {...}` (or legacy `FLUX_WORKSPACE: {...}`).
+ * Scans each line for `FLUX_WORKSPACE_LIFECYCLE: {...}` (or legacy `FLUX_LIFECYCLE: {...}` / `FLUX_WORKSPACE: {...}`).
  * Returns the first match, or null if none found.
  */
 export function parseWorkspaceEvent(text: string): WorkspaceLifecycleEvent | null {
@@ -105,7 +105,7 @@ export function buildWorkspaceProtocolPrompt(): string {
   return [
     '## Lifecycle',
     'Signal workspace state transitions by emitting a JSON line:',
-    '`FLUX_LIFECYCLE: {"state":"<state>"}`',
+    '`FLUX_WORKSPACE_LIFECYCLE: {"state":"<state>"}`',
     '',
     'Allowed states: `working`, `planned`, `ready_for_review`',
     '',
@@ -116,7 +116,7 @@ export function buildWorkspaceProtocolPrompt(): string {
     '',
     'Example:',
     '```',
-    'FLUX_LIFECYCLE: {"state":"ready_for_review","workspace_name":"Fix Token Refresh Logic"}',
+    'FLUX_WORKSPACE_LIFECYCLE: {"state":"ready_for_review","workspace_name":"Fix Token Refresh Logic"}',
     '```',
     '',
     'Do NOT use lifecycle events for progress tracking — use your todo/plan tools for that.',

@@ -712,7 +712,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
 
     let agentUsedTodoWrite = false;
-    // Accumulated text buffer for signal parsing (FLUX_LIFECYCLE, FLUX_SIGNAL,
+    // Accumulated text buffer for signal parsing (FLUX_WORKSPACE_LIFECYCLE, FLUX_SIGNAL,
     // FLUX_TODO, checklists). Streaming deltas split signals across multiple
     // messages, so we must parse from the accumulated buffer.
     const MAX_TODO_BUFFER = 50_000;
@@ -797,7 +797,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
 
-      // Accumulate text into the signal buffer for parsing FLUX_LIFECYCLE,
+      // Accumulate text into the signal buffer for parsing FLUX_WORKSPACE_LIFECYCLE,
       // FLUX_SIGNAL, FLUX_TODO, etc. Streaming deltas split signals across
       // multiple messages, so we must parse from the accumulated buffer.
       const trackable = getStepTrackableContent(message);
@@ -812,7 +812,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           lastFluxSignalCount = 0;
         }
 
-        // 1. Parse FLUX_LIFECYCLE events from accumulated buffer.
+        // 1. Parse FLUX_WORKSPACE_LIFECYCLE events from accumulated buffer.
         //    Only process newly discovered events (skip already-emitted ones).
         const allWsEvents = parseAllWorkspaceEvents(todoBuffer);
         if (allWsEvents.length > lastLifecycleCount) {
@@ -898,7 +898,38 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 flushTodoUpdates(options.taskId);
               }
             }
-            // 'completed' events are handled by extractAgentWorkspaceName
+            // 'completed' signal → trigger workspace lifecycle transition
+            else if (sig.type === 'completed') {
+              logDiagnostic('flux-signal', 'agent signalled completed', {
+                taskId: options.taskId,
+                workspaceName: sig.workspace_name,
+              });
+
+              if (workspace) {
+                const fresh = workspaceStore.get(workspace.id);
+                if (fresh) {
+                  const trigger = options.mode === 'plan' ? 'plan_completed' : 'agent_signal_ready_for_review';
+                  lifecycleManager.transitionOutcome(fresh, trigger).catch((err) => {
+                    console.warn('[task-handler] Failed to transition outcome on FLUX_SIGNAL completed:', err);
+                  });
+                }
+              }
+
+              // Emit a lifecycle message to the renderer
+              const lifecycleMessage = {
+                type: 'lifecycle' as const,
+                role: 'system' as const,
+                content: '',
+                timestamp: Date.now(),
+                lifecycleState: options.mode === 'plan' ? 'planned' : 'ready_for_review',
+                lifecycleLabel: options.mode === 'plan' ? 'Plan completed' : 'Ready for review',
+              };
+              sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
+              sendToRenderer('agent:message', {
+                taskId: options.taskId,
+                message: lifecycleMessage,
+              });
+            }
           }
         }
       }
@@ -908,11 +939,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       // Skip when Claude CLI's native TodoWrite is active — it provides its own
       // structured updates and these fallback parsers are not relevant for it.
       if (!agentUsedTodoWrite && trackable) {
-        // Strip FLUX_WORKSPACE / legacy FLUX_LIFECYCLE lines before feeding
+        // Strip FLUX_WORKSPACE / legacy FLUX_WORKSPACE_LIFECYCLE lines before feeding
         // into todo parsers — these are workspace state, not progress items.
         const todoOnlyBuffer = todoBuffer
           .split('\n')
-          .filter(line => !line.match(/^FLUX_(?:WORKSPACE|LIFECYCLE):\s*\{/))
+          .filter(line => !line.match(/^FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*\{/))
           .join('\n');
 
         const progress = parseAgentTodos(todoOnlyBuffer);
@@ -1179,7 +1210,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         }
       }
       if (!(message.type === 'permission_request' && autoApprovePermission)) {
-        // Strip FLUX_WORKSPACE / legacy FLUX_LIFECYCLE lines from visible
+        // Strip FLUX_WORKSPACE / legacy FLUX_WORKSPACE_LIFECYCLE lines from visible
         // message content so they don't render as raw JSON in chat cards.
         const renderedMessage = (message.content && typeof message.content === 'string')
           ? {
