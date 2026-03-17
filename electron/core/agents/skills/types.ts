@@ -26,6 +26,12 @@ export interface SkillContext {
     parentRepo: string;
     outcome: string;
   };
+  /** Persisted attachment context, if attachments were written to `.context/`. */
+  attachments?: {
+    manifestPath: string;
+    imageCount: number;
+    fileCount: number;
+  };
 }
 
 /**

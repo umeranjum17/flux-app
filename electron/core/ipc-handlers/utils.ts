@@ -793,9 +793,22 @@ type AttachmentPreview = {
   error?: string;
 };
 
+export interface AttachmentManifestEntry {
+  type: 'image' | 'file';
+  name: string;
+  originalPath: string;
+  /** Relative path inside `.context/` for materialized images. */
+  diskPath?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  truncated?: boolean;
+  error?: string;
+}
+
 export interface AttachmentContextArtifacts {
   absolutePath: string;
   promptPath: string;
+  manifestPath: string;
   imageCount: number;
   attachmentCount: number;
 }
@@ -967,12 +980,14 @@ export async function writeAttachmentContextFile(
     await fs.promises.rm(attachmentDir, { recursive: true, force: true });
     await fs.promises.mkdir(attachmentDir, { recursive: true });
 
+    const manifest: AttachmentManifestEntry[] = [];
     const imageNotes: string[] = [];
     let persistedImageCount = 0;
     for (const [index, image] of imageInputs.entries()) {
       const parsed = parseDataUrlImage(image);
       if (!parsed) {
         imageNotes.push(`- Image ${index + 1}: [Unable to decode image attachment]`);
+        manifest.push({ type: 'image', name: `image-${index + 1}`, originalPath: '', error: 'Unable to decode' });
         continue;
       }
       const relativeFile = `attachments/image-${index + 1}.${parsed.extension}`;
@@ -980,9 +995,27 @@ export async function writeAttachmentContextFile(
       await fs.promises.writeFile(outputPath, parsed.buffer);
       persistedImageCount += 1;
       imageNotes.push(`- Image ${index + 1}: \`${relativeFile}\` (${parsed.mediaType})`);
+      manifest.push({
+        type: 'image',
+        name: `image-${index + 1}.${parsed.extension}`,
+        originalPath: '',
+        diskPath: relativeFile,
+        mimeType: parsed.mediaType,
+        sizeBytes: parsed.buffer.length,
+      });
     }
 
     const previews = await collectAttachmentPreviews(attachments, null);
+    for (const preview of previews) {
+      manifest.push({
+        type: 'file',
+        name: preview.attachment.name,
+        originalPath: preview.attachment.path,
+        truncated: preview.truncated || undefined,
+        error: preview.error || undefined,
+      });
+    }
+
     const failedImageCount = imageInputs.length - persistedImageCount;
     const lines: string[] = [
       '# Attachment Context',
@@ -1027,9 +1060,14 @@ export async function writeAttachmentContextFile(
 
     const absolutePath = path.join(contextDir, 'attachments.md');
     await fs.promises.writeFile(absolutePath, `${lines.join('\n')}\n`, 'utf-8');
+
+    const manifestPath = path.join(contextDir, 'attachments.json');
+    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+
     return {
       absolutePath,
       promptPath: '.context/attachments.md',
+      manifestPath: '.context/attachments.json',
       imageCount: persistedImageCount,
       attachmentCount: attachments.length,
     };
@@ -1182,6 +1220,11 @@ export function buildWorkspaceSystemContext(
     };
     agentId?: AgentId;
     isExistingSession?: boolean;
+    attachments?: {
+      manifestPath: string;
+      imageCount: number;
+      fileCount: number;
+    };
   } = {},
 ): string | null {
   if (options.workspaceAction === 'merge' && !options.merge) {
@@ -1201,6 +1244,7 @@ export function buildWorkspaceSystemContext(
       parentRepo: workspace.parentRepo,
       outcome: workspace.outcome,
     },
+    attachments: options.attachments,
   });
 }
 

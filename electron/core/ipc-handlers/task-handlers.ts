@@ -27,7 +27,6 @@ import {
   buildUserMessagePayload,
   buildStoredUserMessage,
   buildPromptWithAttachments,
-  buildAttachmentContextPrompt,
   buildWorkspaceSystemContext,
   buildConversationContext,
   extractLatestSessionAttachmentContext,
@@ -348,12 +347,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       attachments: options.attachments?.length ? options.attachments : previousAttachmentContext?.attachments,
       sshHost,
     });
-    const attachmentPrompt = buildAttachmentContextPrompt(attachmentContext);
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
-    if (attachmentPrompt) {
-      effectivePrompt = `${attachmentPrompt}\n\n${effectivePrompt}`;
-    }
 
     const repoMapConfig = configManager.get().repoMap;
     if (repoMapConfig.enabled && repoMapConfig.perAgentEnabled[agentId] !== false) {
@@ -377,11 +372,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       : undefined;
 
     if (workspace) {
+      // Build skill-context attachment info from the written context file
+      const attachmentsForSkills = attachmentContext
+        ? {
+            manifestPath: attachmentContext.manifestPath,
+            imageCount: attachmentContext.imageCount,
+            fileCount: attachmentContext.attachmentCount,
+          }
+        : undefined;
+
       const wsContext = buildWorkspaceSystemContext(workspace, options.mode, {
         workspaceAction: options.workspaceAction,
         merge: options.workspaceAction === 'merge' ? options.mergeContext : undefined,
         agentId,
         isExistingSession: !!existingSession,
+        attachments: attachmentsForSkills,
       });
       if (wsContext) {
         effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
@@ -401,6 +406,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           parentRepo: workspace.parentRepo,
           outcome: workspace.outcome,
         },
+        attachments: attachmentsForSkills,
       });
       if (skillIds.length > 0) {
         const SKILL_META: Record<string, { name: string; description: string }> = {
@@ -408,6 +414,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           'flux-merge': { name: 'Flux Merge', description: 'Agent-driven merge workflow with conflict handling rules' },
           'flux-plan': { name: 'Flux Plan', description: 'Structured planning with progress tracking' },
           'flux-todo': { name: 'Flux Todo', description: 'Step-by-step task tracking and progress signals' },
+          'flux-attachments': { name: 'Flux Attachments', description: 'Structured attachment manifest for downstream agents' },
         };
         sendToRenderer('agent:skills', {
           taskId: options.taskId,
@@ -475,7 +482,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         spawnOptions.prompt = [
           `You are implementing a plan created by ${fromAgent}. The approved plan is below.`,
           planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
-          attachmentPrompt,
           '',
           planText ? `## Approved Plan\n\n${planText}` : '',
           stepTracking,
@@ -492,7 +498,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         if (context) {
           spawnOptions.prompt = [
             `You are continuing a conversation previously handled by ${fromAgent}. Here is the context:`,
-            attachmentPrompt,
             '',
             context,
             '',
@@ -514,7 +519,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         spawnOptions.prompt = [
           'You are implementing an approved plan. The full plan is below.',
           planPath ? `The plan is also saved at \`${planPath}\`.` : '',
-          attachmentPrompt,
           '',
           planText ? `## Approved Plan\n\n${planText}` : '',
           stepTracking,
@@ -531,7 +535,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         if (context) {
           spawnOptions.prompt = [
             `You are continuing a previous conversation. Here is the context:`,
-            attachmentPrompt,
             '',
             context,
             '',
@@ -550,7 +553,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       spawnOptions.prompt = [
         'The user reviewed and approved the plan above. Implement each step now.',
         planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
-        attachmentPrompt,
         stepTracking,
         '',
         spawnOptions.prompt,
@@ -559,20 +561,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       if (planSteps.length > 0) {
         pendingTodoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
       }
-    }
-
-    if (
-      existingSession
-      && !isAgentSwitch
-      && hasWorkingResume
-      && attachmentPrompt
-      && !(existingSession.mode === 'plan' && options.mode === 'act')
-    ) {
-      spawnOptions.prompt = [
-        attachmentPrompt,
-        '',
-        spawnOptions.prompt,
-      ].filter(Boolean).join('\n');
     }
 
     if (existingSession && !isAgentSwitch && AGENTS_WITH_NATIVE_RESUME.has(agentId) && !spawnOptions.resumeSessionId) {
@@ -2013,11 +2001,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
       sshHost: getSshHost(),
     });
-    const attachmentPrompt = buildAttachmentContextPrompt(attachmentContext);
     let effectivePrompt = await buildPromptWithAttachments(prompt, attachments, getSshHost());
-    if (attachmentPrompt) {
-      effectivePrompt = `${attachmentPrompt}\n\n${effectivePrompt}`;
-    }
 
     // Inject workspace skills on follow-up messages so the agent retains
     // lifecycle protocol context across the full conversation.
@@ -2025,9 +2009,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (workspaceId) {
       const workspace = workspaceStore.get(workspaceId);
       if (workspace) {
+        const attachmentsForSkills = attachmentContext
+          ? {
+              manifestPath: attachmentContext.manifestPath,
+              imageCount: attachmentContext.imageCount,
+              fileCount: attachmentContext.attachmentCount,
+            }
+          : undefined;
         const wsContext = buildWorkspaceSystemContext(workspace, workspace.mode, {
           agentId: workspace.agentId,
           isExistingSession: true,
+          attachments: attachmentsForSkills,
         });
         if (wsContext) {
           effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;

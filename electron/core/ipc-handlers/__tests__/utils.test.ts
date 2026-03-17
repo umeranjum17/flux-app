@@ -347,7 +347,7 @@ describe('buildWorkspaceSystemContext', () => {
       agentId: 'codex',
     });
 
-    expect(prompt).toContain('.context/attachments.md');
+    expect(prompt).toContain('.context/attachments.json');
   });
 });
 
@@ -374,6 +374,19 @@ describe('attachment context helpers', () => {
     expect(content).toContain('notes.txt');
     expect(content).toContain('first line');
     expect(content).toContain('attachments/image-1.png');
+
+    // JSON manifest should be written alongside the markdown
+    expect(result?.manifestPath).toBe('.context/attachments.json');
+    expect(fs.existsSync(path.join(cwd, '.context', 'attachments.json'))).toBe(true);
+    const manifest = JSON.parse(fs.readFileSync(path.join(cwd, '.context', 'attachments.json'), 'utf-8'));
+    expect(Array.isArray(manifest)).toBe(true);
+    expect(manifest.length).toBe(2);
+    const imageEntry = manifest.find((e: any) => e.type === 'image');
+    expect(imageEntry).toBeDefined();
+    expect(imageEntry.diskPath).toContain('attachments/image-1.png');
+    const fileEntry = manifest.find((e: any) => e.type === 'file');
+    expect(fileEntry).toBeDefined();
+    expect(fileEntry.name).toBe('notes.txt');
   });
 
   it('only counts images that were successfully materialized', async () => {
@@ -395,6 +408,7 @@ describe('attachment context helpers', () => {
     expect(buildAttachmentContextPrompt({
       absolutePath: '/repo/.context/attachments.md',
       promptPath: '.context/attachments.md',
+      manifestPath: '.context/attachments.json',
       imageCount: 1,
       attachmentCount: 2,
     })).toContain('.context/attachments.md');
