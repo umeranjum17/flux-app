@@ -809,7 +809,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       // multiple messages, so we must parse from the accumulated buffer.
       const trackable = getStepTrackableContent(message);
       if (trackable) {
-        todoBuffer += '\n' + trackable;
+        todoBuffer += trackable;
         if (todoBuffer.length > MAX_TODO_BUFFER) {
           todoBuffer = todoBuffer.slice(-MAX_TODO_BUFFER / 2);
           // Reset counts since we sliced the buffer — some previously counted
