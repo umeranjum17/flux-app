@@ -4,19 +4,15 @@ import {
   PanelBottomClose,
 } from 'lucide-react';
 import { TerminalPanel, type TerminalPanelHandle } from '../terminal/TerminalPanel';
-import { RunPanel } from '../terminal/RunPanel';
 import { useUiStore } from '../../stores/ui';
-import { useWorkspaceStore } from '../../stores/workspace';
 
 export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(_props, ref) {
   const [height, setHeight] = useState(260);
   const [maximized, setMaximized] = useState(false);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
   const prevHeight = useRef(260);
-  const terminalRef = useRef<TerminalPanelHandle | null>(null);
 
   const toggleBottomPanel = useUiStore((s) => s.toggleBottomPanel);
-  const hasWorkspace = useWorkspaceStore((s) => !!s.activeWorkspaceId);
 
   // Drag to resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -92,16 +88,9 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
         </div>
       </div>
 
-      {/* Run toolbar (shown when workspace is active) */}
-      {hasWorkspace && <RunPanel terminalRef={terminalRef} />}
-
       {/* Panel content */}
       <div className="flex-1 overflow-hidden">
-        <TerminalPanel ref={(handle) => {
-          terminalRef.current = handle;
-          if (typeof ref === 'function') ref(handle);
-          else if (ref) ref.current = handle;
-        }} />
+        <TerminalPanel ref={ref} />
       </div>
     </div>
   );

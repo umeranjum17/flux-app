@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { TerminalTabs, type TerminalTab, type ShellProfile } from './TerminalTabs';
+import { TerminalTabs, type TerminalTab } from './TerminalTabs';
 
 const DARK_THEME = {
   background: '#1e1e1e',
@@ -58,8 +58,7 @@ let termCounter = 0;
 export interface TerminalPanelHandle {
   focusActive: () => void;
   openWorkspaceTerminal: (workspaceId: string) => void;
-  createTerminal: (opts?: { shell?: string }) => void;
-  openRunTerminal: (workspaceId: string, command: string, label: string) => void;
+  createTerminal: () => void;
 }
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle>(
@@ -70,25 +69,15 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
     const setBottomPanelOpen = useUiStore((s) => s.setBottomPanelOpen);
     const [tabs, setTabs] = useState<TerminalTab[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
-    const [profiles, setProfiles] = useState<ShellProfile[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRefs = useRef<Map<string, { term: any; fitAddon: any }>>(new Map());
     // Buffer PTY data that arrives before the xterm Terminal instance is ready
     const pendingDataRef = useRef<Map<string, string[]>>(new Map());
 
-    // Load shell profiles
-    useEffect(() => {
-      window.api.invoke('terminal:get-profiles').then((p) => {
-        setProfiles(p as ShellProfile[]);
-      }).catch(() => {});
-    }, []);
-
     const createTerminal = useCallback(async (opts?: {
       workspaceId?: string;
       workspaceName?: string;
       workspaceBranch?: string;
-      shell?: string;
-      command?: string;
     }) => {
       const id = `term-${++termCounter}`;
 
@@ -111,8 +100,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
           id,
           cwd: opts?.workspaceId ? undefined : cwd,
           workspaceId: opts?.workspaceId,
-          shell: opts?.shell,
-          command: opts?.command,
         }) as { id: string; shellName: string };
 
         // Update tab with shell info
@@ -210,17 +197,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
           }).catch(() => {});
         }
       },
-      createTerminal(opts?: { shell?: string }) {
+      createTerminal() {
         setBottomPanelOpen(true);
-        createTerminal({ shell: opts?.shell }).catch(() => {});
-      },
-      openRunTerminal(workspaceId: string, command: string, label: string) {
-        setBottomPanelOpen(true);
-        createTerminal({
-          workspaceId,
-          workspaceName: label,
-          command,
-        }).catch(() => {});
+        createTerminal().catch(() => {});
       },
     }), [activeId, tabs, createTerminal, setActiveTerminalId, setBottomPanelOpen]);
 
@@ -358,20 +337,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
       });
     }, [activeId]);
 
-    const handleClear = useCallback((id: string) => {
-      const termRef = terminalRefs.current.get(id);
-      if (termRef) {
-        termRef.term.clear();
-      }
-    }, []);
-
-    const handleRename = useCallback((id: string, name: string) => {
-      setTabs((prev) => prev.map((t) => t.id === id ? { ...t, title: name } : t));
-    }, []);
-
-    const handleCreate = useCallback((shell?: string) => {
+    const handleCreate = useCallback(() => {
       setBottomPanelOpen(true);
-      createTerminal({ shell }).catch(() => {});
+      createTerminal().catch(() => {});
     }, [createTerminal, setBottomPanelOpen]);
 
     return (
@@ -380,12 +348,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
         <TerminalTabs
           tabs={tabs}
           activeId={activeId}
-          profiles={profiles}
           onSelect={setActiveId}
           onClose={handleClose}
           onCreate={handleCreate}
-          onClear={handleClear}
-          onRename={handleRename}
         />
 
         {/* Terminal containers */}
