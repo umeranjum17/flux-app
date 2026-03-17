@@ -277,6 +277,6 @@ export interface Task {
   todoItems?: TodoItem[];
   currentStatus?: string;
   currentStatusKind?: 'spawn' | 'startup' | 'progress' | 'diagnostic';
-  activeSkills?: Array<{ id: string; name: string }>;
+  activeSkills?: Array<{ id: string; name: string; description?: string }>;
   systemActivities: SystemActivity[];
 }

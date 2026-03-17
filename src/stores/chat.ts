@@ -65,7 +65,7 @@ interface ChatState {
   setPlanData(taskId: string, planData: import('../lib/types').PlanData): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
   updateTodoItem(taskId: string, stepId: number, status: TodoItem['status'], label?: string): void;
-  setActiveSkills(taskId: string, skills: Array<{ id: string; name: string }>): void;
+  setActiveSkills(taskId: string, skills: Array<{ id: string; name: string; description?: string }>): void;
   addSystemActivity(taskId: string, activity: SystemActivity): void;
   upsertTaskShell(opts: {
     id: string;

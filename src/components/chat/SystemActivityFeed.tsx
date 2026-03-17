@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, ArrowRightLeft, GitBranch, GitCommitHorizontal, RefreshCw, Activity, ChevronDown, Sparkles } from 'lucide-react';
+import { useChatStore } from '../../stores/chat';
 import type { SystemActivity } from '../../lib/types';
 
 const CATEGORY_META: Record<
@@ -61,6 +62,12 @@ function formatRelativeTime(timestamp: number): string {
 export function SystemActivityInlineItem({ activity }: { activity: SystemActivity }) {
   const meta = CATEGORY_META[activity.category];
   const Icon = meta.Icon;
+
+  // Skill activities get an expandable detail panel
+  if (activity.category === 'skill' && activity.label === 'Skills loaded') {
+    return <SkillActivityItem activity={activity} meta={meta} />;
+  }
+
   return (
     <div className="py-0.5 text-[11px] text-text-tertiary">
       <div className="flex items-center gap-1.5 leading-none">
@@ -77,6 +84,62 @@ export function SystemActivityInlineItem({ activity }: { activity: SystemActivit
           {formatRelativeTime(activity.timestamp)}
         </span>
       </div>
+    </div>
+  );
+}
+
+function SkillActivityItem({
+  activity,
+  meta,
+}: {
+  activity: SystemActivity;
+  meta: (typeof CATEGORY_META)[SystemActivity['category']];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const task = useChatStore((s) => s.getActiveTask());
+  const skills = task?.activeSkills ?? [];
+  const Icon = meta.Icon;
+
+  return (
+    <div className="py-0.5 text-[11px] text-text-tertiary">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="group flex w-full items-center gap-1.5 leading-none text-left hover:text-text-secondary transition-colors"
+      >
+        <span
+          className={`inline-flex shrink-0 items-center justify-center rounded-full p-0.5 ${meta.accentBg} ${meta.accent}`}
+        >
+          <Icon size={11} />
+        </span>
+        <span className="text-text-secondary/80 font-medium">{activity.label}</span>
+        {activity.detail && (
+          <span className="text-text-tertiary/60 truncate">· {activity.detail}</span>
+        )}
+        <ChevronDown
+          size={10}
+          className={`ml-auto shrink-0 opacity-0 group-hover:opacity-60 transition-all ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {expanded && skills.length > 0 && (
+        <div className="mt-1.5 ml-5 flex flex-col gap-1">
+          {skills.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-start gap-2 rounded-md bg-bg-tertiary/50 px-2.5 py-1.5 transition-colors hover:bg-bg-tertiary"
+            >
+              <Sparkles size={10} className="text-accent mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[11px] font-medium text-text-secondary">{s.name}</span>
+                {s.description && (
+                  <p className="text-[10px] text-text-tertiary/70 leading-tight mt-0.5">{s.description}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

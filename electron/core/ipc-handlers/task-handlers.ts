@@ -380,14 +380,18 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         },
       });
       if (skillIds.length > 0) {
-        const SKILL_NAMES: Record<string, string> = {
-          'flux-workspace': 'Flux Workspace',
-          'flux-plan': 'Flux Plan',
-          'flux-todo': 'Flux Todo',
+        const SKILL_META: Record<string, { name: string; description: string }> = {
+          'flux-workspace': { name: 'Flux Workspace', description: 'Branch management, commits, and completion signals' },
+          'flux-plan': { name: 'Flux Plan', description: 'Structured planning with progress tracking' },
+          'flux-todo': { name: 'Flux Todo', description: 'Step-by-step task tracking and progress signals' },
         };
         sendToRenderer('agent:skills', {
           taskId: options.taskId,
-          skills: skillIds.map((id) => ({ id, name: SKILL_NAMES[id] ?? id })),
+          skills: skillIds.map((id) => ({
+            id,
+            name: SKILL_META[id]?.name ?? id,
+            description: SKILL_META[id]?.description ?? '',
+          })),
         });
       }
     }

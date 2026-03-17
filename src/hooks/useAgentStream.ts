@@ -146,7 +146,7 @@ export function useAgentStream() {
     });
 
     const unsubSkills = window.api.on('agent:skills', (data: unknown) => {
-      const { taskId, skills } = data as { taskId: string; skills: Array<{ id: string; name: string }> };
+      const { taskId, skills } = data as { taskId: string; skills: Array<{ id: string; name: string; description?: string }> };
       if (skills.length > 0) {
         const store = useChatStore.getState();
         store.setActiveSkills(taskId, skills);
