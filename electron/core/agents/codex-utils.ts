@@ -17,6 +17,7 @@ export interface CodexSessionMeta {
 export function mapCodexReasoningEffort(
   thinking?: ThinkingLevel,
 ): ThinkingLevel | undefined {
+  if (!thinking || thinking === 'disabled') return undefined;
   if (thinking === 'xhigh') return 'high';
   return thinking;
 }

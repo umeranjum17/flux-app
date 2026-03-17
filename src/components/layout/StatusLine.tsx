@@ -33,7 +33,7 @@ export function StatusLine() {
   const selectedModel = useAgentStore((s) => s.selectedModel);
   const dynamicModels = useAgentStore((s) => s.dynamicModels);
 
-  const thinkingLevels: ThinkingLevel[] = useMemo(() => ['low', 'medium', 'high', 'xhigh'], []);
+  const thinkingLevels: ThinkingLevel[] = useMemo(() => ['disabled', 'low', 'medium', 'high', 'xhigh'], []);
 
   const handleCycleModel = useCallback(() => {
     const modelIds = dynamicModels.length > 0

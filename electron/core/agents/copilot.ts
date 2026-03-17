@@ -109,7 +109,7 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
         args.push('--model', opts.model);
       }
 
-      if (opts.thinking) {
+      if (opts.thinking && opts.thinking !== 'disabled') {
         args.push('--reasoning-effort', opts.thinking);
       }
 

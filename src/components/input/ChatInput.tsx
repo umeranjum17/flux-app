@@ -25,10 +25,19 @@ import {
 } from '../../lib/rate-limits';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
+  disabled: 'Off',
   low: 'Low',
-  medium: 'Medium',
+  medium: 'Med',
   high: 'High',
-  xhigh: 'Extra',
+  xhigh: 'Max',
+};
+
+const THINKING_COLORS: Record<ThinkingLevel, { text: string; bg: string; border: string; dot: string }> = {
+  disabled: { text: 'text-text-tertiary', bg: 'bg-bg-elevated/50', border: 'border-border/40', dot: 'bg-text-tertiary/40' },
+  low: { text: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/25', dot: 'bg-sky-400' },
+  medium: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/25', dot: 'bg-amber-400' },
+  high: { text: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/25', dot: 'bg-orange-400' },
+  xhigh: { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/25', dot: 'bg-red-400' },
 };
 
 interface ChatInputProps {
@@ -737,7 +746,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   };
 
   const handleCycleThinking = useCallback(() => {
-    const levels: ThinkingLevel[] = ['low', 'medium', 'high', 'xhigh'];
+    const levels: ThinkingLevel[] = ['disabled', 'low', 'medium', 'high', 'xhigh'];
     const current = useAgentStore.getState().selectedThinking;
     const idx = levels.indexOf(current);
     useAgentStore.getState().setSelectedThinking(levels[(idx + 1) % levels.length]);
@@ -1026,7 +1035,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             <div className="relative flex items-center gap-1">
               {!isTerminal && (
                 <>
-                  {/* Model selector button */}
+                  {/* Model selector pill */}
                   <button
                     type="button"
                     onClick={() => setShowModelSelector((v) => !v)}
@@ -1038,7 +1047,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       size={13}
                       className={AGENT_COLORS[selectedAgentId] ?? 'text-text-tertiary'}
                     />
-                    <span className="max-w-[160px] truncate">{displayModel}</span>
+                    <span className="max-w-[140px] truncate">{displayModel}</span>
                   </button>
 
                   <ModelSelectorDropdown
@@ -1046,30 +1055,37 @@ export function ChatInput({ focused }: ChatInputProps) {
                     onClose={() => setShowModelSelector(false)}
                   />
 
-                  {/* Thinking toggle */}
+                  {/* Divider */}
+                  <span className="mx-0.5 h-3.5 w-px bg-border/50" aria-hidden />
+
+                  {/* Thinking level — color-coded pill */}
                   {supportsThinking && (
                     <button
                       type="button"
                       onClick={handleCycleThinking}
-                      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-2.5 py-1 text-xs text-text-secondary"
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150 ${THINKING_COLORS[selectedThinking].bg} ${THINKING_COLORS[selectedThinking].border} ${THINKING_COLORS[selectedThinking].text}`}
                       title={`Thinking: ${THINKING_LABELS[selectedThinking]} (${isMac ? 'Cmd' : 'Ctrl'}+Shift+T)`}
                     >
-                      <Brain size={12} className="text-text-secondary" />
-                      <span className="text-text-primary font-medium">{THINKING_LABELS[selectedThinking]}</span>
+                      <Brain size={11} />
+                      {THINKING_LABELS[selectedThinking]}
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${THINKING_COLORS[selectedThinking].dot}`} />
                     </button>
                   )}
 
-                  {/* Plan / Act mode toggle — Cline-style segmented pill */}
+                  {/* Divider */}
+                  <span className="mx-0.5 h-3.5 w-px bg-border/50" aria-hidden />
+
+                  {/* Plan / Act toggle — segmented pill */}
                   <div
-                    className="inline-flex items-center rounded-full border border-border/60 bg-bg-elevated/50 p-0.5 text-[11px] font-medium"
+                    className="inline-flex items-center rounded-full border border-border/50 bg-bg-primary/60 p-0.5 text-[11px] font-semibold"
                     title="Shift+Tab to toggle"
                   >
                     <button
                       type="button"
                       onClick={() => useUiStore.getState().setMode('plan')}
-                      className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                      className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'plan'
-                          ? 'bg-plan/15 text-plan'
+                          ? 'bg-indigo-500/15 text-indigo-400 shadow-sm shadow-indigo-500/10'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1078,9 +1094,9 @@ export function ChatInput({ focused }: ChatInputProps) {
                     <button
                       type="button"
                       onClick={() => useUiStore.getState().setMode('act')}
-                      className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                      className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'act'
-                          ? 'bg-accent/15 text-accent'
+                          ? 'bg-emerald-500/15 text-emerald-400 shadow-sm shadow-emerald-500/10'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1088,6 +1104,10 @@ export function ChatInput({ focused }: ChatInputProps) {
                     </button>
                   </div>
 
+                  {/* Divider */}
+                  <span className="mx-0.5 h-3.5 w-px bg-border/50" aria-hidden />
+
+                  {/* Rate limits */}
                   <div className="relative">
                     <button
                       type="button"
@@ -1097,28 +1117,28 @@ export function ChatInput({ focused }: ChatInputProps) {
                         }
                         setShowRateLimits((open) => !open);
                       }}
-                      className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-medium transition-all duration-150 ${
                         highestSeverity === 'rejected'
-                          ? 'border-error/40 bg-error/10 text-error'
+                          ? 'border-red-500/40 bg-red-500/10 text-red-400'
                           : highestSeverity === 'allowed_warning'
-                            ? 'border-warning/35 bg-warning/10 text-warning'
+                            ? 'border-amber-500/35 bg-amber-500/10 text-amber-400'
                             : highestSeverity === 'allowed'
-                              ? 'border-success/25 bg-success/10 text-success'
-                              : 'border-border/60 bg-bg-elevated/50 text-text-secondary'
+                              ? 'border-emerald-500/25 bg-emerald-500/8 text-emerald-400'
+                              : 'border-border/50 bg-bg-primary/60 text-text-tertiary'
                       }`}
                       title="Peek rate limits"
                       aria-label="Peek rate limits"
                     >
-                      <Gauge size={12} />
+                      <Gauge size={11} />
                       <span
                         className={`inline-block h-1.5 w-1.5 rounded-full ${
                           highestSeverity === 'rejected'
-                            ? 'bg-error'
+                            ? 'bg-red-400'
                             : highestSeverity === 'allowed_warning'
-                              ? 'bg-warning'
+                              ? 'bg-amber-400'
                               : highestSeverity === 'allowed'
-                                ? 'bg-success'
-                                : 'bg-text-tertiary/50'
+                                ? 'bg-emerald-400'
+                                : 'bg-text-tertiary/40'
                         }`}
                       />
                     </button>
@@ -1126,15 +1146,15 @@ export function ChatInput({ focused }: ChatInputProps) {
                     {showRateLimits && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowRateLimits(false)} />
-                        <div className="absolute bottom-full left-0 z-50 mb-1 w-[280px] rounded-lg border border-border/80 bg-bg-elevated p-2.5 shadow-xl">
-                          <div className="mb-2 flex items-center justify-between">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+                        <div className="absolute bottom-full left-0 z-50 mb-1.5 w-[300px] rounded-xl border border-border/70 bg-bg-elevated p-3 shadow-2xl">
+                          <div className="mb-2.5 flex items-center justify-between">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
                               Rate Limits
                             </p>
                             <button
                               type="button"
                               onClick={() => void refreshLiveUsage()}
-                              className="rounded p-1 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+                              className="rounded-md p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
                               title="Refresh rate limits"
                               aria-label="Refresh rate limits"
                             >
@@ -1143,34 +1163,45 @@ export function ChatInput({ focused }: ChatInputProps) {
                           </div>
 
                           {visibleRateLimits.length === 0 ? (
-                            <p className="py-2 text-[11px] text-text-tertiary">No rate limit data yet.</p>
+                            <p className="py-3 text-center text-[11px] text-text-tertiary">No rate limit data yet.</p>
                           ) : (
-                            <div className="space-y-1.5">
-                              {visibleRateLimits.map((entry) => (
-                                <div
-                                  key={`${entry.providerId}:${entry.rateLimitType}`}
-                                  className="rounded-md border border-border/60 bg-bg-primary/55 px-2 py-1.5"
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="truncate text-[11px] font-medium text-text-primary">
-                                      {providerLabel(entry.providerId)}
-                                    </p>
-                                    <span className={`text-[11px] font-semibold tabular-nums ${rateLimitTextColor(entry)}`}>
-                                      {Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100)}%
-                                    </span>
+                            <div className="space-y-2">
+                              {visibleRateLimits.map((entry) => {
+                                const pct = Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100);
+                                const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
+                                return (
+                                  <div
+                                    key={`${entry.providerId}:${entry.rateLimitType}`}
+                                    className="rounded-lg border border-border/50 bg-bg-primary/60 px-2.5 py-2"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="truncate text-[11px] font-medium text-text-primary">
+                                        {providerLabel(entry.providerId)}
+                                      </p>
+                                      <span className={`text-[11px] font-bold tabular-nums ${rateLimitTextColor(entry)}`}>
+                                        {pct}%
+                                      </span>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-border/30">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                    <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
+                                      <span className="truncate">{entry.rateLimitType.replace(/[_-]+/g, ' ')}</span>
+                                      <span className="shrink-0">
+                                        {entry.resetsAt > 0 ? `resets ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
-                                    <span className="truncate">{entry.rateLimitType.replace(/[_-]+/g, ' ')}</span>
-                                    <span>
-                                      {entry.resetsAt > 0 ? `resets in ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
 
-                          <div className="mt-2 flex items-center justify-between">
+                          <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2">
                             <p className="text-[10px] text-text-tertiary">
                               {liveOverview?.updatedAt ? `Updated ${formatRelativeTime(liveOverview.updatedAt)}` : 'Not refreshed yet'}
                             </p>
@@ -1181,7 +1212,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                                 useUiStore.getState().setSidebarTab('usage');
                                 setShowRateLimits(false);
                               }}
-                              className="rounded px-1.5 py-1 text-[10px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                              className="rounded-md px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                             >
                               Open usage
                             </button>

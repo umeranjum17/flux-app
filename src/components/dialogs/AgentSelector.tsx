@@ -7,6 +7,7 @@ import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import type { ThinkingLevel } from '../../lib/types';
 
 const thinkingLevels: { value: ThinkingLevel; label: string; short: string }[] = [
+  { value: 'disabled', label: 'Disabled', short: 'Off' },
   { value: 'low', label: 'Low', short: 'L' },
   { value: 'medium', label: 'Medium', short: 'M' },
   { value: 'high', label: 'High', short: 'H' },

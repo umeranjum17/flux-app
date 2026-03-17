@@ -316,7 +316,7 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
         args.push('--dangerously-skip-permissions');
       }
 
-      if (opts.thinking) {
+      if (opts.thinking && opts.thinking !== 'disabled') {
         args.push('--effort', mapClaudeEffort(opts.thinking));
       }
 

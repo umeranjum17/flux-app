@@ -120,7 +120,7 @@ export function CommandPalette() {
         icon: Brain,
         shortcut: 'Ctrl+Shift+T',
         handler: () => {
-          const levels: ThinkingLevel[] = ['low', 'medium', 'high', 'xhigh'];
+          const levels: ThinkingLevel[] = ['disabled', 'low', 'medium', 'high', 'xhigh'];
           const current = useAgentStore.getState().selectedThinking;
           const idx = levels.indexOf(current);
           useAgentStore.getState().setSelectedThinking(levels[(idx + 1) % levels.length]);

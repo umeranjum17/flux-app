@@ -1,4 +1,4 @@
-import type { QuestionField } from './types';
+import type { QuestionField, ThinkingLevel } from './types';
 
 /**
  * Strip the `mcp__<server>__` prefix from an MCP tool name to get the base
@@ -71,7 +71,7 @@ export function normalizeClaudeQuestions(input: Record<string, any>): QuestionFi
     .filter((question: { question: string }) => question.question.trim().length > 0);
 }
 
-export function mapClaudeEffort(thinking: 'low' | 'medium' | 'high' | 'xhigh'): 'low' | 'medium' | 'high' {
+export function mapClaudeEffort(thinking: Exclude<ThinkingLevel, 'disabled'>): 'low' | 'medium' | 'high' {
   if (thinking === 'xhigh') return 'high';
   return thinking;
 }

@@ -120,7 +120,7 @@ export class ConversationLoop {
             messages: this.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
             stream: true,
             stream_options: { include_usage: true },
-            ...(this.thinking ? { reasoning_effort: toReasoningEffort(this.thinking, this.model) } : {}),
+            ...(this.thinking && this.thinking !== 'disabled' ? { reasoning_effort: toReasoningEffort(this.thinking, this.model) } : {}),
             ...(this.tools?.length ? { tools: this.tools } : {}),
           },
           { signal: this.abortController.signal },
@@ -336,7 +336,7 @@ MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive com
 MODE: ACT — Make changes directly. After modifications, verify with run_command when appropriate. Be concise about what you changed and why.`;
 }
 
-function toReasoningEffort(thinking: ThinkingLevel, model: string): 'low' | 'medium' | 'high' | 'xhigh' {
+function toReasoningEffort(thinking: Exclude<ThinkingLevel, 'disabled'>, model: string): 'low' | 'medium' | 'high' | 'xhigh' {
   if (thinking === 'xhigh' && !supportsExtraHighReasoning(model)) {
     return 'high';
   }

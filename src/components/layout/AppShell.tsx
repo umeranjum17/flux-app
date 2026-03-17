@@ -573,7 +573,7 @@ export function AppShell() {
     useAgentStore.getState().setSelectedModel(modelIds[(idx + 1) % modelIds.length]);
   }, []);
 
-  const thinkingLevels = useMemo(() => ['low', 'medium', 'high', 'xhigh'] as const, []);
+  const thinkingLevels = useMemo(() => ['disabled', 'low', 'medium', 'high', 'xhigh'] as const, []);
   const cycleThinking = useCallback(() => {
     const current = useAgentStore.getState().selectedThinking;
     const idx = thinkingLevels.indexOf(current);
