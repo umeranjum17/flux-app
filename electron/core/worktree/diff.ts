@@ -94,6 +94,21 @@ function countContentLines(content: string): number {
   return content.split('\n').length;
 }
 
+/**
+ * Count additions/deletions by parsing a unified diff string.
+ * Used as a fallback when `git diff --numstat` returns 0 or empty.
+ */
+function countFromUnifiedDiff(diff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++') || line.startsWith('---')) continue;
+    if (line.startsWith('+')) additions++;
+    else if (line.startsWith('-')) deletions++;
+  }
+  return { additions, deletions };
+}
+
 export async function getChangedFiles(worktreePath: string, parentRepo?: string): Promise<DiffFile[]> {
   const base = await resolveDiffBase(worktreePath, parentRepo);
 
@@ -156,11 +171,21 @@ export async function getChangedFiles(worktreePath: string, parentRepo?: string)
         continue;
       }
 
+      let finalAdditions = additions;
+      let finalDeletions = deletions;
+
+      // Fallback: if numstat returned 0 but we have a real diff, count from the diff lines
+      if (finalAdditions === 0 && finalDeletions === 0 && diff) {
+        const counted = countFromUnifiedDiff(diff);
+        finalAdditions = counted.additions;
+        finalDeletions = counted.deletions;
+      }
+
       files.push({
         path: filePath,
         status,
-        additions,
-        deletions,
+        additions: finalAdditions,
+        deletions: finalDeletions,
         diff: diff ?? '',
       });
     } catch {
