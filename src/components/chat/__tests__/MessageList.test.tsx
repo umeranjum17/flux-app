@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MessageList } from '../MessageList';
 import { useChatStore } from '../../../stores/chat';
 import { useWorkspaceStore } from '../../../stores/workspace';
@@ -10,9 +11,15 @@ vi.mock('../../../lib/mermaid', () => ({
 }));
 
 const renderMermaidDiagramMock = vi.mocked(renderMermaidDiagram);
+const scrollIntoViewMock = vi.fn();
 
 beforeEach(() => {
   cleanup();
+  scrollIntoViewMock.mockReset();
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoViewMock,
+  });
   renderMermaidDiagramMock.mockReset();
   renderMermaidDiagramMock.mockResolvedValue({
     svg: '<svg viewBox="0 0 120 40"><text x="10" y="20">Plan Diagram</text></svg>',
@@ -293,6 +300,118 @@ This adds a renderer dependency but keeps markdown output visual.`,
 
     expect(screen.getByText('Checkpoint saved')).not.toBeNull();
     expect(screen.getByText('· 3 files · +18 / -4')).not.toBeNull();
+  });
+
+  it('groups consecutive top-level tool calls into a collapsible tool run', async () => {
+    const user = userEvent.setup();
+
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Tool grouping',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Using tool: glob',
+      timestamp: 10,
+      toolName: 'glob',
+      toolInput: { pattern: 'src/**/*.tsx' },
+      toolCallId: 'tool-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: 'src/components/chat/MessageList.tsx',
+      timestamp: 11,
+      toolCallId: 'tool-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Using tool: view',
+      timestamp: 12,
+      toolName: 'view',
+      toolInput: { path: '/workspace/src/components/chat/MessageList.tsx' },
+      toolCallId: 'tool-2',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: '1. export function MessageList() {}',
+      timestamp: 13,
+      toolCallId: 'tool-2',
+    });
+
+    const { container } = render(<MessageList />);
+
+    expect(container.querySelectorAll('[data-tool-call-group]').length).toBe(1);
+    expect(screen.getByText(/2 calls/i)).not.toBeNull();
+    expect(screen.queryByText(/glob/i)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /tool run/i }));
+
+    expect(screen.getByText(/glob/i)).not.toBeNull();
+    expect(screen.getByText(/view/i)).not.toBeNull();
+  });
+
+  it('auto-expands a grouped tool run when scrolling to a file edit', async () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Scroll to edit',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Using tool: view',
+      timestamp: 20,
+      toolName: 'view',
+      toolInput: { path: '/workspace/src/foo.ts' },
+      toolCallId: 'tool-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: '1. const before = true;',
+      timestamp: 21,
+      toolCallId: 'tool-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_call',
+      role: 'assistant',
+      content: 'Using tool: write',
+      timestamp: 22,
+      toolName: 'write',
+      toolInput: { path: '/workspace/src/foo.ts', content: 'const after = true;' },
+      toolCallId: 'edit-1',
+      filePath: '/workspace/src/foo.ts',
+      diff: '--- a/src/foo.ts\n+++ b/src/foo.ts\n@@ -1 +1 @@\n-const before = true;\n+const after = true;',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'tool_result',
+      role: 'tool',
+      content: 'Wrote file successfully',
+      timestamp: 23,
+      toolCallId: 'edit-1',
+    });
+    useChatStore.getState().scrollToFileEdit('edit-1');
+
+    const { container } = render(<MessageList />);
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-tool-call-id="edit-1"]')).not.toBeNull();
+    });
+
+    expect(scrollIntoViewMock).toHaveBeenCalled();
   });
 
   it('renders workspace lifecycle activity before the first assistant message arrives', () => {

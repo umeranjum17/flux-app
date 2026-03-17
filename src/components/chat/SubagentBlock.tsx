@@ -1,10 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle2, ChevronDown, ChevronRight, Download, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from 'lucide-react';
 import type { AgentMessage, SubagentState } from '../../lib/types';
 import { MessageBubble } from './MessageBubble';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ToolCallBlock } from './ToolCallBlock';
+import {
+  ToolCallGroup,
+  buildMergedToolResultLookup,
+  collectConsecutiveToolCallEntries,
+  isStructuredTodoToolCall,
+} from './ToolCallGroup';
 import { ToolResultBlock } from './ToolResultBlock';
 import { ResultBlock } from './ResultBlock';
 import { isPlanMessage } from '../../lib/plan';
@@ -14,13 +20,7 @@ interface SubagentBlockProps {
     id: string;
     state: SubagentState;
   }>;
-  stage: 'running' | 'finished';
   taskMode?: 'plan' | 'act';
-}
-
-function formatTokens(total: number): string {
-  if (total >= 1000) return `${(total / 1000).toFixed(1)}k tokens`;
-  return `${total} tokens`;
 }
 
 function renderStatusIcon(status: SubagentState['status']) {
@@ -33,22 +33,20 @@ function renderStatusIcon(status: SubagentState['status']) {
   return <CheckCircle2 size={13} className="text-success shrink-0" />;
 }
 
-export function SubagentBlock({ subagents, stage, taskMode }: SubagentBlockProps) {
+export function SubagentBlock({ subagents, taskMode }: SubagentBlockProps) {
   return (
     <div className="space-y-0.5">
       {subagents.map(({ id, state }) => (
-        <SubagentRow key={id} id={id} state={state} taskMode={taskMode} />
+        <SubagentRow key={id} state={state} taskMode={taskMode} />
       ))}
     </div>
   );
 }
 
 function SubagentRow({
-  id,
   state,
   taskMode,
 }: {
-  id: string;
   state: SubagentState;
   taskMode?: 'plan' | 'act';
 }) {
@@ -104,36 +102,44 @@ function SubagentMessageList({
   messages: AgentMessage[];
   taskMode?: 'plan' | 'act';
 }) {
-  const mergedResultIndices = useMemo(() => {
-    const merged = new Set<number>();
-    for (let i = 0; i < messages.length - 1; i++) {
-      const current = messages[i];
-      const next = messages[i + 1];
-      if (
-        current.type === 'tool_call' &&
-        current.toolCallId &&
-        next.type === 'tool_result' &&
-        next.toolCallId === current.toolCallId
-      ) {
-        merged.add(i + 1);
+  const mergedResultLookup = useMemo(() => buildMergedToolResultLookup(messages), [messages]);
+
+  const rendered = [];
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index];
+    if (mergedResultLookup.mergedResultIndices.has(index)) continue;
+
+    if (message.type === 'tool_call' && !isStructuredTodoToolCall(message)) {
+      const group = collectConsecutiveToolCallEntries(
+        messages,
+        index,
+        mergedResultLookup.mergedResultIndices,
+        mergedResultLookup.mergedResultForCall,
+        {
+          isRunning: (msg) => msg.subagentStatus === 'running',
+        },
+      );
+
+      if (group.entries.length > 1) {
+        rendered.push(
+          <div key={`subagent-tool-group-${message._seqId ?? `${message.timestamp}-${index}`}`}>
+            <ToolCallGroup entries={group.entries} />
+          </div>,
+        );
+        index = group.nextIndex;
+        continue;
       }
     }
-    return merged;
-  }, [messages]);
 
-  return (
-    <>
-      {messages.map((message, index) => {
-        if (mergedResultIndices.has(index)) return null;
-        const mergedResult = mergedResultIndices.has(index + 1) ? messages[index + 1] : null;
-        return (
-          <div key={`${message.timestamp}-${index}`}>
-            {renderSubagentMessage(message, mergedResult, taskMode)}
-          </div>
-        );
-      })}
-    </>
-  );
+    const mergedResult = mergedResultLookup.mergedResultForCall.get(index) ?? null;
+    rendered.push(
+      <div key={`${message.timestamp}-${index}`}>
+        {renderSubagentMessage(message, mergedResult, taskMode)}
+      </div>,
+    );
+  }
+
+  return <>{rendered}</>;
 }
 
 function renderSubagentMessage(
@@ -155,6 +161,7 @@ function renderSubagentMessage(
     case 'thinking':
       return <ThinkingBlock content={message.content} active={message.subagentStatus === 'running'} />;
     case 'tool_call':
+      if (isStructuredTodoToolCall(message)) return null;
       return (
         <ToolCallBlock
           toolName={message.toolName ?? 'unknown'}
