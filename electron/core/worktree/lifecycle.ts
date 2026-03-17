@@ -149,7 +149,6 @@ export class WorkspaceLifecycleManager {
     // Phase 2: Sync outcomes from git (async, best-effort per workspace)
     await Promise.allSettled(
       allWorkspaces
-        .filter(ws => !ws.archivedAt)
         .map(ws => this.serialized(ws.id, async () => {
           try {
             const fresh = this.workspaceStore.get(ws.id);
@@ -160,9 +159,9 @@ export class WorkspaceLifecycleManager {
               console.warn(`[lifecycle:reconcile] Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
               if (fresh.outcome === 'in_progress') {
                 // No commits and worktree gone — auto-archive
-                console.log(`[lifecycle:reconcile] Auto-archiving ${ws.id} (worktree deleted, no commits)`);
-                this.workspaceStore.archive(ws.id);
-                this.sendToRenderer('workspace:archived', { workspaceId: ws.id });
+                console.log(`[lifecycle:reconcile] Auto-deleting ${ws.id} (worktree deleted, no commits)`);
+                this.workspaceStore.delete(ws.id);
+                this.sendToRenderer('workspace:deleted', { workspaceId: ws.id });
               }
               // For higher outcomes (ready_for_pr, etc.) the branch may
               // still exist in git — log but don't touch the outcome
@@ -180,7 +179,6 @@ export class WorkspaceLifecycleManager {
     const STALE_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     const staleWorkspaces = allWorkspaces.filter(ws =>
-      !ws.archivedAt &&
       (now - (ws.updatedAt || ws.createdAt)) > STALE_THRESHOLD_MS
     );
     if (staleWorkspaces.length > 0) {

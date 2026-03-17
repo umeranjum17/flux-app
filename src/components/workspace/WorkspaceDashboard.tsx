@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, LayoutGrid, Archive, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, LayoutGrid } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
@@ -7,13 +7,10 @@ import { WorkspaceCard } from './WorkspaceCard';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { MergeDialog } from '../review/MergeDialog';
 import type { Workspace } from '../../lib/ipc-api';
-import { restoreWorkspaceChats } from '../../lib/workspace-state';
 
 export function WorkspaceDashboard() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const archivedWorkspaces = useWorkspaceStore((s) => s.archivedWorkspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  const showArchived = useWorkspaceStore((s) => s.showArchived);
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
 
@@ -21,7 +18,6 @@ export function WorkspaceDashboard() {
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
 
   const workspaceList = Array.from(workspaces.values());
-  const archivedList = Array.from(archivedWorkspaces.values());
   const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
 
   const openProjects = useUiStore((s) => s.openProjects);
@@ -34,15 +30,11 @@ export function WorkspaceDashboard() {
     (async () => {
       try {
         const allActive: Workspace[] = [];
-        const allArchived: Workspace[] = [];
         for (const repo of projects) {
           const active = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
           allActive.push(...active);
-          const withArchived = await window.api.invoke('workspace:list', { parentRepo: repo, includeArchived: true }) as Workspace[];
-          allArchived.push(...withArchived.filter((ws) => ws.archivedAt));
         }
         useWorkspaceStore.getState().setWorkspaces(allActive);
-        useWorkspaceStore.getState().setArchivedWorkspaces(allArchived);
 
         // Sync outcomes with actual git state
         for (const repo of projects) {
@@ -82,19 +74,6 @@ export function WorkspaceDashboard() {
   const handleArchive = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:archive', { workspaceId: ws.id });
   }, []);
-
-  const handleUnarchive = useCallback(async (ws: Workspace) => {
-    const restored = await window.api.invoke('workspace:unarchive', { workspaceId: ws.id }) as Workspace;
-    useWorkspaceStore.getState().unarchiveWorkspace(ws.id, restored);
-    await restoreWorkspaceChats(restored, { activate: false });
-  }, []);
-
-  const handleDeleteArchived = useCallback(async (ws: Workspace) => {
-    await window.api.invoke('workspace:delete', { workspaceId: ws.id });
-    useWorkspaceStore.getState().setArchivedWorkspaces(
-      archivedList.filter((a) => a.id !== ws.id),
-    );
-  }, [archivedList]);
 
   const handleOpenIde = useCallback(async (ws: Workspace) => {
     await window.api.invoke('workspace:open-ide', { workspaceId: ws.id });
@@ -146,7 +125,7 @@ export function WorkspaceDashboard() {
 
       {/* Workspace list */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        {workspaceList.length === 0 && archivedList.length === 0 ? (
+        {workspaceList.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated/60">
               <LayoutGrid size={28} className="text-text-tertiary/50" />
@@ -186,37 +165,6 @@ export function WorkspaceDashboard() {
               />
             ))}
 
-            {archivedList.length > 0 && (
-              <div className="pt-4">
-                <button
-                  onClick={() => useWorkspaceStore.getState().setShowArchived(!showArchived)}
-                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
-                >
-                  {showArchived ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                  <Archive size={11} />
-                  <span className="font-medium">Archived</span>
-                </button>
-                {showArchived && (
-                  <div className="mt-1 space-y-1">
-                    {archivedList.map((ws) => (
-                      <WorkspaceCard
-                        key={ws.id}
-                        workspace={ws}
-                        isActive={false}
-                        isArchived
-                        onSelect={() => {}}
-                        onStop={() => {}}
-                        onReview={() => {}}
-                        onMerge={() => {}}
-                        onDelete={() => handleDeleteArchived(ws)}
-                        onOpenIde={() => {}}
-                        onUnarchive={() => handleUnarchive(ws)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>

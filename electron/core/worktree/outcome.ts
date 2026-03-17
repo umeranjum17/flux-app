@@ -3,8 +3,8 @@
  *
  * Agent-driven outcomes (task completion, plan completion, etc.) are handled
  * via FLUX_SIGNAL outcome/completed signals in task-handlers. This module
- * only handles external/system events: merge detection (sync), merge action
- * completion (task_completed_merge), and unarchive.
+ * only handles external/system events: merge detection (sync) and merge action
+ * completion (task_completed_merge).
  */
 
 import fs from 'fs';
@@ -42,8 +42,7 @@ const execFileAsync = promisify(execFile);
  */
 export type WorkspaceOutcomeTrigger =
   | 'task_completed_merge'
-  | 'sync'
-  | 'unarchived';
+  | 'sync';
 
 export interface WorkspaceGitState {
   hasCommits: boolean;
@@ -213,9 +212,6 @@ export function computeNextOutcome(
       if (gitState.isMerged && current !== 'merged' && current !== 'ready_to_archive') return 'merged';
       return null;
 
-    case 'unarchived':
-      if (gitState.isMerged) return 'merged';
-      return null;
 
     default:
       return null;
@@ -231,7 +227,7 @@ export type EmitOutcomeFn = (workspaceId: string, outcome: WorkspaceOutcome) => 
 /**
  * Orchestrates a system-driven outcome transition:
  * 1. Resolves git state
- * 2. Computes the next outcome (merge detection, sync, unarchive only)
+ * 2. Computes the next outcome (merge detection, sync only)
  * 3. Emits if changed
  */
 export async function transitionWorkspaceOutcome(

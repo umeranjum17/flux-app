@@ -200,29 +200,6 @@ export async function createEmptyWorkspace(opts: {
   return workspace;
 }
 
-export function applyWorkspaceArchived(workspaceId: string): void {
-  const workspaceStore = useWorkspaceStore.getState();
-  const chatStore = useChatStore.getState();
-  const activeTask = chatStore.getActiveTask();
-  const wasActiveWorkspace = workspaceStore.activeWorkspaceId === workspaceId;
-  const wasActiveTaskForWorkspace = activeTask?.workspaceId === workspaceId;
-
-  workspaceStore.archiveWorkspace(workspaceId);
-  chatStore.removeTasksForWorkspace(workspaceId);
-
-  if (!wasActiveWorkspace && !wasActiveTaskForWorkspace) {
-    return;
-  }
-
-  const nextActiveTask = useChatStore.getState().getActiveTask();
-  if (nextActiveTask?.workspaceId && useWorkspaceStore.getState().workspaces.has(nextActiveTask.workspaceId)) {
-    useWorkspaceStore.getState().setActiveWorkspace(nextActiveTask.workspaceId);
-    return;
-  }
-
-  useWorkspaceStore.getState().setActiveWorkspace(null);
-}
-
 export async function restoreWorkspaceChats(
   workspace: Workspace,
   options?: { activate?: boolean; sessions?: WorkspaceSession[] },

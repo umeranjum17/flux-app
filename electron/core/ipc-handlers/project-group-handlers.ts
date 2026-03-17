@@ -50,10 +50,10 @@ export function registerProjectGroupHandlers(opts: {
 
   ipcMain.handle(
     'workspace:list-multi',
-    async (_event, { parentRepos, includeArchived }: { parentRepos: string[]; includeArchived?: boolean }) => {
+    async (_event, { parentRepos }: { parentRepos: string[] }) => {
       const results = [];
       for (const repo of parentRepos) {
-        const workspaces = workspaceStore.list(repo, includeArchived);
+        const workspaces = workspaceStore.list(repo);
         results.push(...workspaces);
       }
       return results;

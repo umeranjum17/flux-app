@@ -47,7 +47,6 @@ let usagePollTimer: NodeJS.Timeout | null = null;
 const TRACKED_RENDERER_EVENT_CHANNELS = new Set([
   'workspace:created',
   'workspace:deleted',
-  'workspace:archived',
   'workspace:completion',
   'workspace:run-exit',
   'config:changed',

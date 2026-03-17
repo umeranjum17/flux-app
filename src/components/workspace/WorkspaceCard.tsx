@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ArchiveRestore, ChevronDown } from 'lucide-react';
+import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown } from 'lucide-react';
 import type { Workspace, WorkspaceOutcome } from '../../lib/ipc-api';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -9,7 +9,6 @@ const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'read
 interface WorkspaceCardProps {
   workspace: Workspace;
   isActive: boolean;
-  isArchived?: boolean;
   onSelect: () => void;
   onStop: () => void;
   onReview: () => void;
@@ -17,13 +16,11 @@ interface WorkspaceCardProps {
   onDelete: () => void;
   onOpenIde: () => void;
   onArchive?: () => void;
-  onUnarchive?: () => void;
 }
 
 export function WorkspaceCard({
   workspace,
   isActive,
-  isArchived,
   onSelect,
   onStop,
   onReview,
@@ -31,7 +28,6 @@ export function WorkspaceCard({
   onDelete,
   onOpenIde,
   onArchive,
-  onUnarchive,
 }: WorkspaceCardProps) {
   const lifecycleState = getWorkspaceLifecycleState(workspace);
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
@@ -39,18 +35,14 @@ export function WorkspaceCard({
 
   return (
     <button
-      onClick={isArchived ? undefined : onSelect}
+      onClick={onSelect}
       className={`group relative w-full text-left transition-colors rounded-md ${
-        isArchived
-          ? 'opacity-45'
-          : isActive
-            ? 'bg-bg-hover/80'
-            : 'hover:bg-bg-hover/50'
+        isActive ? 'bg-bg-hover/80' : 'hover:bg-bg-hover/50'
       }`}
     >
       <div className="flex items-center gap-2.5 px-2.5 py-[7px]">
         {/* Status dot */}
-        <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${isArchived ? 'bg-text-tertiary/40' : lifecycle.color} ${!isArchived && lifecycle.pulse ? 'animate-pulse' : ''} ${!isArchived && lifecycle.glow ? lifecycle.glow : ''}`} />
+        <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''} ${lifecycle.glow ? lifecycle.glow : ''}`} />
 
         {/* Name */}
         <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">
@@ -58,47 +50,27 @@ export function WorkspaceCard({
         </span>
 
         {/* Hover actions — replace status text on hover */}
-        {!isArchived && (
-          <div
-            className="hidden shrink-0 items-center gap-0.5 group-hover:flex"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {isRunning && (
-              <IconAction icon={<Square size={11} />} label="Stop" onClick={onStop} variant="warning" />
-            )}
-            <IconAction icon={<MessageSquare size={11} />} label="Chat" onClick={onSelect} />
-            <IconAction icon={<ExternalLink size={11} />} label="IDE" onClick={onOpenIde} />
-            <IconAction icon={<Eye size={11} />} label="Review" onClick={onReview} />
-            <IconAction icon={<GitMerge size={11} />} label="Merge" onClick={onMerge} />
-            {onArchive && <IconAction icon={<Trash2 size={11} />} label="Archive" onClick={onArchive} variant="danger" />}
-          </div>
-        )}
-
-        {isArchived && (
-          <div
-            className="flex shrink-0 items-center gap-0.5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {onUnarchive && <IconAction icon={<ArchiveRestore size={11} />} label="Unarchive" onClick={onUnarchive} />}
-            <IconAction icon={<Trash2 size={11} />} label="Delete" onClick={onDelete} variant="danger" />
-          </div>
-        )}
+        <div
+          className="hidden shrink-0 items-center gap-0.5 group-hover:flex"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isRunning && (
+            <IconAction icon={<Square size={11} />} label="Stop" onClick={onStop} variant="warning" />
+          )}
+          <IconAction icon={<MessageSquare size={11} />} label="Chat" onClick={onSelect} />
+          <IconAction icon={<ExternalLink size={11} />} label="IDE" onClick={onOpenIde} />
+          <IconAction icon={<Eye size={11} />} label="Review" onClick={onReview} />
+          <IconAction icon={<GitMerge size={11} />} label="Merge" onClick={onMerge} />
+          {onArchive && <IconAction icon={<Trash2 size={11} />} label="Archive" onClick={onArchive} variant="danger" />}
+        </div>
 
         {/* Status / outcome — hidden on hover when actions show */}
-        {!isArchived && (
-          <div className="flex shrink-0 items-center gap-2 group-hover:hidden" onClick={(e) => e.stopPropagation()}>
-            <span className="text-[11px] text-text-tertiary/70">
-              {lifecycle.label}
-            </span>
-            <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />
-          </div>
-        )}
-
-        {isArchived && (
-          <span className="shrink-0 text-[11px] text-text-tertiary/50">
-            Archived
+        <div className="flex shrink-0 items-center gap-2 group-hover:hidden" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[11px] text-text-tertiary/70">
+            {lifecycle.label}
           </span>
-        )}
+          <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />
+        </div>
       </div>
     </button>
   );

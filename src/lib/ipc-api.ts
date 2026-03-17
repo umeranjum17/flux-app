@@ -75,7 +75,7 @@ export interface IpcChannels {
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
-  'workspace:list': { args: [{ parentRepo: string; includeArchived?: boolean }]; result: Workspace[] };
+  'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
     args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
     result: Workspace;
@@ -109,7 +109,6 @@ export interface IpcChannels {
     result: void;
   };
   'workspace:archive': { args: [{ workspaceId: string }]; result: void };
-  'workspace:unarchive': { args: [{ workspaceId: string }]; result: Workspace };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
   'workspace:file-diff': {
@@ -244,7 +243,7 @@ export interface IpcChannels {
   'project-group:delete': { args: [{ groupId: string }]; result: void };
 
   // Multi-project workspace listing
-  'workspace:list-multi': { args: [{ parentRepos: string[]; includeArchived?: boolean }]; result: Workspace[] };
+  'workspace:list-multi': { args: [{ parentRepos: string[] }]; result: Workspace[] };
 }
 
 // Events main sends to renderer
@@ -264,7 +263,6 @@ export interface IpcEvents {
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'workspace:created': { workspace: Workspace };
   'workspace:deleted': { workspaceId: string };
-  'workspace:archived': { workspaceId: string };
   'terminal:data': { id: string; data: string };
   'terminal:exit': { id: string; exitCode?: number };
   'config:changed': { config: FluxConfig };
@@ -418,7 +416,6 @@ export interface Workspace {
   thinking?: ThinkingLevel;
   worktreePath: string;
   sessionId?: string;
-  archivedAt?: number;
 }
 
 export interface WorkspaceSession {

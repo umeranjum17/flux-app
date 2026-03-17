@@ -2227,9 +2227,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // --- Workspace handlers ---
 
-  ipcMain.handle('workspace:list', async (_event, { parentRepo, includeArchived }: { parentRepo: string; includeArchived?: boolean }) => {
+  ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
     if (sshHost) return [];
-    return workspaceStore.list(parentRepo, includeArchived);
+    return workspaceStore.list(parentRepo);
   });
 
   ipcMain.handle(
@@ -2553,23 +2553,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       // Worktree may already be gone or parentRepo may not be a git repo
     }
 
-    workspaceStore.archive(workspaceId);
-    emitWorkspaceStatus(workspaceId, 'idle');
-  });
-
-  ipcMain.handle('workspace:unarchive', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-    // Re-create the worktree from the preserved branch
-    await execFileAsync('git', ['worktree', 'add', workspace.worktreePath, workspace.branch], {
-      cwd: workspace.parentRepo,
-      timeout: 30000,
-    });
-
-    const restored = workspaceStore.unarchive(workspaceId);
-    if (!restored) throw new Error('Failed to unarchive workspace');
-    return restored;
+    workspaceStore.delete(workspaceId);
   });
 
   ipcMain.handle(

@@ -20,18 +20,17 @@ interface CreateWorkspaceInput {
 }
 
 export class WorkspaceStore {
-  list(parentRepo?: string, includeArchived = false): Workspace[] {
+  list(parentRepo?: string): Workspace[] {
     const db = getDb();
-    const archivedClause = includeArchived ? '' : ' AND archived_at IS NULL';
     const rows = parentRepo
       ? db
-          .prepare(`SELECT * FROM workspaces WHERE parent_repo = ?${archivedClause} ORDER BY updated_at DESC`)
+          .prepare('SELECT * FROM workspaces WHERE parent_repo = ? ORDER BY updated_at DESC')
           .all(parentRepo)
-      : db.prepare(`SELECT * FROM workspaces WHERE 1=1${archivedClause} ORDER BY updated_at DESC`).all();
+      : db.prepare('SELECT * FROM workspaces ORDER BY updated_at DESC').all();
 
     return (rows as any[])
       .map(rowToWorkspace)
-      .filter((workspace) => workspace.archivedAt || fs.existsSync(workspace.worktreePath));
+      .filter((workspace) => fs.existsSync(workspace.worktreePath));
   }
 
   get(id: string): Workspace | null {
@@ -39,7 +38,7 @@ export class WorkspaceStore {
     if (!row) return null;
 
     const workspace = rowToWorkspace(row);
-    return workspace.archivedAt || fs.existsSync(workspace.worktreePath) ? workspace : null;
+    return fs.existsSync(workspace.worktreePath) ? workspace : null;
   }
 
   create(input: CreateWorkspaceInput): Workspace {
@@ -125,17 +124,6 @@ export class WorkspaceStore {
     return next;
   }
 
-  archive(id: string): void {
-    const db = getDb();
-    db.prepare('UPDATE workspaces SET archived_at = ?, updated_at = ? WHERE id = ?').run(Date.now(), Date.now(), id);
-  }
-
-  unarchive(id: string): Workspace | null {
-    const db = getDb();
-    db.prepare('UPDATE workspaces SET archived_at = NULL, updated_at = ? WHERE id = ?').run(Date.now(), id);
-    return this.get(id);
-  }
-
   delete(id: string): void {
     const db = getDb();
     db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
@@ -193,8 +181,7 @@ function rowToWorkspace(row: any): Workspace {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sessionId: row.session_id ?? undefined,
-    archivedAt: row.archived_at ?? undefined,
-  };
+};
 }
 
 function getWorkspaceRow(id: string): any | null {

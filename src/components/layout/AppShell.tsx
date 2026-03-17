@@ -29,7 +29,7 @@ import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
-import { applyWorkspaceArchived, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 
 
@@ -277,10 +277,6 @@ export function AppShell() {
       const { workspaceId } = data as { workspaceId: string };
       useWorkspaceStore.getState().removeWorkspace(workspaceId);
     });
-    const unsubArchived = window.api.on('workspace:archived', (data: unknown) => {
-      const { workspaceId } = data as { workspaceId: string };
-      applyWorkspaceArchived(workspaceId);
-    });
     return () => {
       unsub();
       unsubOutcome();
@@ -288,7 +284,6 @@ export function AppShell() {
       unsubUpdated();
       unsubCreated();
       unsubDeleted();
-      unsubArchived();
     };
   }, []);
 

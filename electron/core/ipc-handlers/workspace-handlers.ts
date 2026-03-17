@@ -28,9 +28,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     releaseTask,
   } = ctx;
 
-  ipcMain.handle('workspace:list', async (_event, { parentRepo, includeArchived }: { parentRepo: string; includeArchived?: boolean }) => {
+  ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
     if (getSshHost()) return [];
-    return workspaceStore.list(parentRepo, includeArchived);
+    return workspaceStore.list(parentRepo);
   });
 
   ipcMain.handle('workspace:get', async (_event, { workspaceId }: { workspaceId: string }) => {
@@ -386,32 +386,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         // Worktree may already be gone or parentRepo may not be a git repo
       }
 
-      workspaceStore.archive(workspaceId);
-      lifecycleManager.setStatus(workspaceId, 'idle');
-      sendToRenderer('workspace:archived', { workspaceId });
+      workspaceStore.delete(workspaceId);
+      sendToRenderer('workspace:deleted', { workspaceId });
     });
-  });
-
-  ipcMain.handle('workspace:unarchive', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-    await execFileAsync('git', ['worktree', 'add', workspace.worktreePath, workspace.branch], {
-      cwd: workspace.parentRepo,
-      timeout: 30000,
-    });
-
-    const restored = workspaceStore.unarchive(workspaceId);
-    if (!restored) throw new Error('Failed to unarchive workspace');
-
-    // Sync outcome from git state — it may have changed while archived
-    try {
-      await lifecycleManager.transitionOutcome(restored, 'unarchived');
-    } catch {
-      // Best-effort
-    }
-
-    return restored;
   });
 
   ipcMain.handle(
@@ -704,7 +681,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle(
     'workspace:disk-usage',
     async (_event, { parentRepo }: { parentRepo: string }) => {
-      const workspaces = workspaceStore.list(parentRepo, true);
+      const workspaces = workspaceStore.list(parentRepo);
       const STALE_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
       const now = Date.now();
 
@@ -727,7 +704,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         }
 
         const lastActivity = ws.updatedAt || ws.createdAt;
-        const isStale = (now - lastActivity) > STALE_THRESHOLD_MS && !ws.archivedAt;
+        const isStale = (now - lastActivity) > STALE_THRESHOLD_MS;
 
         results.push({
           workspaceId: ws.id,
@@ -754,7 +731,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       // Also prune orphaned git worktrees that aren't tracked in our DB
       try {
         const gitWorktrees = await listWorktrees(parentRepo);
-        const knownPaths = new Set(workspaceStore.list(parentRepo, true).map((w) => w.worktreePath));
+        const knownPaths = new Set(workspaceStore.list(parentRepo).map((w) => w.worktreePath));
         for (const wt of gitWorktrees) {
           if (!knownPaths.has(wt.path)) {
             // Orphaned worktree — not in DB
@@ -765,17 +742,6 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
           }
         }
       } catch { /* git worktree list failed */ }
-
-      // Prune stale archived workspaces with no recent activity
-      for (const ws of workspaces) {
-        if (ws.archivedAt && ws.updatedAt < threshold) {
-          try {
-            await removeWorktree(ws.parentRepo, ws.worktreePath);
-            workspaceStore.delete(ws.id);
-            pruned.push(ws.name);
-          } catch { /* best-effort */ }
-        }
-      }
 
       // Git worktree prune to clean up dead references
       try {

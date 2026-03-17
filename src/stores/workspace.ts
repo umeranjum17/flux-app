@@ -1,15 +1,13 @@
 import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Workspace, WorkspaceStatus, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
+import type { Workspace, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
 import type { SystemActivity } from '../lib/types';
 import { appendSystemActivity } from '../lib/system-activities';
 
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
-  archivedWorkspaces: Map<string, Workspace>;
   activeWorkspaceId: string | null;
-  showArchived: boolean;
 
   // Multi-chat sessions per workspace
   workspaceSessions: Map<string, WorkspaceSession[]>; // workspaceId → sessions
@@ -32,15 +30,8 @@ interface WorkspaceState {
   setActiveWorkspace(id: string | null): void;
   openMerge(workspaceId: string): void;
   closeMerge(): void;
-  setShowArchived(show: boolean): void;
-
   // Outcome actions
   setOutcome(id: string, outcome: WorkspaceOutcome): Promise<void>;
-
-  // Archive actions
-  setArchivedWorkspaces(workspaces: Workspace[]): void;
-  archiveWorkspace(id: string): void;
-  unarchiveWorkspace(id: string, restored: Workspace): void;
 
   // Changes panel (quick side-panel review)
   changesPanelOpen: boolean;
@@ -97,9 +88,7 @@ function clearWorkspaceUiState(state: {
 export const useWorkspaceStore = create<WorkspaceState>()(
   immer((set, get) => ({
     workspaces: new Map(),
-    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
-    showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceActivities: new Map(),
@@ -142,7 +131,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     removeWorkspace(id) {
       set((state) => {
         state.workspaces.delete(id);
-        state.archivedWorkspaces.delete(id);
         state.checkpoints.delete(id);
         state.workspaceActivities.delete(id);
         state.workspaceSessions.delete(id);
@@ -168,12 +156,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       });
     },
 
-    setShowArchived(show) {
-      set((state) => {
-        state.showArchived = show;
-      });
-    },
-
     async setOutcome(id, outcome) {
       await window.api.invoke('workspace:set-outcome', { workspaceId: id, outcome });
       set((state) => {
@@ -181,34 +163,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         if (ws) {
           ws.outcome = outcome;
         }
-      });
-    },
-
-    setArchivedWorkspaces(workspaces) {
-      set((state) => {
-        state.archivedWorkspaces = new Map(workspaces.map((ws) => [ws.id, ws]));
-      });
-    },
-
-    archiveWorkspace(id) {
-      set((state) => {
-        const ws = state.workspaces.get(id);
-        if (ws) {
-          const archived = { ...ws, archivedAt: Date.now(), status: 'idle' as WorkspaceStatus };
-          state.archivedWorkspaces.set(id, archived);
-          state.workspaces.delete(id);
-        }
-        state.checkpoints.delete(id);
-        state.workspaceActivities.delete(id);
-        state.workspaceSessions.delete(id);
-        clearWorkspaceUiState(state, id);
-      });
-    },
-
-    unarchiveWorkspace(id, restored) {
-      set((state) => {
-        state.archivedWorkspaces.delete(id);
-        state.workspaces.set(id, restored);
       });
     },
 
