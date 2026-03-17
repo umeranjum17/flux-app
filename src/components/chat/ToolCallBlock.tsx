@@ -1,10 +1,11 @@
 import React, { Component, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Terminal,
+  SquareTerminal,
   FileText,
   FilePen,
-  Search,
+  FileSearch2,
+  FolderSearch,
   Wrench,
   ListTodo,
   CircleHelp,
@@ -14,7 +15,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Download,
+  Sparkles,
 } from 'lucide-react';
 import { BashPanel, ReadPanel, EditDiffPanel, SearchPanel, GlobPanel, GenericPanel } from './ToolPanels';
 import { formatToolCallLabel, isFileEditToolName, type ToolCallImportance } from '../../lib/tool-call-display';
@@ -81,21 +82,23 @@ interface QuestionItem {
   options: Array<{ label: string; description?: string }>;
 }
 
-function getToolIcon(toolName: string) {
+export function getToolIcon(toolName: string) {
   const name = toolName.toLowerCase();
-  if (name.includes('todo')) return { Icon: ListTodo, color: 'text-info' };
-  if (name.includes('question')) return { Icon: CircleHelp, color: 'text-info' };
+  if (name.includes('todo')) return { Icon: ListTodo, color: 'text-info', bg: 'bg-info/10' };
+  if (name.includes('question')) return { Icon: CircleHelp, color: 'text-info', bg: 'bg-info/10' };
   if (name.includes('bash') || name.includes('command') || name.includes('shell'))
-    return { Icon: Terminal, color: 'text-warning' };
+    return { Icon: SquareTerminal, color: 'text-warning', bg: 'bg-warning/10' };
   if (name.includes('read') || name.includes('view'))
-    return { Icon: FileText, color: 'text-info' };
+    return { Icon: FileText, color: 'text-info', bg: 'bg-info/10' };
   if (name.includes('write') || name.includes('edit') || name.includes('patch'))
-    return { Icon: FilePen, color: 'text-info' };
-  if (name.includes('grep') || name.includes('glob') || name.includes('search') || name.includes('find'))
-    return { Icon: Search, color: 'text-success' };
+    return { Icon: FilePen, color: 'text-info', bg: 'bg-info/10' };
+  if (name.includes('grep') || name.includes('search'))
+    return { Icon: FileSearch2, color: 'text-success', bg: 'bg-success/10' };
+  if (name.includes('glob') || name.includes('find'))
+    return { Icon: FolderSearch, color: 'text-success', bg: 'bg-success/10' };
   if (name.includes('agent'))
-    return { Icon: Download, color: 'text-accent' };
-  return { Icon: Wrench, color: 'text-text-secondary' };
+    return { Icon: Sparkles, color: 'text-accent', bg: 'bg-accent/10' };
+  return { Icon: Wrench, color: 'text-text-secondary', bg: 'bg-bg-hover/60' };
 }
 
 function getToolDescription(toolName: string, toolInput?: Record<string, unknown>, resultContent?: string): string {
@@ -277,7 +280,7 @@ export function ToolCallBlock({
   const resolvedFilePath = filePath ?? (toolInput?.file_path as string | undefined) ?? (toolInput?.path as string | undefined);
   const [expanded, setExpanded] = useState(false);
   const isExpanded = expanded || (forceExpanded ?? false);
-  const { Icon, color } = getToolIcon(toolName);
+  const { Icon, color, bg } = getToolIcon(toolName);
   const description = getToolDescription(toolName, toolInput, resultContent);
   const todoItems = useMemo(() => parseTodoItems(toolName, toolInput), [toolInput, toolName]);
   const questionItems = useMemo(() => parseQuestionItems(toolName, toolInput), [toolInput, toolName]);
@@ -305,22 +308,22 @@ export function ToolCallBlock({
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
-      return <Loader2 size={13} className="text-accent animate-spin shrink-0" />;
+      return { icon: <Loader2 size={13} className="text-accent animate-spin shrink-0" />, badgeBg: 'bg-accent/10' };
     }
     if (isComplete && resultIsError) {
-      return <XCircle size={13} className="text-error shrink-0" />;
+      return { icon: <XCircle size={13} className="text-error shrink-0" />, badgeBg: 'bg-error/10' };
     }
     if (isComplete) {
-      return <CheckCircle size={13} className="text-success shrink-0" />;
+      return { icon: <CheckCircle size={13} className="text-success shrink-0" />, badgeBg: 'bg-success/10' };
     }
-    return <Icon size={13} className={`${color} shrink-0`} />;
-  }, [isRunning, isComplete, resultIsError, Icon, color]);
+    return { icon: <Icon size={13} className={`${color} shrink-0`} />, badgeBg: bg };
+  }, [isRunning, isComplete, resultIsError, Icon, color, bg]);
 
   const hasExpandableContent = !!resultContent || !!resolvedDiff || shouldShowSemanticBody;
   const rowTone = resultIsError
     ? 'border border-error/20 bg-error/5'
     : importance === 'important'
-      ? 'border border-border/40 bg-bg-secondary/30'
+      ? 'tool-call-row-important border border-border/20 bg-bg-secondary/20'
       : '';
   const chevronTone = importance === 'important'
     ? 'ml-auto shrink-0 text-text-tertiary/70'
@@ -336,8 +339,8 @@ export function ToolCallBlock({
         onClick={() => hasExpandableContent && setExpanded(!isExpanded)}
         className="flex w-full items-center gap-2.5 py-1.5 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
-        <span className="shrink-0 flex items-center justify-center w-5 h-5">
-          {statusIcon}
+        <span className={`tool-icon-badge w-6 h-6 rounded-md ${statusIcon.badgeBg}`}>
+          {statusIcon.icon}
         </span>
         <span className="text-[13px] font-medium text-text-secondary">
           {formatToolCallLabel(toolName)}
