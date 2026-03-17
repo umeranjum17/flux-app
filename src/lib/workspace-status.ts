@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from './ipc-api';
+import type { Workspace, WorkspaceStatus, WorkspaceOutcome, WorkspaceOperation } from './ipc-api';
 
 export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; label: string; pulse?: boolean }> = {
   idle: { color: 'bg-text-tertiary', label: 'Idle' },
@@ -36,18 +36,22 @@ export type WorkspaceLifecycleState =
   | 'merged'
   | 'blocked';
 
+export type WorkspaceListSignalState = WorkspaceLifecycleState | 'archiving' | 'archive_failed';
+
+interface WorkspaceLifecycleConfigEntry {
+  color: string;
+  label: string;
+  pulse?: boolean;
+  glow?: string;
+  detail: string;
+  badgeClass: string;
+  accentColor: string;
+  cardTint: string;
+}
+
 export const workspaceLifecycleConfig: Record<
   WorkspaceLifecycleState,
-  {
-    color: string;
-    label: string;
-    pulse?: boolean;
-    glow?: string;
-    detail: string;
-    badgeClass: string;
-    accentColor: string;
-    cardTint: string;
-  }
+  WorkspaceLifecycleConfigEntry
 > = {
   idle: {
     color: 'bg-text-tertiary/50',
@@ -167,6 +171,115 @@ export const workspaceLifecycleConfig: Record<
   },
 };
 
+interface WorkspaceListSignalConfigEntry {
+  color: string;
+  label: string;
+  detail: string;
+  dotClassName: string;
+}
+
+const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListSignalConfigEntry> = {
+  idle: {
+    color: 'bg-text-tertiary/50',
+    label: 'Idle',
+    detail: 'Waiting for the next task.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-idle',
+  },
+  coding: {
+    color: 'bg-accent',
+    label: 'Working',
+    detail: 'Agent is working.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-working',
+  },
+  planning: {
+    color: 'bg-info',
+    label: 'Planning',
+    detail: 'Agent is creating a plan.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-planning',
+  },
+  planned: {
+    color: 'bg-info',
+    label: 'Planned',
+    detail: 'Plan ready for your review.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-planned',
+  },
+  awaiting_approval: {
+    color: 'bg-warning',
+    label: 'Needs approval',
+    detail: 'Paused — waiting for your approval.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-needs-approval',
+  },
+  awaiting_input: {
+    color: 'bg-info',
+    label: 'Needs input',
+    detail: 'Agent asked a question.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-needs-input',
+  },
+  ready_for_review: {
+    color: 'bg-accent',
+    label: 'Ready for review',
+    detail: 'Changes are ready to review.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-review-ready',
+  },
+  reviewing: {
+    color: 'bg-warning',
+    label: 'Reviewing',
+    detail: 'Changes are being reviewed.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-reviewing',
+  },
+  changes_requested: {
+    color: 'bg-error',
+    label: 'Changes requested',
+    detail: 'Reviewer requested changes.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-blocked',
+  },
+  ready_to_merge: {
+    color: 'bg-success',
+    label: 'Ready to merge',
+    detail: 'Reviewed and ready to merge.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-ready-to-merge',
+  },
+  merging: {
+    color: 'bg-accent',
+    label: 'Merging',
+    detail: 'Merge in progress.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-working',
+  },
+  merged: {
+    color: 'bg-success/60',
+    label: 'Merged',
+    detail: 'Successfully merged.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-complete',
+  },
+  blocked: {
+    color: 'bg-error',
+    label: 'Blocked',
+    detail: 'Last run failed — needs attention.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-blocked',
+  },
+  archiving: {
+    color: 'bg-accent',
+    label: 'Archiving',
+    detail: 'Workspace archive is in progress.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-working',
+  },
+  archive_failed: {
+    color: 'bg-error',
+    label: 'Archive failed',
+    detail: 'Workspace archive failed — needs attention.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-blocked',
+  },
+};
+
+export interface WorkspaceListSignal {
+  state: WorkspaceListSignalState;
+  color: string;
+  label: string;
+  detail: string;
+  dotClassName: string;
+  ariaLabel: string;
+}
+
 /** Whether the workspace has reached a terminal outcome (merged, ready to merge, or ready to archive). */
 export function isTerminalOutcome(outcome: WorkspaceOutcome | undefined): boolean {
   return outcome === 'merged' || outcome === 'ready_to_merge' || outcome === 'ready_to_archive';
@@ -189,4 +302,35 @@ export function getWorkspaceLifecycleState(
   if (workspace.outcome === 'planned') return 'planned';
 
   return 'idle';
+}
+
+export function getWorkspaceListSignal(
+  workspace: Pick<Workspace, 'name' | 'status' | 'outcome'> & Partial<Pick<Workspace, 'mode'>>,
+  operation?: Pick<WorkspaceOperation, 'kind' | 'status' | 'message' | 'error'>,
+): WorkspaceListSignal {
+  let signalState: WorkspaceListSignalState = getWorkspaceLifecycleState(workspace);
+
+  if (operation?.kind === 'archive') {
+    if (operation.status === 'running') {
+      signalState = 'archiving';
+    } else if (operation.status === 'failed') {
+      signalState = 'archive_failed';
+    }
+  }
+
+  const config = workspaceListSignalConfig[signalState];
+  const detail = operation?.kind === 'archive' && operation.message
+    ? `${config.detail} ${operation.message}.`
+    : operation?.kind === 'archive' && operation.status === 'failed' && operation.error
+      ? `${config.detail} ${operation.error}.`
+      : config.detail;
+
+  return {
+    state: signalState,
+    color: config.color,
+    label: config.label,
+    detail,
+    dotClassName: `lifecycle-dot ${config.color} ${config.dotClassName}`,
+    ariaLabel: `${workspace.name} — ${config.label}. ${detail}`,
+  };
 }
