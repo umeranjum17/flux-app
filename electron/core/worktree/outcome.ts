@@ -146,10 +146,29 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
           'git', ['merge-base', '--is-ancestor', branchTip.trim(), target],
           { cwd: workspace.parentRepo, timeout: 5000 },
         );
-        // Exit code 0 → fully merged
+        // Exit code 0 → fully merged (regular merge)
         isMerged = true;
       } catch {
-        // Exit code 1 → not merged (expected, not a warning)
+        // Exit code 1 → not a regular merge. Check for squash merge:
+        // if all files changed by the branch have the same content in
+        // target, the branch was effectively squash-merged.
+        try {
+          const { stdout: changedFilesOut } = await execFileAsync(
+            'git', ['diff', '--name-only', mergeBase, branchTip.trim()],
+            { cwd: workspace.parentRepo, timeout: 5000 },
+          );
+          const changedFiles = changedFilesOut.trim().split('\n').filter(Boolean);
+          if (changedFiles.length > 0 && changedFiles.length <= 500) {
+            await execFileAsync(
+              'git', ['diff', '--quiet', branchTip.trim(), target, '--', ...changedFiles],
+              { cwd: workspace.parentRepo, timeout: 10000 },
+            );
+            // Exit code 0 → all branch-changed files match target → squash-merged
+            isMerged = true;
+          }
+        } catch {
+          // Diff found or command failed → not squash-merged either
+        }
       }
     }
     // else: branch tip === merge base → never diverged → not merged
