@@ -95,7 +95,7 @@ function buildWorkspaceMergeTaskPrompt(
 ): string {
   return [
     `Merge workspace branch \`${workspace.branch}\` into \`${targetBranch}\`.`,
-    'Use the injected Flux merge skill for the exact merge procedure and conflict-handling rules.',
+    'Follow the merge instructions provided above for the exact merge procedure and conflict-handling rules.',
     `Strategy: ${squash ? 'squash merge' : 'merge commit'}.`,
   ].join('\n');
 }

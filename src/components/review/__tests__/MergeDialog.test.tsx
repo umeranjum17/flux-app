@@ -112,7 +112,7 @@ describe('MergeDialog', () => {
             targetBranch: 'master',
             squash: true,
           },
-          prompt: expect.stringContaining('Use the injected Flux merge skill'),
+          prompt: expect.stringContaining('Follow the merge instructions provided above'),
         }),
       );
     });
