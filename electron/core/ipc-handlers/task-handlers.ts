@@ -925,6 +925,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           if (snapshot !== lastPlanSnapshot) {
             lastPlanSnapshot = snapshot;
             sendToRenderer('agent:plan', { taskId: options.taskId, planData });
+            // Persist plan to disk as a crash-recovery fallback
+            if (todoBuffer && options.cwd) {
+              writePlanFile(options.cwd, todoBuffer).catch(() => {});
+            }
           }
         }
       }
