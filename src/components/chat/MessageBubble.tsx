@@ -74,10 +74,14 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
             {attachments.map((attachment) => (
               <div
                 key={`${attachment.path}:${attachment.name}`}
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border/75 bg-bg-primary/70 px-2.5 py-1 text-xs text-text-secondary"
+                className="inline-flex max-w-[320px] items-start gap-1.5 rounded-sm border border-border/75 bg-bg-primary/70 px-2.5 py-1.5 text-xs text-text-secondary"
+                title={attachment.path}
               >
-                <Paperclip size={12} />
-                <span className="truncate max-w-[220px]">{attachment.name}</span>
+                <Paperclip size={12} className="mt-0.5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block truncate max-w-[220px] text-text-primary">{attachment.name}</span>
+                  <span className="block truncate max-w-[220px] text-[10px] text-text-tertiary">{attachment.path}</span>
+                </span>
               </div>
             ))}
           </div>

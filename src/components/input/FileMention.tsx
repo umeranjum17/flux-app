@@ -70,6 +70,9 @@ export function FileMention({ query, onSelect, onClose }: FileMentionProps) {
 
   return (
     <div className="absolute bottom-full left-0 right-0 mb-1 bg-bg-elevated border border-border rounded-xl shadow-xl overflow-hidden z-20">
+      <div className="border-b border-border/60 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
+        Select a file to attach context
+      </div>
       <div className="py-1 max-h-60 overflow-y-auto">
         {results.map((node, index) => (
           <button

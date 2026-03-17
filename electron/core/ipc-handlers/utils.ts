@@ -785,14 +785,88 @@ export function toAbsoluteFilePath(root: string, file: string): string {
   return `${root.replace(/\/+$/, '')}/${file.replace(/^\/+/, '')}`;
 }
 
-export async function buildPromptWithAttachments(
-  prompt: string,
+type AttachmentPreview = {
+  attachment: FileAttachment;
+  text: string;
+  truncated: boolean;
+  binary: boolean;
+  error?: string;
+};
+
+export interface AttachmentContextArtifacts {
+  absolutePath: string;
+  promptPath: string;
+  imageCount: number;
+  attachmentCount: number;
+}
+
+export interface SessionAttachmentContext {
+  images?: string[];
+  attachments?: FileAttachment[];
+}
+
+function dedupeAttachments(attachments: FileAttachment[]): FileAttachment[] {
+  const seen = new Set<string>();
+  return attachments.filter((attachment) => {
+    const key = `${attachment.path}\u0000${attachment.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeImages(images: string[]): string[] {
+  return [...new Set(images)];
+}
+
+function parseStoredImages(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const images = value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+  return images.length > 0 ? dedupeImages(images) : undefined;
+}
+
+function parseStoredAttachments(value: unknown): FileAttachment[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const attachments = value.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const filePath = typeof entry.path === 'string' ? entry.path : null;
+    const name = typeof entry.name === 'string' ? entry.name : null;
+    if (!filePath || !name) return [];
+    return [{ path: filePath, name }];
+  });
+  return attachments.length > 0 ? dedupeAttachments(attachments) : undefined;
+}
+
+function parseStoredMessagePayload(payloadJson: string | null | undefined): SessionAttachmentContext | null {
+  const parsed = safeParse(payloadJson);
+  if (!parsed) return null;
+  const images = parseStoredImages(parsed.images);
+  const attachments = parseStoredAttachments(parsed.attachments);
+  if (!images?.length && !attachments?.length) return null;
+  return { ...(images?.length ? { images } : {}), ...(attachments?.length ? { attachments } : {}) };
+}
+
+export function extractLatestSessionAttachmentContext(
+  sessionStore: SessionStore,
+  sessionId: string,
+): SessionAttachmentContext | null {
+  const messages = sessionStore.getMessages(sessionId);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== 'user' || message.type !== 'text') continue;
+    const context = parseStoredMessagePayload(message.payloadJson);
+    if (context) return context;
+  }
+  return null;
+}
+
+async function collectAttachmentPreviews(
   attachments: FileAttachment[] | undefined,
   sshHost: string | null,
-): Promise<string> {
-  if (!attachments?.length) return prompt;
+): Promise<AttachmentPreview[]> {
+  if (!attachments?.length) return [];
 
-  const blocks: string[] = [];
+  const previews: AttachmentPreview[] = [];
   let remainingChars = MAX_TOTAL_ATTACHMENT_CHARS;
 
   for (const attachment of attachments.slice(0, MAX_ATTACHED_FILES)) {
@@ -805,19 +879,192 @@ export async function buildPromptWithAttachments(
         sshHost,
       );
       remainingChars -= preview.text.length;
-
-      if (preview.binary) {
-        blocks.push(`--- ${attachment.name} (${attachment.path}) ---\n[Binary file omitted]`);
-        continue;
-      }
-
-      const suffix = preview.truncated ? '\n[Truncated attachment preview]' : '';
-      blocks.push(`--- ${attachment.name} (${attachment.path}) ---\n${preview.text}${suffix}`);
+      previews.push({
+        attachment,
+        text: preview.text,
+        truncated: preview.truncated,
+        binary: preview.binary,
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      blocks.push(`--- ${attachment.name} (${attachment.path}) ---\n[Unable to read attachment: ${message}]`);
+      previews.push({
+        attachment,
+        text: '',
+        truncated: false,
+        binary: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
+
+  return previews;
+}
+
+function formatAttachmentPreviewBlock(preview: AttachmentPreview): string {
+  if (preview.error) {
+    return `--- ${preview.attachment.name} (${preview.attachment.path}) ---\n[Unable to read attachment: ${preview.error}]`;
+  }
+
+  if (preview.binary) {
+    return `--- ${preview.attachment.name} (${preview.attachment.path}) ---\n[Binary file omitted]`;
+  }
+
+  const suffix = preview.truncated ? '\n[Truncated attachment preview]' : '';
+  return `--- ${preview.attachment.name} (${preview.attachment.path}) ---\n${preview.text}${suffix}`;
+}
+
+function inferImageExtension(mediaType: string): string {
+  switch (mediaType.toLowerCase()) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/gif':
+      return 'gif';
+    case 'image/webp':
+      return 'webp';
+    case 'image/bmp':
+      return 'bmp';
+    case 'image/svg+xml':
+      return 'svg';
+    default:
+      return 'bin';
+  }
+}
+
+function parseDataUrlImage(image: string): { mediaType: string; buffer: Buffer; extension: string } | null {
+  const match = image.match(/^data:(.+?);base64,(.+)$/);
+  if (!match) return null;
+
+  const [, mediaType, data] = match;
+  try {
+    return {
+      mediaType,
+      buffer: Buffer.from(data, 'base64'),
+      extension: inferImageExtension(mediaType),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function writeAttachmentContextFile(
+  cwd: string,
+  options: {
+    images?: string[];
+    attachments?: FileAttachment[];
+    sshHost: string | null;
+  },
+): Promise<AttachmentContextArtifacts | null> {
+  const imageInputs = options.images?.length ? dedupeImages(options.images) : [];
+  const attachments = options.attachments?.length ? dedupeAttachments(options.attachments) : [];
+  if (imageInputs.length === 0 && attachments.length === 0) return null;
+  if (options.sshHost) return null;
+
+  try {
+    const contextDir = path.join(cwd, '.context');
+    const attachmentDir = path.join(contextDir, 'attachments');
+    await fs.promises.mkdir(contextDir, { recursive: true });
+    await fs.promises.rm(attachmentDir, { recursive: true, force: true });
+    await fs.promises.mkdir(attachmentDir, { recursive: true });
+
+    const imageNotes: string[] = [];
+    let persistedImageCount = 0;
+    for (const [index, image] of imageInputs.entries()) {
+      const parsed = parseDataUrlImage(image);
+      if (!parsed) {
+        imageNotes.push(`- Image ${index + 1}: [Unable to decode image attachment]`);
+        continue;
+      }
+      const relativeFile = `attachments/image-${index + 1}.${parsed.extension}`;
+      const outputPath = path.join(contextDir, relativeFile);
+      await fs.promises.writeFile(outputPath, parsed.buffer);
+      persistedImageCount += 1;
+      imageNotes.push(`- Image ${index + 1}: \`${relativeFile}\` (${parsed.mediaType})`);
+    }
+
+    const previews = await collectAttachmentPreviews(attachments, null);
+    const failedImageCount = imageInputs.length - persistedImageCount;
+    const lines: string[] = [
+      '# Attachment Context',
+      '',
+      'Flux generated this file so agents can recover image and file attachments even when a CLI does not support native attachment input.',
+      '',
+      '## Summary',
+      '',
+      `- Images: ${persistedImageCount}${failedImageCount > 0 ? ` (${failedImageCount} could not be materialized)` : ''}`,
+      `- File attachments: ${attachments.length}`,
+    ];
+
+    if (imageNotes.length > 0) {
+      lines.push('', '## Images', '', ...imageNotes);
+    }
+
+    if (previews.length > 0) {
+      lines.push('', '## File attachment previews', '');
+      previews.forEach((preview, index) => {
+        if (index > 0) lines.push('');
+        lines.push(`### \`${preview.attachment.name}\``);
+        lines.push(`Path: \`${preview.attachment.path}\``);
+        lines.push('');
+        if (preview.error) {
+          lines.push(`[Unable to read attachment: ${preview.error}]`);
+          return;
+        }
+        if (preview.binary) {
+          lines.push('[Binary file omitted]');
+          return;
+        }
+        lines.push(preview.text);
+        if (preview.truncated) {
+          lines.push('', '[Truncated attachment preview]');
+        }
+      });
+    }
+
+    if (attachments.length > MAX_ATTACHED_FILES) {
+      lines.push('', `- Additional omitted attachments: ${attachments.length - MAX_ATTACHED_FILES}`);
+    }
+
+    const absolutePath = path.join(contextDir, 'attachments.md');
+    await fs.promises.writeFile(absolutePath, `${lines.join('\n')}\n`, 'utf-8');
+    return {
+      absolutePath,
+      promptPath: '.context/attachments.md',
+      imageCount: persistedImageCount,
+      attachmentCount: attachments.length,
+    };
+  } catch (error) {
+    logDiagnostic('attachments', 'failed to write attachment context', {
+      cwd,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+export function buildAttachmentContextPrompt(
+  context: AttachmentContextArtifacts | null,
+): string {
+  if (!context) return '';
+  const parts: string[] = [];
+  if (context.imageCount > 0) {
+    parts.push(`${context.imageCount} image${context.imageCount === 1 ? '' : 's'}`);
+  }
+  if (context.attachmentCount > 0) {
+    parts.push(`${context.attachmentCount} file attachment${context.attachmentCount === 1 ? '' : 's'}`);
+  }
+  const summary = parts.length > 0 ? parts.join(' and ') : 'attachments';
+  return `Attachment context for ${summary} is saved at \`${context.promptPath}\`. Review that file if you need the original image files or fuller file previews.`;
+}
+
+export async function buildPromptWithAttachments(
+  prompt: string,
+  attachments: FileAttachment[] | undefined,
+  sshHost: string | null,
+): Promise<string> {
+  if (!attachments?.length) return prompt;
+
+  const blocks = (await collectAttachmentPreviews(attachments, sshHost)).map(formatAttachmentPreviewBlock);
 
   if (attachments.length > MAX_ATTACHED_FILES) {
     blocks.push(`[${attachments.length - MAX_ATTACHED_FILES} additional attachments omitted]`);

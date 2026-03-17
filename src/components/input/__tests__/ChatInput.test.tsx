@@ -341,6 +341,19 @@ describe('ChatInput', () => {
     expect(mockApi.invoke).not.toHaveBeenCalledWith('fs:read', expect.anything());
   });
 
+  it('shows attachment context hints for selected files', async () => {
+    useUiStore.getState().setPendingMention({ path: '/workspace/src/app.ts', name: 'app.ts' });
+
+    render(<ChatInput />);
+
+    await waitFor(() => {
+      expect(screen.getByText('1 file attached')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Saved to `.context/attachments.md` in workspace runs')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/src/app.ts')).toBeInTheDocument();
+  });
+
   it('routes replies through task:answer-question while waiting for input', async () => {
     const user = userEvent.setup();
     useChatStore.getState().createTask({

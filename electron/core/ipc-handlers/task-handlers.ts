@@ -27,10 +27,13 @@ import {
   buildUserMessagePayload,
   buildStoredUserMessage,
   buildPromptWithAttachments,
+  buildAttachmentContextPrompt,
   buildWorkspaceSystemContext,
   buildConversationContext,
+  extractLatestSessionAttachmentContext,
   extractFullPlanText,
   writePlanFile,
+  writeAttachmentContextFile,
   extractPlanTodoItems,
   buildStepTrackingPrompt,
   captureGitSnapshot,
@@ -325,7 +328,32 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
     }
 
+    const existingSession = options.sessionId ? sessionStore.get(options.sessionId) : null;
+    const session = existingSession ?? sessionStore.create({
+      title: workspace ? `[WS] ${workspace.name}` : buildSessionTitle(options.prompt),
+      agentId,
+      model: options.model ?? '',
+      mode: options.mode,
+      cwd: options.cwd,
+      metadata: workspace ? { workspaceId: workspace.id } : {},
+    });
+    const startedAt = Date.now();
+    const existingAgentSessionId = readAgentSessionId(existingSession?.metadata, agentId);
+    const spawnCwd = sshHost ? localCwd : options.cwd;
+    const previousAttachmentContext = existingSession
+      ? extractLatestSessionAttachmentContext(sessionStore, session.id)
+      : null;
+    const attachmentContext = await writeAttachmentContextFile(options.cwd, {
+      images: options.images?.length ? options.images : previousAttachmentContext?.images,
+      attachments: options.attachments?.length ? options.attachments : previousAttachmentContext?.attachments,
+      sshHost,
+    });
+    const attachmentPrompt = buildAttachmentContextPrompt(attachmentContext);
+
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
+    if (attachmentPrompt) {
+      effectivePrompt = `${attachmentPrompt}\n\n${effectivePrompt}`;
+    }
 
     const repoMapConfig = configManager.get().repoMap;
     if (repoMapConfig.enabled && repoMapConfig.perAgentEnabled[agentId] !== false) {
@@ -339,19 +367,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         // Repo map generation failed — continue without it
       }
     }
-
-    const existingSession = options.sessionId ? sessionStore.get(options.sessionId) : null;
-    const session = existingSession ?? sessionStore.create({
-      title: workspace ? `[WS] ${workspace.name}` : buildSessionTitle(options.prompt),
-      agentId,
-      model: options.model ?? '',
-      mode: options.mode,
-      cwd: options.cwd,
-      metadata: workspace ? { workspaceId: workspace.id } : {},
-    });
-    const startedAt = Date.now();
-    const existingAgentSessionId = readAgentSessionId(existingSession?.metadata, agentId);
-    const spawnCwd = sshHost ? localCwd : options.cwd;
 
     const claudeResumeId = sshHost
       ? existingAgentSessionId
@@ -460,6 +475,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         spawnOptions.prompt = [
           `You are implementing a plan created by ${fromAgent}. The approved plan is below.`,
           planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
+          attachmentPrompt,
           '',
           planText ? `## Approved Plan\n\n${planText}` : '',
           stepTracking,
@@ -476,6 +492,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         if (context) {
           spawnOptions.prompt = [
             `You are continuing a conversation previously handled by ${fromAgent}. Here is the context:`,
+            attachmentPrompt,
             '',
             context,
             '',
@@ -497,6 +514,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         spawnOptions.prompt = [
           'You are implementing an approved plan. The full plan is below.',
           planPath ? `The plan is also saved at \`${planPath}\`.` : '',
+          attachmentPrompt,
           '',
           planText ? `## Approved Plan\n\n${planText}` : '',
           stepTracking,
@@ -513,6 +531,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         if (context) {
           spawnOptions.prompt = [
             `You are continuing a previous conversation. Here is the context:`,
+            attachmentPrompt,
             '',
             context,
             '',
@@ -531,6 +550,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       spawnOptions.prompt = [
         'The user reviewed and approved the plan above. Implement each step now.',
         planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
+        attachmentPrompt,
         stepTracking,
         '',
         spawnOptions.prompt,
@@ -539,6 +559,20 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       if (planSteps.length > 0) {
         pendingTodoItems = planSteps.map((s, i) => ({ id: i + 1, label: s.label, status: 'pending' as const }));
       }
+    }
+
+    if (
+      existingSession
+      && !isAgentSwitch
+      && hasWorkingResume
+      && attachmentPrompt
+      && !(existingSession.mode === 'plan' && options.mode === 'act')
+    ) {
+      spawnOptions.prompt = [
+        attachmentPrompt,
+        '',
+        spawnOptions.prompt,
+      ].filter(Boolean).join('\n');
     }
 
     if (existingSession && !isAgentSwitch && AGENTS_WITH_NATIVE_RESUME.has(agentId) && !spawnOptions.resumeSessionId) {
@@ -1969,7 +2003,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       return { steerFailed: true, reason: 'process_exited' };
     }
 
+    const sessionId = taskSessions.get(taskId);
+    const activeSession = sessionId ? sessionStore.get(sessionId) : null;
+    const previousAttachmentContext = sessionId
+      ? extractLatestSessionAttachmentContext(sessionStore, sessionId)
+      : null;
+    const attachmentContext = await writeAttachmentContextFile(activeSession?.cwd ?? getCurrentCwd(), {
+      images: images?.length ? images : previousAttachmentContext?.images,
+      attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
+      sshHost: getSshHost(),
+    });
+    const attachmentPrompt = buildAttachmentContextPrompt(attachmentContext);
     let effectivePrompt = await buildPromptWithAttachments(prompt, attachments, getSshHost());
+    if (attachmentPrompt) {
+      effectivePrompt = `${attachmentPrompt}\n\n${effectivePrompt}`;
+    }
 
     // Inject workspace skills on follow-up messages so the agent retains
     // lifecycle protocol context across the full conversation.
@@ -1989,7 +2037,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     handle.steer(effectivePrompt, images);
 
-    const sessionId = taskSessions.get(taskId);
     if (sessionId) {
       sessionStore.addMessage(
         sessionId,

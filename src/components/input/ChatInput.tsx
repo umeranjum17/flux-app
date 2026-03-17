@@ -978,23 +978,39 @@ export function ChatInput({ focused }: ChatInputProps) {
 
         {/* Attached files chips */}
         {attachedFiles.length > 0 && (
-          <div className="mb-1.5 flex flex-wrap gap-1.5">
-            {attachedFiles.map((file) => (
-              <span
-                key={file.path}
-                className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-bg-elevated/50 px-2 py-0.5 text-xs text-text-secondary"
-              >
-                @{file.name}
-                <button
-                  onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
-                  className="premium-toolbar-button rounded-sm p-0.5 text-text-tertiary"
-                  title={`Remove ${file.name}`}
-                  aria-label={`Remove ${file.name}`}
+          <div className="mb-2 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-medium text-text-secondary">
+                {attachedFiles.length} file{attachedFiles.length === 1 ? '' : 's'} attached
+              </p>
+              {!isTerminal && (
+                <p className="text-[10px] text-text-tertiary">
+                  Saved to `.context/attachments.md` in workspace runs
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {attachedFiles.map((file) => (
+                <span
+                  key={file.path}
+                  className="inline-flex max-w-[320px] items-start gap-1 rounded-full border border-border/60 bg-bg-elevated/50 px-2.5 py-1 text-xs text-text-secondary"
+                  title={file.path}
                 >
-                  <X size={10} />
-                </button>
-              </span>
-            ))}
+                  <span className="min-w-0">
+                    <span className="block truncate max-w-[220px] text-text-primary">@{file.name}</span>
+                    <span className="block truncate max-w-[220px] text-[10px] text-text-tertiary">{file.path}</span>
+                  </span>
+                  <button
+                    onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.path !== file.path))}
+                    className="premium-toolbar-button mt-0.5 rounded-sm p-0.5 text-text-tertiary"
+                    title={`Remove ${file.name}`}
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1028,6 +1044,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         <ImageAttach
           images={images}
           onRemove={(index) => setImages((prev) => prev.filter((_, i) => i !== index))}
+          showContextHint={!isTerminal}
         />
 
         {/* Toolbar below textarea */}

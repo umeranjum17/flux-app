@@ -2,6 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const snapshotRows: any[] = [];
 
+function createFsMock(readFileSync: (filePath: string) => string) {
+  return {
+    default: {
+      existsSync: () => false,
+      mkdirSync: () => {},
+      statSync: () => {
+        throw new Error('ENOENT');
+      },
+      renameSync: () => {},
+      appendFileSync: () => {},
+      readFileSync,
+      writeFileSync: () => {},
+    },
+  };
+}
+
 beforeEach(() => {
   vi.resetModules();
   snapshotRows.length = 0;
@@ -52,34 +68,29 @@ describe('LiveUsageService', () => {
       }),
     }));
 
-    vi.doMock('fs', () => ({
-      default: {
-        readFileSync: (filePath: string) => {
-          if (filePath.endsWith('.claude/.credentials.json')) {
-            return JSON.stringify({
-              claudeAiOauth: {
-                accessToken: 'claude-access',
-                refreshToken: 'claude-refresh',
-                expiresAt: Date.now() + 60_000,
-              },
-            });
-          }
+    vi.doMock('fs', () => createFsMock((filePath: string) => {
+      if (filePath.endsWith('.claude/.credentials.json')) {
+        return JSON.stringify({
+          claudeAiOauth: {
+            accessToken: 'claude-access',
+            refreshToken: 'claude-refresh',
+            expiresAt: Date.now() + 60_000,
+          },
+        });
+      }
 
-          if (filePath.endsWith('.codex/auth.json')) {
-            return JSON.stringify({
-              tokens: {
-                access_token: 'codex-access',
-                refresh_token: 'codex-refresh',
-                account_id: 'account-123',
-              },
-              last_refresh: new Date().toISOString(),
-            });
-          }
+      if (filePath.endsWith('.codex/auth.json')) {
+        return JSON.stringify({
+          tokens: {
+            access_token: 'codex-access',
+            refresh_token: 'codex-refresh',
+            account_id: 'account-123',
+          },
+          last_refresh: new Date().toISOString(),
+        });
+      }
 
-          throw new Error(`Unexpected file read: ${filePath}`);
-        },
-        writeFileSync: () => {},
-      },
+      throw new Error(`Unexpected file read: ${filePath}`);
     }));
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -175,23 +186,18 @@ describe('LiveUsageService', () => {
       }),
     }));
 
-    vi.doMock('fs', () => ({
-      default: {
-        readFileSync: (filePath: string) => {
-          if (filePath.endsWith('.claude/.credentials.json')) {
-            return JSON.stringify({
-              claudeAiOauth: {
-                accessToken: 'claude-access',
-                refreshToken: 'claude-refresh',
-                expiresAt: Date.now() + 60_000,
-              },
-            });
-          }
+    vi.doMock('fs', () => createFsMock((filePath: string) => {
+      if (filePath.endsWith('.claude/.credentials.json')) {
+        return JSON.stringify({
+          claudeAiOauth: {
+            accessToken: 'claude-access',
+            refreshToken: 'claude-refresh',
+            expiresAt: Date.now() + 60_000,
+          },
+        });
+      }
 
-          throw new Error(`Unexpected file read: ${filePath}`);
-        },
-        writeFileSync: () => {},
-      },
+      throw new Error(`Unexpected file read: ${filePath}`);
     }));
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -225,20 +231,25 @@ describe('LiveUsageService', () => {
       }),
     }));
 
-    vi.doMock('fs', () => ({
-      default: {
-        readFileSync: (filePath: string) => {
-          if (filePath.endsWith('.claude.json')) {
-            return JSON.stringify({
-              oauthAccount: {
-                accountUuid: 'account-1',
-              },
-            });
-          }
-          throw new Error(`Unexpected file read: ${filePath}`);
-        },
-        writeFileSync: () => {},
-      },
+    vi.doMock('child_process', () => ({
+      execFileSync: () => '',
+      spawnSync: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'mocked keychain miss',
+        error: null,
+      }),
+    }));
+
+    vi.doMock('fs', () => createFsMock((filePath: string) => {
+      if (filePath.endsWith('.claude.json')) {
+        return JSON.stringify({
+          oauthAccount: {
+            accountUuid: 'account-1',
+          },
+        });
+      }
+      throw new Error(`Unexpected file read: ${filePath}`);
     }));
 
     const fetchSpy = vi.fn(async () => ({
@@ -316,22 +327,17 @@ describe('LiveUsageService', () => {
       }),
     }));
 
-    vi.doMock('fs', () => ({
-      default: {
-        readFileSync: (filePath: string) => {
-          if (filePath.endsWith('.claude/.credentials.json')) {
-            return JSON.stringify({
-              claudeAiOauth: {
-                accessToken: 'claude-access',
-                refreshToken: 'claude-refresh',
-                expiresAt: baseNow + 60_000,
-              },
-            });
-          }
-          throw new Error(`Unexpected file read: ${filePath}`);
-        },
-        writeFileSync: () => {},
-      },
+    vi.doMock('fs', () => createFsMock((filePath: string) => {
+      if (filePath.endsWith('.claude/.credentials.json')) {
+        return JSON.stringify({
+          claudeAiOauth: {
+            accessToken: 'claude-access',
+            refreshToken: 'claude-refresh',
+            expiresAt: baseNow + 60_000,
+          },
+        });
+      }
+      throw new Error(`Unexpected file read: ${filePath}`);
     }));
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {

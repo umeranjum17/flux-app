@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MessageBubble } from '../MessageBubble';
 import { useUiStore } from '../../../stores/ui';
 import { renderMermaidDiagram } from '../../../lib/mermaid';
@@ -74,5 +74,18 @@ describe('MessageBubble', () => {
 
     expect(getByText('Parse error on line 2')).not.toBeNull();
     expect(container.querySelector('.mermaid-block pre code')?.textContent).toContain('graph TD');
+  });
+
+  it('renders attachment names and paths', () => {
+    render(
+      <MessageBubble
+        role="user"
+        content="Please review"
+        attachments={[{ path: '/workspace/src/app.ts', name: 'app.ts' }]}
+      />,
+    );
+
+    expect(screen.getByText('app.ts')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/src/app.ts')).toBeInTheDocument();
   });
 });

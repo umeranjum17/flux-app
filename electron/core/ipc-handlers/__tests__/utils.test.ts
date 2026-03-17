@@ -1,5 +1,21 @@
-import { describe, expect, it } from 'vitest';
-import { buildWorkspaceSystemContext, parseStepMarkers, getStepTrackableContent, extractTodoItemsFromPayload, isTodoTrackingToolCall, parseTodoBlock, parseFluxTodo, parseFluxTodoAll, parseAgentTodos } from '../utils';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  buildAttachmentContextPrompt,
+  buildWorkspaceSystemContext,
+  extractLatestSessionAttachmentContext,
+  getStepTrackableContent,
+  extractTodoItemsFromPayload,
+  isTodoTrackingToolCall,
+  parseAgentTodos,
+  parseFluxTodo,
+  parseFluxTodoAll,
+  parseStepMarkers,
+  parseTodoBlock,
+  writeAttachmentContextFile,
+} from '../utils';
 import type { AgentMessage } from '../../agents/types';
 import type { Workspace } from '../../worktree/types';
 
@@ -17,6 +33,15 @@ const workspace: Workspace = {
   createdAt: 1,
   updatedAt: 1,
 };
+
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe('parseStepMarkers', () => {
   it('extracts START markers', () => {
@@ -315,5 +340,103 @@ describe('buildWorkspaceSystemContext', () => {
       workspaceAction: 'merge',
       agentId: 'codex',
     })).toThrow('Missing merge context for workspace merge task');
+  });
+
+  it('mentions persisted attachments for workspace act runs', () => {
+    const prompt = buildWorkspaceSystemContext(workspace, 'act', {
+      agentId: 'codex',
+    });
+
+    expect(prompt).toContain('.context/attachments.md');
+  });
+});
+
+describe('attachment context helpers', () => {
+  it('writes attachment context markdown and persisted images', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-attachments-'));
+    tempDirs.push(cwd);
+    const sourceFile = path.join(cwd, 'notes.txt');
+    fs.writeFileSync(sourceFile, 'first line\nsecond line\n', 'utf-8');
+
+    const result = await writeAttachmentContextFile(cwd, {
+      sshHost: null,
+      images: ['data:image/png;base64,aGVsbG8='],
+      attachments: [{ path: sourceFile, name: 'notes.txt' }],
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.promptPath).toBe('.context/attachments.md');
+    expect(fs.existsSync(path.join(cwd, '.context', 'attachments.md'))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, '.context', 'attachments', 'image-1.png'))).toBe(true);
+
+    const content = fs.readFileSync(path.join(cwd, '.context', 'attachments.md'), 'utf-8');
+    expect(content).toContain('# Attachment Context');
+    expect(content).toContain('notes.txt');
+    expect(content).toContain('first line');
+    expect(content).toContain('attachments/image-1.png');
+  });
+
+  it('only counts images that were successfully materialized', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-attachments-'));
+    tempDirs.push(cwd);
+
+    const result = await writeAttachmentContextFile(cwd, {
+      sshHost: null,
+      images: ['data:image/png;base64,aGVsbG8=', 'not-a-data-url'],
+      attachments: [],
+    });
+
+    expect(result?.imageCount).toBe(1);
+    const content = fs.readFileSync(path.join(cwd, '.context', 'attachments.md'), 'utf-8');
+    expect(content).toContain('1 could not be materialized');
+  });
+
+  it('builds a prompt note for persisted attachment context', () => {
+    expect(buildAttachmentContextPrompt({
+      absolutePath: '/repo/.context/attachments.md',
+      promptPath: '.context/attachments.md',
+      imageCount: 1,
+      attachmentCount: 2,
+    })).toContain('.context/attachments.md');
+  });
+
+  it('extracts the latest stored user attachment context from payloadJson', () => {
+    const sessionStore = {
+      getMessages: () => [
+        {
+          role: 'user',
+          type: 'text',
+          payloadJson: JSON.stringify({
+            type: 'text',
+            role: 'user',
+            content: 'Earlier',
+            attachments: [{ path: '/repo/old.ts', name: 'old.ts' }],
+            timestamp: 1,
+          }),
+        },
+        {
+          role: 'assistant',
+          type: 'text',
+          payloadJson: null,
+        },
+        {
+          role: 'user',
+          type: 'text',
+          payloadJson: JSON.stringify({
+            type: 'text',
+            role: 'user',
+            content: 'Latest',
+            images: ['data:image/png;base64,abc'],
+            attachments: [{ path: '/repo/new.ts', name: 'new.ts' }],
+            timestamp: 2,
+          }),
+        },
+      ],
+    } as any;
+
+    expect(extractLatestSessionAttachmentContext(sessionStore, 'session-1')).toEqual({
+      images: ['data:image/png;base64,abc'],
+      attachments: [{ path: '/repo/new.ts', name: 'new.ts' }],
+    });
   });
 });

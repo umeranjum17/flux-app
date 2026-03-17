@@ -83,7 +83,7 @@ beforeEach(() => {
 });
 
 describe('WorkspaceTab', () => {
-  it('keeps planning status on the lifecycle dot without rendering a badge label', () => {
+  it('keeps planning status on the lifecycle dot and badge', () => {
     const view = renderWorkspaceTab();
     const scoped = within(view.container);
 
