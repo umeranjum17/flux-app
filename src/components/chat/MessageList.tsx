@@ -155,6 +155,11 @@ export function MessageList() {
     return false;
   }, [messages, planText, task]);
 
+  const { mergedResultIndices, mergedResultForCall } = useMemo(
+    () => buildMergedToolResultLookup(messages),
+    [messages],
+  );
+
   if (!task) {
     return (
       <div className="flex flex-1 items-center justify-center text-text-tertiary">
@@ -222,11 +227,6 @@ export function MessageList() {
 
   // Build set of message indices where agent switches happened
   const agentSwitchIndices = new Set(agentHistory.map((h) => h.fromMessageIndex));
-
-  const { mergedResultIndices, mergedResultForCall } = useMemo(
-    () => buildMergedToolResultLookup(messages),
-    [messages],
-  );
 
   return (
     <div className="relative flex-1 min-h-0">
