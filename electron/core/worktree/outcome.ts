@@ -210,6 +210,8 @@ export function computeNextOutcome(
     case 'sync':
       // External merge detection takes priority
       if (gitState.isMerged && current !== 'merged' && current !== 'ready_to_archive') return 'merged';
+      // Nudge confirmed-merged workspaces into the cleanup state
+      if (current === 'merged' && gitState.isMerged) return 'ready_to_archive';
       return null;
 
 

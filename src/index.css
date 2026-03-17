@@ -614,7 +614,8 @@ button:focus-visible {
 .workspace-list-signal-review-ready,
 .workspace-list-signal-ready-to-merge,
 .workspace-list-signal-reviewing,
-.workspace-list-signal-complete {
+.workspace-list-signal-complete,
+.workspace-list-signal-ready-to-archive {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color) 22%, transparent);
 }
 
@@ -666,6 +667,11 @@ button:focus-visible {
 
 .workspace-list-signal-complete {
   --workspace-signal-color: var(--color-success);
+}
+
+.workspace-list-signal-ready-to-archive {
+  --workspace-signal-color: var(--color-warning);
+  animation: workspace-signal-attention 1.4s ease-in-out infinite;
 }
 
 .workspace-list-signal-changes-requested {

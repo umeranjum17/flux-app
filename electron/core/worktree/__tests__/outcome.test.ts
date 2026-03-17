@@ -58,8 +58,8 @@ describe('computeNextOutcome', () => {
       }
     });
 
-    it('already merged → no change', () => {
-      expect(computeNextOutcome('merged', 'sync', git({ isMerged: true }))).toBeNull();
+    it('already merged + isMerged → ready_to_archive', () => {
+      expect(computeNextOutcome('merged', 'sync', git({ isMerged: true }))).toBe('ready_to_archive');
     });
 
     it('ready_to_archive → no change', () => {

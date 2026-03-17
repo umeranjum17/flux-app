@@ -34,6 +34,7 @@ export type WorkspaceLifecycleState =
   | 'ready_to_merge'
   | 'merging'
   | 'merged'
+  | 'ready_to_archive'
   | 'blocked';
 
 export type WorkspaceListSignalState = WorkspaceLifecycleState | 'has_changes' | 'archiving' | 'archive_failed';
@@ -160,6 +161,15 @@ export const workspaceLifecycleConfig: Record<
     accentColor: 'bg-success',
     cardTint: 'lifecycle-tint-success',
   },
+  ready_to_archive: {
+    color: 'bg-warning',
+    label: 'Ready to Archive',
+    glow: 'dot-glow-warning',
+    detail: 'Merged — ready to clean up.',
+    badgeClass: 'bg-warning/12 text-warning',
+    accentColor: 'bg-warning',
+    cardTint: 'lifecycle-tint-warning',
+  },
   blocked: {
     color: 'bg-error',
     label: 'Blocked',
@@ -257,6 +267,12 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     detail: 'Successfully merged.',
     dotClassName: 'workspace-list-signal workspace-list-signal-complete',
   },
+  ready_to_archive: {
+    color: 'bg-warning',
+    label: 'Ready to archive',
+    detail: 'Merged — ready to clean up.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-ready-to-archive',
+  },
   blocked: {
     color: 'bg-error',
     label: 'Blocked',
@@ -305,7 +321,8 @@ export function getWorkspaceLifecycleState(
   if (workspace.status === 'waiting_approval') return 'awaiting_approval';
   if (workspace.status === 'waiting_input') return 'awaiting_input';
 
-  if (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive') return 'merged';
+  if (workspace.outcome === 'ready_to_archive') return 'ready_to_archive';
+  if (workspace.outcome === 'merged') return 'merged';
   if (workspace.outcome === 'ready_to_merge') return 'ready_to_merge';
   if (workspace.outcome === 'reviewing') return 'reviewing';
   if (workspace.outcome === 'changes_requested') return 'changes_requested';

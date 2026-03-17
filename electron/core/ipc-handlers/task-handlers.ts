@@ -1139,10 +1139,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
             // 2. Record checkpoint + outcome transition
             if (options.workspaceAction === 'merge') {
-              const freshMergeWs = workspaceStore.get(workspace.id);
-              if (freshMergeWs) {
-                await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
-              }
+              // Force outcome to 'merged' directly — we know the agent
+              // completed the merge task without error, so trust the task
+              // result instead of relying on git state detection which can
+              // false-negative and leave the outcome stuck at ready_for_pr.
+              lifecycleManager.setOutcome(workspace.id, 'merged', { force: true });
               // Merge is a one-shot action — emit agent:done now so the
               // renderer finalizes the task without waiting for process exit.
               sendToRenderer('agent:done', { taskId: options.taskId });
@@ -1550,13 +1551,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             // as a safety net — the result handler's transition may have failed
             // silently (e.g. git state resolution error caught by try/catch).
             if (resultCompletionDone && !finalError) {
-              // Safety-net: retry merge outcome transition in case it failed
-              // during the result handler. transitionOutcome is idempotent —
+              // Safety-net: force outcome to 'merged' in case the result
+              // handler didn't run or failed. setOutcome is idempotent —
               // if the outcome is already 'merged', this is a no-op.
               if (options.workspaceAction === 'merge' && options.mode === 'act') {
                 try {
-                  const freshMergeWs = workspaceStore.get(workspace.id) ?? workspace;
-                  await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
+                  lifecycleManager.setOutcome(workspace.id, 'merged', { force: true });
                 } catch (err) {
                   console.error('[done-handler] Merge outcome retry failed:', err);
                 }
@@ -1601,8 +1601,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               try {
                 if (options.workspaceAction === 'merge') {
                   if (!finalError) {
-                    const freshMergeWs = workspaceStore.get(workspace.id) ?? workspace;
-                    await lifecycleManager.transitionOutcome(freshMergeWs, 'task_completed_merge');
+                    lifecycleManager.setOutcome(workspace.id, 'merged', { force: true });
                   }
                 } else {
                   if (!finalError) {
