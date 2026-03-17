@@ -54,8 +54,12 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const mergeTarget = suggestedMergeTarget || workspace.baseBranch || 'main';
   const isReadyToArchive = isTerminalOutcome(workspace.outcome);
   const hasInlineDiff = !!diff && diff.files.length > 0;
-  const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff });
-  const hasChanges = hasInlineDiff || hasWorkspaceChanges;
+  // Treat ready_for_pr outcome as a strong signal that changes exist so
+  // merge/review buttons render instantly without waiting for the async
+  // workspace:diff-files IPC call to resolve.
+  const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr';
+  const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff || outcomeImpliesChanges });
+  const hasChanges = hasInlineDiff || hasWorkspaceChanges || outcomeImpliesChanges;
   const operation = useWorkspaceStore((state) => state.workspaceOperations.get(workspace.id));
   const isArchiving = isWorkspaceArchiving(operation);
   const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
