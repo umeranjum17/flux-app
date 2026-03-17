@@ -7,6 +7,7 @@ import {
   Check,
   Play,
   AlertTriangle,
+  FileCode,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
@@ -139,6 +140,22 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
     return s?.content || '';
   }, [sections]);
 
+  // Collect all unique file paths across all steps for the scope indicator
+  const affectedFileCount = useMemo(() => {
+    const allPaths = new Set<string>();
+    for (const step of steps) {
+      const text = `${step.title} ${step.details}`;
+      const matches = text.match(/`([^`]+\.[a-zA-Z]{1,6}(?::\d+)?)`/g);
+      if (matches) {
+        for (const m of matches) {
+          const clean = m.replace(/`/g, '').replace(/:\d+$/, '');
+          allPaths.add(clean);
+        }
+      }
+    }
+    return allPaths.size;
+  }, [steps]);
+
   const handleCopyPlan = useCallback(() => {
     navigator.clipboard.writeText(planText);
     setCopied(true);
@@ -181,9 +198,15 @@ export function PlanCard({ task, isStreaming }: PlanCardProps) {
             <span className="h-1.5 w-1.5 rounded-full bg-plan animate-pulse" />
           )}
           {!isStreaming && steps.length > 0 && (
-            <span className="text-[11px] text-text-tertiary">
-              {steps.length} step{steps.length === 1 ? '' : 's'}
-            </span>
+            <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
+              <span>{steps.length} step{steps.length === 1 ? '' : 's'}</span>
+              {affectedFileCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <FileCode size={10} />
+                  {affectedFileCount} file{affectedFileCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
           )}
         </div>
         {canAct && !isStreaming && (
