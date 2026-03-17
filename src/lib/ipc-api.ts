@@ -178,7 +178,7 @@ export interface IpcChannels {
   // Terminal introspection
   'terminal:list': {
     args: [];
-    result: Array<{ id: string; pid: number | undefined }>;
+    result: Array<{ id: string; pid: number | undefined; kind: 'pty' | 'ssh' }>;
   };
 
   // Diagnostics

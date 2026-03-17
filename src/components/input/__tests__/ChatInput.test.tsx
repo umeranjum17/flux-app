@@ -51,6 +51,8 @@ beforeEach(() => {
     terminalOpen: false,
     activeTerminalId: null,
     bottomPanelMode: 'agent',
+    bottomPanelOpen: false,
+    bottomPanelTab: 'output',
     sshHost: null,
     sshConnected: false,
     environment: 'local',

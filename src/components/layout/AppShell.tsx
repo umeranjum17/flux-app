@@ -607,7 +607,7 @@ export function AppShell() {
           ui.openWorkspacePanelTab('search');
         }
       }
-      if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleBottomPanel(); }
+      if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleTerminal(); }
 
       // Cmd+1-9: switch between workspaces first, then standalone chats
       if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {

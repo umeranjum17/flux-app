@@ -69,6 +69,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   function TerminalPanel({ visible = true }, ref) {
     const cwd = useUiStore((s) => s.cwd);
     const appTheme = useUiStore((s) => s.theme);
+    const setActiveTerminalId = useUiStore((s) => s.setActiveTerminalId);
+    const setBottomPanelOpen = useUiStore((s) => s.setBottomPanelOpen);
+    const setBottomPanelTab = useUiStore((s) => s.setBottomPanelTab);
     const [tabs, setTabs] = useState<TerminalTab[]>([]);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [profiles, setProfiles] = useState<ShellProfile[]>([]);
@@ -104,6 +107,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         workspaceBranch: opts?.workspaceBranch,
       }]);
       setActiveId(id);
+      setActiveTerminalId(id);
 
       try {
         const result = await window.api.invoke('terminal:create', {
@@ -189,9 +193,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
       },
       openWorkspaceTerminal(workspaceId: string) {
+        setBottomPanelOpen(true);
+        setBottomPanelTab('terminal');
         const existing = tabs.find((t) => t.workspaceId === workspaceId);
         if (existing) {
           setActiveId(existing.id);
+          setActiveTerminalId(existing.id);
           const termRef = terminalRefs.current.get(existing.id);
           if (termRef) termRef.term.focus();
           return;
@@ -207,16 +214,23 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
       },
       createTerminal(opts?: { shell?: string }) {
+        setBottomPanelOpen(true);
+        setBottomPanelTab('terminal');
         createTerminal({ shell: opts?.shell }).catch(() => {});
       },
-    }), [activeId, tabs, createTerminal]);
+    }), [activeId, tabs, createTerminal, setActiveTerminalId, setBottomPanelOpen, setBottomPanelTab]);
 
     // Create first terminal on mount (or a pending workspace terminal)
+    useEffect(() => {
+      setActiveTerminalId(activeId);
+    }, [activeId, setActiveTerminalId]);
+
     useEffect(() => {
       if (tabs.length === 0) {
         const pendingWsId = useUiStore.getState().pendingWorkspaceTerminalId;
         if (pendingWsId) {
           useUiStore.getState().setPendingWorkspaceTerminalId(null);
+          setBottomPanelTab('terminal');
           const workspaces = useWorkspaceStore.getState().workspaces;
           const ws = workspaces.get(pendingWsId);
           if (ws) {
@@ -230,7 +244,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         }
         createTerminal().catch(() => {});
       }
-    }, []);
+    }, [tabs.length, createTerminal, setBottomPanelTab]);
 
     // Listen for workspace terminal open requests (when panel is already mounted)
     useEffect(() => {
@@ -363,8 +377,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     }, []);
 
     const handleCreate = useCallback((shell?: string) => {
+      setBottomPanelOpen(true);
+      setBottomPanelTab('terminal');
       createTerminal({ shell }).catch(() => {});
-    }, [createTerminal]);
+    }, [createTerminal, setBottomPanelOpen, setBottomPanelTab]);
 
     return (
       <div className={`flex flex-col flex-1 min-h-0 ${visible ? '' : 'hidden'}`}>

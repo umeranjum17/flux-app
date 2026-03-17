@@ -6,7 +6,7 @@ beforeEach(() => {
     sidebarOpen: true, theme: 'dark', sendKey: 'cmd+enter', mode: 'act', activeOverlay: null,
     cwd: '', projectName: '', gitBranch: null, gitDirty: false,
     explorerOpen: false, terminalOpen: false, activeTerminalId: null,
-    bottomPanelMode: 'agent', sshHost: null, sshConnected: false,
+    bottomPanelMode: 'agent', bottomPanelOpen: false, bottomPanelTab: 'output', sshHost: null, sshConnected: false,
     environment: 'local', activeFile: null, pendingMention: null, recentProjects: [],
   });
 });
@@ -113,7 +113,29 @@ describe('toggleTerminal', () => {
   it('keeps bottom panel mode in sync when opening the terminal', () => {
     useUiStore.getState().toggleTerminal();
     expect(useUiStore.getState().terminalOpen).toBe(true);
+    expect(useUiStore.getState().bottomPanelOpen).toBe(true);
     expect(useUiStore.getState().bottomPanelMode).toBe('terminal');
+    expect(useUiStore.getState().bottomPanelTab).toBe('terminal');
+  });
+
+  it('switches from output to terminal before closing the panel', () => {
+    useUiStore.setState({ bottomPanelOpen: true, bottomPanelTab: 'output', terminalOpen: false, bottomPanelMode: 'agent' });
+
+    useUiStore.getState().toggleTerminal();
+
+    expect(useUiStore.getState().bottomPanelOpen).toBe(true);
+    expect(useUiStore.getState().bottomPanelTab).toBe('terminal');
+    expect(useUiStore.getState().terminalOpen).toBe(true);
+  });
+
+  it('closes the panel when terminal is already active', () => {
+    useUiStore.setState({ bottomPanelOpen: true, bottomPanelTab: 'terminal', terminalOpen: true, bottomPanelMode: 'terminal' });
+
+    useUiStore.getState().toggleTerminal();
+
+    expect(useUiStore.getState().bottomPanelOpen).toBe(false);
+    expect(useUiStore.getState().terminalOpen).toBe(false);
+    expect(useUiStore.getState().bottomPanelMode).toBe('agent');
   });
 });
 

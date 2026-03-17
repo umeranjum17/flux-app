@@ -14,7 +14,7 @@ const NAV_ITEMS: { id: SidebarTab; icon: typeof MessageSquare; label: string }[]
 export function Sidebar() {
   const sidebarTab = useUiStore((s) => s.sidebarTab);
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
-  const terminalOpen = useUiStore((s) => s.bottomPanelOpen);
+  const terminalOpen = useUiStore((s) => s.bottomPanelOpen && s.bottomPanelTab === 'terminal');
 
   return (
     <motion.aside
@@ -41,7 +41,7 @@ export function Sidebar() {
           icon={<Terminal size={16} strokeWidth={1.8} />}
           label="Terminal"
           active={terminalOpen}
-          onClick={() => useUiStore.getState().toggleBottomPanel()}
+          onClick={() => useUiStore.getState().toggleTerminal()}
         />
       </div>
 

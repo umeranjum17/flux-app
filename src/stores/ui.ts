@@ -39,15 +39,12 @@ interface UiState {
   // File explorer
   explorerOpen: boolean;
 
-  // Terminal
+  // Terminal / bottom panel
   terminalOpen: boolean;
   activeTerminalId: string | null;
-
-  // Bottom panel mode (Warp-style)
   bottomPanelMode: 'agent' | 'terminal';
-
-  // Bottom panel
   bottomPanelOpen: boolean;
+  bottomPanelTab: 'terminal' | 'output';
 
   // Pending workspace terminal request (set before panel mounts so TerminalPanel can pick it up)
   pendingWorkspaceTerminalId: string | null;
@@ -135,6 +132,7 @@ interface UiState {
   // Bottom panel
   toggleBottomPanel(): void;
   setBottomPanelOpen(open: boolean): void;
+  setBottomPanelTab(tab: 'terminal' | 'output'): void;
   setPendingWorkspaceTerminalId(id: string | null): void;
 }
 
@@ -164,6 +162,7 @@ export const useUiStore = create<UiState>()(
     activeTerminalId: null,
     bottomPanelMode: 'agent',
     bottomPanelOpen: false,
+    bottomPanelTab: 'terminal',
     pendingWorkspaceTerminalId: null,
     sshHost: null,
     sshConnected: false,
@@ -338,15 +337,31 @@ export const useUiStore = create<UiState>()(
 
     toggleTerminal() {
       set((state) => {
-        state.terminalOpen = !state.terminalOpen;
-        state.bottomPanelMode = state.terminalOpen ? 'terminal' : 'agent';
+        if (!state.bottomPanelOpen) {
+          state.bottomPanelOpen = true;
+          state.bottomPanelTab = 'terminal';
+          state.bottomPanelMode = 'terminal';
+          state.terminalOpen = true;
+          return;
+        }
+        if (state.bottomPanelTab !== 'terminal') {
+          state.bottomPanelTab = 'terminal';
+          state.bottomPanelMode = 'terminal';
+          state.terminalOpen = true;
+          return;
+        }
+        state.bottomPanelOpen = false;
+        state.bottomPanelMode = 'agent';
+        state.terminalOpen = false;
       });
     },
 
     setTerminalOpen(open) {
       set((state) => {
         state.terminalOpen = open;
+        state.bottomPanelOpen = open;
         state.bottomPanelMode = open ? 'terminal' : 'agent';
+        if (open) state.bottomPanelTab = 'terminal';
       });
     },
 
@@ -379,6 +394,7 @@ export const useUiStore = create<UiState>()(
       set((state) => {
         state.bottomPanelMode = mode;
         state.terminalOpen = mode === 'terminal';
+        state.bottomPanelTab = mode === 'terminal' ? 'terminal' : 'output';
       });
     },
 
@@ -386,6 +402,7 @@ export const useUiStore = create<UiState>()(
       set((state) => {
         state.bottomPanelMode = state.bottomPanelMode === 'agent' ? 'terminal' : 'agent';
         state.terminalOpen = state.bottomPanelMode === 'terminal';
+        state.bottomPanelTab = state.bottomPanelMode === 'terminal' ? 'terminal' : 'output';
       });
     },
 
@@ -527,12 +544,22 @@ export const useUiStore = create<UiState>()(
     toggleBottomPanel() {
       set((state) => {
         state.bottomPanelOpen = !state.bottomPanelOpen;
+        state.terminalOpen = state.bottomPanelOpen && state.bottomPanelTab === 'terminal';
       });
     },
 
     setBottomPanelOpen(open) {
       set((state) => {
         state.bottomPanelOpen = open;
+        state.terminalOpen = open && state.bottomPanelTab === 'terminal';
+      });
+    },
+
+    setBottomPanelTab(tab) {
+      set((state) => {
+        state.bottomPanelTab = tab;
+        state.bottomPanelMode = tab === 'terminal' ? 'terminal' : 'agent';
+        state.terminalOpen = state.bottomPanelOpen && tab === 'terminal';
       });
     },
 

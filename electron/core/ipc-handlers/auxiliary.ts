@@ -898,10 +898,17 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   // --- Terminal introspection ---
 
   ipcMain.handle('terminal:list', async () => {
-    return Array.from(activeTerminals.entries()).map(([id, proc]) => ({
+    const localPtys = Array.from(activePtys.entries()).map(([id, proc]) => ({
       id,
       pid: proc.pid,
+      kind: 'pty' as const,
     }));
+    const sshTerminals = Array.from(activeTerminals.entries()).map(([id, proc]) => ({
+      id,
+      pid: proc.pid,
+      kind: 'ssh' as const,
+    }));
+    return [...localPtys, ...sshTerminals];
   });
 
   // --- Diagnostics ---

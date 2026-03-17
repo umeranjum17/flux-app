@@ -13,12 +13,13 @@ type PanelTab = 'terminal' | 'output';
 
 export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(_props, ref) {
   const [height, setHeight] = useState(260);
-  const [activeTab, setActiveTab] = useState<PanelTab>('terminal');
   const [maximized, setMaximized] = useState(false);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
   const prevHeight = useRef(260);
 
   const toggleBottomPanel = useUiStore((s) => s.toggleBottomPanel);
+  const activeTab = useUiStore((s) => s.bottomPanelTab);
+  const setBottomPanelTab = useUiStore((s) => s.setBottomPanelTab);
 
   // Drag to resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -77,7 +78,7 @@ export const BottomPanel = forwardRef<TerminalPanelHandle>(function BottomPanel(
           {panelTabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => setBottomPanelTab(tab.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase rounded transition-colors ${
                 activeTab === tab.id
                   ? 'text-text-primary'
