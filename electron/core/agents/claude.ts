@@ -11,7 +11,7 @@ import {
 import { repairSessionQueue } from './session-repair';
 import { classifyErrorContent } from './spawn-utils';
 
-export const CLAUDE_STARTUP_TIMEOUT_MS = 20_000;
+export const CLAUDE_STARTUP_TIMEOUT_MS = 45_000;
 
 // Re-export for backward compatibility
 export const isInteractiveToolName = _isInteractiveToolName;
