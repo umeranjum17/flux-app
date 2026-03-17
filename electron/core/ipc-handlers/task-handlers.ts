@@ -729,6 +729,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     // when re-parsing the accumulated buffer.
     let lastLifecycleCount = 0;
     let lastFluxSignalCount = 0;
+    // Deferred outcome trigger: set when the agent emits a signal during
+    // streaming (before commits may exist). The actual transitionOutcome
+    // call happens in the result/done handler where git state is reliable.
+    let pendingOutcomeTrigger: import('../worktree/outcome').WorkspaceOutcomeTrigger | null = null;
 
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
@@ -829,6 +833,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               working: 'Work started',
               planned: 'Plan completed',
               ready_for_review: 'Ready for review',
+              completed: 'Completed',
               merged: 'Changes merged',
             };
             if (lifecycleLabels[evt.state]) {
@@ -853,19 +858,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 workspaceName: evt.workspace_name,
               });
 
-              if (workspace) {
-                const fresh = workspaceStore.get(workspace.id);
-                if (fresh) {
-                  if (evt.state === 'ready_for_review') {
-                    lifecycleManager.transitionOutcome(fresh, 'agent_signal_ready_for_review').catch((err) => {
-                      console.warn('[task-handler] Failed to transition outcome on ready_for_review signal:', err);
-                    });
-                  } else if (evt.state === 'planned') {
-                    lifecycleManager.transitionOutcome(fresh, 'plan_completed').catch((err) => {
-                      console.warn('[task-handler] Failed to transition outcome on planned signal:', err);
-                    });
-                  }
-                }
+              // Defer outcome transition to result/done handler where git
+              // state is reliable (agent may not have committed yet).
+              if (evt.state === 'ready_for_review') {
+                pendingOutcomeTrigger = 'agent_signal_ready_for_review';
+              } else if (evt.state === 'planned') {
+                pendingOutcomeTrigger = 'plan_completed';
               }
             }
           }
@@ -910,15 +908,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 workspaceName: sig.workspace_name,
               });
 
-              if (workspace) {
-                const fresh = workspaceStore.get(workspace.id);
-                if (fresh) {
-                  const trigger = options.mode === 'plan' ? 'plan_completed' : 'agent_signal_ready_for_review';
-                  lifecycleManager.transitionOutcome(fresh, trigger).catch((err) => {
-                    console.warn('[task-handler] Failed to transition outcome on FLUX_SIGNAL completed:', err);
-                  });
-                }
-              }
+              // Defer outcome transition to result/done handler where git
+              // state is reliable (agent may not have committed yet).
+              pendingOutcomeTrigger = options.mode === 'plan' ? 'plan_completed' : 'agent_signal_ready_for_review';
 
               // Emit a lifecycle message to the renderer
               const lifecycleMessage = {
@@ -1085,7 +1077,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
               const freshWs = workspaceStore.get(workspace.id);
               if (freshWs) {
-                const trigger = options.mode === 'plan' ? 'plan_completed' : 'task_completed';
+                const trigger = pendingOutcomeTrigger ?? (options.mode === 'plan' ? 'plan_completed' : 'task_completed');
+                pendingOutcomeTrigger = null;
                 await lifecycleManager.transitionOutcome(freshWs, trigger);
               }
             }
@@ -1549,7 +1542,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
                   const freshWs = workspaceStore.get(workspace.id);
                   if (freshWs) {
-                    const trigger = finalError ? 'task_error' : 'task_completed';
+                    const trigger = finalError ? 'task_error' : (pendingOutcomeTrigger ?? 'task_completed');
+                    pendingOutcomeTrigger = null;
                     await lifecycleManager.transitionOutcome(freshWs, trigger);
                   }
                 }
