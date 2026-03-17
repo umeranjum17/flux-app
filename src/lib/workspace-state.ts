@@ -88,34 +88,15 @@ export interface StartWorkspaceMergeOptions {
   squash: boolean;
 }
 
-function buildWorkspaceMergePrompt(
+function buildWorkspaceMergeTaskPrompt(
   workspace: Workspace,
   targetBranch: string,
   squash: boolean,
 ): string {
-  const mergeCommand = squash
-    ? `git merge --squash ${workspace.branch}`
-    : `git merge ${workspace.branch} --no-edit`;
-  const pushCommand = `git push origin ${targetBranch}`;
-
   return [
-    `Merge branch \`${workspace.branch}\` into \`${targetBranch}\`.`,
-    `Run the merge from the parent repo at \`${workspace.parentRepo}\`, not the worktree path.`,
-    '',
-    '## Steps',
-    `1. In the worktree at \`${workspace.worktreePath}\`, commit any uncommitted changes (staged or unstaged) before proceeding. Use \`git add -A && git commit -m "wip: save uncommitted work before merge"\` if there are changes. Skip if the worktree is clean.`,
-    `2. \`git checkout ${targetBranch}\``,
-    `3. Review the changes that will be merged: \`git log --oneline ${targetBranch}..${workspace.branch}\` to understand what was done.`,
-    `4. \`${mergeCommand}\``,
-    `5. If the merge does not create a commit automatically (e.g. after --squash), write a descriptive commit message that summarizes the actual changes. Use the format: \`merge(${targetBranch}): <concise summary of what changed>\`. For example: \`merge(main): add retry logic to API client\`. Do NOT use generic names like "Workspace" — describe the work.`,
-    `6. Handle straightforward conflicts if they come up. If the merge needs a human decision, stop and report exactly what is blocked.`,
-    `7. Push with: \`${pushCommand}\``,
-    `8. Run \`git status\` and confirm the merge landed.`,
-    '',
-    '## Important',
-    '- If any step fails with an error you cannot resolve, stop immediately and report the exact error.',
-    '- Do NOT silently continue past failures.',
-    '- Finish with a short summary of what landed (commit hash, files changed).',
+    `Merge workspace branch \`${workspace.branch}\` into \`${targetBranch}\`.`,
+    'Use the injected Flux merge skill for the exact merge procedure and conflict-handling rules.',
+    `Strategy: ${squash ? 'squash merge' : 'merge commit'}.`,
   ].join('\n');
 }
 
@@ -414,7 +395,7 @@ export async function startWorkspaceMerge(
   }
 
   const taskId = crypto.randomUUID();
-  const prompt = buildWorkspaceMergePrompt(workspace, opts.targetBranch, opts.squash);
+  const prompt = buildWorkspaceMergeTaskPrompt(workspace, opts.targetBranch, opts.squash);
   primeWorkspaceTask({
     taskId,
     title: `Merge ${workspace.name} -> ${opts.targetBranch}`.slice(0, 80),
@@ -439,6 +420,10 @@ export async function startWorkspaceMerge(
       cwd: workspace.parentRepo,
       autoApprovePermissions: true,
       workspaceAction: 'merge',
+      mergeContext: {
+        targetBranch: opts.targetBranch,
+        squash: opts.squash,
+      },
     }) as { taskId?: string; session: Session };
     const effectiveTaskId = result.taskId ?? taskId;
     if (effectiveTaskId !== taskId) {

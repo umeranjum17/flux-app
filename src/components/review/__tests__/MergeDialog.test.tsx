@@ -93,7 +93,6 @@ describe('MergeDialog', () => {
 
     render(<MergeDialog workspace={workspace} onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Agent Merge/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Start Agent Merge' }));
 
     await waitFor(() => {
@@ -109,14 +108,17 @@ describe('MergeDialog', () => {
           cwd: workspace.parentRepo,
           autoApprovePermissions: true,
           workspaceAction: 'merge',
-          prompt: expect.stringContaining('Merge branch'),
+          mergeContext: {
+            targetBranch: 'master',
+            squash: true,
+          },
+          prompt: expect.stringContaining('Use the injected Flux merge skill'),
         }),
       );
     });
 
     const mergePrompt = mockApi.invoke.mock.calls.find(([channel]) => channel === 'task:spawn')?.[1]?.prompt;
-    expect(mergePrompt).toContain('Use the format: `merge(master): <concise summary of what changed>`');
-    expect(mergePrompt).toContain('`git push origin master`');
+    expect(mergePrompt).toContain('Strategy: squash merge.');
 
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
@@ -147,7 +149,6 @@ describe('MergeDialog', () => {
 
     render(<MergeDialog workspace={workspace} onClose={onClose} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Agent Merge/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Start Agent Merge' }));
 
     await waitFor(() => {
@@ -155,5 +156,12 @@ describe('MergeDialog', () => {
     });
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('defaults to agent merge and hides direct merge', () => {
+    render(<MergeDialog workspace={workspace} onClose={() => {}} />);
+
+    expect(screen.queryByRole('button', { name: /Direct Merge/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start Agent Merge' })).toBeEnabled();
   });
 });

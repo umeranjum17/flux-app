@@ -16,7 +16,15 @@ export interface IpcChannels {
   'agents:detect': { args: []; result: DetectedAgent[] };
   'agents:check-auth': { args: [{ agentId: string }]; result: AuthResult };
   'task:spawn': {
-    args: [SpawnOptions & { agentId?: string; autoApprovePermissions?: boolean; workspaceAction?: 'merge' }];
+    args: [SpawnOptions & {
+      agentId?: string;
+      autoApprovePermissions?: boolean;
+      workspaceAction?: 'merge';
+      mergeContext?: {
+        targetBranch: string;
+        squash: boolean;
+      };
+    }];
     result: { taskId: string; session: Session };
   };
   'task:stop': { args: [{ taskId: string }]; result: void };

@@ -5,7 +5,7 @@ const PLAN_APPROVED_OUTCOMES = new Set(['planned']);
 const REVIEW_OUTCOMES = new Set(['reviewing', 'changes_requested']);
 
 /**
- * Flux Workspace skill — always loaded for any agent running in a workspace.
+ * Flux Workspace skill — loaded for non-merge tasks running in a workspace.
  *
  * Provides:
  * - Workspace context (branch, working directory, parent repo)
@@ -20,7 +20,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
   name: 'Flux Workspace',
 
   isRelevant(ctx: SkillContext): boolean {
-    return !!ctx.workspace;
+    return !!ctx.workspace && ctx.workspaceAction !== 'merge';
   },
 
   buildPrompt(ctx: SkillContext): string {

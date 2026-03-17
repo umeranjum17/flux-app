@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X, GitMerge, GitPullRequest, AlertTriangle, FileText, Plus, Minus, GitCommit, Loader2, Zap } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { useWorkspaceStore } from '../../stores/workspace';
 import { startWorkspaceMerge } from '../../lib/workspace-state';
-import type { Workspace, MergePreview, MergeResult } from '../../lib/ipc-api';
+import type { Workspace, MergePreview } from '../../lib/ipc-api';
 
-type MergeMode = 'direct' | 'agent' | 'pr';
+type MergeMode = 'agent' | 'pr';
 
 interface MergeDialogProps {
   workspace: Workspace;
@@ -19,7 +18,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const [squash, setSquash] = useState(true);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<MergeMode>('direct');
+  const [mode, setMode] = useState<MergeMode>('agent');
   const [preview, setPreview] = useState<MergePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
@@ -64,29 +63,6 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     return () => clearTimeout(timer);
   }, [loadPreview]);
 
-  const handleDirectMerge = async () => {
-    setMerging(true);
-    setError(null);
-    try {
-      const result = await window.api.invoke('workspace:merge', {
-        workspaceId: workspace.id,
-        targetBranch: targetBranch.trim(),
-        squash,
-      }) as MergeResult;
-      if (result.success) {
-        onClose();
-      } else if (result.conflicts?.length) {
-        setError(`Merge conflicts in ${result.conflicts.length} file(s): ${result.conflicts.join(', ')}`);
-      } else {
-        setError(result.error ?? 'Merge failed');
-      }
-    } catch (err: any) {
-      setError(err.message ?? 'Merge failed');
-    } finally {
-      setMerging(false);
-    }
-  };
-
   const handleAgentMerge = async () => {
     setMerging(true);
     setError(null);
@@ -107,7 +83,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     setMerging(true);
     setError(null);
     try {
-      const result = await window.api.invoke('workspace:create-pr', {
+      await window.api.invoke('workspace:create-pr', {
         workspaceId: workspace.id,
         title: prTitle.trim(),
         body: prBody.trim(),
@@ -122,8 +98,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   };
 
   const handleSubmit = () => {
-    if (mode === 'direct') handleDirectMerge();
-    else if (mode === 'agent') handleAgentMerge();
+    if (mode === 'agent') handleAgentMerge();
     else handleCreatePR();
   };
 
@@ -226,18 +201,11 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             <label className="block text-[13px] font-medium text-text-tertiary mb-2">Merge Method</label>
             <div className="flex gap-2">
               <ModeButton
-                active={mode === 'direct'}
-                onClick={() => setMode('direct')}
-                icon={<GitMerge size={12} />}
-                label="Direct Merge"
-                desc="Git merge now"
-              />
-              <ModeButton
                 active={mode === 'agent'}
                 onClick={() => setMode('agent')}
                 icon={<Zap size={12} />}
                 label="Agent Merge"
-                desc="Agent handles conflicts"
+                desc="Agent handles merge flow"
               />
               <ModeButton
                 active={mode === 'pr'}
@@ -249,7 +217,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
             </div>
           </div>
 
-          {/* Options for direct/agent merge */}
+          {/* Options for agent merge */}
           {mode !== 'pr' && (
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
@@ -301,10 +269,10 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
-          {preview && preview.conflicts.length > 0 && mode === 'direct' && (
+          {preview && preview.conflicts.length > 0 && mode === 'agent' && (
             <span className="flex items-center gap-1 text-[11px] text-amber-400 mr-auto">
               <AlertTriangle size={11} />
-              Conflicts detected — consider Agent Merge
+              Conflicts detected — agent will stop if a human decision is needed
             </span>
           )}
           <button
@@ -320,11 +288,9 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           >
             {merging
               ? 'Working...'
-              : mode === 'direct'
-                ? 'Merge Now'
-                : mode === 'agent'
-                  ? 'Start Agent Merge'
-                  : 'Create PR'}
+              : mode === 'agent'
+                ? 'Start Agent Merge'
+                : 'Create PR'}
           </button>
         </div>
       </div>

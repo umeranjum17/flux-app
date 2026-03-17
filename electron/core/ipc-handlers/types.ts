@@ -25,6 +25,10 @@ export type SpawnTaskRunOptions = SpawnOptions & {
   agentId?: string;
   autoApprovePermissions?: boolean;
   workspaceAction?: 'merge';
+  mergeContext?: {
+    targetBranch: string;
+    squash: boolean;
+  };
 };
 
 /**

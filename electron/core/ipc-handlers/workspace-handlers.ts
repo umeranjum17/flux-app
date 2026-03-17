@@ -7,8 +7,8 @@ import path from 'path';
 import * as pty from 'node-pty';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
-import type { WorkspaceOutcome, WorkspaceStatus, MergeResult } from '../worktree/types';
-import { createWorktree, removeWorktree, mergeWorktree, listWorktrees } from '../worktree/manager';
+import type { WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
+import { createWorktree, removeWorktree, listWorktrees } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile, discardAll, getFullDiff } from '../worktree/diff';
 import { resolveGitState } from '../worktree/outcome';
@@ -696,33 +696,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:merge',
-    async (_event, { workspaceId, targetBranch, squash }: { workspaceId: string; targetBranch: string; squash?: boolean }) => {
+    async (_event, { workspaceId }: { workspaceId: string; targetBranch: string; squash?: boolean }) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-      lifecycleManager.setStatus(workspaceId, 'merging');
-
-      try {
-        const result = await mergeWorktree(
-          workspace.worktreePath,
-          workspace.parentRepo,
-          targetBranch,
-          squash ?? true,
-          workspace.name,
-        );
-
-        if (result.success) {
-          lifecycleManager.setOutcome(workspaceId, 'merged', { force: true });
-          lifecycleManager.setStatus(workspaceId, 'done');
-        } else {
-          lifecycleManager.setStatus(workspaceId, 'error');
-        }
-
-        return result;
-      } catch (err: any) {
-        lifecycleManager.setStatus(workspaceId, 'error');
-        return { success: false, error: err.message } satisfies MergeResult;
-      }
+      throw new Error(`Direct workspace merges are disabled for ${workspace.name}. Start an Agent Merge instead.`);
     },
   );
 

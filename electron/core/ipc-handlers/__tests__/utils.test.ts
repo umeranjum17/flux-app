@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { parseStepMarkers, getStepTrackableContent, extractTodoItemsFromPayload, isTodoTrackingToolCall, parseTodoBlock, parseFluxTodo, parseFluxTodoAll, parseAgentTodos } from '../utils';
+import { buildWorkspaceSystemContext, parseStepMarkers, getStepTrackableContent, extractTodoItemsFromPayload, isTodoTrackingToolCall, parseTodoBlock, parseFluxTodo, parseFluxTodoAll, parseAgentTodos } from '../utils';
 import type { AgentMessage } from '../../agents/types';
+import type { Workspace } from '../../worktree/types';
+
+const workspace: Workspace = {
+  id: 'ws-1',
+  name: 'Hardening pass',
+  parentRepo: '/repo',
+  worktreePath: '/repo/.flux-worktrees/ws-1',
+  branch: 'flux-hardening',
+  agentId: 'codex',
+  model: 'gpt-5.4',
+  mode: 'act',
+  status: 'idle',
+  outcome: 'in_progress',
+  createdAt: 1,
+  updatedAt: 1,
+};
 
 describe('parseStepMarkers', () => {
   it('extracts START markers', () => {
@@ -247,5 +263,31 @@ describe('parseAgentTodos', () => {
     const result = parseAgentTodos('just regular text');
     expect(result.source).toBe('none');
     expect(result.items).toEqual([]);
+  });
+});
+
+describe('buildWorkspaceSystemContext', () => {
+  it('injects the merge skill for merge tasks', () => {
+    const prompt = buildWorkspaceSystemContext(workspace, 'act', {
+      workspaceAction: 'merge',
+      merge: {
+        targetBranch: 'main',
+        squash: true,
+      },
+      agentId: 'codex',
+    });
+
+    expect(prompt).toContain('<flux-skill name="merge" mode="act">');
+    expect(prompt).toContain('git merge --squash flux-hardening');
+    expect(prompt).toContain('git push origin main');
+    expect(prompt).toContain('<flux-skill name="todo">');
+    expect(prompt).not.toContain('<flux-skill name="workspace"');
+  });
+
+  it('throws when merge context is missing for merge tasks', () => {
+    expect(() => buildWorkspaceSystemContext(workspace, 'act', {
+      workspaceAction: 'merge',
+      agentId: 'codex',
+    })).toThrow('Missing merge context for workspace merge task');
   });
 });
