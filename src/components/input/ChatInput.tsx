@@ -34,10 +34,10 @@ const THINKING_LABELS: Record<ThinkingLevel, string> = {
 
 const THINKING_COLORS: Record<ThinkingLevel, { text: string; bg: string; border: string; dot: string }> = {
   disabled: { text: 'text-text-tertiary', bg: 'bg-bg-elevated/50', border: 'border-border/40', dot: 'bg-text-tertiary/40' },
-  low: { text: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/25', dot: 'bg-sky-400' },
-  medium: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/25', dot: 'bg-amber-400' },
-  high: { text: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/25', dot: 'bg-orange-400' },
-  xhigh: { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/25', dot: 'bg-red-400' },
+  low: { text: 'text-text-secondary', bg: 'bg-bg-elevated/50', border: 'border-border/40', dot: 'bg-sky-400/60' },
+  medium: { text: 'text-text-secondary', bg: 'bg-bg-elevated/50', border: 'border-border/40', dot: 'bg-amber-400/60' },
+  high: { text: 'text-text-secondary', bg: 'bg-bg-elevated/50', border: 'border-border/40', dot: 'bg-orange-400/60' },
+  xhigh: { text: 'text-text-secondary', bg: 'bg-bg-elevated/50', border: 'border-border/40', dot: 'bg-red-400/60' },
 };
 
 interface ChatInputProps {
@@ -824,10 +824,12 @@ export function ChatInput({ focused }: ChatInputProps) {
   })();
   const supportsThinking = currentAgent?.supportsThinking ?? true;
 
-  // Container border/bg classes for terminal mode (Warp-style)
+  // Container border/bg classes — mode color flows across the full input shell
   const shellClasses = isTerminal
     ? 'border-l-2 border-l-green-500/70 border-t border-r border-b border-border/80 bg-green-950/10'
-    : 'border border-border/55 bg-bg-primary/70';
+    : mode === 'plan'
+      ? 'border border-sky-500/30 bg-sky-950/[0.06]'
+      : 'border border-orange-500/30 bg-orange-950/[0.06]';
 
   return (
     <div className="relative w-full">
@@ -892,7 +894,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         </div>
       )}
 
-      <div className={`premium-input-shell px-3 py-2.5 transition-colors focus-within:border-border-focus/60 ${shellClasses}`}>
+      <div className={`premium-input-shell px-3 py-2.5 transition-colors ${isTerminal ? 'focus-within:border-border-focus/60' : mode === 'plan' ? 'focus-within:border-sky-500/50' : 'focus-within:border-orange-500/50'} ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
           <div className="mb-1.5 flex items-center gap-1.5">
@@ -1077,7 +1079,7 @@ export function ChatInput({ focused }: ChatInputProps) {
 
                   {/* Plan / Act toggle — segmented pill */}
                   <div
-                    className="inline-flex items-center rounded-full border border-border/60 bg-bg-elevated/55 p-0.5 text-[11px] font-semibold"
+                    className="inline-flex items-center rounded-full border border-border/40 bg-bg-elevated/50 p-0.5 text-[11px] font-semibold"
                     title="Shift+Tab to toggle"
                   >
                     <button
@@ -1085,7 +1087,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       onClick={() => useUiStore.getState().setMode('plan')}
                       className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'plan'
-                          ? 'bg-bg-elevated text-text-primary ring-1 ring-border/70'
+                          ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1096,7 +1098,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       onClick={() => useUiStore.getState().setMode('act')}
                       className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'act'
-                          ? 'bg-bg-elevated text-text-primary ring-1 ring-border/70'
+                          ? 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1117,15 +1119,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                         }
                         setShowRateLimits((open) => !open);
                       }}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-medium transition-all duration-150 ${
-                        highestSeverity === 'rejected'
-                          ? 'border-red-500/40 bg-red-500/10 text-red-400'
-                          : highestSeverity === 'allowed_warning'
-                            ? 'border-amber-500/35 bg-amber-500/10 text-amber-400'
-                            : highestSeverity === 'allowed'
-                              ? 'border-emerald-500/25 bg-emerald-500/8 text-emerald-400'
-                              : 'border-border/50 bg-bg-primary/60 text-text-tertiary'
-                      }`}
+                      className={`inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-bg-elevated/50 px-2 py-1 text-[11px] font-medium text-text-secondary transition-all duration-150`}
                       title="Peek rate limits"
                       aria-label="Peek rate limits"
                     >
