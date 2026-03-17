@@ -36,7 +36,7 @@ export type WorkspaceLifecycleState =
   | 'merged'
   | 'blocked';
 
-export type WorkspaceListSignalState = WorkspaceLifecycleState | 'archiving' | 'archive_failed';
+export type WorkspaceListSignalState = WorkspaceLifecycleState | 'has_changes' | 'archiving' | 'archive_failed';
 
 interface WorkspaceLifecycleConfigEntry {
   color: string;
@@ -185,6 +185,12 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     detail: 'Waiting for the next task.',
     dotClassName: 'workspace-list-signal workspace-list-signal-idle',
   },
+  has_changes: {
+    color: 'bg-accent',
+    label: 'Has changes',
+    detail: 'Workspace has unreviewed changes.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-has-changes',
+  },
   coding: {
     color: 'bg-accent',
     label: 'Working',
@@ -276,8 +282,13 @@ export interface WorkspaceListSignal {
   color: string;
   label: string;
   detail: string;
+  tooltip: string;
   dotClassName: string;
   ariaLabel: string;
+}
+
+interface WorkspaceListSignalOptions {
+  hasChanges?: boolean;
 }
 
 /** Whether the workspace has reached a terminal outcome (merged, ready to merge, or ready to archive). */
@@ -307,8 +318,13 @@ export function getWorkspaceLifecycleState(
 export function getWorkspaceListSignal(
   workspace: Pick<Workspace, 'name' | 'status' | 'outcome'> & Partial<Pick<Workspace, 'mode'>>,
   operation?: Pick<WorkspaceOperation, 'kind' | 'status' | 'message' | 'error'>,
+  options?: WorkspaceListSignalOptions,
 ): WorkspaceListSignal {
   let signalState: WorkspaceListSignalState = getWorkspaceLifecycleState(workspace);
+
+  if (signalState === 'idle' && options?.hasChanges && !isTerminalOutcome(workspace.outcome)) {
+    signalState = 'has_changes';
+  }
 
   if (operation?.kind === 'archive') {
     if (operation.status === 'running') {
@@ -321,15 +337,17 @@ export function getWorkspaceListSignal(
   const config = workspaceListSignalConfig[signalState];
   const detail = operation?.kind === 'archive' && operation.message
     ? `${config.detail} ${operation.message}.`
-    : operation?.kind === 'archive' && operation.status === 'failed' && operation.error
-      ? `${config.detail} ${operation.error}.`
-      : config.detail;
+      : operation?.kind === 'archive' && operation.status === 'failed' && operation.error
+        ? `${config.detail} ${operation.error}.`
+        : config.detail;
+  const tooltip = `${config.label}. ${detail}`;
 
   return {
     state: signalState,
     color: config.color,
     label: config.label,
     detail,
+    tooltip,
     dotClassName: `lifecycle-dot ${config.color} ${config.dotClassName}`,
     ariaLabel: `${workspace.name} — ${config.label}. ${detail}`,
   };

@@ -4,11 +4,12 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { getWorkspaceLifecycleState, getWorkspaceListSignal, workspaceLifecycleConfig } from '../../lib/workspace-status';
+import { getWorkspaceListSignal } from '../../lib/workspace-status';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
-import type { Workspace } from '../../lib/ipc-api';
+import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
+import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 
 function basename(p: string): string {
   return p.split('/').pop() || p.split('\\').pop() || p;
@@ -280,61 +281,24 @@ export function WorkspaceTab() {
 
               {/* Workspace list for this project */}
               {!isCollapsed && projectWorkspaces.map((ws) => {
-                const lifecycleState = getWorkspaceLifecycleState(ws);
-                const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
                 const operation = workspaceOperations.get(ws.id);
-                const signal = getWorkspaceListSignal(ws, operation);
                 const isActive = ws.id === activeWorkspaceId;
                 const wsGlobalIdx = globalIdx++;
-                const isArchiving = isWorkspaceArchiving(operation);
-                const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
 
                 return (
-                  <button
+                  <WorkspaceListItem
                     key={ws.id}
-                    onClick={() => handleSelectWorkspace(ws.id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setContextMenu({ x: e.clientX, y: e.clientY, ws });
+                    workspace={ws}
+                    operation={operation}
+                    isActive={isActive}
+                    shortcutIndex={wsGlobalIdx}
+                    onSelect={() => handleSelectWorkspace(ws.id)}
+                    onOpenContextMenu={(event) => {
+                      event.preventDefault();
+                      setContextMenu({ x: event.clientX, y: event.clientY, ws });
                     }}
-                    title={signal.detail}
-                    aria-label={signal.ariaLabel}
-                    className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
-                  >
-                    <div className="relative mt-0.5 shrink-0">
-                      <span aria-hidden="true" className={signal.dotClassName} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center">
-                        <span className="truncate text-[13px] font-medium text-text-primary">{ws.name}</span>
-                        <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${lifecycle.badgeClass}`}>
-                          {isArchiving ? 'Archiving' : lifecycle.label}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
-                        <GitBranch size={10} className="opacity-50" />
-                        <span className="truncate font-mono">{ws.branch}</span>
-                      </div>
-                    </div>
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      title={archiveLabel}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isArchiving) return;
-                        void handleArchive(ws.id);
-                      }}
-                      className={`shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 ${
-                        isArchiving ? 'cursor-not-allowed opacity-100' : 'hover:text-text-primary'
-                      }`}
-                    >
-                      {isArchiving ? <LoaderCircle size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                    </span>
-                    {wsGlobalIdx < 9 && (
-                      <span className="shrink-0 text-[10px] text-text-tertiary/50 font-mono">{'\u2318'}{wsGlobalIdx + 1}</span>
-                    )}
-                  </button>
+                    onArchive={() => handleArchive(ws.id)}
+                  />
                 );
               })}
             </div>
@@ -435,6 +399,87 @@ function ContextItem({
     >
       {icon}
       {label}
+    </button>
+  );
+}
+
+function WorkspaceListItem({
+  workspace,
+  operation,
+  isActive,
+  shortcutIndex,
+  onSelect,
+  onOpenContextMenu,
+  onArchive,
+}: {
+  workspace: Workspace;
+  operation?: WorkspaceOperation;
+  isActive: boolean;
+  shortcutIndex: number;
+  onSelect: () => void;
+  onOpenContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onArchive: () => void | Promise<void>;
+}) {
+  const isArchiving = isWorkspaceArchiving(operation);
+  const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr'
+    || workspace.outcome === 'reviewing'
+    || workspace.outcome === 'changes_requested'
+    || workspace.outcome === 'ready_to_merge'
+    || workspace.outcome === 'merged'
+    || workspace.outcome === 'ready_to_archive';
+  const shouldCheckForChanges = !isArchiving
+    && workspace.mode !== 'plan'
+    && workspace.status !== 'running'
+    && workspace.status !== 'waiting_approval'
+    && workspace.status !== 'waiting_input'
+    && workspace.status !== 'error'
+    && workspace.status !== 'merging'
+    && !outcomeImpliesChanges;
+  const hasChanges = useWorkspaceHasChanges(shouldCheckForChanges ? workspace.id : undefined, {
+    fallback: outcomeImpliesChanges,
+    pollMs: shouldCheckForChanges && isActive ? 5000 : null,
+  });
+  const signal = getWorkspaceListSignal(workspace, operation, { hasChanges });
+  const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
+
+  return (
+    <button
+      onClick={onSelect}
+      onContextMenu={onOpenContextMenu}
+      title={signal.tooltip}
+      aria-label={signal.ariaLabel}
+      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
+    >
+      <div className="relative mt-0.5 shrink-0 pt-0.5">
+        <span aria-hidden="true" className={signal.dotClassName} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-medium text-text-primary">{workspace.name}</div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
+          <GitBranch size={10} className="opacity-50" />
+          <span className="truncate font-mono">{workspace.branch}</span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5 self-start">
+        <span
+          role="button"
+          tabIndex={-1}
+          title={archiveLabel}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (isArchiving) return;
+            void onArchive();
+          }}
+          className={`rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 ${
+            isArchiving ? 'cursor-not-allowed opacity-100' : 'hover:text-text-primary'
+          }`}
+        >
+          {isArchiving ? <LoaderCircle size={12} className="animate-spin" /> : <Trash2 size={12} />}
+        </span>
+        {shortcutIndex < 9 && (
+          <span className="px-1 text-[10px] text-text-tertiary/50 font-mono">{'\u2318'}{shortcutIndex + 1}</span>
+        )}
+      </div>
     </button>
   );
 }

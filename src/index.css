@@ -601,14 +601,15 @@ button:focus-visible {
   border: 1px solid transparent;
 }
 
-/* Sidebar lifecycle dot — slightly larger, with glow for active states */
+/* Sidebar lifecycle dot — compact but expressive enough to replace status pills */
 .lifecycle-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease;
+  transform-origin: center;
+  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease, filter 200ms ease;
 }
 
 .workspace-list-signal {
@@ -619,12 +620,19 @@ button:focus-visible {
   opacity: 0.52;
 }
 
+.workspace-list-signal-has-changes,
 .workspace-list-signal-planned,
 .workspace-list-signal-review-ready,
 .workspace-list-signal-ready-to-merge,
 .workspace-list-signal-reviewing,
 .workspace-list-signal-complete {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color) 22%, transparent);
+}
+
+.workspace-list-signal-has-changes {
+  --workspace-signal-color: var(--color-accent);
+  opacity: 0.96;
+  filter: saturate(1.08);
 }
 
 .workspace-list-signal-planning {

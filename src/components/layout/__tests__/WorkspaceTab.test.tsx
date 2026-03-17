@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, within } from '@testing-library/react';
 import { createMockApi, type MockApi } from '../../../../test/mocks/window-api';
 import { WorkspaceTab } from '../WorkspaceTab';
@@ -6,6 +6,14 @@ import type { Workspace, WorkspaceOperation } from '../../../lib/ipc-api';
 import { useChatStore } from '../../../stores/chat';
 import { useUiStore } from '../../../stores/ui';
 import { useWorkspaceStore } from '../../../stores/workspace';
+
+const { useWorkspaceHasChangesMock } = vi.hoisted(() => ({
+  useWorkspaceHasChangesMock: vi.fn(() => false),
+}));
+
+vi.mock('../../../hooks/useWorkspaceHasChanges', () => ({
+  useWorkspaceHasChanges: useWorkspaceHasChangesMock,
+}));
 
 let mockApi: MockApi;
 
@@ -58,6 +66,7 @@ function renderWorkspaceTab(
 beforeEach(() => {
   mockApi = createMockApi();
   (window as any).api = mockApi;
+  useWorkspaceHasChangesMock.mockReturnValue(false);
 
   useChatStore.setState({
     tasks: new Map(),
@@ -82,7 +91,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Planning. Agent is creating a plan.',
     })).not.toBeNull();
-    expect(scoped.getByTitle('Agent is creating a plan.')).not.toBeNull();
+    expect(scoped.getByTitle('Planning. Agent is creating a plan.')).not.toBeNull();
     expect(scoped.queryByText('Planning')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-planning.bg-info')).not.toBeNull();
   });
@@ -98,6 +107,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Needs approval. Paused — waiting for your approval.',
     })).not.toBeNull();
+    expect(scoped.getByTitle('Needs approval. Paused — waiting for your approval.')).not.toBeNull();
     expect(scoped.queryByText('Needs Approval')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-approval.bg-warning')).not.toBeNull();
   });
@@ -113,8 +123,26 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Needs input. Agent asked a question.',
     })).not.toBeNull();
+    expect(scoped.getByTitle('Needs input. Agent asked a question.')).not.toBeNull();
     expect(scoped.queryByText('Needs Input')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-input.bg-info')).not.toBeNull();
+  });
+
+  it('uses a change signal when an idle workspace has unreviewed changes', () => {
+    useWorkspaceHasChangesMock.mockReturnValue(true);
+    const view = renderWorkspaceTab({
+      status: 'done',
+      mode: 'act',
+      updatedAt: 3,
+    });
+    const scoped = within(view.container);
+
+    expect(scoped.getByRole('button', {
+      name: 'Planning pass — Has changes. Workspace has unreviewed changes.',
+    })).not.toBeNull();
+    expect(scoped.getByTitle('Has changes. Workspace has unreviewed changes.')).not.toBeNull();
+    expect(scoped.queryByText('Has changes')).toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-has-changes.bg-accent')).not.toBeNull();
   });
 
   it('keeps ready-for-review state on the lifecycle dot', () => {
@@ -129,6 +157,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Ready for review. Changes are ready to review.',
     })).not.toBeNull();
+    expect(scoped.getByTitle('Ready for review. Changes are ready to review.')).not.toBeNull();
     expect(scoped.queryByText('Ready for Review')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-review-ready.bg-accent')).not.toBeNull();
   });
@@ -144,6 +173,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Blocked. Last run failed — needs attention.',
     })).not.toBeNull();
+    expect(scoped.getByTitle('Blocked. Last run failed — needs attention.')).not.toBeNull();
     expect(scoped.queryByText('Blocked')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-blocked.bg-error')).not.toBeNull();
   });
@@ -174,6 +204,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Archiving. Workspace archive is in progress. Removing git worktree.',
     })).not.toBeNull();
+    expect(scoped.getByTitle('Archiving. Workspace archive is in progress. Removing git worktree.')).not.toBeNull();
     expect(scoped.queryByText('Archiving')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-accent')).not.toBeNull();
   });
