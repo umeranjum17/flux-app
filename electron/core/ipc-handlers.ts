@@ -1473,7 +1473,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
 
       const autoApprovePermission = Boolean(
-        options.autoApprovePermissions
+        (options.autoApprovePermissions || options.mode === 'plan')
           && message.type === 'permission_request'
           && message.requestId,
       );
@@ -1495,7 +1495,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
             type: 'status',
             role: 'system',
             statusKind: 'progress',
-            content: `Auto-approved ${message.toolName ?? 'permission'} for workspace merge`,
+            content: `Auto-approved ${message.toolName ?? 'permission'}${options.mode === 'plan' ? ' (plan mode)' : ' for workspace merge'}`,
             timestamp: Date.now(),
           } satisfies AgentMessage;
           sessionStore.addMessage(session.id, toStoredMessage(autoApprovedMessage));
