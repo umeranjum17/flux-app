@@ -1126,10 +1126,18 @@ export function getStepTrackableContent(message: AgentMessage): string | null {
     case 'text':
     case 'status':
     case 'tool_result':
+    case 'result':
       return message.content;
     default:
       return null;
   }
+}
+
+const FLUX_TOKEN_PATTERN = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{[^}]*\}/g;
+
+/** Strip FLUX protocol tokens from text so they don't render in the UI. */
+export function stripFluxTokens(text: string): string {
+  return text.replace(FLUX_TOKEN_PATTERN, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export interface RateLimitInfo {
