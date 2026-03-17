@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { getWorkspaceListSignal, getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
+import { getWorkspaceLifecycleState, getWorkspaceListSignal, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
 import { toast } from 'sonner';
@@ -280,11 +280,12 @@ export function WorkspaceTab() {
 
               {/* Workspace list for this project */}
               {!isCollapsed && projectWorkspaces.map((ws) => {
+                const lifecycleState = getWorkspaceLifecycleState(ws);
+                const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
                 const operation = workspaceOperations.get(ws.id);
                 const signal = getWorkspaceListSignal(ws, operation);
                 const isActive = ws.id === activeWorkspaceId;
                 const wsGlobalIdx = globalIdx++;
-                const lifecycle = workspaceLifecycleConfig[getWorkspaceLifecycleState(ws)];
                 const isArchiving = isWorkspaceArchiving(operation);
                 const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
 
