@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WorkspaceActionBar } from '../WorkspaceActionBar';
 import type { Workspace } from '../../../lib/ipc-api';
@@ -7,14 +7,22 @@ import { useChatStore } from '../../../stores/chat';
 import { useUiStore } from '../../../stores/ui';
 import { useWorkspaceStore } from '../../../stores/workspace';
 
+const { useWorkspaceHasChangesMock } = vi.hoisted(() => ({
+  useWorkspaceHasChangesMock: vi.fn(() => false),
+}));
+
 vi.mock('../../../hooks/useWorkspaceHasChanges', () => ({
-  useWorkspaceHasChanges: () => false,
+  useWorkspaceHasChanges: useWorkspaceHasChangesMock,
 }));
 
 describe('WorkspaceActionBar', () => {
   beforeEach(() => {
+    useWorkspaceHasChangesMock.mockReturnValue(false);
     (window as any).api = {
-      invoke: vi.fn().mockResolvedValue(undefined),
+      invoke: vi.fn().mockImplementation(async (channel: string) => {
+        if (channel === 'workspace:diff-files') return [];
+        return undefined;
+      }),
     };
 
     useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
@@ -76,5 +84,17 @@ describe('WorkspaceActionBar', () => {
     expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
       type: 'flux:open-workspace-terminal',
     }));
+  });
+
+  it('auto-opens the changes panel when review becomes available', async () => {
+    useWorkspaceHasChangesMock.mockReturnValue(true);
+
+    render(<WorkspaceActionBar />);
+
+    await waitFor(() => {
+      const workspaceState = useWorkspaceStore.getState();
+      expect(workspaceState.changesPanelOpen).toBe(true);
+      expect(workspaceState.changesPanelWorkspaceId).toBe('ws-1');
+    });
   });
 });

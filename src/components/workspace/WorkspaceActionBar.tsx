@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
@@ -15,6 +16,33 @@ export function WorkspaceActionBar() {
   const hasChanges = useWorkspaceHasChanges(workspace?.id, {
     pollMs: isRunning ? 2000 : 4000,
   });
+  const workspaceId = workspace?.id ?? null;
+  const previousReviewStateRef = useRef<{ workspaceId: string | null; hasChanges: boolean }>({
+    workspaceId: null,
+    hasChanges: false,
+  });
+
+  useEffect(() => {
+    if (!workspaceId) {
+      previousReviewStateRef.current = { workspaceId: null, hasChanges: false };
+      return;
+    }
+
+    const previousState = previousReviewStateRef.current;
+    const hadChanges = previousState.workspaceId === workspaceId ? previousState.hasChanges : false;
+
+    if (hasChanges && !hadChanges && !isMerged) {
+      const store = useWorkspaceStore.getState();
+      if (!store.changesPanelOpen || store.changesPanelWorkspaceId !== workspaceId) {
+        void store.openChangesPanel(workspaceId);
+      }
+    }
+
+    previousReviewStateRef.current = {
+      workspaceId,
+      hasChanges,
+    };
+  }, [hasChanges, isMerged, workspaceId]);
 
   if (!workspace) return null;
 
