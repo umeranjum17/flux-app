@@ -227,16 +227,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((state) => {
           if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
           state.changesPanelFiles = files;
-          // Auto-select first file
-          if (files.length > 0) {
-            state.changesPanelSelectedFile = files[0].path;
-          }
         });
-        // Auto-load first file's diff
-        const currentState = get();
-        if (currentState.changesPanelSelectedFile && requestVersion === changesPanelRequestVersion) {
-          await get().changesPanelSelectFile(currentState.changesPanelSelectedFile);
-        }
       } catch {
         // Failed to load diff files
       }

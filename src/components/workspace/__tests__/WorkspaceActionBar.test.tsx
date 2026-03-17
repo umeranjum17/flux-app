@@ -88,6 +88,15 @@ describe('WorkspaceActionBar', () => {
 
   it('auto-opens the changes panel when review becomes available', async () => {
     useWorkspaceHasChangesMock.mockReturnValue(true);
+    (window as any).api.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'workspace:diff-files') {
+        return [{ path: '/repo/.flux/bugfix/src/main.ts', status: 'modified', additions: 2, deletions: 0 }];
+      }
+      if (channel === 'workspace:file-diff') {
+        throw new Error('workspace:file-diff should not be called before a file is selected');
+      }
+      return undefined;
+    });
 
     render(<WorkspaceActionBar />);
 
@@ -95,6 +104,10 @@ describe('WorkspaceActionBar', () => {
       const workspaceState = useWorkspaceStore.getState();
       expect(workspaceState.changesPanelOpen).toBe(true);
       expect(workspaceState.changesPanelWorkspaceId).toBe('ws-1');
+      expect(workspaceState.changesPanelSelectedFile).toBeNull();
+      expect(workspaceState.changesPanelFileDiff).toBeNull();
     });
+
+    expect((window as any).api.invoke).toHaveBeenCalledWith('workspace:diff-files', { workspaceId: 'ws-1' });
   });
 });
