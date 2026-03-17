@@ -291,11 +291,8 @@ export function WorkspaceTab() {
                       <span className={`lifecycle-dot ${lifecycle.color} ${isLive ? 'animate-pulse lifecycle-dot-glow' : ''}`} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center">
                         <span className="truncate text-[13px] font-medium text-text-primary">{ws.name}</span>
-                        <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${lifecycle.badgeClass}`}>
-                          {lifecycle.label}
-                        </span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
                         <GitBranch size={10} className="opacity-50" />
