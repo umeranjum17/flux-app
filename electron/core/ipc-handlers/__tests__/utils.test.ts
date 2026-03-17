@@ -293,6 +293,27 @@ describe('parseAgentTodos', () => {
 });
 
 describe('buildWorkspaceSystemContext', () => {
+  it('requires clearing tracked todos before ready_for_pr for non-native todo agents', () => {
+    const prompt = buildWorkspaceSystemContext(workspace, 'act', {
+      agentId: 'codex',
+    });
+
+    expect(prompt).toContain('<flux-skill name="workspace" mode="act">');
+    expect(prompt).toContain('<flux-skill name="todo">');
+    expect(prompt).toContain('Before emitting it, clear your todo tracker');
+    expect(prompt).toContain('no items remain pending or in_progress');
+  });
+
+  it('tells native todo agents to clear TodoWrite items before review-ready outcomes', () => {
+    const prompt = buildWorkspaceSystemContext(workspace, 'act', {
+      agentId: 'claude-code',
+    });
+
+    expect(prompt).toContain('Use your native TodoWrite tool to track progress.');
+    expect(prompt).toContain('Before you move the workspace to a review-ready outcome, clear the todo list');
+    expect(prompt).not.toContain('<flux-skill name="todo">');
+  });
+
   it('injects the merge skill for merge tasks', () => {
     const prompt = buildWorkspaceSystemContext(workspace, 'act', {
       workspaceAction: 'merge',

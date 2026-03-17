@@ -136,6 +136,8 @@ export const fluxWorkspaceSkill: FluxSkill = {
           'Use your native TodoWrite tool to track progress. Write all planned steps as todo items,',
           'then mark each as completed as you finish it. Do NOT write inline step markers like',
           '"Step 1:", "Step 2:" in your response text — use TodoWrite instead.',
+          'Before you move the workspace to a review-ready outcome, clear the todo list by',
+          'marking every remaining item complete or removing it if it is no longer needed.',
         );
       }
 
@@ -194,7 +196,7 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
     'Valid outcomes: `in_progress`, `planned`, `ready_for_pr`',
     '',
     'Guidelines:',
-    '- `ready_for_pr` — You have committed meaningful changes and the work is complete or at a review-ready checkpoint.',
+    '- `ready_for_pr` — You have committed meaningful changes and the work is complete or at a review-ready checkpoint. Before emitting it, clear your todo tracker so no items remain pending or in_progress: mark remaining work done, or remove items that are no longer needed.',
     '- `planned` — You produced a plan (plan mode only).',
     '- `in_progress` — Work is ongoing, not yet at a reviewable state.',
     '',
