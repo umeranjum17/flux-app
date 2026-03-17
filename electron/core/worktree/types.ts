@@ -30,6 +30,38 @@ export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting
 
 export type WorkspaceOutcome = 'in_progress' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
 
+export type WorkspaceOperationKind = 'archive';
+
+export type WorkspaceOperationStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export type WorkspaceOperationStage =
+  | 'queued'
+  | 'releasing_tasks'
+  | 'checking_repo'
+  | 'resolving_branch'
+  | 'removing_git_worktree'
+  | 'removing_git_branch'
+  | 'removing_worktree_files'
+  | 'cleaning_db'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface WorkspaceOperation {
+  id: string;
+  workspaceId: string;
+  kind: WorkspaceOperationKind;
+  status: WorkspaceOperationStatus;
+  stage: WorkspaceOperationStage;
+  progress: number;
+  message: string;
+  startedAt: number;
+  updatedAt: number;
+  finishedAt?: number;
+  error?: string;
+  cancellable: boolean;
+}
+
 export interface WorkspaceSession {
   id: number;
   workspaceId: string;

@@ -9,6 +9,7 @@ import type { UsageTracker } from '../usage/tracker';
 import type { LiveUsageService } from '../usage/live';
 import type { WorkspaceStore } from '../worktree/store';
 import type { WorkspaceLifecycleManager } from '../worktree/lifecycle';
+import type { WorkspaceOperationManager } from '../worktree/operation-manager';
 import type { RateLimitInfo } from './utils';
 
 export interface SubagentEntry {
@@ -49,6 +50,7 @@ export interface BaseIpcContext {
 
   // Workspace lifecycle (single owner of status/outcome mutations)
   lifecycleManager: WorkspaceLifecycleManager;
+  operationManager: WorkspaceOperationManager;
 
   // Shared state maps
   activeTasks: Map<string, AgentHandle>;

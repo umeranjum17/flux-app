@@ -247,6 +247,31 @@ export async function restoreWorkspaceChats(
   }
 }
 
+export function applyWorkspaceDeleted(workspaceId: string): void {
+  const workspaceStore = useWorkspaceStore.getState();
+  const chatStore = useChatStore.getState();
+  const wasActive = workspaceStore.activeWorkspaceId === workspaceId;
+  const nextWorkspace = Array.from(workspaceStore.workspaces.values())
+    .filter((workspace) => workspace.id !== workspaceId)
+    .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+
+  workspaceStore.removeWorkspace(workspaceId);
+  chatStore.removeTasksForWorkspace(workspaceId);
+
+  if (!wasActive) return;
+
+  if (!nextWorkspace) {
+    chatStore.setActiveTask(null);
+    return;
+  }
+
+  workspaceStore.setActiveWorkspace(nextWorkspace.id);
+  const nextTask = Array.from(chatStore.tasks.values())
+    .filter((task) => task.workspaceId === nextWorkspace.id)
+    .sort((left, right) => (right.activeRun?.startedAt ?? 0) - (left.activeRun?.startedAt ?? 0))[0];
+  chatStore.setActiveTask(nextTask?.id ?? null);
+}
+
 export async function startWorkspaceChat(
   opts: StartWorkspaceChatOptions,
 ): Promise<{ taskId: string; session: Session }> {

@@ -1,7 +1,7 @@
 import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Workspace, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession } from '../lib/ipc-api';
+import type { Workspace, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession, WorkspaceOperation } from '../lib/ipc-api';
 import type { SystemActivity } from '../lib/types';
 import { appendSystemActivity } from '../lib/system-activities';
 
@@ -20,6 +20,7 @@ interface WorkspaceState {
 
   // Durable workspace-scoped lifecycle activity
   workspaceActivities: Map<string, SystemActivity[]>;
+  workspaceOperations: Map<string, WorkspaceOperation>;
 
   // Actions
   setWorkspaces(workspaces: Workspace[]): void;
@@ -49,6 +50,9 @@ interface WorkspaceState {
   loadCheckpoints(workspaceId: string): Promise<void>;
   addCheckpoint(workspaceId: string, checkpoint: Checkpoint): void;
   addWorkspaceActivity(workspaceId: string, activity: SystemActivity): void;
+  setWorkspaceOperation(operation: WorkspaceOperation): void;
+  clearWorkspaceOperation(workspaceId: string): void;
+  loadWorkspaceOperations(): Promise<void>;
 
   // Workspace session (multi-chat) actions
   setWorkspaceSessions(workspaceId: string, sessions: WorkspaceSession[]): void;
@@ -92,6 +96,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceActivities: new Map(),
+    workspaceOperations: new Map(),
     workspaceSessions: new Map(),
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,
@@ -133,6 +138,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.workspaces.delete(id);
         state.checkpoints.delete(id);
         state.workspaceActivities.delete(id);
+        state.workspaceOperations.delete(id);
         state.workspaceSessions.delete(id);
         clearWorkspaceUiState(state, id);
       });
@@ -191,6 +197,31 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         appendSystemActivity(nextActivities, activity);
         state.workspaceActivities.set(workspaceId, nextActivities);
       });
+    },
+
+    setWorkspaceOperation(operation) {
+      set((state) => {
+        state.workspaceOperations.set(operation.workspaceId, operation);
+      });
+    },
+
+    clearWorkspaceOperation(workspaceId) {
+      set((state) => {
+        state.workspaceOperations.delete(workspaceId);
+      });
+    },
+
+    async loadWorkspaceOperations() {
+      try {
+        const operations = await window.api.invoke('workspace:list-operations') as WorkspaceOperation[];
+        set((state) => {
+          state.workspaceOperations = new Map(
+            operations.map((operation) => [operation.workspaceId, operation]),
+          );
+        });
+      } catch {
+        // Failed to load workspace operations
+      }
     },
 
     setWorkspaceSessions(workspaceId, sessions) {

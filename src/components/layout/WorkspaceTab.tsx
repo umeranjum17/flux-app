@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
@@ -8,6 +8,7 @@ import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
 import { toast } from 'sonner';
+import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 
 function basename(p: string): string {
   return p.split('/').pop() || p.split('\\').pop() || p;
@@ -21,6 +22,7 @@ export function WorkspaceTab() {
   const cwd = useUiStore((s) => s.cwd);
   const openProjects = useUiStore((s) => s.openProjects);
   const collapsedProjects = useUiStore((s) => s.collapsedProjects);
+  const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const [creating, setCreating] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
@@ -115,7 +117,7 @@ export function WorkspaceTab() {
         });
         break;
       case 'archive':
-        void window.api.invoke('workspace:archive', { workspaceId: ws.id });
+        void handleArchive(ws.id);
         break;
       case 'delete':
         window.api.invoke('workspace:delete', { workspaceId: ws.id }).then(() => {
@@ -128,6 +130,14 @@ export function WorkspaceTab() {
           }
         });
         break;
+    }
+  }, []);
+
+  const handleArchive = useCallback(async (workspaceId: string) => {
+    try {
+      await archiveWorkspace(workspaceId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to archive workspace');
     }
   }, []);
 
@@ -275,6 +285,9 @@ export function WorkspaceTab() {
                 const isActive = ws.id === activeWorkspaceId;
                 const isLive = lifecycle.pulse;
                 const wsGlobalIdx = globalIdx++;
+                const operation = workspaceOperations.get(ws.id);
+                const isArchiving = isWorkspaceArchiving(operation);
+                const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
 
                 return (
                   <button
@@ -293,6 +306,9 @@ export function WorkspaceTab() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center">
                         <span className="truncate text-[13px] font-medium text-text-primary">{ws.name}</span>
+                        <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${lifecycle.badgeClass}`}>
+                          {isArchiving ? 'Archiving' : lifecycle.label}
+                        </span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
                         <GitBranch size={10} className="opacity-50" />
@@ -302,14 +318,17 @@ export function WorkspaceTab() {
                     <span
                       role="button"
                       tabIndex={-1}
-                      title="Archive"
+                      title={archiveLabel}
                       onClick={(e) => {
                         e.stopPropagation();
-                        void window.api.invoke('workspace:archive', { workspaceId: ws.id });
+                        if (isArchiving) return;
+                        void handleArchive(ws.id);
                       }}
-                      className="shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
+                      className={`shrink-0 rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 ${
+                        isArchiving ? 'cursor-not-allowed opacity-100' : 'hover:text-text-primary'
+                      }`}
                     >
-                      <Trash2 size={12} />
+                      {isArchiving ? <LoaderCircle size={12} className="animate-spin" /> : <Trash2 size={12} />}
                     </span>
                     {wsGlobalIdx < 9 && (
                       <span className="shrink-0 text-[10px] text-text-tertiary/50 font-mono">{'\u2318'}{wsGlobalIdx + 1}</span>
@@ -372,7 +391,16 @@ export function WorkspaceTab() {
               <ContextItem icon={<Square size={12} />} label="Stop" onClick={() => handleContextAction('stop', contextMenu.ws)} />
             )}
             {!isRunning(contextMenu.ws) && (
-              <ContextItem icon={<Trash2 size={12} />} label="Archive" onClick={() => handleContextAction('archive', contextMenu.ws)} />
+              <ContextItem
+                icon={isWorkspaceArchiving(workspaceOperations.get(contextMenu.ws.id))
+                  ? <LoaderCircle size={12} className="animate-spin" />
+                  : <Trash2 size={12} />}
+                label={isWorkspaceArchiving(workspaceOperations.get(contextMenu.ws.id))
+                  ? (formatWorkspaceOperationLabel(workspaceOperations.get(contextMenu.ws.id)) ?? 'Archiving')
+                  : 'Archive'}
+                onClick={() => handleContextAction('archive', contextMenu.ws)}
+                disabled={isWorkspaceArchiving(workspaceOperations.get(contextMenu.ws.id))}
+              />
             )}
             <div className="my-1 border-t border-border/60" />
             <ContextItem icon={<Trash2 size={12} />} label="Delete" onClick={() => handleContextAction('delete', contextMenu.ws)} danger />
@@ -383,13 +411,26 @@ export function WorkspaceTab() {
   );
 }
 
-function ContextItem({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+function ContextItem({
+  icon,
+  label,
+  onClick,
+  danger,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`flex w-full items-center gap-2 px-3 py-1.5 text-[12px] ${
         danger ? 'text-error hover:bg-error/10' : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-      }`}
+      } ${disabled ? 'cursor-not-allowed opacity-60 hover:bg-transparent hover:text-text-secondary' : ''}`}
     >
       {icon}
       {label}

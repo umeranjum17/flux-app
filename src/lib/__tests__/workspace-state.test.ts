@@ -4,7 +4,7 @@ import { useAgentStore } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { applyWorkspaceArchived, deriveBranchSlugFromSeed, deriveWorkspaceNameFromPrompt, restoreWorkspaceChats } from '../workspace-state';
+import { applyWorkspaceDeleted, deriveBranchSlugFromSeed, deriveWorkspaceNameFromPrompt, restoreWorkspaceChats } from '../workspace-state';
 
 let mockApi: MockApi;
 
@@ -16,12 +16,11 @@ beforeEach(() => {
   useSessionStore.setState({ sessions: [], loading: false });
   useWorkspaceStore.setState({
     workspaces: new Map(),
-    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
-    showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceActivities: new Map(),
+    workspaceOperations: new Map(),
     workspaceSessions: new Map(),
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,
@@ -68,7 +67,7 @@ describe('workspace naming', () => {
 });
 
 describe('workspace archive helpers', () => {
-  it('archives the active workspace, closes its panels, and retargets to another workspace task', () => {
+  it('removes the active workspace, closes its panels, and retargets to another workspace task', () => {
     const ws1 = {
       id: 'ws-1',
       name: 'One',
@@ -125,11 +124,10 @@ describe('workspace archive helpers', () => {
       activate: false,
     });
 
-    applyWorkspaceArchived('ws-1');
+    applyWorkspaceDeleted('ws-1');
 
     const workspaceState = useWorkspaceStore.getState();
     expect(workspaceState.workspaces.has('ws-1')).toBe(false);
-    expect(workspaceState.archivedWorkspaces.has('ws-1')).toBe(true);
     expect(workspaceState.activeWorkspaceId).toBe('ws-2');
     expect(workspaceState.mergingWorkspaceId).toBeNull();
     expect(workspaceState.changesPanelOpen).toBe(false);

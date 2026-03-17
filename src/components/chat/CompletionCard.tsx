@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
-import { GitMerge, Files, Eye, MessageSquare, Trash2 } from 'lucide-react';
+import { GitMerge, Files, Eye, MessageSquare, Trash2, LoaderCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
@@ -8,6 +9,7 @@ import type { Workspace } from '../../lib/ipc-api';
 import type { DiffData, DiffFileEntry } from '../../lib/types';
 import { normalizeTrackedFilePath } from '../../lib/path-utils';
 import { isTerminalOutcome } from '../../lib/workspace-status';
+import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 
 function getBasename(path: string): string {
   return path.split('/').pop() ?? path;
@@ -54,6 +56,9 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const hasInlineDiff = !!diff && diff.files.length > 0;
   const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff });
   const hasChanges = hasInlineDiff || hasWorkspaceChanges;
+  const operation = useWorkspaceStore((state) => state.workspaceOperations.get(workspace.id));
+  const isArchiving = isWorkspaceArchiving(operation);
+  const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
 
   const handleShowFiles = () => {
     const ui = useUiStore.getState();
@@ -73,7 +78,11 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   };
 
   const handleArchive = async () => {
-    await window.api.invoke('workspace:archive', { workspaceId: workspace.id });
+    try {
+      await archiveWorkspace(workspace.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to archive workspace');
+    }
   };
 
   const handleFileClick = (filePath: string) => {
@@ -157,10 +166,12 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
         {isReadyToArchive ? (
           <button
             onClick={handleArchive}
-            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-warning/35 bg-warning/12 px-2.5 py-1.5 text-[12px] font-medium text-warning hover:bg-warning/16"
+            disabled={isArchiving}
+            title={archiveLabel}
+            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-warning/35 bg-warning/12 px-2.5 py-1.5 text-[12px] font-medium text-warning hover:bg-warning/16 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <Trash2 size={11} />
-            Archive
+            {isArchiving ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}
+            {isArchiving ? archiveLabel : 'Archive'}
           </button>
         ) : (
           hasChanges && (

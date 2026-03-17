@@ -10,6 +10,7 @@ import { UsageTracker } from '../usage/tracker';
 import { LiveUsageService } from '../usage/live';
 import { WorkspaceStore } from '../worktree/store';
 import { WorkspaceLifecycleManager } from '../worktree/lifecycle';
+import { WorkspaceOperationManager } from '../worktree/operation-manager';
 import { repoMapService } from '../intelligence/repomap';
 import { detectEnvironment } from '../process-utils';
 import { StallMonitor } from '../agents/stall-monitor';
@@ -47,6 +48,7 @@ let usagePollTimer: NodeJS.Timeout | null = null;
 const TRACKED_RENDERER_EVENT_CHANNELS = new Set([
   'workspace:created',
   'workspace:deleted',
+  'workspace:operation',
   'workspace:completion',
   'workspace:run-exit',
   'config:changed',
@@ -158,6 +160,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // Centralized lifecycle manager — single owner of workspace status/outcome
   const lifecycleManager = new WorkspaceLifecycleManager(workspaceStore, sendToRenderer);
+  const operationManager = new WorkspaceOperationManager(sendToRenderer);
 
   // Remove previously registered handlers to allow hot-reload
   const registeredChannels = [
@@ -241,6 +244,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:full-diff',
     'workspace:git-state',
     'workspace:active-task',
+    'workspace:list-operations',
+    'workspace:cancel-operation',
     'checkpoint:list',
     'checkpoint:diff',
     'checkpoint:revert',
@@ -295,6 +300,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     liveUsageService,
     workspaceStore,
     lifecycleManager,
+    operationManager,
     activeTasks,
     taskSessions,
     cleaningUp,
@@ -373,6 +379,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   const projectGroupStore = new ProjectGroupStore();
   registerProjectGroupHandlers({ projectGroupStore, workspaceStore });
+
+  app.once('before-quit', () => {
+    operationManager.cancelAll();
+  });
 
   // Initialize repo map if enabled
   const initialConfig = configManager.get().repoMap;

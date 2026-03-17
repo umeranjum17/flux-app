@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
 import { useWorkspaceStore } from '../stores/workspace';
-import type { Checkpoint, IpcActivity, RepoMapIpcStatus, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
+import type { Checkpoint, IpcActivity, RepoMapIpcStatus, WorkspaceOperation, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
 import type { AgentMessage, DiffData, SystemActivity, TodoItem } from '../lib/types';
 import { shouldRenderIpcActivity, toSystemActivity } from '../lib/ipc-activity';
 import { normalizeTrackedFilePath } from '../lib/path-utils';
@@ -203,6 +203,20 @@ export function useAgentStream() {
       );
     });
 
+    const lastWorkspaceOperation = new Map<string, string>();
+    const unsubWorkspaceOperation = window.api.on('workspace:operation', (data: unknown) => {
+      const operation = data as WorkspaceOperation;
+      const nextKey = `${operation.status}:${operation.stage}:${operation.message}:${operation.error ?? ''}`;
+      if (lastWorkspaceOperation.get(operation.id) === nextKey) {
+        return;
+      }
+      lastWorkspaceOperation.set(operation.id, nextKey);
+      useWorkspaceStore.getState().addWorkspaceActivity(
+        operation.workspaceId,
+        buildWorkspaceOperationActivity(operation),
+      );
+    });
+
     const unsubRepoMapStatus = window.api.on('repomap:status', (data: unknown) => {
       const status = data as RepoMapIpcStatus;
       if (status.state === lastRepoMapState) {
@@ -237,6 +251,7 @@ export function useAgentStream() {
       unsubWorkspaceOutcome();
       unsubCheckpoint();
       unsubWorkspaceUpdated();
+      unsubWorkspaceOperation();
       unsubRepoMapStatus();
       unsubIpcActivity();
     };
@@ -293,6 +308,19 @@ function buildCheckpointActivity(checkpoint: Checkpoint): SystemActivity {
     checkpoint.description || 'Checkpoint saved',
     summaryParts.join(' · '),
   );
+}
+
+function buildWorkspaceOperationActivity(operation: WorkspaceOperation): SystemActivity {
+  if (operation.status === 'failed') {
+    return makeActivity('workspace', 'Archive failed', operation.error ?? operation.message);
+  }
+  if (operation.status === 'cancelled') {
+    return makeActivity('workspace', 'Archive cancelled', operation.message);
+  }
+  if (operation.status === 'completed') {
+    return makeActivity('workspace', 'Archive complete');
+  }
+  return makeActivity('workspace', 'Archive in progress', operation.message);
 }
 
 function buildRepoMapActivity(status: RepoMapIpcStatus): SystemActivity {

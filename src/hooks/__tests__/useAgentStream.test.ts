@@ -28,12 +28,11 @@ beforeEach(() => {
   useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
   useWorkspaceStore.setState({
     workspaces: new Map(),
-    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
-    showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceActivities: new Map(),
+    workspaceOperations: new Map(),
     workspaceSessions: new Map(),
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,
@@ -58,6 +57,7 @@ describe('useAgentStream', () => {
     expect(subscribedChannels).toContain('workspace:outcome');
     expect(subscribedChannels).toContain('workspace:checkpoint');
     expect(subscribedChannels).toContain('workspace:updated');
+    expect(subscribedChannels).toContain('workspace:operation');
     expect(subscribedChannels).toContain('repomap:status');
     expect(subscribedChannels).toContain('ipc:activity');
   });
@@ -74,6 +74,7 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('workspace:outcome')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:checkpoint')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:updated')?.size).toBe(1);
+    expect(mockApi._listeners.get('workspace:operation')?.size).toBe(1);
     expect(mockApi._listeners.get('repomap:status')?.size).toBe(1);
     expect(mockApi._listeners.get('ipc:activity')?.size).toBe(1);
 
@@ -88,6 +89,7 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('workspace:outcome')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:checkpoint')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:updated')?.size ?? 0).toBe(0);
+    expect(mockApi._listeners.get('workspace:operation')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('repomap:status')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('ipc:activity')?.size ?? 0).toBe(0);
   });
@@ -301,6 +303,18 @@ describe('useAgentStream', () => {
 
     mockApi._emit('workspace:status', { workspaceId: 'ws-1', status: 'running' });
     mockApi._emit('workspace:outcome', { workspaceId: 'ws-1', outcome: 'ready_for_pr' });
+    mockApi._emit('workspace:operation', {
+      id: 'op-1',
+      workspaceId: 'ws-1',
+      kind: 'archive',
+      status: 'running',
+      stage: 'removing_git_worktree',
+      progress: 0.55,
+      message: 'Removing git worktree',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      cancellable: true,
+    });
     mockApi._emit('workspace:checkpoint', {
       workspaceId: 'ws-1',
       checkpoint: {
@@ -326,7 +340,12 @@ describe('useAgentStream', () => {
       expect.objectContaining({
         category: 'workspace',
         label: 'Workspace outcome updated',
-        detail: 'Ready for PR',
+        detail: 'Ready for Review',
+      }),
+      expect.objectContaining({
+        category: 'workspace',
+        label: 'Archive in progress',
+        detail: 'Removing git worktree',
       }),
       expect.objectContaining({
         category: 'checkpoint',
@@ -455,7 +474,7 @@ describe('useAgentStream', () => {
     }));
   });
 
-  it('ipc activity is captured for task-scoped invoke traces', () => {
+  it('ignores ipc activity traces for task-scoped invoke traces', () => {
     createTestTask('task-1');
     renderHook(() => useAgentStream());
 
@@ -472,17 +491,10 @@ describe('useAgentStream', () => {
     });
 
     const task = useChatStore.getState().tasks.get('task-1');
-    expect(task?.systemActivities).toEqual([
-      expect.objectContaining({
-        category: 'ipc',
-        label: 'task:spawn',
-        detail: 'response · task task-1 · workspace ws-1 · session session-1',
-        payloadPreview: '{"session":{"id":"session-1"}}',
-      }),
-    ]);
+    expect(task?.systemActivities).toEqual([]);
   });
 
-  it('ipc activity is captured for workspace-scoped events without a task shell', () => {
+  it('ignores ipc activity traces for workspace-scoped events without a task shell', () => {
     renderHook(() => useAgentStream());
 
     mockApi._emit('ipc:activity', {
@@ -495,13 +507,7 @@ describe('useAgentStream', () => {
       payloadPreview: '{"workspaceId":"ws-1"}',
     });
 
-    expect(useWorkspaceStore.getState().workspaceActivities.get('ws-1')).toEqual([
-      expect.objectContaining({
-        category: 'ipc',
-        label: 'workspace:archived',
-        detail: 'event · workspace ws-1',
-      }),
-    ]);
+    expect(useWorkspaceStore.getState().workspaceActivities.get('ws-1')).toBeUndefined();
   });
 
   it('filters duplicate ipc events that already render elsewhere', () => {

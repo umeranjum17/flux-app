@@ -73,19 +73,6 @@ describe('computeNextOutcome', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // unarchived
-  // ---------------------------------------------------------------------------
-  describe('unarchived', () => {
-    it('in_progress + isMerged → merged', () => {
-      expect(computeNextOutcome('in_progress', 'unarchived', git({ isMerged: true }))).toBe('merged');
-    });
-
-    it('in_progress + not merged → no change', () => {
-      expect(computeNextOutcome('in_progress', 'unarchived', git())).toBeNull();
-    });
-  });
-
-  // ---------------------------------------------------------------------------
   // Empty branch should NOT show as merged
   // ---------------------------------------------------------------------------
   describe('empty branch (root cause bug)', () => {

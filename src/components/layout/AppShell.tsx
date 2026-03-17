@@ -22,14 +22,14 @@ import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { DetectedAgent } from '../../lib/types';
-import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession, WorkspaceOperation } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
-import { connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 
 
@@ -234,6 +234,7 @@ export function AppShell() {
           freshWorkspaces.push(...result);
         }
         useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
+        await useWorkspaceStore.getState().loadWorkspaceOperations();
 
         for (const workspace of freshWorkspaces) {
           const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
@@ -275,7 +276,30 @@ export function AppShell() {
     });
     const unsubDeleted = window.api.on('workspace:deleted', (data: unknown) => {
       const { workspaceId } = data as { workspaceId: string };
-      useWorkspaceStore.getState().removeWorkspace(workspaceId);
+      applyWorkspaceDeleted(workspaceId);
+    });
+    const lastOperationState = new Map<string, string>();
+    const unsubOperation = window.api.on('workspace:operation', (data: unknown) => {
+      const operation = data as WorkspaceOperation;
+      const key = `${operation.status}:${operation.stage}:${operation.error ?? ''}`;
+      if (lastOperationState.get(operation.id) !== key) {
+        lastOperationState.set(operation.id, key);
+        const toastId = `workspace-operation:${operation.id}`;
+        if (operation.status === 'running') {
+          toast.loading(operation.message, { id: toastId });
+        } else if (operation.status === 'completed') {
+          toast.success(operation.message, { id: toastId });
+        } else if (operation.status === 'cancelled') {
+          toast('Archive cancelled', { id: toastId });
+        } else {
+          toast.error(operation.error ?? operation.message, { id: toastId });
+        }
+      }
+
+      const workspaceExists = useWorkspaceStore.getState().workspaces.has(operation.workspaceId);
+      if (workspaceExists || operation.status !== 'completed') {
+        useWorkspaceStore.getState().setWorkspaceOperation(operation);
+      }
     });
     return () => {
       unsub();
@@ -284,6 +308,7 @@ export function AppShell() {
       unsubUpdated();
       unsubCreated();
       unsubDeleted();
+      unsubOperation();
     };
   }, []);
 

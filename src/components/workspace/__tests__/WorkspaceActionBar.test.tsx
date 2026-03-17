@@ -53,12 +53,11 @@ describe('WorkspaceActionBar', () => {
       workspaces: new Map([
         ['ws-1', workspace],
       ]),
-      archivedWorkspaces: new Map(),
       activeWorkspaceId: 'ws-1',
-      showArchived: false,
       mergingWorkspaceId: null,
       checkpoints: new Map(),
       workspaceActivities: new Map(),
+      workspaceOperations: new Map(),
       workspaceSessions: new Map(),
       changesPanelOpen: false,
       changesPanelWorkspaceId: null,
@@ -109,5 +108,26 @@ describe('WorkspaceActionBar', () => {
     });
 
     expect((window as any).api.invoke).toHaveBeenCalledWith('workspace:diff-files', { workspaceId: 'ws-1' });
+  });
+
+  it('disables archive while an archive operation is running', async () => {
+    useWorkspaceStore.setState((state) => {
+      state.workspaceOperations.set('ws-1', {
+        id: 'op-1',
+        workspaceId: 'ws-1',
+        kind: 'archive',
+        status: 'running',
+        stage: 'removing_git_worktree',
+        progress: 0.55,
+        message: 'Removing git worktree',
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+        cancellable: true,
+      });
+    });
+
+    render(<WorkspaceActionBar />);
+
+    expect(screen.getAllByTitle('Removing git worktree').every((element) => (element as HTMLButtonElement).disabled)).toBe(true);
   });
 });

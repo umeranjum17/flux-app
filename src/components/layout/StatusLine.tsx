@@ -3,8 +3,10 @@ import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
-import { GitBranch, Wifi, WifiOff, Brain, Monitor, Terminal } from 'lucide-react';
+import { useWorkspaceStore } from '../../stores/workspace';
+import { GitBranch, Wifi, WifiOff, Brain, Monitor, Terminal, LoaderCircle } from 'lucide-react';
 import type { ThinkingLevel } from '../../lib/types';
+import { isWorkspaceArchiving } from '../../lib/workspace-operations';
 
 export function StatusLine() {
   const activeTask = useChatStore((s) => {
@@ -21,6 +23,9 @@ export function StatusLine() {
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
   const environment = useUiStore((s) => s.environment);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaceOperation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
+  const activeWorkspaceOperation = isWorkspaceArchiving(workspaceOperation) ? workspaceOperation : null;
 
   const repoMapConfig = useIntelligenceStore((s) => s.config);
   const repoMapStatus = useIntelligenceStore((s) => s.status);
@@ -128,6 +133,15 @@ export function StatusLine() {
           <Brain size={12} className={repoMapStatus.state === 'building' ? 'animate-pulse' : ''} />
           {repoMapConfig.enabled && <span>{repoMapStatus.state === 'building' ? 'indexing' : 'map'}</span>}
         </button>
+        {activeWorkspaceOperation && (
+          <span
+            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/10 px-2.5 text-[13px] text-warning"
+            title={activeWorkspaceOperation.message}
+          >
+            <LoaderCircle size={12} className="animate-spin" />
+            {activeWorkspaceOperation.message}
+          </span>
+        )}
       </div>
 
       <div className="flex-1" />

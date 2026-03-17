@@ -126,9 +126,20 @@ export class WorkspaceStore {
 
   delete(id: string): void {
     const db = getDb();
-    db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
-    db.prepare('DELETE FROM checkpoints WHERE workspace_id = ?').run(id);
-    db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
+    db.exec('BEGIN');
+    try {
+      db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
+      db.prepare('DELETE FROM checkpoints WHERE workspace_id = ?').run(id);
+      db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
+      db.exec('COMMIT');
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // best effort rollback
+      }
+      throw error;
+    }
   }
 
   addSession(workspaceId: string, sessionId: string, taskId?: string, label?: string): void {

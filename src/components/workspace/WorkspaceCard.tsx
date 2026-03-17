@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown } from 'lucide-react';
-import type { Workspace, WorkspaceOutcome } from '../../lib/ipc-api';
+import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown, LoaderCircle } from 'lucide-react';
+import type { Workspace, WorkspaceOperation, WorkspaceOutcome } from '../../lib/ipc-api';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
 
@@ -16,6 +16,7 @@ interface WorkspaceCardProps {
   onDelete: () => void;
   onOpenIde: () => void;
   onArchive?: () => void;
+  archiveOperation?: WorkspaceOperation;
 }
 
 export function WorkspaceCard({
@@ -28,10 +29,12 @@ export function WorkspaceCard({
   onDelete,
   onOpenIde,
   onArchive,
+  archiveOperation,
 }: WorkspaceCardProps) {
   const lifecycleState = getWorkspaceLifecycleState(workspace);
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
   const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
+  const isArchiving = archiveOperation?.kind === 'archive' && archiveOperation.status === 'running';
 
   return (
     <button
@@ -61,7 +64,15 @@ export function WorkspaceCard({
           <IconAction icon={<ExternalLink size={11} />} label="IDE" onClick={onOpenIde} />
           <IconAction icon={<Eye size={11} />} label="Review" onClick={onReview} />
           <IconAction icon={<GitMerge size={11} />} label="Merge" onClick={onMerge} />
-          {onArchive && <IconAction icon={<Trash2 size={11} />} label="Archive" onClick={onArchive} variant="danger" />}
+          {onArchive && (
+            <IconAction
+              icon={isArchiving ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              label={isArchiving ? archiveOperation?.message ?? 'Archiving' : 'Archive'}
+              onClick={onArchive}
+              variant="danger"
+              disabled={isArchiving}
+            />
+          )}
         </div>
 
         {/* Status / outcome — hidden on hover when actions show */}
@@ -128,11 +139,12 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
   );
 }
 
-function IconAction({ icon, label, onClick, variant }: {
+function IconAction({ icon, label, onClick, variant, disabled }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   variant?: 'danger' | 'warning';
+  disabled?: boolean;
 }) {
   const colors = variant === 'danger'
     ? 'hover:bg-error/10 hover:text-error'
@@ -144,7 +156,10 @@ function IconAction({ icon, label, onClick, variant }: {
     <button
       onClick={onClick}
       title={label}
-      className={`inline-flex items-center justify-center rounded-md p-1 text-text-tertiary transition-colors ${colors}`}
+      disabled={disabled}
+      className={`inline-flex items-center justify-center rounded-md p-1 text-text-tertiary transition-colors ${colors} ${
+        disabled ? 'cursor-not-allowed opacity-60 hover:bg-transparent hover:text-text-tertiary' : ''
+      }`}
     >
       {icon}
     </button>

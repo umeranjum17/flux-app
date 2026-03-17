@@ -599,15 +599,11 @@ describe('WorkspaceLifecycleManager', () => {
       expect(phase1Calls).toHaveLength(0);
     });
 
-    it('skips archived workspaces in phase 2', async () => {
-      const archivedWs = makeWorkspace({ status: 'idle', archivedAt: Date.now() });
-      store._set(WS_ID, archivedWs);
-      store.list.mockReturnValue([archivedWs as any]);
+    it('does not emit outcome changes when there are no workspaces', async () => {
+      store.list.mockReturnValue([]);
 
       await manager.reconcileOnStartup();
 
-      // transitionOutcome should not have been called for archived workspace
-      // (no outcome-related update calls)
       const outcomeCalls = store.update.mock.calls.filter(
         ([, updates]: [string, any]) => 'outcome' in updates
       );
@@ -616,7 +612,7 @@ describe('WorkspaceLifecycleManager', () => {
   });
 
   describe('reconcileOnStartup with missing worktrees', () => {
-    it('auto-archives workspace when worktree is missing and outcome is in_progress', async () => {
+    it('auto-deletes workspace when worktree is missing and outcome is in_progress', async () => {
       store._set(WS_ID, makeWorkspace({
         status: 'idle',
         outcome: 'in_progress',
@@ -626,8 +622,8 @@ describe('WorkspaceLifecycleManager', () => {
 
       await manager.reconcileOnStartup();
 
-      expect(store.archive).toHaveBeenCalledWith(WS_ID);
-      expect(emissions).toContainEqual({ channel: 'workspace:archived', payload: { workspaceId: WS_ID } });
+      expect(store.delete).toHaveBeenCalledWith(WS_ID);
+      expect(emissions).toContainEqual({ channel: 'workspace:deleted', payload: { workspaceId: WS_ID } });
     });
 
     it('does not auto-archive when outcome is ready_for_pr (branch may still exist)', async () => {
@@ -640,7 +636,7 @@ describe('WorkspaceLifecycleManager', () => {
 
       await manager.reconcileOnStartup();
 
-      expect(store.archive).not.toHaveBeenCalled();
+      expect(store.delete).not.toHaveBeenCalled();
     });
   });
 

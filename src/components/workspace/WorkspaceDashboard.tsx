@@ -7,10 +7,13 @@ import { WorkspaceCard } from './WorkspaceCard';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { MergeDialog } from '../review/MergeDialog';
 import type { Workspace } from '../../lib/ipc-api';
+import { archiveWorkspace } from '../../lib/workspace-operations';
+import { toast } from 'sonner';
 
 export function WorkspaceDashboard() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
 
@@ -72,7 +75,11 @@ export function WorkspaceDashboard() {
   }, []);
 
   const handleArchive = useCallback(async (ws: Workspace) => {
-    await window.api.invoke('workspace:archive', { workspaceId: ws.id });
+    try {
+      await archiveWorkspace(ws.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to archive workspace');
+    }
   }, []);
 
   const handleOpenIde = useCallback(async (ws: Workspace) => {
@@ -162,6 +169,7 @@ export function WorkspaceDashboard() {
                 onDelete={() => handleDelete(ws)}
                 onOpenIde={() => handleOpenIde(ws)}
                 onArchive={() => handleArchive(ws)}
+                archiveOperation={workspaceOperations.get(ws.id)}
               />
             ))}
 

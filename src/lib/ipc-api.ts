@@ -108,7 +108,7 @@ export interface IpcChannels {
     args: [{ workspaceId: string; agentId?: string; model?: string; mode?: TaskMode; thinking?: ThinkingLevel }];
     result: void;
   };
-  'workspace:archive': { args: [{ workspaceId: string }]; result: void };
+  'workspace:archive': { args: [{ workspaceId: string }]; result: { operation: WorkspaceOperation } };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
   'workspace:file-diff': {
@@ -155,6 +155,8 @@ export interface IpcChannels {
     args: [{ workspaceId: string }];
     result: string[];
   };
+  'workspace:list-operations': { args: []; result: WorkspaceOperation[] };
+  'workspace:cancel-operation': { args: [{ operationId: string }]; result: void };
 
   // Git extended operations
   'git:log': {
@@ -263,6 +265,7 @@ export interface IpcEvents {
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'workspace:created': { workspace: Workspace };
   'workspace:deleted': { workspaceId: string };
+  'workspace:operation': WorkspaceOperation;
   'terminal:data': { id: string; data: string };
   'terminal:exit': { id: string; exitCode?: number };
   'config:changed': { config: FluxConfig };
@@ -431,6 +434,38 @@ export interface WorkspaceSession {
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
 export type WorkspaceOutcome = 'in_progress' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
+
+export type WorkspaceOperationKind = 'archive';
+
+export type WorkspaceOperationStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export type WorkspaceOperationStage =
+  | 'queued'
+  | 'releasing_tasks'
+  | 'checking_repo'
+  | 'resolving_branch'
+  | 'removing_git_worktree'
+  | 'removing_git_branch'
+  | 'removing_worktree_files'
+  | 'cleaning_db'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface WorkspaceOperation {
+  id: string;
+  workspaceId: string;
+  kind: WorkspaceOperationKind;
+  status: WorkspaceOperationStatus;
+  stage: WorkspaceOperationStage;
+  progress: number;
+  message: string;
+  startedAt: number;
+  updatedAt: number;
+  finishedAt?: number;
+  error?: string;
+  cancellable: boolean;
+}
 
 export interface MergeResult {
   success: boolean;

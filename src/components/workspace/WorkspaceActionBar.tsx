@@ -1,14 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare } from 'lucide-react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare, LoaderCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { useChatStore } from '../../stores/chat';
 import { getWorkspaceLifecycleState, isTerminalOutcome, workspaceLifecycleConfig } from '../../lib/workspace-status';
+import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 
 export function WorkspaceActionBar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const operation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
   const workspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
 
   const isRunning = workspace?.status === 'running' || workspace?.status === 'waiting_approval' || workspace?.status === 'waiting_input';
@@ -48,6 +51,8 @@ export function WorkspaceActionBar() {
 
   const lifecycleState = getWorkspaceLifecycleState(workspace);
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
+  const isArchiving = isWorkspaceArchiving(operation);
+  const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
 
   const handleStop = async () => {
     await window.api.invoke('workspace:stop', { workspaceId: workspace.id });
@@ -72,7 +77,11 @@ export function WorkspaceActionBar() {
   };
 
   const handleArchive = async () => {
-    await window.api.invoke('workspace:archive', { workspaceId: workspace.id });
+    try {
+      await archiveWorkspace(workspace.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to archive workspace');
+    }
   };
 
   const handleOpenIde = async () => {
@@ -117,7 +126,14 @@ export function WorkspaceActionBar() {
         )}
         {!isRunning && (
           <>
-            <ActionBtn icon={<Archive size={12} />} label="Archive" onClick={handleArchive} danger />
+            <ActionBtn
+              icon={isArchiving ? <LoaderCircle size={12} className="animate-spin" /> : <Archive size={12} />}
+              label={isArchiving ? archiveLabel : 'Archive'}
+              title={archiveLabel}
+              onClick={handleArchive}
+              disabled={isArchiving}
+              danger
+            />
             {!isMerged && (
               <ActionBtn icon={<Trash2 size={12} />} label="Delete" onClick={handleDelete} danger />
             )}
@@ -128,14 +144,29 @@ export function WorkspaceActionBar() {
   );
 }
 
-function ActionBtn({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+function ActionBtn({
+  icon,
+  label,
+  onClick,
+  danger,
+  disabled,
+  title,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  title?: string;
+}) {
   return (
     <button
       onClick={onClick}
-      title={label}
+      title={title ?? label}
+      disabled={disabled}
       className={`premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors ${
         danger ? 'hover:bg-error/10 hover:text-error' : 'hover:bg-bg-hover hover:text-text-primary'
-      }`}
+      } ${disabled ? 'cursor-not-allowed opacity-60 hover:bg-transparent hover:text-text-tertiary' : ''}`}
     >
       {icon}
     </button>

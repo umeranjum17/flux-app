@@ -23,12 +23,11 @@ beforeEach(() => {
   useChatStore.setState({ tasks: new Map(), activeTaskId: null });
   useWorkspaceStore.setState({
     workspaces: new Map(),
-    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
-    showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceActivities: new Map(),
+    workspaceOperations: new Map(),
     workspaceSessions: new Map(),
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,

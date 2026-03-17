@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, spawn, type ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
@@ -8,6 +8,120 @@ import { dialog } from 'electron';
 import type { WorktreeInfo, DiffFile, MergeResult } from './types';
 
 const execFileAsync = promisify(execFile);
+
+export interface RemoveWorktreeOptions {
+  signal?: AbortSignal;
+  onStage?: (stage: 'checking_repo' | 'resolving_branch' | 'removing_git_worktree' | 'removing_git_branch' | 'removing_worktree_files') => void;
+}
+
+interface CommandResult {
+  stdout: string;
+  stderr: string;
+}
+
+function makeAbortError(): Error {
+  const error = new Error('Workspace cleanup cancelled');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw makeAbortError();
+  }
+}
+
+function rethrowAbort(error: unknown): void {
+  if (error instanceof Error && error.name === 'AbortError') {
+    throw error;
+  }
+}
+
+function terminateChild(child: ChildProcess): void {
+  if (child.killed) return;
+  child.kill('SIGTERM');
+  setTimeout(() => {
+    if (!child.killed) {
+      child.kill('SIGKILL');
+    }
+  }, 1000).unref();
+}
+
+async function spawnCommand(
+  file: string,
+  args: string[],
+  options: {
+    cwd: string;
+    timeout: number;
+    signal?: AbortSignal;
+  },
+): Promise<CommandResult> {
+  throwIfAborted(options.signal);
+
+  return await new Promise<CommandResult>((resolve, reject) => {
+    let settled = false;
+    let stdout = '';
+    let stderr = '';
+
+    const child = spawn(file, args, {
+      cwd: options.cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const finish = (err: Error | null, result?: CommandResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      options.signal?.removeEventListener('abort', onAbort);
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(result ?? { stdout, stderr });
+    };
+
+    const onAbort = () => {
+      terminateChild(child);
+      finish(makeAbortError());
+    };
+
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+
+    child.on('error', (error) => {
+      finish(error);
+    });
+
+    child.on('close', (code, signal) => {
+      if (options.signal?.aborted) {
+        finish(makeAbortError());
+        return;
+      }
+      if (code === 0) {
+        finish(null, { stdout, stderr });
+        return;
+      }
+      const error = new Error(
+        `${file} ${args.join(' ')} failed with ${signal ? `signal ${signal}` : `exit code ${code ?? 'unknown'}`}${stderr ? `: ${stderr.trim()}` : ''}`,
+      );
+      finish(error);
+    });
+
+    const timeoutId = setTimeout(() => {
+      terminateChild(child);
+      finish(new Error(`${file} ${args.join(' ')} timed out after ${options.timeout}ms`));
+    }, options.timeout);
+
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 function worktreeBaseDir(parentRepo: string): string {
   const slug = path.basename(parentRepo) || 'root';
@@ -88,55 +202,73 @@ export async function createWorktree(
   };
 }
 
-export async function removeWorktree(parentRepo: string, worktreePath: string): Promise<void> {
+export async function removeWorktree(
+  parentRepo: string,
+  worktreePath: string,
+  options: RemoveWorktreeOptions = {},
+): Promise<void> {
   // Check if parentRepo is still a valid git repo before running git commands
   let isGitRepo = false;
   try {
-    await execFileAsync('git', ['rev-parse', '--git-dir'], {
+    options.onStage?.('checking_repo');
+    await spawnCommand('git', ['rev-parse', '--git-dir'], {
       cwd: parentRepo,
       timeout: 5000,
+      signal: options.signal,
     });
     isGitRepo = true;
-  } catch {
+  } catch (error) {
+    rethrowAbort(error);
     // parentRepo doesn't exist or isn't a git repo
   }
 
   let branchName: string | null = null;
   if (isGitRepo) {
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      options.onStage?.('resolving_branch');
+      const { stdout } = await spawnCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: worktreePath,
         timeout: 10000,
+        signal: options.signal,
       });
       branchName = stdout.trim();
-    } catch {
+    } catch (error) {
+      rethrowAbort(error);
       branchName = null;
     }
 
     try {
-      await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
+      options.onStage?.('removing_git_worktree');
+      await spawnCommand('git', ['worktree', 'remove', worktreePath, '--force'], {
         cwd: parentRepo,
         timeout: 30000,
+        signal: options.signal,
       });
-    } catch {
+    } catch (error) {
+      rethrowAbort(error);
       // Worktree may already be gone or parentRepo may have become invalid
     }
 
     // Also delete the branch
     if (branchName && branchName !== 'HEAD') {
       try {
-        await execFileAsync('git', ['branch', '-D', branchName], {
+        options.onStage?.('removing_git_branch');
+        await spawnCommand('git', ['branch', '-D', branchName], {
           cwd: parentRepo,
           timeout: 10000,
+          signal: options.signal,
         });
-      } catch {
+      } catch (error) {
+        rethrowAbort(error);
         // Branch may already be gone
       }
     }
   }
 
   // Always clean up the worktree directory on disk if it still exists
+  throwIfAborted(options.signal);
   try {
+    options.onStage?.('removing_worktree_files');
     await fs.promises.rm(worktreePath, { recursive: true, force: true });
   } catch {
     // Directory may already be gone

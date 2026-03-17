@@ -11,6 +11,7 @@ import { createWorktree, removeWorktree, listWorktrees } from '../worktree/manag
 import { generateWorkspaceName } from '../worktree/names';
 import { getChangedFiles, getFileDiff, discardFile, discardAll, getFullDiff } from '../worktree/diff';
 import { resolveGitState } from '../worktree/outcome';
+import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
 import { requireFields, commandExists, moveWorktreeDirectory } from './utils';
@@ -23,10 +24,67 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     workspaceStore,
     sendToRenderer,
     lifecycleManager,
+    operationManager,
     getSshHost,
     spawnTaskRun,
     releaseTask,
   } = ctx;
+
+  const startArchive = (workspaceId: string) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
+
+    return operationManager.start({
+      workspace,
+      kind: 'archive',
+      initialMessage: 'Queueing archive',
+      run: async ({ signal, update }) => {
+        await lifecycleManager.serialized(workspaceId, async () => {
+          update({
+            stage: 'releasing_tasks',
+            progress: 0.12,
+            message: 'Stopping workspace tasks',
+          });
+
+          const taskIds = lifecycleManager.getActiveTaskIds(workspaceId);
+          for (const taskId of taskIds) {
+            releaseTask(taskId);
+            lifecycleManager.clearTask(taskId);
+          }
+
+          update({
+            stage: 'checking_repo',
+            progress: 0.22,
+            message: 'Checking worktree state',
+          });
+
+          await removeWorktree(workspace.parentRepo, workspace.worktreePath, {
+            signal,
+            onStage: (stage) => {
+              const details = archiveStageDetails[stage];
+              update(details);
+            },
+          });
+
+          update({
+            stage: 'cleaning_db',
+            progress: 0.88,
+            message: 'Cleaning workspace records',
+            cancellable: false,
+          });
+
+          workspaceStore.delete(workspaceId);
+          sendToRenderer('workspace:deleted', { workspaceId });
+          logDiagnostic('workspace:archive', 'workspace archived', {
+            workspaceId,
+            parentRepo: workspace.parentRepo,
+          });
+        });
+      },
+    });
+  };
 
   ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
     if (getSshHost()) return [];
@@ -314,6 +372,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     });
   });
 
+  ipcMain.handle('workspace:list-operations', async () => {
+    return operationManager.list();
+  });
+
+  ipcMain.handle('workspace:cancel-operation', async (_event, { operationId }: { operationId: string }) => {
+    operationManager.cancel(operationId);
+  });
+
   ipcMain.handle(
     'workspace:set-outcome',
     async (_event, { workspaceId, outcome }: { workspaceId: string; outcome: string }) => {
@@ -369,26 +435,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle('workspace:archive', async (_event, { workspaceId }: { workspaceId: string }) => {
-    await lifecycleManager.serialized(workspaceId, async () => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) return;
-
-      const taskIds = lifecycleManager.getActiveTaskIds(workspaceId);
-      for (const taskId of taskIds) {
-        releaseTask(taskId);
-        lifecycleManager.clearTask(taskId);
-      }
-
-      // Remove worktree — gracefully handles missing/non-git parentRepo
-      try {
-        await removeWorktree(workspace.parentRepo, workspace.worktreePath);
-      } catch {
-        // Worktree may already be gone or parentRepo may not be a git repo
-      }
-
-      workspaceStore.delete(workspaceId);
-      sendToRenderer('workspace:deleted', { workspaceId });
-    });
+    return { operation: startArchive(workspaceId) };
   });
 
   ipcMain.handle(
@@ -776,3 +823,31 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     return lifecycleManager.getActiveTaskIds(workspaceId);
   });
 }
+
+const archiveStageDetails = {
+  checking_repo: {
+    stage: 'checking_repo',
+    progress: 0.28,
+    message: 'Checking git workspace',
+  },
+  resolving_branch: {
+    stage: 'resolving_branch',
+    progress: 0.38,
+    message: 'Resolving workspace branch',
+  },
+  removing_git_worktree: {
+    stage: 'removing_git_worktree',
+    progress: 0.54,
+    message: 'Removing git worktree',
+  },
+  removing_git_branch: {
+    stage: 'removing_git_branch',
+    progress: 0.68,
+    message: 'Removing workspace branch',
+  },
+  removing_worktree_files: {
+    stage: 'removing_worktree_files',
+    progress: 0.8,
+    message: 'Cleaning workspace files',
+  },
+} as const;

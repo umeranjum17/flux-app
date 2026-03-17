@@ -46,9 +46,7 @@ beforeEach(() => {
 
   useWorkspaceStore.setState({
     workspaces: new Map([[workspace.id, workspace]]),
-    archivedWorkspaces: new Map(),
     activeWorkspaceId: null,
-    showArchived: false,
     mergingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceSessions: new Map(),
