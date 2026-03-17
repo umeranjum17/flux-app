@@ -827,7 +827,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   // Container border/bg classes for terminal mode (Warp-style)
   const shellClasses = isTerminal
     ? 'border-l-2 border-l-green-500/70 border-t border-r border-b border-border/80 bg-green-950/10'
-    : 'border border-border/70';
+    : 'border border-border/55 bg-bg-primary/70';
 
   return (
     <div className="relative w-full">
@@ -892,7 +892,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         </div>
       )}
 
-      <div className={`premium-input-shell px-3 py-2.5 transition-colors ${shellClasses}`}>
+      <div className={`premium-input-shell px-3 py-2.5 transition-colors focus-within:border-border-focus/60 ${shellClasses}`}>
         {/* Terminal mode badge */}
         {isTerminal && (
           <div className="mb-1.5 flex items-center gap-1.5">
@@ -1077,7 +1077,7 @@ export function ChatInput({ focused }: ChatInputProps) {
 
                   {/* Plan / Act toggle — segmented pill */}
                   <div
-                    className="inline-flex items-center rounded-full border border-border/50 bg-bg-primary/60 p-0.5 text-[11px] font-semibold"
+                    className="inline-flex items-center rounded-full border border-border/60 bg-bg-elevated/55 p-0.5 text-[11px] font-semibold"
                     title="Shift+Tab to toggle"
                   >
                     <button
@@ -1085,7 +1085,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       onClick={() => useUiStore.getState().setMode('plan')}
                       className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'plan'
-                          ? 'bg-indigo-500/15 text-indigo-400 shadow-sm shadow-indigo-500/10'
+                          ? 'bg-bg-elevated text-text-primary ring-1 ring-border/70'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1096,7 +1096,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                       onClick={() => useUiStore.getState().setMode('act')}
                       className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
                         mode === 'act'
-                          ? 'bg-emerald-500/15 text-emerald-400 shadow-sm shadow-emerald-500/10'
+                          ? 'bg-bg-elevated text-text-primary ring-1 ring-border/70'
                           : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >
@@ -1360,11 +1360,9 @@ export function ChatInput({ focused }: ChatInputProps) {
                   className={`flex-shrink-0 rounded-full p-2.5 transition-colors ${
                     hasContent
                       ? isTerminal
-                        ? 'bg-green-600 text-white'
-                        : mode === 'plan'
-                        ? 'bg-plan text-bg-primary'
-                        : 'bg-success text-white'
-                      : 'bg-bg-hover text-text-tertiary cursor-not-allowed'
+                        ? 'border border-green-500/35 bg-green-500/18 text-green-100 hover:bg-green-500/24'
+                        : 'border border-border/70 bg-bg-elevated text-text-primary hover:bg-bg-hover'
+                      : 'border border-border/50 bg-bg-primary/70 text-text-tertiary/80 cursor-not-allowed'
                   }`}
                   aria-label="Send message"
                   title="Send message"
