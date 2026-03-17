@@ -503,46 +503,30 @@ button:focus-visible {
   background: var(--color-bg-hover);
 }
 
-/* Lifecycle-tinted workspace cards */
-.lifecycle-card {
+/* Lifecycle-tinted workspace rows */
+.lifecycle-row {
   position: relative;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 8px;
   border: 1px solid var(--surface-border-soft);
   background: var(--panel-gradient);
-  box-shadow: var(--panel-shadow);
   transition:
     border-color 180ms ease,
-    box-shadow 180ms ease,
     background-color 180ms ease;
 }
 
-.lifecycle-card:hover {
+.lifecycle-row:hover {
   border-color: var(--surface-border-strong);
-  box-shadow: var(--panel-shadow-strong);
 }
 
-.lifecycle-card-active {
+.lifecycle-row-active {
   border-color: var(--color-border-focus);
-  box-shadow:
-    0 0 0 1px var(--color-border-focus),
-    0 8px 24px hsl(0 0% 0% / 0.3);
+  box-shadow: 0 0 0 1px var(--color-border-focus);
 }
 
 .lifecycle-card-archived {
   opacity: 0.55;
   filter: saturate(0.5);
-}
-
-/* Subtle left accent stripe */
-.lifecycle-accent {
-  position: absolute;
-  left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  transition: opacity 180ms ease;
 }
 
 /* Background tint per lifecycle state — very subtle wash */

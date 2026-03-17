@@ -170,7 +170,7 @@ export function WorkspaceDashboard() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-1">
             {workspaceList.map((ws) => (
               <WorkspaceCard
                 key={ws.id}
@@ -190,14 +190,14 @@ export function WorkspaceDashboard() {
               <div className="pt-4">
                 <button
                   onClick={() => useWorkspaceStore.getState().setShowArchived(!showArchived)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
                 >
-                  {showArchived ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  <Archive size={13} />
-                  <span className="font-medium">Archived ({archivedList.length})</span>
+                  {showArchived ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  <Archive size={11} />
+                  <span className="font-medium">Archived</span>
                 </button>
                 {showArchived && (
-                  <div className="mt-2 space-y-3">
+                  <div className="mt-1 space-y-1">
                     {archivedList.map((ws) => (
                       <WorkspaceCard
                         key={ws.id}
