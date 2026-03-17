@@ -128,6 +128,17 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '4. After committing, summarize what you changed.',
       );
 
+      if (ctx.hasNativeTodoTool) {
+        lines.push(
+          '',
+          '## Progress Tracking',
+          '',
+          'Use your native TodoWrite tool to track progress. Write all planned steps as todo items,',
+          'then mark each as completed as you finish it. Do NOT write inline step markers like',
+          '"Step 1:", "Step 2:" in your response text — use TodoWrite instead.',
+        );
+      }
+
       // ── Outcome signals ──
       lines.push('', ...buildOutcomeSection(ctx));
     } else if (ctx.mode === 'plan') {

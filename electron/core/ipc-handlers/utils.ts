@@ -1083,6 +1083,10 @@ export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: Ag
       '',
       list,
       '',
+      'IMPORTANT: Use your native TodoWrite tool to track progress on these steps.',
+      'Write all steps as todo items at the start, then mark each as completed as you finish it.',
+      'Do NOT write inline step markers like "Step 1:", "Step 2:" — use TodoWrite instead.',
+      '',
     ].join('\n');
   }
 
