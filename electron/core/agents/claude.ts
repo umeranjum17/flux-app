@@ -308,13 +308,12 @@ export function spawnClaude(options: SpawnOptions): AgentHandle {
         args.push('--model', opts.model);
       }
 
-      if (opts.dangerouslyBypassPermissions) {
+      if (opts.dangerouslyBypassPermissions || opts.mode === 'plan') {
+        // Skip permissions entirely for externally sandboxed runs and plan mode.
+        // Plan mode is read-only and Flux auto-approves all permission requests
+        // anyway; using --permission-mode plan caused stream closure errors when
+        // the stdio permission prompt round-trip didn't complete in time.
         args.push('--dangerously-skip-permissions');
-      } else if (opts.mode === 'plan') {
-        // Use plan permission mode for read-only enforcement at the CLI level.
-        // The flux-plan skill prompt overrides Claude's native plan output behavior
-        // (file writing, ExitPlanMode) with Flux's structured markdown format.
-        args.push('--permission-mode', 'plan');
       }
 
       if (opts.thinking) {
