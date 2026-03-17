@@ -37,7 +37,7 @@ export interface WorkspaceLifecycleEvent {
 // Parser
 // ---------------------------------------------------------------------------
 
-const LIFECYCLE_REGEX = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*(\{.*\})/;
+const LIFECYCLE_REGEX = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE):\s*(\{[^}]*\})/;
 const VALID_STATES = new Set<WorkspaceLifecycleState>([
   'idle',
   'working',
