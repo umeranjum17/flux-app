@@ -281,10 +281,9 @@ button:focus-visible {
   background: transparent;
 }
 
-/* Important tool call left accent stripe */
+/* Important tool call row (flat style) */
 .tool-call-row-important {
-  border-left: 2px solid var(--color-border-focus);
-  padding-left: 2px;
+  border-left: none;
 }
 
 .premium-message-user {

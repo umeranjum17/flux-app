@@ -323,7 +323,7 @@ export function ToolCallBlock({
   const rowTone = resultIsError
     ? 'border border-error/20 bg-error/5'
     : importance === 'important'
-      ? 'tool-call-row-important border border-border/20 bg-bg-secondary/20'
+      ? 'tool-call-row-important bg-bg-secondary/20'
       : '';
   const chevronTone = importance === 'important'
     ? 'ml-auto shrink-0 text-text-tertiary/70'
