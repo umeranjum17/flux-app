@@ -165,5 +165,30 @@ Simple implementation without mobile support.`,
       expect(stripFluxTokens('FLUX_WORKSPACE: {"state":"working"}').trim()).toBe('');
       expect(stripFluxTokens('FLUX_LIFECYCLE: {"state":"merged"}').trim()).toBe('');
     });
+
+    it('strips nested FLUX_SIGNAL payloads without touching nearby text', () => {
+      const input = [
+        'Before text.',
+        'FLUX_SIGNAL: {"type":"todo_update","todos":[{"label":"Investigate Copilot text trimming","status":"in_progress"},{"label":"Implement and verify fix","status":"pending"}]}',
+        'After text.',
+      ].join('\n');
+
+      const result = stripFluxTokens(input);
+
+      expect(result).toContain('Before text.');
+      expect(result).toContain('After text.');
+      expect(result).not.toContain('Investigate Copilot text trimming');
+      expect(result).not.toContain('FLUX_SIGNAL');
+    });
+
+    it('strips orphaned JSON closers left by streamed FLUX signals', () => {
+      const input = 'Before text.\nFLUX_SIGNAL: {"type":"step_done","step":1\n}\nAfter text.';
+      const result = stripFluxTokens(input);
+
+      expect(result).toContain('Before text.');
+      expect(result).toContain('After text.');
+      expect(result).not.toContain('FLUX_SIGNAL');
+      expect(result).not.toContain('\n}\n');
+    });
   });
 });

@@ -189,6 +189,34 @@ This depends on the agent honoring the structured plan prompt.`,
     expect(screen.getByText('Stabilize the plan renderer.')).not.toBeNull();
   });
 
+  it('preserves nearby assistant text when FLUX_SIGNAL lines contain nested JSON', () => {
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Copilot cleanup',
+      agentId: 'copilot',
+      model: 'gpt-5.4',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: [
+        'Before text.',
+        'FLUX_SIGNAL: {"type":"todo_update","todos":[{"label":"Investigate Copilot text trimming","status":"in_progress"},{"label":"Implement and verify fix","status":"pending"}]}',
+        'After text.',
+      ].join('\n'),
+      timestamp: 6,
+    });
+
+    render(<MessageList />);
+
+    expect(screen.getByText('Before text.')).not.toBeNull();
+    expect(screen.getByText('After text.')).not.toBeNull();
+    expect(screen.queryByText(/Investigate Copilot text trimming/)).toBeNull();
+  });
+
   it('renders Mermaid diagrams inside the plan card', async () => {
     useChatStore.getState().createTask({
       id: 'task-1',

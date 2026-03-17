@@ -1,10 +1,16 @@
 import type { AgentMessage, TodoItem } from './types';
 
-const FLUX_TOKEN_RE = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{[^}]*\}/g;
+// Match entire FLUX signal lines, including nested JSON payloads.
+const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{.*$/gm;
+
+// Match orphaned closing braces left behind when a streamed FLUX signal was
+// split across chunks and only the closing fragment landed in this message.
+const ORPHAN_JSON_CLOSER = /^\s*["']?\}\s*$/gm;
 
 /** Strip FLUX protocol tokens so they don't leak into plan text. */
 export function stripFluxTokens(text: string): string {
-  const cleaned = text.replace(FLUX_TOKEN_RE, '');
+  let cleaned = text.replace(FLUX_LINE_PATTERN, '');
+  cleaned = cleaned.replace(ORPHAN_JSON_CLOSER, '');
   return cleaned.replace(/\n{3,}/g, '\n\n');
 }
 
