@@ -960,7 +960,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       // FLUX_SIGNAL completed and FLUX_WORKSPACE_LIFECYCLE events are parsed here
       // (not during streaming) to avoid false positives from agents echoing the
       // signal format mid-response. The buffer is complete by this point.
-      if (message.type === 'result' && workspace) {
+      // Skip for merge actions — merges have their own outcome transition
+      // (task_completed_merge) and should not be overwritten by agent signals.
+      if (message.type === 'result' && workspace && options.workspaceAction !== 'merge') {
         // B1. FLUX_WORKSPACE_LIFECYCLE events
         const allWsEvents = parseAllWorkspaceEvents(todoBuffer);
         if (allWsEvents.length > lastLifecycleCount) {
