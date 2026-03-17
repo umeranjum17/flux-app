@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AgentMessage, TaskMode, ThinkingLevel, PLAN_FORMAT_PREAMBLE } from './types';
+import { AgentMessage, TaskMode, ThinkingLevel } from './types';
 
 interface LoopMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -329,9 +329,7 @@ Working directory: ${cwd}`;
   if (mode === 'plan') {
     return `${base}
 
-MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive commands.
-
-${PLAN_FORMAT_PREAMBLE}`;
+MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive commands.`;
   }
   return `${base}
 

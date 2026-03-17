@@ -125,7 +125,10 @@ export function useAgentStream() {
 
     const unsubTodo = window.api.on('agent:todo', (data: unknown) => {
       const { taskId, todoItems } = data as { taskId: string; todoItems: TodoItem[] };
-      useChatStore.getState().setTodoItems(taskId, todoItems);
+      const store = useChatStore.getState();
+      store.setTodoItems(taskId, todoItems);
+      const summary = todoItems.map((t) => t.label).join(', ');
+      store.addSystemActivity(taskId, makeActivity('skill', 'Progress tracking started', summary));
     });
 
     const unsubPlan = window.api.on('agent:plan', (data: unknown) => {
@@ -135,7 +138,11 @@ export function useAgentStream() {
 
     const unsubTodoUpdate = window.api.on('agent:todo-update', (data: unknown) => {
       const { taskId, stepId, status, label } = data as { taskId: string; stepId: number; status: TodoItem['status']; label?: string };
-      useChatStore.getState().updateTodoItem(taskId, stepId, status, label);
+      const store = useChatStore.getState();
+      store.updateTodoItem(taskId, stepId, status, label);
+      const displayLabel = label ?? `Step ${stepId}`;
+      const statusIcon = status === 'done' ? 'completed' : status === 'in_progress' ? 'started' : 'pending';
+      store.addSystemActivity(taskId, makeActivity('skill', `Step ${statusIcon}`, displayLabel));
     });
 
     const unsubSkills = window.api.on('agent:skills', (data: unknown) => {
