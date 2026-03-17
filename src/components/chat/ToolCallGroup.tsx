@@ -45,20 +45,20 @@ export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupP
     <div className="tool-call-row group">
       <button
         onClick={() => setExpanded((current) => !current)}
-        className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-bg-hover/40"
+        className="flex w-full items-center gap-1.5 rounded-md py-0.5 text-left transition-colors hover:bg-bg-hover/40"
       >
-        <span className={`tool-icon-badge w-5 h-5 rounded ${hasRunningItems ? 'bg-bg-hover/50' : dominantIcon.bg}`}>
+        <span className={`inline-flex shrink-0 items-center justify-center rounded-full p-0.5 ${hasRunningItems ? 'bg-bg-hover/50' : dominantIcon.bg}`}>
           {hasRunningItems ? (
-            <Loader2 size={12} className="shrink-0 animate-spin text-text-tertiary" />
+            <Loader2 size={11} className="shrink-0 animate-spin text-text-tertiary" />
           ) : (
-            <dominantIcon.Icon size={12} className={`shrink-0 ${dominantIcon.color}`} />
+            <dominantIcon.Icon size={11} className={`shrink-0 ${dominantIcon.color}`} />
           )}
         </span>
-        <span className="text-[12px] font-medium text-text-secondary">{label}</span>
-        <span className="min-w-0 flex-1 truncate text-[12px] text-text-tertiary">{summary}</span>
+        <span className="text-[11px] font-medium text-text-secondary/80">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-text-tertiary/60">{summary}</span>
         <span className="shrink-0 rounded-full bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary">{items.length}</span>
         <span className="ml-1 shrink-0 text-text-tertiary/70">
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
         </span>
       </button>
 
@@ -71,7 +71,7 @@ export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupP
             transition={EXPAND_TRANSITION}
             className="overflow-hidden"
           >
-            <div className="space-y-0.5 pl-5 pr-1 pt-1 pb-2">
+            <div className="space-y-0.5 pl-4 pr-1 pt-1 pb-2">
               {items.map((item) => (
                 <ToolCallBlock
                   key={item.key}

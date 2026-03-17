@@ -27,12 +27,12 @@ function formatTokens(total: number): string {
 
 function renderStatusIcon(status: SubagentState['status']) {
   if (status === 'spawning' || status === 'running') {
-    return <Loader2 size={13} className="animate-spin text-text-secondary shrink-0" />;
+    return <Loader2 size={11} className="animate-spin text-text-secondary shrink-0" />;
   }
   if (status === 'error') {
-    return <XCircle size={13} className="text-error shrink-0" />;
+    return <XCircle size={11} className="text-error shrink-0" />;
   }
-  return <CheckCircle2 size={13} className="text-success shrink-0" />;
+  return <CheckCircle2 size={11} className="text-success shrink-0" />;
 }
 
 export function SubagentBlock({ subagents, stage, taskMode }: SubagentBlockProps) {
@@ -61,21 +61,21 @@ function SubagentRow({
     <div className="tool-call-row group">
       <button
         onClick={() => hasMessages && setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
+        className="flex w-full items-center gap-1.5 py-0.5 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
-        <span className="shrink-0 flex items-center justify-center w-5 h-5">
+        <span className="inline-flex shrink-0 items-center justify-center rounded-full p-0.5">
           {renderStatusIcon(state.status)}
         </span>
-        <span className="text-[12px] font-medium text-text-secondary">Agent</span>
-        <span className="text-[12px] text-text-tertiary truncate min-w-0">
+        <span className="text-[11px] font-medium text-text-secondary/80">Agent</span>
+        <span className="text-[11px] text-text-tertiary/60 truncate min-w-0">
           {state.name}
         </span>
-        <span className="ml-auto shrink-0 text-[11px] text-text-tertiary/60 tabular-nums">
+        <span className="ml-auto shrink-0 text-[10px] text-text-tertiary/40 tabular-nums">
           {state.toolCount > 0 && `${state.toolCount} tools`}
         </span>
         {hasMessages && (
           <span className="shrink-0 text-text-tertiary/50 opacity-0 group-hover:opacity-100 transition-opacity">
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </span>
         )}
       </button>

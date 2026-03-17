@@ -308,15 +308,15 @@ export function ToolCallBlock({
 
   const statusIcon = useMemo(() => {
     if (isRunning && !isComplete) {
-      return { icon: <Loader2 size={12} className="text-text-tertiary animate-spin shrink-0" />, badgeBg: 'bg-bg-hover/50' };
+      return { icon: <Loader2 size={11} className="text-text-tertiary animate-spin shrink-0" />, badgeBg: 'bg-bg-hover/50' };
     }
     if (isComplete && resultIsError) {
-      return { icon: <XCircle size={12} className="text-error/70 shrink-0" />, badgeBg: 'bg-error/5' };
+      return { icon: <XCircle size={11} className="text-error/70 shrink-0" />, badgeBg: 'bg-error/5' };
     }
     if (isComplete) {
-      return { icon: <CheckCircle size={12} className="text-text-tertiary/70 shrink-0" />, badgeBg: 'bg-bg-hover/50' };
+      return { icon: <CheckCircle size={11} className="text-text-tertiary/70 shrink-0" />, badgeBg: 'bg-bg-hover/50' };
     }
-    return { icon: <Icon size={12} className={`${color} shrink-0`} />, badgeBg: bg };
+    return { icon: <Icon size={11} className={`${color} shrink-0`} />, badgeBg: bg };
   }, [isRunning, isComplete, resultIsError, Icon, color, bg]);
 
   const hasExpandableContent = !!resultContent || !!resolvedDiff || shouldShowSemanticBody;
@@ -337,30 +337,30 @@ export function ToolCallBlock({
     >
       <button
         onClick={() => hasExpandableContent && setExpanded(!isExpanded)}
-        className="flex w-full items-center gap-2 py-1 px-1 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
+        className="flex w-full items-center gap-1.5 py-0.5 text-left rounded-md hover:bg-bg-hover/40 transition-colors"
       >
-        <span className={`tool-icon-badge w-5 h-5 rounded ${statusIcon.badgeBg}`}>
+        <span className={`inline-flex shrink-0 items-center justify-center rounded-full p-0.5 ${statusIcon.badgeBg}`}>
           {statusIcon.icon}
         </span>
-        <span className="text-[12px] font-medium text-text-secondary">
+        <span className="text-[11px] font-medium text-text-secondary/80">
           {formatToolCallLabel(toolName)}
         </span>
         {description ? (
-          <span className="text-[12px] text-text-tertiary truncate min-w-0 flex-1">
+          <span className="text-[11px] text-text-tertiary/60 truncate min-w-0 flex-1">
             {description}
           </span>
         ) : (
           <span className="flex-1" />
         )}
         {diffStats && (
-          <span className="ml-auto flex items-center gap-1 shrink-0 text-[11px] font-mono text-text-tertiary">
+          <span className="ml-auto flex items-center gap-1 shrink-0 text-[10px] font-mono text-text-tertiary/60">
             <span>+{diffStats.added}</span>
             <span>-{diffStats.removed}</span>
           </span>
         )}
         {hasExpandableContent && (
           <span className={chevronTone}>
-            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </span>
         )}
       </button>
@@ -374,7 +374,7 @@ export function ToolCallBlock({
             transition={EXPAND_TRANSITION}
             className="overflow-hidden"
           >
-            <div className="pl-7 pr-1 pt-1 pb-2">
+            <div className="pl-5 pr-1 pt-1 pb-2">
               {shouldShowSemanticBody && (
                 <>
                   {isSemanticTodo && <TodoPreview items={todoItems} expanded={isExpanded} />}
