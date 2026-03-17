@@ -7,13 +7,9 @@ const REVIEW_OUTCOMES = new Set(['reviewing', 'changes_requested']);
 /**
  * Flux Workspace skill — loaded for non-merge tasks running in a workspace.
  *
- * Provides:
- * - Workspace context (branch, working directory, parent repo)
- * - Branch naming instructions for auto-generated branches
- * - Commit/push rules
- * - Completion signal protocol
- *
- * Emits: FLUX_SIGNAL: {"type":"completed","workspace_name":"..."}
+ * The agent is the authority on outcome transitions. It emits outcome signals
+ * to tell Flux when the workspace state should change. Flux only overrides
+ * this for external events (sync detecting a merge, unarchive, merge actions).
  */
 export const fluxWorkspaceSkill: FluxSkill = {
   id: 'flux-workspace',
@@ -26,6 +22,15 @@ export const fluxWorkspaceSkill: FluxSkill = {
   buildPrompt(ctx: SkillContext): string {
     const ws = ctx.workspace!;
 
+    const contextTable = [
+      '| Property | Value |',
+      '|----------|-------|',
+      `| Branch | \`${ws.branch}\` |`,
+      `| Working directory | \`${ws.worktreePath}\` |`,
+      `| Parent repository | \`${ws.parentRepo}\` |`,
+      `| Current outcome | \`${ws.outcome}\` |`,
+    ].join('\n');
+
     // ── Plan approved: ready for implementation ──
     if (PLAN_APPROVED_OUTCOMES.has(ws.outcome) && ctx.mode === 'act') {
       return [
@@ -34,14 +39,12 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '## Workspace Context',
         'A plan has been approved for this workspace. Implement the approved plan.',
         '',
-        '| Property | Value |',
-        '|----------|-------|',
-        `| Branch | \`${ws.branch}\` |`,
-        `| Working directory | \`${ws.worktreePath}\` |`,
-        `| Parent repository | \`${ws.parentRepo}\` |`,
+        contextTable,
         '',
         'Follow the plan steps. Commit changes with clear messages when done.',
         'Do NOT push to remote or create pull requests.',
+        '',
+        ...buildOutcomeSection(ctx),
         '',
         '</flux-skill>',
       ].join('\n');
@@ -58,16 +61,14 @@ export const fluxWorkspaceSkill: FluxSkill = {
           ? 'The reviewer has requested changes on this workspace. Address the feedback.'
           : 'This workspace is currently under review.',
         '',
-        '| Property | Value |',
-        '|----------|-------|',
-        `| Branch | \`${ws.branch}\` |`,
-        `| Working directory | \`${ws.worktreePath}\` |`,
-        `| Parent repository | \`${ws.parentRepo}\` |`,
+        contextTable,
         '',
         isChangesRequested
           ? 'Make only the requested changes. Commit with clear messages when done.'
           : 'Only make changes if the reviewer asks for them.',
         'Do NOT push to remote or create pull requests.',
+        '',
+        ...buildOutcomeSection(ctx),
         '',
         '</flux-skill>',
       ].join('\n');
@@ -81,11 +82,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '## Workspace Context',
         `This workspace has already been completed (outcome: **${ws.outcome}**).`,
         '',
-        '| Property | Value |',
-        '|----------|-------|',
-        `| Branch | \`${ws.branch}\` |`,
-        `| Working directory | \`${ws.worktreePath}\` |`,
-        `| Parent repository | \`${ws.parentRepo}\` |`,
+        contextTable,
         '',
         '**Do NOT repeat or redo previous work.** Only respond to the user\'s new message.',
         'If they want additional changes, make only those specific changes.',
@@ -100,11 +97,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
       '## Workspace Context',
       'You are working in an isolated workspace branch managed by Flux.',
       '',
-      '| Property | Value |',
-      '|----------|-------|',
-      `| Branch | \`${ws.branch}\` |`,
-      `| Working directory | \`${ws.worktreePath}\` |`,
-      `| Parent repository | \`${ws.parentRepo}\` |`,
+      contextTable,
     ];
 
     if (ctx.mode === 'act') {
@@ -135,20 +128,8 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '4. After committing, summarize what you changed.',
       );
 
-      // ── Completion signal ──
-      lines.push(
-        '',
-        '## Completion Signal',
-        '',
-        'When all work is finished, emit this signal as the very last line of your final response:',
-        '',
-        'FLUX_SIGNAL: {"type":"completed","workspace_name":"Fix Token Refresh Logic"}',
-        '',
-        'Rules:',
-        '- workspace_name: A 3-5 word description of what was done (used as the workspace title).',
-        '- Emit this exactly once, at the very end of your response.',
-        '- This line must NOT be inside a code block.',
-      );
+      // ── Outcome signals ──
+      lines.push('', ...buildOutcomeSection(ctx));
     } else if (ctx.mode === 'plan') {
       lines.push(
         '',
@@ -173,9 +154,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         'The numbered steps in your "### Steps" section become the todo items the implementing',
         'agent will work through. Keep step titles short and action-oriented.',
         '',
-        'When you finish the plan, emit this signal on its own line (not inside a code block):',
-        '',
-        'FLUX_SIGNAL: {"type":"completed","workspace_name":"Plan: Fix Token Refresh"}',
+        ...buildOutcomeSection(ctx),
       );
     }
 
@@ -183,3 +162,52 @@ export const fluxWorkspaceSkill: FluxSkill = {
     return lines.join('\n');
   },
 };
+
+// ---------------------------------------------------------------------------
+// Outcome signal instructions
+// ---------------------------------------------------------------------------
+
+function buildOutcomeSection(ctx: SkillContext): string[] {
+  const ws = ctx.workspace!;
+  const lines = [
+    '## Outcome Signals',
+    '',
+    `Your workspace is currently in the \`${ws.outcome}\` outcome state.`,
+    'You are responsible for transitioning the workspace to the correct outcome when your work warrants it.',
+    '',
+    'Emit an outcome signal on its own line (NOT inside a code block):',
+    '',
+    'FLUX_SIGNAL: {"type":"outcome","outcome":"<target_outcome>","workspace_name":"Short Description"}',
+    '',
+    'Valid outcomes: `in_progress`, `planned`, `ready_for_pr`',
+    '',
+    'Guidelines:',
+    '- `ready_for_pr` — You have committed meaningful changes and the work is complete or at a review-ready checkpoint.',
+    '- `planned` — You produced a plan (plan mode only).',
+    '- `in_progress` — Work is ongoing, not yet at a reviewable state.',
+    '',
+    'Rules:',
+    '- workspace_name: A 3-5 word description of what was done (used as the workspace title).',
+    '- Emit exactly once, as the very last line of your final response.',
+    '- This line must NOT be inside a code block.',
+  ];
+
+  // Suggest the most likely target outcome based on mode
+  if (ctx.mode === 'plan') {
+    lines.push(
+      '',
+      'Since you are in plan mode, emit `planned` when your plan is complete:',
+      '',
+      'FLUX_SIGNAL: {"type":"outcome","outcome":"planned","workspace_name":"Plan: Fix Token Refresh"}',
+    );
+  } else {
+    lines.push(
+      '',
+      'When all work is finished and committed, emit `ready_for_pr`:',
+      '',
+      'FLUX_SIGNAL: {"type":"outcome","outcome":"ready_for_pr","workspace_name":"Fix Token Refresh Logic"}',
+    );
+  }
+
+  return lines;
+}

@@ -1,13 +1,10 @@
 /**
- * Centralized workspace outcome state machine.
+ * System-driven workspace outcome transitions.
  *
- * All outcome transitions go through `transitionWorkspaceOutcome` which:
- * 1. Resolves the current git state of the workspace
- * 2. Computes the next outcome via a pure transition function
- * 3. Emits the outcome only if it changed
- *
- * This eliminates the scattered, inconsistent outcome-setting logic that
- * previously lived in 7 different call sites with different guard sets.
+ * Agent-driven outcomes (task completion, plan completion, etc.) are handled
+ * via FLUX_SIGNAL outcome/completed signals in task-handlers. This module
+ * only handles external/system events: merge detection (sync), merge action
+ * completion (task_completed_merge), and unarchive.
  */
 
 import fs from 'fs';
@@ -36,13 +33,15 @@ const execFileAsync = promisify(execFile);
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Triggers for outcome transitions that are NOT agent-driven.
+ *
+ * Agent-driven outcomes (task completion, plan completion, etc.) are handled
+ * via FLUX_SIGNAL outcome/completed signals parsed in task-handlers.
+ * Only external/system events use the state machine.
+ */
 export type WorkspaceOutcomeTrigger =
-  | 'task_completed'
-  | 'plan_completed'
   | 'task_completed_merge'
-  | 'task_error'
-  | 'agent_stopped'
-  | 'agent_signal_ready_for_review'
   | 'sync'
   | 'unarchived';
 
@@ -189,71 +188,32 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
 // Pure transition function
 // ---------------------------------------------------------------------------
 
-/** Terminal outcomes that cannot be changed by automated triggers. */
-const TERMINAL_OUTCOMES = new Set<WorkspaceOutcome>(['merged', 'ready_to_merge', 'ready_to_archive', 'reviewing']);
-
 /**
  * Pure function: given the current outcome, the trigger, and the git state,
  * compute the next outcome. Returns `null` if no transition should happen.
+ *
+ * Only handles system/external triggers. Agent-driven outcome transitions
+ * are handled via FLUX_SIGNAL in task-handlers.
  */
 export function computeNextOutcome(
   current: WorkspaceOutcome,
   trigger: WorkspaceOutcomeTrigger,
   gitState: WorkspaceGitState,
 ): WorkspaceOutcome | null {
-  // task_completed_merge represents an actual merge operation — allow it to
-  // promote ready_to_merge → merged even though ready_to_merge is normally
-  // terminal.  Without this, agent-assisted merges that start from
-  // ready_to_merge (the common case) would silently fail to advance.
-  if (trigger === 'task_completed_merge') {
-    if (current === 'merged' || current === 'ready_to_archive') return null;
-    if (gitState.isMerged) return 'merged';
-    // Merge task completed but branch not actually merged yet — promote to
-    // ready_for_pr only if it's an upgrade (don't demote ready_to_merge).
-    if (current === 'in_progress') return 'ready_for_pr';
-    return null;
-  }
-
-  // Terminal outcomes block all other automated triggers
-  if (TERMINAL_OUTCOMES.has(current)) {
-    return null;
-  }
-
   switch (trigger) {
-    case 'plan_completed':
-      if (current === 'in_progress') return 'planned';
-      return null;
-
-    case 'task_completed':
-      if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
-      if (current === 'planned' && gitState.hasCommits) return 'ready_for_pr';
-      if (current === 'changes_requested' && gitState.hasCommits) return 'ready_for_pr';
-      if (current === 'ready_for_pr' && gitState.isMerged) return 'merged';
-      return null;
-
-    case 'agent_signal_ready_for_review':
-      if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
-      if (current === 'changes_requested' && gitState.hasCommits) return 'ready_for_pr';
-      return null;
-
-    case 'task_error':
-      // Errors don't promote outcomes
-      return null;
-
-    case 'agent_stopped':
-      if (current === 'in_progress' && gitState.hasCommits) return 'ready_for_pr';
-      if (current === 'changes_requested' && gitState.hasCommits) return 'ready_for_pr';
+    case 'task_completed_merge':
+      // Merge action — allow promotion even from terminal states (except already merged/archived)
+      if (current === 'merged' || current === 'ready_to_archive') return null;
+      if (gitState.isMerged) return 'merged';
+      if (current === 'in_progress') return 'ready_for_pr';
       return null;
 
     case 'sync':
-      // Merged check takes priority
-      if (gitState.isMerged) return 'merged';
-      if (current === 'in_progress' && gitState.hasPendingChanges) return 'ready_for_pr';
-      if (current === 'ready_for_pr' && !gitState.hasPendingChanges) return 'in_progress';
+      // External merge detection takes priority
+      if (gitState.isMerged && current !== 'merged' && current !== 'ready_to_archive') return 'merged';
       return null;
 
     case 'unarchived':
-      // After unarchive, sync to current git state
       if (gitState.isMerged) return 'merged';
       return null;
 
@@ -269,23 +229,11 @@ export function computeNextOutcome(
 export type EmitOutcomeFn = (workspaceId: string, outcome: WorkspaceOutcome) => void;
 
 /**
- * Orchestrates a workspace outcome transition:
+ * Orchestrates a system-driven outcome transition:
  * 1. Resolves git state
- * 2. Computes the next outcome
+ * 2. Computes the next outcome (merge detection, sync, unarchive only)
  * 3. Emits if changed
  */
-/** Outcomes ranked by progression — used to detect demotions. */
-const OUTCOME_RANK: Record<WorkspaceOutcome, number> = {
-  in_progress: 0,
-  planned: 1,
-  ready_for_pr: 2,
-  reviewing: 3,
-  changes_requested: 3,
-  ready_to_merge: 4,
-  merged: 5,
-  ready_to_archive: 6,
-};
-
 export async function transitionWorkspaceOutcome(
   workspace: Workspace,
   trigger: WorkspaceOutcomeTrigger,
@@ -301,9 +249,9 @@ export async function transitionWorkspaceOutcome(
 
   const next = computeNextOutcome(workspace.outcome, trigger, gitState);
   if (next !== null && next !== workspace.outcome) {
-    // Guard: skip demotions when git state had errors (could be stale data)
-    if (gitState.warnings.length > 0 && OUTCOME_RANK[next] < OUTCOME_RANK[workspace.outcome]) {
-      logDiagnostic('outcome', 'skipping demotion due to git warnings', {
+    // Skip promotion when git state had errors (stale data could false-positive merge detection)
+    if (gitState.warnings.length > 0) {
+      logDiagnostic('outcome', 'skipping transition due to git warnings', {
         workspaceId: workspace.id, trigger, from: workspace.outcome, to: next,
         warnings: gitState.warnings,
       });

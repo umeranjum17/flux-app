@@ -15,6 +15,7 @@ const VALID_TYPES = new Set<FluxSignalType>([
   'step_done',
   'todo_update',
   'completed',
+  'outcome',
 ]);
 
 /**
@@ -87,6 +88,10 @@ function normalizeSignal(parsed: Record<string, unknown>, type: FluxSignalType):
 
   if (typeof parsed.workspace_name === 'string') {
     signal.workspace_name = parsed.workspace_name.slice(0, 50);
+  }
+
+  if (typeof parsed.outcome === 'string') {
+    signal.outcome = parsed.outcome;
   }
 
   if (Array.isArray(parsed.todos)) {

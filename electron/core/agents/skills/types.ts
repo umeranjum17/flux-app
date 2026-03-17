@@ -58,7 +58,8 @@ export type FluxSignalType =
   | 'step_start'
   | 'step_done'
   | 'todo_update'
-  | 'completed';
+  | 'completed'
+  | 'outcome';
 
 export interface FluxSignal {
   type: FluxSignalType;
@@ -70,4 +71,6 @@ export interface FluxSignal {
   todos?: Array<{ label: string; status: 'pending' | 'in_progress' | 'done' }>;
   /** Short workspace name (3-5 words). Used with completed. */
   workspace_name?: string;
+  /** Target outcome. Used with outcome signal. */
+  outcome?: string;
 }

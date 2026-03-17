@@ -301,7 +301,10 @@ export class WorkspaceLifecycleManager {
     this.sendToRenderer('workspace:outcome', { workspaceId, outcome });
   }
 
-  /** Transition outcome via the state machine (resolves git state, computes next). */
+  /**
+   * Transition outcome via the system state machine (merge detection, sync, unarchive).
+   * Agent-driven outcomes are handled via FLUX_SIGNAL in task-handlers.
+   */
   async transitionOutcome(workspace: Workspace, trigger: WorkspaceOutcomeTrigger): Promise<void> {
     const gitState = await resolveGitState(workspace);
 
@@ -317,12 +320,9 @@ export class WorkspaceLifecycleManager {
 
     const next = computeNextOutcome(fresh.outcome, trigger, gitState);
     if (next !== null && next !== fresh.outcome) {
-      // Guard: skip demotions when git state had errors (could be stale data)
-      const outcomeRank: Record<string, number> = {
-        in_progress: 0, planned: 1, ready_for_pr: 2, reviewing: 3, changes_requested: 3, ready_to_merge: 4, merged: 5, ready_to_archive: 6,
-      };
-      if (gitState.warnings.length > 0 && (outcomeRank[next] ?? 0) < (outcomeRank[fresh.outcome] ?? 0)) {
-        getLogDiagnostic()('outcome', 'skipping demotion due to git warnings', {
+      // Skip transitions when git state had errors (stale data protection)
+      if (gitState.warnings.length > 0) {
+        getLogDiagnostic()('outcome', 'skipping transition due to git warnings', {
           workspaceId: workspace.id, trigger, from: fresh.outcome, to: next,
           warnings: gitState.warnings,
         });

@@ -292,17 +292,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         sendToRenderer('agent:done', { taskId, error: undefined });
       }
 
-      // Sync outcome from git state FIRST so the UI sees consistent state
-      const stoppedWs = workspaceStore.get(workspaceId);
-      if (stoppedWs) {
-        try {
-          await lifecycleManager.transitionOutcome(stoppedWs, 'agent_stopped');
-        } catch {
-          // Best-effort — don't block stop
-        }
-      }
-
-      // Set status AFTER outcome transition so renderer sees consistent state
+      // Outcome stays as-is when agent is stopped — the agent is the authority
+      // on outcome transitions via FLUX_SIGNAL. No guessing from git state.
       lifecycleManager.setStatus(workspaceId, 'idle');
     });
   });
