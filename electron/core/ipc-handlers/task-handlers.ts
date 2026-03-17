@@ -819,61 +819,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           lastFluxSignalCount = 0;
         }
 
-        // 1. Parse FLUX_WORKSPACE_LIFECYCLE events from accumulated buffer.
-        //    Only process newly discovered events (skip already-emitted ones).
-        const allWsEvents = parseAllWorkspaceEvents(todoBuffer);
-        if (allWsEvents.length > lastLifecycleCount) {
-          const newEvents = allWsEvents.slice(lastLifecycleCount);
-          lastLifecycleCount = allWsEvents.length;
-
-          for (const evt of newEvents) {
-            const lifecycleLabels: Record<string, string> = {
-              working: 'Work started',
-              planned: 'Plan completed',
-              ready_for_review: 'Ready for review',
-              completed: 'Completed',
-              merged: 'Changes merged',
-            };
-            if (lifecycleLabels[evt.state] && evt.state !== lastEmittedLifecycleState) {
-              lastEmittedLifecycleState = evt.state;
-              const lifecycleMessage = {
-                type: 'lifecycle' as const,
-                role: 'system' as const,
-                content: '',
-                timestamp: Date.now(),
-                lifecycleState: evt.state,
-                lifecycleLabel: lifecycleLabels[evt.state],
-              };
-              sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
-              sendToRenderer('agent:message', {
-                taskId: options.taskId,
-                message: lifecycleMessage,
-              });
-            }
-
-            // Agent explicitly declared its state — set outcome directly
-            // without git state checks. The agent knows its own state.
-            if (workspace) {
-              const outcomeMap: Record<string, import('../worktree/types').WorkspaceOutcome> = {
-                ready_for_review: 'ready_for_pr',
-                planned: 'planned',
-                merged: 'merged',
-              };
-              const outcome = outcomeMap[evt.state];
-              if (outcome) {
-                logDiagnostic('lifecycle', `agent signalled ${evt.state} → setting outcome ${outcome}`, {
-                  taskId: options.taskId,
-                  workspaceName: evt.workspace_name,
-                });
-                lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
-              }
-            }
-          }
-        }
-
-        // 2. Parse FLUX_SIGNAL events from accumulated buffer.
-        //    Only process newly discovered events.
-        const allFluxSignals = parseAllFluxSignals(todoBuffer);
+        // ── Phase A: Mid-stream progress signals only ──
+        // Parse step_start, step_done, todo_update from the buffer as they arrive
+        // so the progress UI updates live. Completion signals (completed) and
+        // lifecycle events (FLUX_WORKSPACE_LIFECYCLE) are deferred to turn end
+        // (Phase B) to avoid false positives from LLMs echoing the signal format.
+        const PROGRESS_TYPES = new Set<import('../agents/skills/types').FluxSignalType>([
+          'step_start', 'step_done', 'todo_update',
+        ]);
+        const allFluxSignals = parseAllFluxSignals(todoBuffer, PROGRESS_TYPES);
         if (allFluxSignals.length > lastFluxSignalCount) {
           const newSignals = allFluxSignals.slice(lastFluxSignalCount);
           lastFluxSignalCount = allFluxSignals.length;
@@ -901,38 +855,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 lastTodoSnapshot = snapshot;
                 sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
                 flushTodoUpdates(options.taskId);
-              }
-            }
-            // 'completed' signal → trigger workspace lifecycle transition
-            else if (sig.type === 'completed') {
-              const outcome: import('../worktree/types').WorkspaceOutcome = options.mode === 'plan' ? 'planned' : 'ready_for_pr';
-              logDiagnostic('flux-signal', `agent signalled completed → setting outcome ${outcome}`, {
-                taskId: options.taskId,
-                workspaceName: sig.workspace_name,
-              });
-
-              // Agent explicitly declared completion — set outcome directly.
-              if (workspace) {
-                lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
-              }
-
-              // Emit a lifecycle message to the renderer (skip if already emitted by WORKSPACE_LIFECYCLE handler)
-              const completedLifecycleState = options.mode === 'plan' ? 'planned' : 'ready_for_review';
-              if (completedLifecycleState !== lastEmittedLifecycleState) {
-                lastEmittedLifecycleState = completedLifecycleState;
-                const lifecycleMessage = {
-                  type: 'lifecycle' as const,
-                  role: 'system' as const,
-                  content: '',
-                  timestamp: Date.now(),
-                  lifecycleState: completedLifecycleState,
-                  lifecycleLabel: options.mode === 'plan' ? 'Plan completed' : 'Ready for review',
-                };
-                sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
-                sendToRenderer('agent:message', {
-                  taskId: options.taskId,
-                  message: lifecycleMessage,
-                });
               }
             }
           }
@@ -1031,6 +953,91 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           lifecycleManager.taskStatusChanged(options.taskId, 'done', { sessionId: session.id });
         } else if (message.type !== 'rate_limit') {
           lifecycleManager.taskStatusChanged(options.taskId, 'running', { sessionId: session.id });
+        }
+      }
+
+      // ── Phase B: Completion signals — parsed only at turn end ──
+      // FLUX_SIGNAL completed and FLUX_WORKSPACE_LIFECYCLE events are parsed here
+      // (not during streaming) to avoid false positives from agents echoing the
+      // signal format mid-response. The buffer is complete by this point.
+      if (message.type === 'result' && workspace) {
+        // B1. FLUX_WORKSPACE_LIFECYCLE events
+        const allWsEvents = parseAllWorkspaceEvents(todoBuffer);
+        if (allWsEvents.length > lastLifecycleCount) {
+          const newEvents = allWsEvents.slice(lastLifecycleCount);
+          lastLifecycleCount = allWsEvents.length;
+
+          for (const evt of newEvents) {
+            const lifecycleLabels: Record<string, string> = {
+              working: 'Work started',
+              planned: 'Plan completed',
+              ready_for_review: 'Ready for review',
+              completed: 'Completed',
+              merged: 'Changes merged',
+            };
+            if (lifecycleLabels[evt.state] && evt.state !== lastEmittedLifecycleState) {
+              lastEmittedLifecycleState = evt.state;
+              const lifecycleMessage = {
+                type: 'lifecycle' as const,
+                role: 'system' as const,
+                content: '',
+                timestamp: Date.now(),
+                lifecycleState: evt.state,
+                lifecycleLabel: lifecycleLabels[evt.state],
+              };
+              sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
+              sendToRenderer('agent:message', {
+                taskId: options.taskId,
+                message: lifecycleMessage,
+              });
+            }
+
+            const outcomeMap: Record<string, import('../worktree/types').WorkspaceOutcome> = {
+              ready_for_review: 'ready_for_pr',
+              planned: 'planned',
+              merged: 'merged',
+            };
+            const outcome = outcomeMap[evt.state];
+            if (outcome) {
+              logDiagnostic('lifecycle', `agent signalled ${evt.state} → setting outcome ${outcome}`, {
+                taskId: options.taskId,
+                workspaceName: evt.workspace_name,
+              });
+              lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
+            }
+          }
+        }
+
+        // B2. FLUX_SIGNAL completed events
+        const completionSignals = parseAllFluxSignals(todoBuffer, new Set<import('../agents/skills/types').FluxSignalType>(['completed']));
+        if (completionSignals.length > 0) {
+          // Take the last completed signal (in case of duplicates)
+          const sig = completionSignals[completionSignals.length - 1];
+          const outcome: import('../worktree/types').WorkspaceOutcome = options.mode === 'plan' ? 'planned' : 'ready_for_pr';
+          logDiagnostic('flux-signal', `agent signalled completed → setting outcome ${outcome}`, {
+            taskId: options.taskId,
+            workspaceName: sig.workspace_name,
+          });
+
+          lifecycleManager.setOutcome(workspace.id, outcome, { force: true });
+
+          const completedLifecycleState = options.mode === 'plan' ? 'planned' : 'ready_for_review';
+          if (completedLifecycleState !== lastEmittedLifecycleState) {
+            lastEmittedLifecycleState = completedLifecycleState;
+            const lifecycleMessage = {
+              type: 'lifecycle' as const,
+              role: 'system' as const,
+              content: '',
+              timestamp: Date.now(),
+              lifecycleState: completedLifecycleState,
+              lifecycleLabel: options.mode === 'plan' ? 'Plan completed' : 'Ready for review',
+            };
+            sessionStore.addMessage(session.id, toStoredMessage(lifecycleMessage));
+            sendToRenderer('agent:message', {
+              taskId: options.taskId,
+              message: lifecycleMessage,
+            });
+          }
         }
       }
 
