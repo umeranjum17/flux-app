@@ -1155,7 +1155,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             ...message,
             content: message.content
               .split('\n')
-              .filter((line: string) => !line.match(/^FLUX_(?:LIFECYCLE|WORKSPACE):\s*\{/))
+              .filter((line: string) => !line.match(/^FLUX_(?:LIFECYCLE|WORKSPACE|SIGNAL):\s*\{/))
               .join('\n')
               .trim(),
           }
