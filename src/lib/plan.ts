@@ -1,5 +1,13 @@
 import type { AgentMessage, TodoItem } from './types';
 
+const FLUX_TOKEN_RE = /FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{[^}]*\}/g;
+
+/** Strip FLUX protocol tokens so they don't leak into plan text. */
+export function stripFluxTokens(text: string): string {
+  const cleaned = text.replace(FLUX_TOKEN_RE, '');
+  return cleaned.replace(/\n{3,}/g, '\n\n').trim();
+}
+
 const PLAN_SECTION_PATTERN = /^(#{2,3})\s+(summary|analysis|steps|trade-offs|tradeoffs|verification)\b/im;
 const GENERIC_SECTION_PATTERN = /^#{2,3}\s+\S+/gm;
 const ORDERED_STEP_PATTERN = /^\d+\.\s+\S+/gm;
@@ -35,7 +43,7 @@ export function getLatestPlanText(messages: AgentMessage[]): string {
 
   for (let index = assistantTexts.length - 1; index >= 0; index -= 1) {
     if (isLikelyPlanText(assistantTexts[index])) {
-      return assistantTexts[index];
+      return stripFluxTokens(assistantTexts[index]);
     }
   }
 

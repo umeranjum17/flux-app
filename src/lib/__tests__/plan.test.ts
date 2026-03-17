@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLatestPlanText, isLikelyPlanText } from '../plan';
+import { getLatestPlanText, isLikelyPlanText, stripFluxTokens } from '../plan';
 import type { AgentMessage } from '../types';
 
 describe('plan helpers', () => {
@@ -100,5 +100,66 @@ Unstructured plans will not render as plan cards.`,
 
     expect(getLatestPlanText(messages)).toContain('Fix plan rendering.');
     expect(getLatestPlanText(messages)).not.toContain("I'll inspect the task flow first.");
+  });
+
+  it('strips FLUX tokens from plan text returned by getLatestPlanText', () => {
+    const messages: AgentMessage[] = [
+      {
+        type: 'text',
+        role: 'assistant',
+        content: `## Summary
+Create a Snake Game with HTML5 Canvas.
+
+## Analysis
+page scroll, and both dark/light themes remain visually coherent.
+
+FLUX_WORKSPACE_LIFECYCLE: {"state":"planned"} FLUX_SIGNAL: {"type":"completed","workspace_name":"Plan: Create Snake Game"}
+
+## Steps
+1. Create index.html with canvas element.
+2. Implement game loop and rendering.
+3. Add keyboard controls.
+
+## Trade-offs
+Simple implementation without mobile support.`,
+        timestamp: 1,
+      },
+    ];
+
+    const result = getLatestPlanText(messages);
+    expect(result).not.toContain('FLUX_WORKSPACE_LIFECYCLE');
+    expect(result).not.toContain('FLUX_SIGNAL');
+    expect(result).not.toContain('"state":"planned"');
+    expect(result).not.toContain('"type":"completed"');
+    expect(result).toContain('Create a Snake Game');
+    expect(result).toContain('visually coherent');
+  });
+
+  describe('stripFluxTokens', () => {
+    it('strips both FLUX_WORKSPACE_LIFECYCLE and FLUX_SIGNAL on the same line', () => {
+      const input = 'FLUX_WORKSPACE_LIFECYCLE: {"state":"planned"} FLUX_SIGNAL: {"type":"completed","workspace_name":"Plan: Create Snake Game"}';
+      const result = stripFluxTokens(input);
+      expect(result).not.toContain('FLUX_WORKSPACE_LIFECYCLE');
+      expect(result).not.toContain('FLUX_SIGNAL');
+      expect(result).toBe('');
+    });
+
+    it('strips tokens embedded in surrounding text', () => {
+      const input = 'Some text before.\n\nFLUX_WORKSPACE_LIFECYCLE: {"state":"planned"} FLUX_SIGNAL: {"type":"completed","workspace_name":"Plan: Create Snake Game"}\n\nSome text after.';
+      const result = stripFluxTokens(input);
+      expect(result).not.toContain('FLUX_WORKSPACE_LIFECYCLE');
+      expect(result).not.toContain('FLUX_SIGNAL');
+      expect(result).toContain('Some text before.');
+      expect(result).toContain('Some text after.');
+    });
+
+    it('returns text unchanged when no tokens present', () => {
+      expect(stripFluxTokens('Hello world')).toBe('Hello world');
+    });
+
+    it('strips legacy FLUX_WORKSPACE and FLUX_LIFECYCLE prefixes', () => {
+      expect(stripFluxTokens('FLUX_WORKSPACE: {"state":"working"}')).toBe('');
+      expect(stripFluxTokens('FLUX_LIFECYCLE: {"state":"merged"}')).toBe('');
+    });
   });
 });
