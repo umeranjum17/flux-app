@@ -4,7 +4,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { getWorkspaceListSignal } from '../../lib/workspace-status';
+import { getWorkspaceLifecycleState, getWorkspaceListSignal, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace } from '../../lib/ipc-api';
 import { toast } from 'sonner';
@@ -280,6 +280,8 @@ export function WorkspaceTab() {
 
               {/* Workspace list for this project */}
               {!isCollapsed && projectWorkspaces.map((ws) => {
+                const lifecycleState = getWorkspaceLifecycleState(ws);
+                const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
                 const operation = workspaceOperations.get(ws.id);
                 const signal = getWorkspaceListSignal(ws, operation);
                 const isActive = ws.id === activeWorkspaceId;
@@ -305,6 +307,9 @@ export function WorkspaceTab() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center">
                         <span className="truncate text-[13px] font-medium text-text-primary">{ws.name}</span>
+                        <span className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${lifecycle.badgeClass}`}>
+                          {isArchiving ? 'Archiving' : lifecycle.label}
+                        </span>
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
                         <GitBranch size={10} className="opacity-50" />
