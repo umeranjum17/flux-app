@@ -59,7 +59,6 @@ export function StatusLine() {
   const cost = activeTask?.costUsd ?? 0;
   const tokens = (activeTask?.inputTokens ?? 0) + (activeTask?.outputTokens ?? 0);
   const qualityGate = activeTask?.lastQualityGate;
-  const rateLimit = activeTask?.rateLimitInfo;
 
   const handleSshClick = useCallback(() => {
     useUiStore.getState().setOverlay('ssh-connect');
@@ -167,14 +166,6 @@ export function StatusLine() {
             </span>
           </>
         )}
-        {rateLimit && Number.isFinite(rateLimit.utilization) && (
-          <>
-            <Dot />
-            <span className={`text-[13px] font-medium ${rateLimitColor(rateLimit.utilization)}`}>
-              rl {Math.round(rateLimit.utilization * 100)}%
-            </span>
-          </>
-        )}
         <Dot />
         <span className="text-[13px] text-text-tertiary tabular-nums">
           ${cost.toFixed(4)}
@@ -199,10 +190,4 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
-}
-
-function rateLimitColor(utilization: number): string {
-  if (utilization >= 0.8) return 'text-error';
-  if (utilization >= 0.5) return 'text-warning';
-  return 'text-success';
 }

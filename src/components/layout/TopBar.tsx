@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Menu, Settings, ShieldCheck, ShieldOff } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Gauge, Menu, Settings, ShieldCheck, ShieldOff } from 'lucide-react';
+import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
+import { normalizeTaskRateLimit, rateLimitTextColor } from '../../lib/rate-limits';
 
 const isMac = window.api?.platform === 'darwin';
 const isWin = window.api?.platform === 'win32';
@@ -18,10 +20,18 @@ function isFullscreenChangedPayload(value: unknown): value is FullscreenChangedP
 
 export function TopBar() {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const activeTask = useChatStore((s) => {
+    const id = s.activeTaskId;
+    return id ? s.tasks.get(id) : undefined;
+  });
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const setOverlay = useUiStore((s) => s.setOverlay);
   const autoApprove = useUiStore((s) => s.autoApprove);
   const toggleAutoApprove = useUiStore((s) => s.toggleAutoApprove);
+  const rateLimit = useMemo(
+    () => normalizeTaskRateLimit(activeTask?.rateLimitInfo, activeTask?.agentId),
+    [activeTask?.agentId, activeTask?.rateLimitInfo],
+  );
 
   useEffect(() => {
     if (!isMac) return;
@@ -63,6 +73,16 @@ export function TopBar() {
       </div>
 
       <div className="no-drag flex min-w-0 items-center gap-1.5 overflow-hidden">
+        {rateLimit && Number.isFinite(rateLimit.utilization) && (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border border-border/60 bg-bg-elevated/55 px-2 py-1 text-[11px] font-medium ${rateLimitTextColor(rateLimit)}`}
+            title={`${Math.round(Math.max(0, Math.min(1, rateLimit.utilization)) * 100)}% ${rateLimit.rateLimitType.replace(/[_-]+/g, ' ')}`}
+          >
+            <Gauge size={11} />
+            <span className="tabular-nums">rl {Math.round(Math.max(0, Math.min(1, rateLimit.utilization)) * 100)}%</span>
+          </span>
+        )}
+
         <button
           onClick={toggleAutoApprove}
           className={`premium-toolbar-button rounded-md p-1.5 ${

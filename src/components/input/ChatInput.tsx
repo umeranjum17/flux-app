@@ -15,6 +15,14 @@ import type { FluxConfig, RateLimitInfo, Session } from '../../lib/ipc-api';
 import type { FileAttachment, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
+import {
+  computeHighestSeverity,
+  formatTimeUntil,
+  mergeRateLimits,
+  normalizeTaskRateLimit,
+  providerLabel,
+  rateLimitTextColor,
+} from '../../lib/rate-limits';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   low: 'Low',
@@ -1335,87 +1343,6 @@ export function ChatInput({ focused }: ChatInputProps) {
   );
 }
 
-function normalizeTaskRateLimit(
-  info: {
-    providerId?: 'claude-code' | 'codex';
-    status?: string;
-    resetsAt?: number;
-    rateLimitType?: string;
-    utilization?: number;
-    overageStatus?: string;
-    overageResetsAt?: number;
-    fetchedAt?: number;
-  } | undefined,
-  activeAgentId: string | undefined,
-): RateLimitInfo | null {
-  if (!info) return null;
-  const inferredProvider = info.providerId
-    ?? (activeAgentId === 'claude-code' || activeAgentId === 'codex' ? activeAgentId : null);
-  if (!inferredProvider) return null;
-  return {
-    providerId: inferredProvider,
-    status: coerceRateLimitStatus(info.status, info.utilization),
-    resetsAt: typeof info.resetsAt === 'number' ? info.resetsAt : 0,
-    rateLimitType: info.rateLimitType ?? 'unknown',
-    utilization: typeof info.utilization === 'number' ? info.utilization : 0,
-    ...(typeof info.overageStatus === 'string' ? { overageStatus: info.overageStatus } : {}),
-    ...(typeof info.overageResetsAt === 'number' ? { overageResetsAt: info.overageResetsAt } : {}),
-    ...(typeof info.fetchedAt === 'number' ? { fetchedAt: info.fetchedAt } : {}),
-  };
-}
-
-function coerceRateLimitStatus(
-  status: string | undefined,
-  utilization: number | undefined,
-): RateLimitInfo['status'] {
-  if (status === 'allowed' || status === 'allowed_warning' || status === 'rejected') {
-    return status;
-  }
-  const pct = typeof utilization === 'number' ? utilization : 0;
-  if (pct >= 1) return 'rejected';
-  if (pct >= 0.8) return 'allowed_warning';
-  return 'allowed';
-}
-
-function mergeRateLimits(
-  cached: RateLimitInfo[],
-  active: RateLimitInfo | null,
-): RateLimitInfo[] {
-  const deduped = new Map<string, RateLimitInfo>();
-  for (const entry of cached) {
-    deduped.set(`${entry.providerId}:${entry.rateLimitType}`, entry);
-  }
-  if (active) {
-    deduped.set(`${active.providerId}:${active.rateLimitType}`, active);
-  }
-  return Array.from(deduped.values()).sort((left, right) => {
-    if (left.providerId === right.providerId) {
-      return left.rateLimitType.localeCompare(right.rateLimitType);
-    }
-    return left.providerId.localeCompare(right.providerId);
-  });
-}
-
-function computeHighestSeverity(
-  entries: RateLimitInfo[],
-): RateLimitInfo['status'] | null {
-  if (entries.some((entry) => entry.status === 'rejected')) return 'rejected';
-  if (entries.some((entry) => entry.status === 'allowed_warning')) return 'allowed_warning';
-  if (entries.some((entry) => entry.status === 'allowed')) return 'allowed';
-  return null;
-}
-
-function providerLabel(providerId: RateLimitInfo['providerId']): string {
-  return providerId === 'claude-code' ? 'Claude Code' : 'Codex';
-}
-
-function rateLimitTextColor(entry: RateLimitInfo): string {
-  if (entry.status === 'rejected') return 'text-error';
-  if (entry.status === 'allowed_warning') return 'text-warning';
-  if (entry.status === 'allowed') return 'text-success';
-  return 'text-text-secondary';
-}
-
 function formatRelativeTime(timestamp: number): string {
   const diffMs = Math.max(0, Date.now() - timestamp);
   const minutes = Math.floor(diffMs / 60_000);
@@ -1425,15 +1352,4 @@ function formatRelativeTime(timestamp: number): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
-}
-
-function formatTimeUntil(timestamp: number): string {
-  const diffMs = Math.max(0, timestamp - Date.now());
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return 'now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ${minutes % 60}m`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ${hours % 24}h`;
 }
