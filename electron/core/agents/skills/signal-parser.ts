@@ -15,6 +15,7 @@ const VALID_TYPES = new Set<FluxSignalType>([
   'todo_update',
   'completed',
   'outcome',
+  'rename',
 ]);
 const SIGNAL_PREFIX = 'FLUX_SIGNAL:';
 

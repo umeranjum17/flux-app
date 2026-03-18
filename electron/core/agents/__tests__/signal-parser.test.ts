@@ -49,6 +49,11 @@ describe('parseFluxSignal', () => {
     expect(result?.label).toHaveLength(50);
   });
 
+  it('parses rename signal with workspace_name', () => {
+    const result = parseFluxSignal('FLUX_SIGNAL: {"type":"rename","workspace_name":"Fix Token Refresh Logic"}');
+    expect(result).toEqual({ type: 'rename', workspace_name: 'Fix Token Refresh Logic' });
+  });
+
   it('normalizes todo status variants', () => {
     const input = 'FLUX_SIGNAL: {"type":"todo_update","todos":[{"label":"A","status":"completed"},{"label":"B","status":"in-progress"},{"label":"C","status":"active"}]}';
     const result = parseFluxSignal(input);

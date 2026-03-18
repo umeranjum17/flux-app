@@ -772,6 +772,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     let lastFluxSignalCount = 0;
     // Guard against emitting duplicate lifecycle messages for the same state
     let lastEmittedLifecycleState = '';
+    // Guard: only process the first rename signal per task
+    let renameHandled = false;
 
     // Throttled session-context writes (every 30s)
     const SESSION_CONTEXT_INTERVAL_MS = 30_000;
@@ -884,7 +886,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         // lifecycle events (FLUX_WORKSPACE_LIFECYCLE) are deferred to turn end
         // (Phase B) to avoid false positives from LLMs echoing the signal format.
         const PROGRESS_TYPES = new Set<import('../agents/skills/types').FluxSignalType>([
-          'step_start', 'step_done', 'todo_update',
+          'step_start', 'step_done', 'todo_update', 'rename',
         ]);
         const allFluxSignals = parseAllFluxSignals(todoBuffer, PROGRESS_TYPES);
         if (allFluxSignals.length > lastFluxSignalCount) {
@@ -914,6 +916,35 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 lastTodoSnapshot = snapshot;
                 sendToRenderer('agent:todo', { taskId: options.taskId, todoItems });
                 flushTodoUpdates(options.taskId);
+              }
+            } else if (sig.type === 'rename' && sig.workspace_name && !renameHandled) {
+              renameHandled = true;
+              const agentName = sig.workspace_name.trim().slice(0, 50);
+              if (agentName && workspace) {
+                // Fire-and-forget: rename worktree directory + update workspace name
+                (async () => {
+                  try {
+                    const currentWs = workspaceStore.get(workspace.id) ?? workspace;
+                    const newBranch = branchNameFromLabel(agentName);
+                    const renameDirName = newBranch.replace(/^flux\//, '');
+                    const nextWorktreePath = await moveWorktreeDirectory(
+                      currentWs.parentRepo,
+                      currentWs.worktreePath,
+                      renameDirName,
+                    );
+                    workspaceStore.update(workspace.id, {
+                      name: agentName,
+                      worktreePath: nextWorktreePath,
+                    });
+                    sendToRenderer('workspace:updated', {
+                      workspaceId: workspace.id,
+                      name: agentName,
+                      worktreePath: nextWorktreePath,
+                    });
+                  } catch (err) {
+                    console.warn('[flux-signal:rename] failed to rename workspace', err);
+                  }
+                })();
               }
             }
           }

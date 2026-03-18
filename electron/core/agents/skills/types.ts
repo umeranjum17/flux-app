@@ -65,7 +65,8 @@ export type FluxSignalType =
   | 'step_done'
   | 'todo_update'
   | 'completed'
-  | 'outcome';
+  | 'outcome'
+  | 'rename';
 
 export interface FluxSignal {
   type: FluxSignalType;
