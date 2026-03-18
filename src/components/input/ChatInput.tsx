@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type KeyboardEvent, type ClipboardEvent, type ChangeEvent } from 'react';
-import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, Square, Gauge, RefreshCw } from 'lucide-react';
+import { ArrowUp, Plus, X, RotateCcw, Brain, Terminal, ChevronDown, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -11,18 +11,10 @@ import { ImageAttach } from './ImageAttach';
 import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
-import type { FluxConfig, LiveUsageOverview, Session } from '../../lib/ipc-api';
+import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
-import {
-  computeHighestSeverity,
-  formatTimeUntil,
-  mergeRateLimits,
-  normalizeTaskRateLimit,
-  providerLabel,
-  rateLimitTextColor,
-} from '../../lib/rate-limits';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   disabled: 'Off',
@@ -60,8 +52,6 @@ export function ChatInput({ focused }: ChatInputProps) {
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showCompletionPicker, setShowCompletionPicker] = useState(false);
   const [completionProviders, setCompletionProviders] = useState<string[]>([]);
-  const [showRateLimits, setShowRateLimits] = useState(false);
-  const [liveOverview, setLiveOverview] = useState<LiveUsageOverview | null>(null);
 
   // Guard against accidental sends in completed/merged workspaces
   const [pendingTerminalSend, setPendingTerminalSend] = useState(false);
@@ -115,62 +105,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const refreshLiveUsage = useCallback(async () => {
-    try {
-      const result = await window.api.invoke('usage:live') as LiveUsageOverview;
-      setLiveOverview(result);
-    } catch {
-      // keep previous state
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshLiveUsage();
-    const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
-      setLiveOverview(data as LiveUsageOverview);
-    });
-    const cleanupMessage = window.api.on('agent:message', (...args: unknown[]) => {
-      const data = args[0] as { message?: { type?: string } } | undefined;
-      if (data?.message?.type === 'rate_limit') {
-        void refreshLiveUsage();
-      }
-    });
-    const cleanupDone = window.api.on('agent:done', () => {
-      void refreshLiveUsage();
-    });
-    return () => {
-      cleanupLiveUpdate();
-      cleanupMessage();
-      cleanupDone();
-    };
-  }, [refreshLiveUsage]);
-
   const isMac = window.api?.platform === 'darwin';
-  const activeTaskRateLimit = useMemo(
-    () => normalizeTaskRateLimit(activeTask?.rateLimitInfo, activeTask?.agentId),
-    [activeTask?.rateLimitInfo, activeTask?.agentId],
-  );
-  const liveRateLimits = useMemo(
-    () => (liveOverview?.providers ?? []).flatMap((p) =>
-      p.windows.map((w) => ({
-        providerId: w.providerId,
-        status: w.status,
-        resetsAt: w.resetsAt ?? 0,
-        rateLimitType: w.windowLabel,
-        utilization: w.usedPercent,
-        fetchedAt: w.fetchedAt,
-      } satisfies import('../../lib/ipc-api').RateLimitInfo)),
-    ),
-    [liveOverview],
-  );
-  const visibleRateLimits = useMemo(
-    () => mergeRateLimits(liveRateLimits, activeTaskRateLimit),
-    [liveRateLimits, activeTaskRateLimit],
-  );
-  const highestSeverity = useMemo(
-    () => computeHighestSeverity(visibleRateLimits),
-    [visibleRateLimits],
-  );
 
   // Focus textarea when panel switches to agent mode
   useEffect(() => {
@@ -1140,115 +1075,6 @@ export function ChatInput({ focused }: ChatInputProps) {
                     </button>
                   </div>
 
-                  {/* Divider */}
-                  <span className="mx-0.5 h-3.5 w-px bg-border/50" aria-hidden />
-
-                  {/* Rate limits */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!showRateLimits) {
-                          void refreshLiveUsage();
-                        }
-                        setShowRateLimits((open) => !open);
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-bg-elevated/50 px-2 py-1 text-[11px] font-medium text-text-secondary transition-all duration-150`}
-                      title="Peek rate limits"
-                      aria-label="Peek rate limits"
-                    >
-                      <Gauge size={11} />
-                      <span
-                        className={`inline-block h-1.5 w-1.5 rounded-full ${
-                          highestSeverity === 'rejected'
-                            ? 'bg-red-400'
-                            : highestSeverity === 'allowed_warning'
-                              ? 'bg-amber-400'
-                              : highestSeverity === 'allowed'
-                                ? 'bg-emerald-400'
-                                : 'bg-text-tertiary/40'
-                        }`}
-                      />
-                    </button>
-
-                    {showRateLimits && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowRateLimits(false)} />
-                        <div className="absolute bottom-full left-0 z-50 mb-1.5 w-[300px] rounded-xl border border-border/70 bg-bg-elevated p-3 shadow-2xl">
-                          <div className="mb-2.5 flex items-center justify-between">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                              Rate Limits
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => void refreshLiveUsage()}
-                              className="rounded-md p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                              title="Refresh rate limits"
-                              aria-label="Refresh rate limits"
-                            >
-                              <RefreshCw size={11} />
-                            </button>
-                          </div>
-
-                          {visibleRateLimits.length === 0 ? (
-                            <p className="py-3 text-center text-[11px] text-text-tertiary">No rate limit data yet.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {visibleRateLimits.map((entry) => {
-                                const pct = Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100);
-                                const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
-                                return (
-                                  <div
-                                    key={`${entry.providerId}:${entry.rateLimitType}`}
-                                    className="rounded-lg border border-border/50 bg-bg-primary/60 px-2.5 py-2"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="truncate text-[11px] font-medium text-text-primary">
-                                        {providerLabel(entry.providerId)}
-                                      </p>
-                                      <span className={`text-[11px] font-bold tabular-nums ${rateLimitTextColor(entry)}`}>
-                                        {pct}%
-                                      </span>
-                                    </div>
-                                    {/* Progress bar */}
-                                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-border/30">
-                                      <div
-                                        className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                                        style={{ width: `${pct}%` }}
-                                      />
-                                    </div>
-                                    <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
-                                      <span className="truncate">{entry.rateLimitType.replace(/[_-]+/g, ' ')}</span>
-                                      <span className="shrink-0">
-                                        {entry.resetsAt > 0 ? `resets ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2">
-                            <p className="text-[10px] text-text-tertiary">
-                              {liveOverview?.updatedAt ? `Updated ${formatRelativeTime(liveOverview.updatedAt)}` : 'Not refreshed yet'}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                useUiStore.getState().setSidebarOpen(true);
-                                useUiStore.getState().setSidebarTab('usage');
-                                setShowRateLimits(false);
-                              }}
-                              className="rounded-md px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                            >
-                              Open usage
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
                 </>
               )}
 
@@ -1413,15 +1239,4 @@ export function ChatInput({ focused }: ChatInputProps) {
       />
     </div>
   );
-}
-
-function formatRelativeTime(timestamp: number): string {
-  const diffMs = Math.max(0, Date.now() - timestamp);
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
