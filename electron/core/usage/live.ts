@@ -789,23 +789,32 @@ export class LiveUsageService {
   }
 }
 
+function resolveWindowData(root: Record<string, any>, ...keys: string[]): any {
+  for (const key of keys) {
+    if (root[key] && typeof root[key] === 'object') return root[key];
+  }
+  return undefined;
+}
+
 function normalizeClaudeWindows(json: Record<string, any>, now: number): InternalWindow[] {
   // Support both top-level shape (json.five_hour / json.seven_day)
   // and nested shape (json.rate_limit?.five_hour / json.usage?.five_hour).
   const root = json.rate_limit ?? json.rate_limits ?? json.usage ?? json;
   const selectedKey = json.rate_limit ? 'rate_limit' : json.rate_limits ? 'rate_limits' : json.usage ? 'usage' : 'root';
+  const fiveHourRaw = resolveWindowData(root, 'five_hour', '5h', '5_hour', 'fiveHour', 'five_hours', '5_hours');
+  const sevenDayRaw = resolveWindowData(root, 'seven_day', '7d', '7_day', 'sevenDay', 'seven_days', '7_days');
   logDiagnostic('usage', 'claude normalizeWindows: root selection', {
     selectedKey,
     topLevelKeys: Object.keys(json),
     rootKeys: root ? Object.keys(root) : [],
-    hasFiveHour: !!root?.five_hour,
-    hasSevenDay: !!root?.seven_day,
-    rawFiveHour: root?.five_hour ? JSON.stringify(root.five_hour).slice(0, 500) : null,
-    rawSevenDay: root?.seven_day ? JSON.stringify(root.seven_day).slice(0, 500) : null,
+    hasFiveHour: !!fiveHourRaw,
+    hasSevenDay: !!sevenDayRaw,
+    rawFiveHour: fiveHourRaw ? JSON.stringify(fiveHourRaw).slice(0, 500) : null,
+    rawSevenDay: sevenDayRaw ? JSON.stringify(sevenDayRaw).slice(0, 500) : null,
   });
   const windows = [
-    normalizeClaudeWindow('five_hour', root.five_hour, now),
-    normalizeClaudeWindow('seven_day', root.seven_day, now),
+    normalizeClaudeWindow('five_hour', fiveHourRaw, now),
+    normalizeClaudeWindow('seven_day', sevenDayRaw, now),
   ].filter((window): window is InternalWindow => !!window);
   logDiagnostic('usage', 'claude normalizeWindows: result', {
     windowCount: windows.length,
@@ -825,11 +834,12 @@ function normalizeClaudeWindow(windowKey: UsageWindowKey, raw: any, now: number)
     return null;
   }
 
-  const rawUtilization = raw.utilization ?? raw.used_percent ?? raw.percent_capacity ?? raw.percentCapacity;
+  const rawUtilization = raw.utilization ?? raw.used_percent ?? raw.percent_capacity ?? raw.percentCapacity
+    ?? raw.percent_used ?? raw.usage ?? raw.percentage ?? raw.consumed;
   const normalizedPercent = normalizePercent(rawUtilization);
   const usedPercent = clampPercent(normalizedPercent);
-  const rawResetsAt = raw.resets_at ?? raw.resetsAt ?? raw.reset_at;
-  const resetsAt = parseClaudeTimestamp(rawResetsAt);
+  const rawResetsAt = raw.resets_at ?? raw.resetsAt ?? raw.reset_at ?? raw.resetAt;
+  const resetsAt = parseClaudeTimestamp(rawResetsAt) ?? parseNumericTimestamp(rawResetsAt);
 
   logDiagnostic('usage', `claude normalizeWindow(${windowKey}): parsed`, {
     rawFields: {
@@ -907,7 +917,22 @@ function parseClaudeTimestamp(value: unknown): number | null {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+function parseNumericTimestamp(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  // Distinguish seconds vs milliseconds: values below 1e12 are likely seconds.
+  const ms = value < 1e12 ? value * 1000 : value;
+  return ms;
+}
+
 function normalizePercent(value: unknown): number {
+  // Coerce string-encoded numbers (e.g. "0.42" or "42").
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      logDiagnostic('usage', 'normalizePercent: coerced string to number', { raw: value, parsed });
+      return normalizePercent(parsed);
+    }
+  }
   if (typeof value !== 'number' || Number.isNaN(value)) {
     logDiagnostic('usage', 'normalizePercent: non-numeric input', { value, type: typeof value });
     return 0;

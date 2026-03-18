@@ -642,12 +642,16 @@ button:focus-visible {
   display: none;
 }
 
-.workspace-indicator[data-indicator-variant="half"] .workspace-indicator-fill {
-  background: linear-gradient(180deg, currentColor 48%, color-mix(in srgb, currentColor 25%, transparent) 48%);
+.workspace-indicator[data-indicator-variant="quarter"] .workspace-indicator-fill {
+  background: linear-gradient(180deg, currentColor 25%, color-mix(in srgb, currentColor 15%, transparent) 25%);
 }
 
-.workspace-indicator[data-indicator-variant="split"] .workspace-indicator-fill {
-  background: linear-gradient(135deg, currentColor 52%, color-mix(in srgb, currentColor 20%, transparent) 52%);
+.workspace-indicator[data-indicator-variant="half"] .workspace-indicator-fill {
+  background: linear-gradient(180deg, currentColor 50%, color-mix(in srgb, currentColor 20%, transparent) 50%);
+}
+
+.workspace-indicator[data-indicator-variant="three-quarter"] .workspace-indicator-fill {
+  background: linear-gradient(180deg, currentColor 75%, color-mix(in srgb, currentColor 20%, transparent) 75%);
 }
 
 .workspace-indicator[data-indicator-variant="core"] .workspace-indicator-fill {
@@ -951,25 +955,39 @@ button:focus-visible {
 }
 
 @keyframes workspace-indicator-attention {
-  0%, 100% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
-  }
-  50% {
-    opacity: 1;
-    box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 28%, transparent);
-  }
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }
 
 @keyframes workspace-indicator-alert {
-  0%, 100% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
-  }
-  40% {
-    opacity: 1;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-signal-color, currentColor) 32%, transparent);
-  }
+  0%, 100% { opacity: 0.8; }
+  40% { opacity: 1; }
+}
+
+/* GPU-optimized glow: pre-rendered box-shadow on ::after, animated via opacity only */
+.workspace-indicator.workspace-dot-attention::after,
+.workspace-indicator.workspace-dot-alert::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.workspace-indicator.workspace-dot-attention::after {
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 28%, transparent);
+  animation: workspace-indicator-glow-pulse 1.3s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+.workspace-indicator.workspace-dot-alert::after {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-signal-color, currentColor) 32%, transparent);
+  animation: workspace-indicator-glow-pulse 1.05s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+@keyframes workspace-indicator-glow-pulse {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* Expanding radar-ping ring for action-needed states */
@@ -997,6 +1015,28 @@ button:focus-visible {
 
 .workspace-dot-ring-fast {
   animation-duration: 1.2s;
+}
+
+/* Spinning arc for active/working states — GitHub CI-style spinner */
+.workspace-indicator-arc {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: currentColor;
+  animation: workspace-indicator-arc-spin 1s linear infinite;
+  will-change: transform;
+  pointer-events: none;
+}
+
+@keyframes workspace-indicator-arc-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Cutout border ring for avatar-overlay contexts (Slack/Discord presence pattern) */
+.workspace-indicator-outlined {
+  box-shadow: 0 0 0 2px var(--color-bg-primary);
 }
 
 .lifecycle-dot-glow {
@@ -1094,6 +1134,8 @@ button:focus-visible {
   .task-status-dot-input,
   .task-status-dot-error,
   .workspace-indicator,
+  .workspace-indicator::after,
+  .workspace-indicator-arc,
   .workspace-list-signal,
   [class*="dot-glow-"],
   .workspace-icon-pulse,
@@ -1115,6 +1157,20 @@ button:focus-visible {
   .task-status-dot-error {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 22%, transparent);
     opacity: 1;
+  }
+
+  /* Static glow ring for attention/alert indicators instead of animated */
+  .workspace-indicator.workspace-dot-attention::after {
+    opacity: 1;
+  }
+
+  .workspace-indicator.workspace-dot-alert::after {
+    opacity: 1;
+  }
+
+  /* Static arc for active states — visible but not spinning */
+  .workspace-indicator-arc {
+    opacity: 0.6;
   }
 
   .chat-progress-dot-primary {
