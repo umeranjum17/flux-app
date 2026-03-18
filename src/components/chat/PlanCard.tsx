@@ -14,7 +14,7 @@ import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { markdownComponents } from './MarkdownComponents';
 import type { Task, PlanSection, PlanStep } from '../../lib/types';
-import { getLatestPlanText } from '../../lib/plan';
+import { getLatestPlanText, startPlanImplementation } from '../../lib/plan';
 
 /** Fallback: parse markdown headings into sections when no FLUX_PLAN data is available */
 function parsePlanSections(text: string): PlanSection[] {
@@ -162,19 +162,11 @@ export function PlanCard({ task }: PlanCardProps) {
   }, [planText]);
 
   const handleImplement = useCallback(async () => {
-    setTaskMode(task.id, 'act');
     useUiStore.getState().setMode('act');
-    setTaskStatus(task.id, 'running');
-    await window.api.invoke('task:spawn', {
-      taskId: task.id,
-      workspaceId: task.workspaceId,
-      prompt: 'Implement the plan above.',
-      agentId: task.agentId,
-      model: task.model,
-      mode: 'act',
-      thinking: task.thinking,
-      cwd: task.cwd,
-      sessionId: task.sessionId,
+    await startPlanImplementation({
+      task,
+      setTaskMode,
+      setTaskStatus,
     });
   }, [task, setTaskMode, setTaskStatus]);
 

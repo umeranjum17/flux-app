@@ -15,7 +15,7 @@ import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
-import { getLatestPlanText } from '../../lib/plan';
+import { getLatestPlanText, startPlanImplementation } from '../../lib/plan';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   disabled: 'Off',
@@ -531,6 +531,21 @@ export function ChatInput({ focused }: ChatInputProps) {
       const nextMode: TaskMode = currentMode === 'plan' ? 'act' : 'plan';
       useUiStore.getState().setMode(nextMode);
       const task = getActiveTask();
+      const shouldStartPlanImplementation = currentMode === 'plan'
+        && nextMode === 'act'
+        && !!task
+        && task.mode === 'plan'
+        && task.status === 'done'
+        && value.trim().length === 0
+        && (!!task.planData || getLatestPlanText(task.messages).length > 0);
+      if (shouldStartPlanImplementation && task) {
+        void startPlanImplementation({
+          task,
+          setTaskMode,
+          setTaskStatus,
+        });
+        return;
+      }
       if (task && task.mode !== nextMode) {
         setTaskMode(task.id, nextMode);
       }

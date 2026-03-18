@@ -1,4 +1,4 @@
-import type { AgentMessage, TodoItem } from './types';
+import type { AgentMessage, Task, TaskMode, TaskStatus, TodoItem } from './types';
 
 // Match entire FLUX signal lines, including nested JSON payloads.
 const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{.*$/gm;
@@ -61,6 +61,32 @@ export function isPlanMessage(message: AgentMessage, taskMode?: 'plan' | 'act'):
     && message.role === 'assistant'
     && message.type === 'text'
     && isLikelyPlanText(message.content);
+}
+
+interface StartPlanImplementationOptions {
+  task: Task;
+  setTaskMode: (taskId: string, mode: TaskMode) => void;
+  setTaskStatus: (taskId: string, status: TaskStatus) => void;
+}
+
+export async function startPlanImplementation({
+  task,
+  setTaskMode,
+  setTaskStatus,
+}: StartPlanImplementationOptions): Promise<void> {
+  setTaskMode(task.id, 'act');
+  setTaskStatus(task.id, 'running');
+  await window.api.invoke('task:spawn', {
+    taskId: task.id,
+    workspaceId: task.workspaceId,
+    prompt: 'Implement the plan above.',
+    agentId: task.agentId,
+    model: task.model,
+    mode: 'act',
+    thinking: task.thinking,
+    cwd: task.cwd,
+    sessionId: task.sessionId,
+  });
 }
 
 /**

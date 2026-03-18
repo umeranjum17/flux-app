@@ -368,6 +368,55 @@ describe('ChatInput', () => {
     expect(useUiStore.getState().mode).toBe('act');
   });
 
+  it('Shift+Tab after a completed plan starts implementing it', async () => {
+    const user = userEvent.setup();
+    useUiStore.getState().setMode('plan');
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Plan task',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'plan',
+      thinking: 'medium',
+      cwd: '/workspace',
+      workspaceId: 'ws-1',
+      sessionId: 'session-1',
+    });
+    useChatStore.getState().setPlanData('task-1', {
+      summary: 'Implement the requested fix',
+      sections: [],
+      steps: [{ title: 'Update shift-tab behavior', details: 'Wire Shift+Tab to plan implementation.' }],
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
+
+    render(<ChatInput />);
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:spawn',
+        expect.objectContaining({
+          taskId: 'task-1',
+          workspaceId: 'ws-1',
+          prompt: 'Implement the plan above.',
+          mode: 'act',
+          sessionId: 'session-1',
+        }),
+      );
+    });
+    expect(useUiStore.getState().mode).toBe('act');
+    expect(useChatStore.getState().tasks.get('task-1')?.status).toBe('running');
+    expect(mockApi.invoke).not.toHaveBeenCalledWith(
+      'workspace:create',
+      expect.anything(),
+    );
+    expect(mockApi.invoke).not.toHaveBeenCalledWith(
+      'workspace:spawn-chat',
+      expect.anything(),
+    );
+  });
+
   it('shows a Shift+Tab prompt when a plan task is done', () => {
     useUiStore.getState().setMode('plan');
     useChatStore.getState().createTask({
