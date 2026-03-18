@@ -1197,49 +1197,24 @@ export async function moveWorktreeDirectory(
   }
 
   try {
-    await execFileAsync('git', ['worktree', 'move', realCurrentPath, candidatePath], {
-      cwd: parentRepo,
-      timeout: 30000,
-    });
+    // Instead of physically moving the directory (which breaks running agents
+    // whose CWD points to the old path), keep the real directory in place and
+    // create a symlink with the new name pointing to it. This preserves the
+    // agent's CWD while giving the workspace a human-friendly path.
 
-    // `git worktree move` only moves tracked content. Untracked files/dirs
-    // (e.g. `.context/`) are left behind at the old path, which blocks
-    // symlink creation. Move them to the new path, then remove the old dir.
-    try {
-      const leftover = await fs.promises.readdir(realCurrentPath);
-      for (const entry of leftover) {
-        const src = path.join(realCurrentPath, entry);
-        const dest = path.join(candidatePath, entry);
-        // Only move if the destination doesn't already exist
-        if (!fs.existsSync(dest)) {
-          await fs.promises.rename(src, dest);
-        }
-      }
-      // Remove the now-empty (or stale) old directory so the symlink can be created
-      await fs.promises.rm(realCurrentPath, { recursive: true, force: true });
-    } catch {
-      // Old path may already be gone if there were no untracked files
-    }
-
-    // Clean up any stale symlink left by a previous rename that pointed to
-    // the path we just moved away from.
+    // Clean up any stale symlink left by a previous rename.
     if (realCurrentPath !== currentWorktreePath) {
       try { await fs.promises.unlink(currentWorktreePath); } catch { /* already gone */ }
     }
 
-    // Leave a symlink at the old real path so running agent subprocesses whose
-    // CWD still points to the original directory can continue to resolve
-    // relative paths (e.g. `.context/attachments.json`).
-    try {
-      await fs.promises.symlink(candidatePath, realCurrentPath);
-    } catch {
-      // Best-effort — if the symlink fails (e.g. path was already reclaimed)
-      // the rename itself still succeeded.
-    }
+    // Create symlink: newName → realDirectory
+    await fs.promises.symlink(realCurrentPath, candidatePath);
 
+    // Return the symlink path as the "canonical" workspace path. The real
+    // directory stays untouched so the agent's shell keeps working.
     return candidatePath;
   } catch (error) {
-    console.warn('[moveWorktreeDirectory] failed to move worktree', error);
+    console.warn('[moveWorktreeDirectory] failed to create workspace symlink', error);
     return currentWorktreePath;
   }
 }
