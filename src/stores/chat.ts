@@ -284,6 +284,9 @@ export const useChatStore = create<ChatState>()(
         if (!task) return;
         task.status = status;
         if (status === 'done' || status === 'error' || status === 'idle') {
+          if (status === 'done') {
+            completeTodoItems(task);
+          }
           task.pendingApproval = undefined;
           task.pendingQuestion = undefined;
           task.activeRun = undefined;
@@ -428,12 +431,22 @@ export const useChatStore = create<ChatState>()(
     updateTodoItem(taskId, stepId, status, label?) {
       set((state) => {
         const task = state.tasks.get(taskId);
-        if (!task?.todoItems) return;
+        if (!task) return;
+        if (!task.todoItems) {
+          task.todoItems = [];
+        }
         const item = task.todoItems.find((t) => t.id === stepId);
         if (item) {
           item.status = status;
           if (label) item.label = label;
+          return;
         }
+        task.todoItems.push({
+          id: stepId,
+          label: label ?? `Step ${stepId}`,
+          status,
+        });
+        task.todoItems.sort((left, right) => left.id - right.id);
       });
     },
 
@@ -783,7 +796,7 @@ function findStreamMergeTarget(messages: AgentMessage[], incoming: AgentMessage)
 
 function promoteTaskStatus(task: Task, message: AgentMessage): void {
   if (task.status === 'done' || task.status === 'error' || task.status === 'idle') {
-    if (message.type !== 'rate_limit') {
+    if (message.type !== 'rate_limit' && message.type !== 'status' && message.type !== 'result') {
       task.status = 'running';
     }
     return;
@@ -808,6 +821,7 @@ function applyLiveMessage(task: Task, message: AgentMessage): void {
   // immediately as a safety net — the agent:done IPC event may be delayed
   // or never arrive if the SDK's async iterator cleanup hangs.
   if (message.type === 'result') {
+    completeTodoItems(task);
     task.status = 'done';
     task.currentStatus = undefined;
     task.currentStatusKind = undefined;
@@ -892,6 +906,13 @@ function ensureActiveRun(task: Task, phase: ActiveRunState['phase'], message?: A
 
   if (phase !== 'waiting_approval' && phase !== 'waiting_input') {
     task.activeRun.activeToolCallId = phase === 'responding' ? undefined : task.activeRun.activeToolCallId;
+  }
+}
+
+function completeTodoItems(task: Task): void {
+  if (!task.todoItems || task.todoItems.length === 0) return;
+  for (const item of task.todoItems) {
+    item.status = 'done';
   }
 }
 

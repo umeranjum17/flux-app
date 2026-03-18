@@ -9,7 +9,6 @@ import type { FluxSignal, FluxSignalType } from './types';
  * older FLUX_WORKSPACE_LIFECYCLE and FLUX_TODO protocols for backward compatibility.
  */
 
-const SIGNAL_REGEX = /^\s*FLUX_SIGNAL:\s*(\{.*\})/;
 const VALID_TYPES = new Set<FluxSignalType>([
   'step_start',
   'step_done',
@@ -17,19 +16,17 @@ const VALID_TYPES = new Set<FluxSignalType>([
   'completed',
   'outcome',
 ]);
+const SIGNAL_PREFIX = 'FLUX_SIGNAL:';
 
 /**
  * Try to extract a FLUX_SIGNAL from a single line or text block.
  * Returns the first valid signal found, or null.
  */
 export function parseFluxSignal(text: string): FluxSignal | null {
-  for (const line of text.split('\n')) {
-    const match = line.match(SIGNAL_REGEX);
-    if (!match) continue;
-
+  for (const payload of extractSignalPayloads(text)) {
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(match[1]);
+      parsed = JSON.parse(payload);
     } catch {
       continue;
     }
@@ -53,13 +50,10 @@ export function parseFluxSignal(text: string): FluxSignal | null {
  */
 export function parseAllFluxSignals(text: string, typeFilter?: Set<FluxSignalType>): FluxSignal[] {
   const signals: FluxSignal[] = [];
-  for (const line of text.split('\n')) {
-    const match = line.match(SIGNAL_REGEX);
-    if (!match) continue;
-
+  for (const payload of extractSignalPayloads(text)) {
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(match[1]);
+      parsed = JSON.parse(payload);
     } catch {
       continue;
     }
@@ -73,6 +67,83 @@ export function parseAllFluxSignals(text: string, typeFilter?: Set<FluxSignalTyp
     if (signal) signals.push(signal);
   }
   return signals;
+}
+
+function extractSignalPayloads(text: string): string[] {
+  const payloads: string[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const prefixIdx = text.indexOf(SIGNAL_PREFIX, cursor);
+    if (prefixIdx === -1) break;
+
+    if (prefixIdx > 0 && !/\s/.test(text[prefixIdx - 1])) {
+      cursor = prefixIdx + SIGNAL_PREFIX.length;
+      continue;
+    }
+
+    let jsonStart = prefixIdx + SIGNAL_PREFIX.length;
+    while (jsonStart < text.length && /\s/.test(text[jsonStart])) {
+      jsonStart += 1;
+    }
+
+    if (text[jsonStart] !== '{') {
+      cursor = jsonStart + 1;
+      continue;
+    }
+
+    const jsonEnd = findJsonObjectEnd(text, jsonStart);
+    if (jsonEnd === -1) {
+      break;
+    }
+
+    payloads.push(text.slice(jsonStart, jsonEnd + 1));
+    cursor = jsonEnd + 1;
+  }
+
+  return payloads;
+}
+
+function findJsonObjectEnd(text: string, startIdx: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIdx; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
 }
 
 function normalizeSignal(parsed: Record<string, unknown>, type: FluxSignalType): FluxSignal | null {

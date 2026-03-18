@@ -155,6 +155,19 @@ describe('addMessage', () => {
     expect(useChatStore.getState().tasks.get('t1')!.status).toBe('running');
   });
 
+  it('keeps task done when receiving a result message', () => {
+    makeTask('t1');
+    useChatStore.getState().setTaskStatus('t1', 'done');
+    useChatStore.getState().addMessage('t1', {
+      type: 'result',
+      role: 'assistant',
+      content: 'Completed',
+      timestamp: Date.now(),
+    });
+
+    expect(useChatStore.getState().tasks.get('t1')!.status).toBe('done');
+  });
+
   it('accumulates cost and tokens from result messages', () => {
     makeTask('t1');
     const resultMsg: AgentMessage = {
@@ -379,6 +392,23 @@ describe('setTaskStatus', () => {
     useChatStore.getState().setTaskStatus('nonexistent', 'running');
     expect(useChatStore.getState().tasks.size).toBe(0);
   });
+
+  it('marks all todo items done when task completes', () => {
+    makeTask('t1');
+    useChatStore.getState().setTodoItems('t1', [
+      { id: 1, label: 'Prepare', status: 'done' },
+      { id: 2, label: 'Merge', status: 'in_progress' },
+      { id: 3, label: 'Verify', status: 'pending' },
+    ]);
+
+    useChatStore.getState().setTaskStatus('t1', 'done');
+
+    expect(useChatStore.getState().tasks.get('t1')!.todoItems).toEqual([
+      { id: 1, label: 'Prepare', status: 'done' },
+      { id: 2, label: 'Merge', status: 'done' },
+      { id: 3, label: 'Verify', status: 'done' },
+    ]);
+  });
 });
 
 describe('setPendingApproval', () => {
@@ -522,6 +552,46 @@ describe('addUserMessage', () => {
   it('no-ops for a nonexistent task', () => {
     useChatStore.getState().addUserMessage('nonexistent', 'Hello');
     expect(useChatStore.getState().tasks.size).toBe(0);
+  });
+});
+
+describe('todo updates', () => {
+  it('upserts missing steps when receiving incremental todo updates', () => {
+    makeTask('t1');
+    useChatStore.getState().setTodoItems('t1', [
+      { id: 1, label: 'Step 1', status: 'done' },
+    ]);
+
+    useChatStore.getState().updateTodoItem('t1', 3, 'in_progress', 'Step 3');
+    useChatStore.getState().updateTodoItem('t1', 2, 'pending');
+
+    expect(useChatStore.getState().tasks.get('t1')!.todoItems).toEqual([
+      { id: 1, label: 'Step 1', status: 'done' },
+      { id: 2, label: 'Step 2', status: 'pending' },
+      { id: 3, label: 'Step 3', status: 'in_progress' },
+    ]);
+  });
+
+  it('completes todos when a result message arrives', () => {
+    makeTask('t1');
+    useChatStore.getState().setTodoItems('t1', [
+      { id: 1, label: 'Merge commits', status: 'in_progress' },
+      { id: 2, label: 'Push status', status: 'pending' },
+    ]);
+
+    useChatStore.getState().addMessage('t1', {
+      type: 'result',
+      role: 'assistant',
+      content: 'Done',
+      timestamp: Date.now(),
+    });
+
+    const task = useChatStore.getState().tasks.get('t1')!;
+    expect(task.status).toBe('done');
+    expect(task.todoItems).toEqual([
+      { id: 1, label: 'Merge commits', status: 'done' },
+      { id: 2, label: 'Push status', status: 'done' },
+    ]);
   });
 });
 

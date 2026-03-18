@@ -58,6 +58,12 @@ describe('parseFluxSignal', () => {
       { label: 'C', status: 'in_progress' },
     ]);
   });
+
+  it('parses the first signal when multiple appear on one line', () => {
+    const input = 'FLUX_SIGNAL: {"type":"step_done","step":1} FLUX_SIGNAL: {"type":"step_start","step":2,"label":"Next"}';
+    const result = parseFluxSignal(input);
+    expect(result).toEqual({ type: 'step_done', step: 1 });
+  });
 });
 
 describe('parseAllFluxSignals', () => {
@@ -90,5 +96,14 @@ describe('parseAllFluxSignals', () => {
     const results = parseAllFluxSignals(text);
     expect(results).toHaveLength(1);
     expect(results[0].type).toBe('step_done');
+  });
+
+  it('extracts multiple signals emitted on a single line', () => {
+    const text = 'FLUX_SIGNAL: {"type":"step_start","step":1,"label":"Plan"} FLUX_SIGNAL: {"type":"step_done","step":1}';
+    const results = parseAllFluxSignals(text);
+    expect(results).toEqual([
+      { type: 'step_start', step: 1, label: 'Plan' },
+      { type: 'step_done', step: 1 },
+    ]);
   });
 });
