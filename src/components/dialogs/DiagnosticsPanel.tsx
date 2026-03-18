@@ -110,7 +110,7 @@ export function DiagnosticsPanel() {
               </div>
             </div>
 
-            <div className="h-full overflow-auto bg-[#101318]">
+            <div className="h-full overflow-auto bg-[#050505]">
               <pre className="min-h-full px-5 py-4 text-[12px] leading-5 text-[#d6dee8] font-mono whitespace-pre-wrap break-words">
                 {content || 'No diagnostics captured yet.'}
               </pre>

@@ -9,7 +9,7 @@ import type { SearchAddon } from '@xterm/addon-search';
 // ── Theme palettes ──────────────────────────────────────────────────────────
 
 const DARK_THEME = {
-  background: '#1e1e1e',
+  background: '#0a0a0a',
   foreground: '#cccccc',
   cursor: '#aeafad',
   cursorAccent: '#000000',

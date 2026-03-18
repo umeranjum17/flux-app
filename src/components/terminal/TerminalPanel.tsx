@@ -124,7 +124,7 @@ export function TerminalPanel() {
 
       {searchOpen && <TerminalSearchBar />}
 
-      <div ref={containerRef} className="flex-1 overflow-hidden relative bg-[#1e1e1e] dark:bg-[#1e1e1e]">
+      <div ref={containerRef} className="flex-1 overflow-hidden relative bg-[#0a0a0a] dark:bg-[#0a0a0a]">
         {tabs.map((tab) => (
           <TerminalContainer
             key={tab.id}
