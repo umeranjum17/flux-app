@@ -94,6 +94,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByTitle('Planning. Agent is creating a plan.')).not.toBeNull();
     expect(scoped.queryByText('Planning')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-planning.bg-plan')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-dot-active')).not.toBeNull();
   });
 
   it('uses a distinct working color for active coding', () => {
@@ -107,7 +108,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Working. Agent is working.',
     })).not.toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-success')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-info')).not.toBeNull();
   });
 
   it('uses an attention signal for waiting approval', () => {
@@ -124,6 +125,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByTitle('Needs approval. Paused — waiting for your approval.')).not.toBeNull();
     expect(scoped.queryByText('Needs Approval')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-approval.bg-warning')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-dot-attention')).not.toBeNull();
   });
 
   it('uses an attention signal for waiting input', () => {
@@ -190,6 +192,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByTitle('Blocked. Last run failed — needs attention.')).not.toBeNull();
     expect(scoped.queryByText('Blocked')).toBeNull();
     expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-blocked.bg-error')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-dot-alert')).not.toBeNull();
   });
 
   it('lets archive progress override the sidebar dot signal', () => {

@@ -116,7 +116,7 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
   const statusDotClass = [
     lifecycle.color,
-    lifecycle.pulse ? 'animate-pulse' : '',
+    lifecycle.dotMotionClass,
     lifecycle.glow ?? '',
   ].filter(Boolean).join(' ');
 

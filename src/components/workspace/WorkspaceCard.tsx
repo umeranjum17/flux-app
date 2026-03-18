@@ -46,7 +46,7 @@ export function WorkspaceCard({
     >
       <div className="flex items-center gap-2.5 px-2.5 py-[7px]">
         {/* Status dot */}
-        <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${lifecycle.color} ${lifecycle.pulse ? 'animate-pulse' : ''} ${lifecycle.glow ? lifecycle.glow : ''}`} />
+        <span className={`lifecycle-dot h-[6px] w-[6px] shrink-0 ${lifecycle.color} ${lifecycle.dotMotionClass} ${lifecycle.glow ?? ''}`} />
 
         {/* Name */}
         <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">

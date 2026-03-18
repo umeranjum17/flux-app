@@ -93,6 +93,7 @@ function FileRow({
 
 export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const task = useChatStore((s) => s.getActiveTask());
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const scrollToFileEdit = useChatStore((s) => s.scrollToFileEdit);
   const openChangesPanel = useWorkspaceStore((s) => s.openChangesPanel);
   const changesPanelSelectFile = useWorkspaceStore((s) => s.changesPanelSelectFile);
@@ -103,11 +104,13 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const [workspaceSections, setWorkspaceSections] = useState<WorkspaceDiffSections | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
 
-  const editedFiles = task?.editedFiles;
+  const taskWorkspaceId = task?.workspaceId ?? null;
+  const workspaceId = activeWorkspaceId ?? taskWorkspaceId;
+  const useTaskTrackedFiles = !workspaceId || taskWorkspaceId === workspaceId;
+  const editedFiles = useTaskTrackedFiles ? task?.editedFiles : undefined;
   const trackedFiles = editedFiles ? Array.from(editedFiles.values()) : [];
   const trackedByPath = new Map(trackedFiles.map((entry) => [entry.filePath, entry]));
-  const workspaceId = task?.workspaceId ?? null;
-  const contextKey = task?.workspaceId ?? task?.id ?? '';
+  const contextKey = workspaceId ?? task?.id ?? '';
   const uncommittedEntries = workspaceSections
     ? toActivityEntries(workspaceSections.uncommitted, 'uncommitted', trackedByPath, 'workspace-uncommitted')
     : trackedFiles.map((entry) => ({ ...entry, scope: 'uncommitted' as const }));

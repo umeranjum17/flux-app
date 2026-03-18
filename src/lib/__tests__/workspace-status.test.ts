@@ -39,12 +39,22 @@ describe('getWorkspaceListSignal', () => {
     const signal = getWorkspaceListSignal({ name: 'test', status: 'done', outcome: 'merged' });
     expect(signal.state).toBe('merged');
     expect(signal.dotClassName).toContain('workspace-list-signal-complete');
+    expect(signal.dotClassName).toContain('workspace-dot-settled');
   });
 
   it('uses a non-attention color for active coding state', () => {
     const signal = getWorkspaceListSignal({ name: 'test', status: 'running', outcome: 'in_progress', mode: 'act' });
     expect(signal.state).toBe('coding');
-    expect(signal.dotClassName).toContain('bg-success');
+    expect(signal.dotClassName).toContain('bg-info');
+    expect(signal.dotClassName).toContain('workspace-dot-active');
+  });
+
+  it('uses attention and alert motion classes for urgent states', () => {
+    const needsApproval = getWorkspaceListSignal({ name: 'test', status: 'waiting_approval', outcome: 'in_progress', mode: 'act' });
+    expect(needsApproval.dotClassName).toContain('workspace-dot-attention');
+
+    const blocked = getWorkspaceListSignal({ name: 'test', status: 'error', outcome: 'in_progress', mode: 'act' });
+    expect(blocked.dotClassName).toContain('workspace-dot-alert');
   });
 });
 
@@ -55,5 +65,11 @@ describe('workspaceLifecycleConfig', () => {
 
   it('keeps pulse for attention-needed approval state', () => {
     expect(workspaceLifecycleConfig.awaiting_approval.pulse).toBe(true);
+  });
+
+  it('maps lifecycle states to explicit motion intent classes', () => {
+    expect(workspaceLifecycleConfig.coding.dotMotionClass).toBe('workspace-dot-active');
+    expect(workspaceLifecycleConfig.awaiting_input.dotMotionClass).toBe('workspace-dot-attention');
+    expect(workspaceLifecycleConfig.blocked.dotMotionClass).toBe('workspace-dot-alert');
   });
 });

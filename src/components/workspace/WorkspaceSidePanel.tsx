@@ -292,7 +292,8 @@ function PanelSearchTab() {
 
 function PanelActivityTab() {
   const task = useChatStore((s) => s.getActiveTask());
-  const contextKey = task?.workspaceId ?? task?.id ?? '';
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const contextKey = activeWorkspaceId ?? task?.workspaceId ?? task?.id ?? '';
 
   // Ensure the file-activity context is "open" while this tab is shown
   useEffect(() => {

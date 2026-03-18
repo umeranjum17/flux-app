@@ -2,7 +2,7 @@ import type { Workspace, WorkspaceStatus, WorkspaceOutcome, WorkspaceOperation }
 
 export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; label: string; pulse?: boolean }> = {
   idle: { color: 'bg-text-tertiary', label: 'Idle' },
-  running: { color: 'bg-success', label: 'Working' },
+  running: { color: 'bg-info', label: 'Working' },
   waiting_approval: { color: 'bg-warning', label: 'Needs approval', pulse: true },
   waiting_input: { color: 'bg-info', label: 'Needs input', pulse: true },
   done: { color: 'bg-success', label: 'Completed' },
@@ -44,6 +44,7 @@ interface WorkspaceLifecycleConfigEntry {
   label: string;
   pulse?: boolean;
   glow?: string;
+  dotMotionClass: string;
   detail: string;
   badgeClass: string;
   accentColor: string;
@@ -57,22 +58,25 @@ export const workspaceLifecycleConfig: Record<
   idle: {
     color: 'bg-text-tertiary/50',
     label: 'Idle',
+    dotMotionClass: 'workspace-dot-idle',
     detail: 'Waiting for the next task.',
     badgeClass: 'bg-bg-secondary text-text-tertiary',
     accentColor: 'bg-text-tertiary/40',
     cardTint: '',
   },
   coding: {
-    color: 'bg-success',
+    color: 'bg-info',
     label: 'Working',
+    dotMotionClass: 'workspace-dot-active',
     detail: 'Agent is working.',
-    badgeClass: 'bg-success/12 text-success',
-    accentColor: 'bg-success',
-    cardTint: 'lifecycle-tint-success',
+    badgeClass: 'bg-info/12 text-info',
+    accentColor: 'bg-info',
+    cardTint: 'lifecycle-tint-info',
   },
   planning: {
     color: 'bg-plan',
     label: 'Planning',
+    dotMotionClass: 'workspace-dot-active',
     detail: 'Agent is creating a plan.',
     badgeClass: 'bg-plan/12 text-plan',
     accentColor: 'bg-plan',
@@ -82,6 +86,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-info',
     label: 'Planned',
     glow: 'dot-glow-info',
+    dotMotionClass: 'workspace-dot-settled',
     detail: 'Plan ready for your review.',
     badgeClass: 'bg-info/12 text-info',
     accentColor: 'bg-info',
@@ -92,6 +97,7 @@ export const workspaceLifecycleConfig: Record<
     label: 'Needs Approval',
     pulse: true,
     glow: 'dot-glow-warning',
+    dotMotionClass: 'workspace-dot-attention',
     detail: 'Paused — waiting for your approval.',
     badgeClass: 'bg-warning/12 text-warning',
     accentColor: 'bg-warning',
@@ -102,6 +108,7 @@ export const workspaceLifecycleConfig: Record<
     label: 'Needs Input',
     pulse: true,
     glow: 'dot-glow-info',
+    dotMotionClass: 'workspace-dot-attention',
     detail: 'Agent asked a question.',
     badgeClass: 'bg-info/12 text-info',
     accentColor: 'bg-info',
@@ -111,6 +118,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-plan',
     label: 'Ready for Review',
     glow: 'dot-glow-plan',
+    dotMotionClass: 'workspace-dot-settled',
     detail: 'Changes are ready to review.',
     badgeClass: 'bg-plan/12 text-plan',
     accentColor: 'bg-plan',
@@ -119,6 +127,7 @@ export const workspaceLifecycleConfig: Record<
   reviewing: {
     color: 'bg-plan',
     label: 'Reviewing',
+    dotMotionClass: 'workspace-dot-active',
     detail: 'Changes are being reviewed.',
     badgeClass: 'bg-plan/12 text-plan',
     accentColor: 'bg-plan',
@@ -128,6 +137,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-error',
     label: 'Changes Requested',
     glow: 'dot-glow-error',
+    dotMotionClass: 'workspace-dot-alert',
     detail: 'Reviewer requested changes.',
     badgeClass: 'bg-error/12 text-error',
     accentColor: 'bg-error',
@@ -137,6 +147,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-success',
     label: 'Ready to Merge',
     glow: 'dot-glow-success',
+    dotMotionClass: 'workspace-dot-settled',
     detail: 'Reviewed and ready to merge.',
     badgeClass: 'bg-success/12 text-success',
     accentColor: 'bg-success',
@@ -145,6 +156,7 @@ export const workspaceLifecycleConfig: Record<
   merging: {
     color: 'bg-plan',
     label: 'Merging',
+    dotMotionClass: 'workspace-dot-active',
     detail: 'Merge in progress.',
     badgeClass: 'bg-plan/12 text-plan',
     accentColor: 'bg-plan',
@@ -153,6 +165,7 @@ export const workspaceLifecycleConfig: Record<
   merged: {
     color: 'bg-success/60',
     label: 'Merged',
+    dotMotionClass: 'workspace-dot-settled',
     detail: 'Successfully merged.',
     badgeClass: 'bg-success/12 text-success',
     accentColor: 'bg-success',
@@ -162,6 +175,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-warning',
     label: 'Ready to Archive',
     glow: 'dot-glow-warning',
+    dotMotionClass: 'workspace-dot-settled',
     detail: 'Merged — ready to clean up.',
     badgeClass: 'bg-warning/12 text-warning',
     accentColor: 'bg-warning',
@@ -171,6 +185,7 @@ export const workspaceLifecycleConfig: Record<
     color: 'bg-error',
     label: 'Blocked',
     glow: 'dot-glow-error',
+    dotMotionClass: 'workspace-dot-alert',
     detail: 'Last run failed — needs attention.',
     badgeClass: 'bg-error/12 text-error',
     accentColor: 'bg-error',
@@ -183,6 +198,7 @@ interface WorkspaceListSignalConfigEntry {
   label: string;
   detail: string;
   dotClassName: string;
+  dotMotionClass: string;
 }
 
 const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListSignalConfigEntry> = {
@@ -191,102 +207,119 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     label: 'Idle',
     detail: 'Waiting for the next task.',
     dotClassName: 'workspace-list-signal workspace-list-signal-idle',
+    dotMotionClass: 'workspace-dot-idle',
   },
   has_changes: {
     color: 'bg-accent',
     label: 'Has changes',
     detail: 'Workspace has unreviewed changes.',
     dotClassName: 'workspace-list-signal workspace-list-signal-has-changes',
+    dotMotionClass: 'workspace-dot-settled',
   },
   coding: {
-    color: 'bg-success',
+    color: 'bg-info',
     label: 'Working',
     detail: 'Agent is working.',
     dotClassName: 'workspace-list-signal workspace-list-signal-working',
+    dotMotionClass: 'workspace-dot-active',
   },
   planning: {
     color: 'bg-plan',
     label: 'Planning',
     detail: 'Agent is creating a plan.',
     dotClassName: 'workspace-list-signal workspace-list-signal-planning',
+    dotMotionClass: 'workspace-dot-active',
   },
   planned: {
     color: 'bg-info',
     label: 'Planned',
     detail: 'Plan ready for your review.',
     dotClassName: 'workspace-list-signal workspace-list-signal-planned',
+    dotMotionClass: 'workspace-dot-settled',
   },
   awaiting_approval: {
     color: 'bg-warning',
     label: 'Needs approval',
     detail: 'Paused — waiting for your approval.',
     dotClassName: 'workspace-list-signal workspace-list-signal-needs-approval',
+    dotMotionClass: 'workspace-dot-attention',
   },
   awaiting_input: {
     color: 'bg-info',
     label: 'Needs input',
     detail: 'Agent asked a question.',
     dotClassName: 'workspace-list-signal workspace-list-signal-needs-input',
+    dotMotionClass: 'workspace-dot-attention',
   },
   ready_for_review: {
     color: 'bg-plan',
     label: 'Ready for review',
     detail: 'Changes are ready to review.',
     dotClassName: 'workspace-list-signal workspace-list-signal-review-ready',
+    dotMotionClass: 'workspace-dot-settled',
   },
   reviewing: {
     color: 'bg-plan',
     label: 'Reviewing',
     detail: 'Changes are being reviewed.',
     dotClassName: 'workspace-list-signal workspace-list-signal-reviewing',
+    dotMotionClass: 'workspace-dot-active',
   },
   changes_requested: {
     color: 'bg-error',
     label: 'Changes requested',
     detail: 'Reviewer requested changes.',
     dotClassName: 'workspace-list-signal workspace-list-signal-changes-requested',
+    dotMotionClass: 'workspace-dot-alert',
   },
   ready_to_merge: {
     color: 'bg-success',
     label: 'Ready to merge',
     detail: 'Reviewed and ready to merge.',
     dotClassName: 'workspace-list-signal workspace-list-signal-ready-to-merge',
+    dotMotionClass: 'workspace-dot-settled',
   },
   merging: {
     color: 'bg-plan',
     label: 'Merging',
     detail: 'Merge in progress.',
     dotClassName: 'workspace-list-signal workspace-list-signal-working',
+    dotMotionClass: 'workspace-dot-active',
   },
   merged: {
     color: 'bg-success/60',
     label: 'Merged',
     detail: 'Successfully merged.',
     dotClassName: 'workspace-list-signal workspace-list-signal-complete',
+    dotMotionClass: 'workspace-dot-settled',
   },
   ready_to_archive: {
     color: 'bg-warning',
     label: 'Ready to archive',
     detail: 'Merged — ready to clean up.',
     dotClassName: 'workspace-list-signal workspace-list-signal-ready-to-archive',
+    dotMotionClass: 'workspace-dot-settled',
   },
   blocked: {
     color: 'bg-error',
     label: 'Blocked',
     detail: 'Last run failed — needs attention.',
     dotClassName: 'workspace-list-signal workspace-list-signal-blocked',
+    dotMotionClass: 'workspace-dot-alert',
   },
   archiving: {
     color: 'bg-info',
     label: 'Archiving',
     detail: 'Workspace archive is in progress.',
     dotClassName: 'workspace-list-signal workspace-list-signal-working',
+    dotMotionClass: 'workspace-dot-active',
   },
   archive_failed: {
     color: 'bg-error',
     label: 'Archive failed',
     detail: 'Workspace archive failed — needs attention.',
     dotClassName: 'workspace-list-signal workspace-list-signal-blocked',
+    dotMotionClass: 'workspace-dot-alert',
   },
 };
 
@@ -362,7 +395,7 @@ export function getWorkspaceListSignal(
     label: config.label,
     detail,
     tooltip,
-    dotClassName: `lifecycle-dot ${config.color} ${config.dotClassName}`,
+    dotClassName: `lifecycle-dot ${config.color} ${config.dotClassName} ${config.dotMotionClass}`,
     ariaLabel: `${workspace.name} — ${config.label}. ${detail}`,
   };
 }

@@ -609,6 +609,27 @@ button:focus-visible {
   transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease, filter 200ms ease;
 }
 
+/* Shared workspace status motion intents */
+.workspace-dot-idle {
+  opacity: 0.56;
+}
+
+.workspace-dot-active {
+  animation: workspace-dot-active 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.workspace-dot-settled {
+  animation: workspace-dot-settled 3.2s ease-in-out infinite;
+}
+
+.workspace-dot-attention {
+  animation: workspace-dot-attention 1.5s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+.workspace-dot-alert {
+  animation: workspace-dot-alert 1.15s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
 .workspace-list-signal {
   --workspace-signal-color: var(--color-text-tertiary);
 }
@@ -638,22 +659,19 @@ button:focus-visible {
 }
 
 .workspace-list-signal-working {
-  --workspace-signal-color: var(--color-success);
+  --workspace-signal-color: var(--color-info);
 }
 
 .workspace-list-signal-needs-approval {
   --workspace-signal-color: var(--color-warning);
-  animation: workspace-signal-attention 1.05s ease-in-out infinite;
 }
 
 .workspace-list-signal-needs-input {
   --workspace-signal-color: var(--color-info);
-  animation: workspace-signal-attention 1.2s ease-in-out infinite;
 }
 
 .workspace-list-signal-planned {
   --workspace-signal-color: var(--color-info);
-  animation: workspace-signal-attention 1.4s ease-in-out infinite;
 }
 
 .workspace-list-signal-review-ready {
@@ -666,7 +684,6 @@ button:focus-visible {
 
 .workspace-list-signal-ready-to-merge {
   --workspace-signal-color: var(--color-success);
-  animation: workspace-signal-attention 1.5s ease-in-out infinite;
 }
 
 .workspace-list-signal-complete {
@@ -679,41 +696,74 @@ button:focus-visible {
 
 .workspace-list-signal-changes-requested {
   --workspace-signal-color: var(--color-error);
-  animation: workspace-signal-alert 1.1s ease-in-out infinite;
 }
 
 .workspace-list-signal-blocked {
   --workspace-signal-color: var(--color-error);
-  animation: workspace-signal-alert 1.1s ease-in-out infinite;
 }
 
-@keyframes workspace-signal-attention {
+@keyframes workspace-dot-active {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color) 0%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
+    opacity: 0.95;
   }
-  35% {
-    transform: scale(1.2);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--workspace-signal-color) 28%, transparent);
+  40% {
+    transform: scale(1.07);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-signal-color, currentColor) 20%, transparent);
+    opacity: 1;
   }
-  68% {
-    transform: scale(0.94);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-signal-color) 8%, transparent);
+  72% {
+    transform: scale(0.97);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-signal-color, currentColor) 8%, transparent);
+    opacity: 0.9;
   }
 }
 
-@keyframes workspace-signal-alert {
+@keyframes workspace-dot-settled {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color) 0%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
+    opacity: 0.92;
   }
-  30% {
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 20%, transparent);
+    opacity: 1;
+  }
+}
+
+@keyframes workspace-dot-attention {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
+    opacity: 0.94;
+  }
+  38% {
     transform: scale(1.18);
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--workspace-signal-color) 34%, transparent);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 30%, transparent);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-signal-color, currentColor) 10%, transparent);
+  }
+}
+
+@keyframes workspace-dot-alert {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
+    opacity: 0.94;
+  }
+  32% {
+    transform: scale(1.22);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--workspace-signal-color, currentColor) 35%, transparent);
+    opacity: 1;
   }
   60% {
     transform: scale(0.92);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-signal-color) 10%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-signal-color, currentColor) 10%, transparent);
   }
 }
 
@@ -755,6 +805,27 @@ button:focus-visible {
 .dot-glow-success {
   --dot-glow-color: var(--color-success);
   animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-dot-idle,
+  .workspace-dot-active,
+  .workspace-dot-settled,
+  .workspace-dot-attention,
+  .workspace-dot-alert,
+  .workspace-list-signal,
+  [class*="dot-glow-"] {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .workspace-dot-active,
+  .workspace-dot-settled,
+  .workspace-dot-attention,
+  .workspace-dot-alert {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 22%, transparent);
+    opacity: 1;
+  }
 }
 
 /* Drag region for frameless window */
