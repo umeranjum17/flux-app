@@ -21,7 +21,7 @@ import { useSessionStore } from '../../stores/session';
 import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
-import type { DetectedAgent } from '../../lib/types';
+import type { AgentId, DetectedAgent, TaskMode, ThinkingLevel } from '../../lib/types';
 import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession, WorkspaceOperation } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { ErrorBoundary } from '../ErrorBoundary';
@@ -32,6 +32,42 @@ import { MergeDialog } from '../review/MergeDialog';
 import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 
+
+type ModeSelection = {
+  agentId: AgentId;
+  model: string;
+  thinking: ThinkingLevel;
+};
+
+function getModeSelection(workspace: Workspace, mode: TaskMode, fallbackThinking: ThinkingLevel): ModeSelection {
+  if (mode === 'plan') {
+    return {
+      agentId: (workspace.planAgentId ?? workspace.agentId) as AgentId,
+      model: workspace.planModel ?? workspace.model,
+      thinking: workspace.planThinking ?? workspace.thinking ?? fallbackThinking,
+    };
+  }
+  return {
+    agentId: (workspace.actAgentId ?? workspace.agentId) as AgentId,
+    model: workspace.actModel ?? workspace.model,
+    thinking: workspace.actThinking ?? workspace.thinking ?? fallbackThinking,
+  };
+}
+
+function buildModeSelectionPatch(mode: TaskMode, selection: ModeSelection): Partial<Workspace> {
+  if (mode === 'plan') {
+    return {
+      planAgentId: selection.agentId,
+      planModel: selection.model,
+      planThinking: selection.thinking,
+    };
+  }
+  return {
+    actAgentId: selection.agentId,
+    actModel: selection.model,
+    actThinking: selection.thinking,
+  };
+}
 
 export function AppShell() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
@@ -320,24 +356,68 @@ export function AppShell() {
     if (activeWorkspaceId) {
       const workspace = useWorkspaceStore.getState().workspaces.get(activeWorkspaceId);
       if (!workspace?.agentId) return;
-      useAgentStore.getState().syncToWorkspace(
-        workspace.agentId as import('../../lib/types').AgentId,
-        workspace.model,
-        workspace.thinking,
-      );
-      useUiStore.getState().setMode(workspace.mode ?? 'act');
+      const workspaceMode = workspace.mode ?? 'act';
+      const fallbackThinking = useAgentStore.getState().selectedThinking;
+      const selection = getModeSelection(workspace, workspaceMode, fallbackThinking);
+      useUiStore.getState().setMode(workspaceMode);
+      useAgentStore.getState().syncToWorkspace(selection.agentId, selection.model, selection.thinking);
     } else {
       // Restore global defaults when leaving a workspace
       window.api.invoke('config:get').then((raw) => {
         const config = raw as FluxConfig;
         const agentStore = useAgentStore.getState();
-        const agentId = (config.defaultAgent || agentStore.selectedAgentId) as import('../../lib/types').AgentId;
+        const agentId = (config.defaultAgent || agentStore.selectedAgentId) as AgentId;
         const model = config.defaultModel || agentStore.selectedModel;
         agentStore.syncToWorkspace(agentId, model, config.defaultThinking);
         useUiStore.getState().setMode(config.defaultMode ?? 'act');
       }).catch(() => {});
     }
   }, [activeWorkspaceId]);
+
+  // Keep workspace mode persisted and switch selector to that mode's stored
+  // agent/model/thinking whenever the user toggles plan/act.
+  useEffect(() => {
+    let prevMode = useUiStore.getState().mode;
+    const unsub = useUiStore.subscribe((state) => {
+      if (state.mode === prevMode) return;
+      prevMode = state.mode;
+
+      const wsId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (!wsId) return;
+      const workspace = useWorkspaceStore.getState().workspaces.get(wsId);
+      if (!workspace) return;
+
+      const selection = getModeSelection(
+        workspace,
+        state.mode,
+        useAgentStore.getState().selectedThinking,
+      );
+      const modePatch = buildModeSelectionPatch(state.mode, selection);
+
+      useWorkspaceStore.getState().updateWorkspace(wsId, {
+        mode: state.mode,
+        agentId: selection.agentId,
+        model: selection.model,
+        thinking: selection.thinking,
+        ...modePatch,
+      });
+      window.api.invoke('workspace:update', {
+        workspaceId: wsId,
+        mode: state.mode,
+        agentId: selection.agentId,
+        model: selection.model,
+        thinking: selection.thinking,
+        ...modePatch,
+      }).catch(() => {});
+
+      useAgentStore.getState().syncToWorkspace(
+        selection.agentId,
+        selection.model,
+        selection.thinking,
+      );
+    });
+    return unsub;
+  }, []);
 
   // Persist agent/model/thinking changes back to the active workspace so
   // switching away and back remembers the user's last selection.
@@ -363,16 +443,20 @@ export function AppShell() {
       prev = current;
       const wsId = useWorkspaceStore.getState().activeWorkspaceId;
       if (!wsId) return;
+      const mode = useUiStore.getState().mode;
+      const modePatch = buildModeSelectionPatch(mode, current);
       useWorkspaceStore.getState().updateWorkspace(wsId, {
         agentId: current.agentId,
         model: current.model,
         thinking: current.thinking,
+        ...modePatch,
       });
       window.api.invoke('workspace:update', {
         workspaceId: wsId,
         agentId: current.agentId,
         model: current.model,
         thinking: current.thinking,
+        ...modePatch,
       }).catch(() => {});
     });
     return unsub;
@@ -457,16 +541,43 @@ export function AppShell() {
 
         // When a workspace is active, persist agent/model/thinking to the workspace DB
         if (wsId) {
-          const wsPartial: { workspaceId: string; agentId?: string; model?: string; thinking?: string } = { workspaceId: wsId };
+          const wsPartial: {
+            workspaceId: string;
+            agentId?: string;
+            model?: string;
+            thinking?: string;
+            planAgentId?: string;
+            planModel?: string;
+            planThinking?: string;
+            actAgentId?: string;
+            actModel?: string;
+            actThinking?: string;
+          } = { workspaceId: wsId };
           if (cur.agent !== snapshot.agent) wsPartial.agentId = cur.agent;
           if (cur.model !== snapshot.model) wsPartial.model = cur.model;
           if (cur.thinking !== snapshot.thinking) wsPartial.thinking = cur.thinking;
+          const mode = useUiStore.getState().mode;
+          if (mode === 'plan') {
+            wsPartial.planAgentId = cur.agent;
+            wsPartial.planModel = cur.model;
+            wsPartial.planThinking = cur.thinking;
+          } else {
+            wsPartial.actAgentId = cur.agent;
+            wsPartial.actModel = cur.model;
+            wsPartial.actThinking = cur.thinking;
+          }
           if (wsPartial.agentId || wsPartial.model || wsPartial.thinking) {
             window.api.invoke('workspace:update', wsPartial).catch(() => {});
             useWorkspaceStore.getState().updateWorkspace(wsId, {
               ...(wsPartial.agentId ? { agentId: wsPartial.agentId } : {}),
               ...(wsPartial.model ? { model: wsPartial.model } : {}),
               ...(wsPartial.thinking ? { thinking: wsPartial.thinking as any } : {}),
+              ...(wsPartial.planAgentId ? { planAgentId: wsPartial.planAgentId as AgentId } : {}),
+              ...(wsPartial.planModel ? { planModel: wsPartial.planModel } : {}),
+              ...(wsPartial.planThinking ? { planThinking: wsPartial.planThinking as ThinkingLevel } : {}),
+              ...(wsPartial.actAgentId ? { actAgentId: wsPartial.actAgentId as AgentId } : {}),
+              ...(wsPartial.actModel ? { actModel: wsPartial.actModel } : {}),
+              ...(wsPartial.actThinking ? { actThinking: wsPartial.actThinking as ThinkingLevel } : {}),
             });
           }
         }

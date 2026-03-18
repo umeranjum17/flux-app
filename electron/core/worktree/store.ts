@@ -14,6 +14,12 @@ interface CreateWorkspaceInput {
   model: string;
   mode?: TaskMode;
   thinking?: ThinkingLevel;
+  planAgentId?: string;
+  planModel?: string;
+  planThinking?: ThinkingLevel;
+  actAgentId?: string;
+  actModel?: string;
+  actThinking?: ThinkingLevel;
   status?: WorkspaceStatus;
   outcome?: WorkspaceOutcome;
   sessionId?: string;
@@ -55,6 +61,12 @@ export class WorkspaceStore {
       model: input.model,
       mode: input.mode ?? 'act',
       thinking: input.thinking,
+      planAgentId: (input.planAgentId ?? input.agentId) as any,
+      planModel: input.planModel ?? input.model,
+      planThinking: input.planThinking ?? input.thinking,
+      actAgentId: (input.actAgentId ?? input.agentId) as any,
+      actModel: input.actModel ?? input.model,
+      actThinking: input.actThinking ?? input.thinking,
       status: input.status ?? 'idle',
       outcome: input.outcome ?? 'in_progress',
       createdAt: now,
@@ -64,8 +76,10 @@ export class WorkspaceStore {
 
     db.prepare(
       `INSERT INTO workspaces (
-        id, name, parent_repo, worktree_path, branch, base_branch, agent_id, model, mode, thinking, status, outcome, created_at, updated_at, session_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, name, parent_repo, worktree_path, branch, base_branch, agent_id, model, mode, thinking,
+        plan_agent_id, plan_model, plan_thinking, act_agent_id, act_model, act_thinking,
+        status, outcome, created_at, updated_at, session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       workspace.id,
       workspace.name,
@@ -77,6 +91,12 @@ export class WorkspaceStore {
       workspace.model,
       workspace.mode,
       workspace.thinking ?? null,
+      workspace.planAgentId ?? null,
+      workspace.planModel ?? null,
+      workspace.planThinking ?? null,
+      workspace.actAgentId ?? null,
+      workspace.actModel ?? null,
+      workspace.actThinking ?? null,
       workspace.status,
       workspace.outcome,
       workspace.createdAt,
@@ -102,7 +122,9 @@ export class WorkspaceStore {
 
     db.prepare(
       `UPDATE workspaces
-       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, base_branch = ?, agent_id = ?, model = ?, mode = ?, thinking = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
+       SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, base_branch = ?, agent_id = ?, model = ?, mode = ?, thinking = ?,
+           plan_agent_id = ?, plan_model = ?, plan_thinking = ?, act_agent_id = ?, act_model = ?, act_thinking = ?,
+           status = ?, outcome = ?, updated_at = ?, session_id = ?
        WHERE id = ?`,
     ).run(
       next.name,
@@ -114,6 +136,12 @@ export class WorkspaceStore {
       next.model,
       next.mode,
       next.thinking ?? null,
+      next.planAgentId ?? null,
+      next.planModel ?? null,
+      next.planThinking ?? null,
+      next.actAgentId ?? null,
+      next.actModel ?? null,
+      next.actThinking ?? null,
       next.status,
       next.outcome,
       next.updatedAt,
@@ -187,6 +215,12 @@ function rowToWorkspace(row: any): Workspace {
     model: row.model,
     mode: row.mode ?? 'act',
     thinking: row.thinking ?? undefined,
+    planAgentId: row.plan_agent_id ?? undefined,
+    planModel: row.plan_model ?? undefined,
+    planThinking: row.plan_thinking ?? undefined,
+    actAgentId: row.act_agent_id ?? undefined,
+    actModel: row.act_model ?? undefined,
+    actThinking: row.act_thinking ?? undefined,
     status: row.status,
     outcome: row.outcome ?? 'in_progress',
     createdAt: row.created_at,

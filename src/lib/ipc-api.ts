@@ -105,7 +105,19 @@ export interface IpcChannels {
     result: void;
   };
   'workspace:update': {
-    args: [{ workspaceId: string; agentId?: string; model?: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    args: [{
+      workspaceId: string;
+      agentId?: string;
+      model?: string;
+      mode?: TaskMode;
+      thinking?: ThinkingLevel;
+      planAgentId?: string;
+      planModel?: string;
+      planThinking?: ThinkingLevel;
+      actAgentId?: string;
+      actModel?: string;
+      actThinking?: ThinkingLevel;
+    }];
     result: void;
   };
   'workspace:archive': { args: [{ workspaceId: string }]; result: { operation: WorkspaceOperation } };
@@ -418,6 +430,12 @@ export interface Workspace {
   model: string;
   mode: TaskMode;
   thinking?: ThinkingLevel;
+  planAgentId?: string;
+  planModel?: string;
+  planThinking?: ThinkingLevel;
+  actAgentId?: string;
+  actModel?: string;
+  actThinking?: ThinkingLevel;
   worktreePath: string;
   sessionId?: string;
 }

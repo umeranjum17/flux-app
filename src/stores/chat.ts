@@ -60,6 +60,7 @@ interface ChatState {
   ): void;
   setPendingQuestion(taskId: string, question: PendingQuestionState | null): void;
   setTaskMode(taskId: string, mode: TaskMode): void;
+  setTaskThinking(taskId: string, thinking: ThinkingLevel): void;
   switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string): void;
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   setPlanData(taskId: string, planData: import('../lib/types').PlanData): void;
@@ -349,6 +350,14 @@ export const useChatStore = create<ChatState>()(
         const task = state.tasks.get(taskId);
         if (!task) return;
         task.mode = mode;
+      });
+    },
+
+    setTaskThinking(taskId, thinking) {
+      set((state) => {
+        const task = state.tasks.get(taskId);
+        if (!task) return;
+        task.thinking = thinking;
       });
     },
 

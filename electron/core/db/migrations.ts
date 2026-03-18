@@ -60,6 +60,17 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     name: '017_add_workspace_thinking',
     sql: 'ALTER TABLE workspaces ADD COLUMN thinking TEXT',
   },
+  {
+    name: '018_add_workspace_mode_selections',
+    sql: `
+      ALTER TABLE workspaces ADD COLUMN plan_agent_id TEXT;
+      ALTER TABLE workspaces ADD COLUMN plan_model TEXT;
+      ALTER TABLE workspaces ADD COLUMN plan_thinking TEXT;
+      ALTER TABLE workspaces ADD COLUMN act_agent_id TEXT;
+      ALTER TABLE workspaces ADD COLUMN act_model TEXT;
+      ALTER TABLE workspaces ADD COLUMN act_thinking TEXT;
+    `,
+  },
 ];
 
 export function runMigrations(): void {
@@ -103,6 +114,14 @@ export function runMigrations(): void {
     }
 
     if (migration.name === '015_add_workspace_mode' && hasColumn(db, 'workspaces', 'mode')) {
+      db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
+        migration.name,
+        Date.now()
+      );
+      continue;
+    }
+
+    if (migration.name === '018_add_workspace_mode_selections' && hasColumn(db, 'workspaces', 'plan_agent_id')) {
       db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
         migration.name,
         Date.now()

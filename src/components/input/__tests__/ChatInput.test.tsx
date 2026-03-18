@@ -310,6 +310,60 @@ describe('ChatInput', () => {
     );
   });
 
+  it('Shift+Tab in plan mode switches to act and executes the prompt', async () => {
+    const user = userEvent.setup();
+    useUiStore.getState().setMode('plan');
+
+    mockApi.invoke.mockImplementation((channel: string) => {
+      if (channel === 'completion:providers') {
+        return Promise.resolve({ providers: [] });
+      }
+      if (channel === 'workspace:create') {
+        return Promise.resolve({
+          id: 'ws-1',
+          name: 'Execute plan',
+          parentRepo: '/workspace',
+          branch: 'flux/execute-plan-abcd',
+          status: 'idle',
+          outcome: 'in_progress',
+          createdAt: 1,
+          updatedAt: 1,
+          agentId: 'codex',
+          model: 'o4-mini',
+          mode: 'act',
+          worktreePath: '/workspace/.flux-worktrees/ws-1',
+        });
+      }
+      if (channel === 'workspace:spawn-chat') {
+        return Promise.resolve({ taskId: 'task-1', session: { id: 'session-1' } });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<ChatInput />);
+
+    await user.type(getChatInput(), 'Execute this now');
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'workspace:create',
+        expect.objectContaining({
+          mode: 'act',
+          thinking: 'medium',
+        }),
+      );
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'workspace:spawn-chat',
+        expect.objectContaining({
+          prompt: 'Execute this now',
+          mode: 'act',
+        }),
+      );
+    });
+    expect(useUiStore.getState().mode).toBe('act');
+  });
+
   it('sends attachments as structured metadata instead of mutating the prompt text', async () => {
     const user = userEvent.setup();
     useUiStore.getState().setPendingMention({ path: '/workspace/src/app.ts', name: 'app.ts' });

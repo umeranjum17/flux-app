@@ -432,12 +432,45 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:update',
-    async (_event, { workspaceId, agentId, model, mode, thinking }: { workspaceId: string; agentId?: string; model?: string; mode?: SpawnOptions['mode']; thinking?: string }) => {
+    async (
+      _event,
+      {
+        workspaceId,
+        agentId,
+        model,
+        mode,
+        thinking,
+        planAgentId,
+        planModel,
+        planThinking,
+        actAgentId,
+        actModel,
+        actThinking,
+      }: {
+        workspaceId: string;
+        agentId?: string;
+        model?: string;
+        mode?: SpawnOptions['mode'];
+        thinking?: string;
+        planAgentId?: string;
+        planModel?: string;
+        planThinking?: string;
+        actAgentId?: string;
+        actModel?: string;
+        actThinking?: string;
+      },
+    ) => {
       workspaceStore.update(workspaceId, {
         ...(agentId ? { agentId: agentId as AgentId } : {}),
         ...(model ? { model } : {}),
         ...(mode ? { mode } : {}),
         ...(thinking ? { thinking: thinking as any } : {}),
+        ...(planAgentId ? { planAgentId: planAgentId as AgentId } : {}),
+        ...(planModel ? { planModel } : {}),
+        ...(planThinking ? { planThinking: planThinking as any } : {}),
+        ...(actAgentId ? { actAgentId: actAgentId as AgentId } : {}),
+        ...(actModel ? { actModel } : {}),
+        ...(actThinking ? { actThinking: actThinking as any } : {}),
       });
     },
   );

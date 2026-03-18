@@ -84,6 +84,12 @@ export interface Workspace {
   model: string;
   mode: TaskMode;
   thinking?: ThinkingLevel;
+  planAgentId?: AgentId;
+  planModel?: string;
+  planThinking?: ThinkingLevel;
+  actAgentId?: AgentId;
+  actModel?: string;
+  actThinking?: ThinkingLevel;
   status: WorkspaceStatus;
   outcome: WorkspaceOutcome;
   createdAt: number;

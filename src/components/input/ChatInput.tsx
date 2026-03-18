@@ -12,7 +12,7 @@ import { SlashMenu } from './SlashMenu';
 import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, LiveUsageOverview, Session } from '../../lib/ipc-api';
-import type { FileAttachment, ThinkingLevel } from '../../lib/types';
+import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
 import {
@@ -73,7 +73,7 @@ export function ChatInput({ focused }: ChatInputProps) {
   const historyIndex = useRef(-1);
   const hasMountedTaskContext = useRef(false);
 
-  const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode } = useChatStore();
+  const { getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode, setTaskThinking } = useChatStore();
   const activeTask = useChatStore((s) => {
     const id = s.activeTaskId;
     return id ? s.tasks.get(id) : undefined;
@@ -267,9 +267,11 @@ export function ChatInput({ focused }: ChatInputProps) {
     autoResize();
   }, [value, autoResize]);
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (modeOverride?: TaskMode) => {
     const text = value.trim();
     if (!text) return;
+    const effectiveMode = modeOverride ?? useUiStore.getState().mode;
+    const effectiveThinking = selectedThinking;
 
     // ── Terminal mode: run shell command ──
     if (isTerminal && text.startsWith('$ ')) {
@@ -284,8 +286,8 @@ export function ChatInput({ focused }: ChatInputProps) {
           title: `$ ${command}`.slice(0, 80),
           agentId: selectedAgentId,
           model: selectedModel,
-          mode,
-          thinking: selectedThinking,
+          mode: effectiveMode,
+          thinking: effectiveThinking,
           cwd: cwd || '.',
         });
         task = useChatStore.getState().tasks.get(taskId)!;
@@ -352,8 +354,8 @@ export function ChatInput({ focused }: ChatInputProps) {
               prompt: text,
               agentId: selectedAgentId,
               model: selectedModel,
-              mode,
-              thinking: selectedThinking,
+              mode: effectiveMode,
+              thinking: effectiveThinking,
               images: images.length > 0 ? images : undefined,
               attachments,
             });
@@ -361,8 +363,8 @@ export function ChatInput({ focused }: ChatInputProps) {
             await createWorkspaceAndChat(text, {
               agentId: selectedAgentId,
               model: selectedModel,
-              mode,
-              thinking: selectedThinking,
+              mode: effectiveMode,
+              thinking: effectiveThinking,
               cwd: cwd || '.',
               images: images.length > 0 ? images : undefined,
               attachments,
@@ -383,8 +385,8 @@ export function ChatInput({ focused }: ChatInputProps) {
         title: text.slice(0, 80),
         agentId: selectedAgentId,
         model: selectedModel,
-        mode,
-        thinking: selectedThinking,
+        mode: effectiveMode,
+        thinking: effectiveThinking,
         cwd: cwd || '.',
       });
       task = useChatStore.getState().tasks.get(taskId)!;
@@ -402,8 +404,8 @@ export function ChatInput({ focused }: ChatInputProps) {
             prompt: text,
             agentId: selectedAgentId,
             model: selectedModel,
-            mode: useUiStore.getState().mode,
-            thinking: selectedThinking,
+            mode: effectiveMode,
+            thinking: effectiveThinking,
             images: images.length > 0 ? images : undefined,
             attachments,
           });
@@ -435,9 +437,12 @@ export function ChatInput({ focused }: ChatInputProps) {
           response: text,
         });
       } else if (!hasActiveRun) {
-        const currentMode = useUiStore.getState().mode;
+        const currentMode = modeOverride ?? useUiStore.getState().mode;
         if (task.mode !== currentMode) {
           setTaskMode(task.id, currentMode);
+        }
+        if (task.thinking !== effectiveThinking) {
+          setTaskThinking(task.id, effectiveThinking);
         }
         // Sync agent/model selection to the task (user may have changed the selector)
         if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
@@ -451,7 +456,7 @@ export function ChatInput({ focused }: ChatInputProps) {
           agentId: selectedAgentId,
           model: selectedModel,
           mode: currentMode,
-          thinking: task.thinking,
+          thinking: effectiveThinking,
           cwd: task.cwd,
           sessionId: task.sessionId,
           images: images.length > 0 ? images : undefined,
@@ -472,9 +477,12 @@ export function ChatInput({ focused }: ChatInputProps) {
 
         if (steerResult?.steerFailed) {
           // Task already finished between UI check and IPC call — fall back to spawn
-          const currentMode = useUiStore.getState().mode;
+          const currentMode = modeOverride ?? useUiStore.getState().mode;
           if (task.mode !== currentMode) {
             setTaskMode(task.id, currentMode);
+          }
+          if (task.thinking !== effectiveThinking) {
+            setTaskThinking(task.id, effectiveThinking);
           }
           if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
             useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
@@ -486,7 +494,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             agentId: selectedAgentId,
             model: selectedModel,
             mode: currentMode,
-            thinking: task.thinking,
+            thinking: effectiveThinking,
             cwd: task.cwd,
             sessionId: task.sessionId,
             images: images.length > 0 ? images : undefined,
@@ -512,7 +520,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     setValue('');
     setImages([]);
     setAttachedFiles([]);
-  }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, mode, setTaskStatus, setTaskSessionId, upsertSession, isTerminal, cwd, shellHistory]);
+  }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, setTaskStatus, setTaskSessionId, setTaskMode, setTaskThinking, upsertSession, isTerminal, cwd]);
 
   const handleStop = useCallback(async () => {
     const task = getActiveTask();
@@ -583,7 +591,16 @@ export function ChatInput({ focused }: ChatInputProps) {
     // Shift+Tab toggles plan/act mode (chat mode only)
     if (!isTerminal && e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
-      useUiStore.getState().toggleMode();
+      const currentMode = useUiStore.getState().mode;
+      const nextMode: TaskMode = currentMode === 'plan' ? 'act' : 'plan';
+      useUiStore.getState().setMode(nextMode);
+      const task = getActiveTask();
+      if (task && task.mode !== nextMode) {
+        setTaskMode(task.id, nextMode);
+      }
+      if (currentMode === 'plan' && nextMode === 'act' && value.trim().length > 0) {
+        void handleSend('act');
+      }
       return;
     }
 
@@ -1366,7 +1383,7 @@ export function ChatInput({ focused }: ChatInputProps) {
                 /* Send button (circular) */
                 <button
                   type="button"
-                  onClick={handleSend}
+                  onClick={() => void handleSend()}
                   disabled={!hasContent}
                   className={`flex-shrink-0 rounded-full p-2.5 transition-colors ${
                     hasContent
