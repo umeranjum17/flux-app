@@ -1,4 +1,4 @@
-import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from 'react';
+import { type MouseEvent as ReactMouseEvent, useEffect, useId, useMemo, useState } from 'react';
 import { AlertCircle, BarChart3, RefreshCw, WifiOff } from 'lucide-react';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow, UsageHistoryPoint, UsageInfo } from '../../lib/ipc-api';
 
@@ -14,9 +14,9 @@ const STATUS_COLORS: Record<LiveUsageWindow['status'], string> = {
 };
 
 const CHART_WIDTH = 260;
-const CHART_HEIGHT = 72;
-const CHART_BASELINE_Y = 60;
-const CHART_VALUE_HEIGHT = 48;
+const CHART_HEIGHT = 78;
+const CHART_BASELINE_Y = 66;
+const CHART_VALUE_HEIGHT = 54;
 const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
 const SEVEN_DAY_MS = 7 * 24 * 60 * 60 * 1000;
 const FIVE_HOUR_BUCKET_MS = 5 * 60 * 1000;
@@ -280,6 +280,7 @@ function UsageTrendChart({
           bucketMs={SEVEN_DAY_BUCKET_MS}
           windowMs={SEVEN_DAY_MS}
           strokeColor={PROVIDER_COLORS[provider.providerId]}
+          areaColor={PROVIDER_COLORS[provider.providerId]}
         />
       </div>
     </div>
@@ -310,11 +311,15 @@ function TrendStrip({
   );
   const usesLiveData = points.some((point) => point.source === 'live');
   const lineDash = usesLiveData ? undefined : '3 3';
+  const colorSeed = useId().replace(/:/g, '');
+  const areaGradientId = `usage-trend-area-${label}-${colorSeed}`;
+  const lineGradientId = `usage-trend-line-${label}-${colorSeed}`;
+  const trendColor = areaColor ?? strokeColor;
 
   return (
-    <div className="rounded-md border border-border-subtle bg-bg-primary/50 px-2 py-1.5">
+    <div className="rounded-lg border border-border/65 bg-bg-primary/60 px-2.5 py-2 shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.03)]">
       <div className="mb-1 flex items-center justify-between text-[10px] text-text-tertiary">
-        <span className="font-medium">{label}</span>
+        <span className="font-semibold text-text-secondary">{label}</span>
         <span className="tabular-nums text-text-secondary">
           {latestPoint ? formatPercent(latestPoint.usedPercent) : '--'}
         </span>
@@ -327,7 +332,7 @@ function TrendStrip({
       )}
 
       {hasEnoughPoints && (
-        <div className="h-16">
+        <div className="relative h-16">
           <svg
             viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
             className="h-full w-full"
@@ -337,6 +342,16 @@ function TrendStrip({
               setHovered(next);
             }}
           >
+            <defs>
+              <linearGradient id={areaGradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={trendColor} stopOpacity="0.3" />
+                <stop offset="100%" stopColor={trendColor} stopOpacity="0.03" />
+              </linearGradient>
+              <linearGradient id={lineGradientId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={strokeColor} stopOpacity="0.7" />
+                <stop offset="100%" stopColor={strokeColor} stopOpacity="1" />
+              </linearGradient>
+            </defs>
             <line x1="0" y1={CHART_BASELINE_Y} x2={CHART_WIDTH} y2={CHART_BASELINE_Y} stroke="var(--color-border-subtle)" strokeWidth="1" />
             <line x1="0" y1={36} x2={CHART_WIDTH} y2={36} stroke="var(--color-border-subtle)" strokeOpacity="0.55" strokeWidth="1" />
             <line x1="0" y1={12} x2={CHART_WIDTH} y2={12} stroke="var(--color-border-subtle)" strokeOpacity="0.4" strokeWidth="1" />
@@ -345,8 +360,7 @@ function TrendStrip({
               <path
                 key={`${label}-area-${index}`}
                 d={buildAreaPath(segment)}
-                fill={areaColor}
-                fillOpacity={0.12}
+                fill={`url(#${areaGradientId})`}
               />
             ))}
 
@@ -355,8 +369,8 @@ function TrendStrip({
                 key={`${label}-line-${index}`}
                 d={buildLinePath(segment)}
                 fill="none"
-                stroke={strokeColor}
-                strokeWidth={2}
+                stroke={`url(#${lineGradientId})`}
+                strokeWidth={2.2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={lineDash}
@@ -374,6 +388,7 @@ function TrendStrip({
                   strokeOpacity="0.4"
                   strokeWidth="1"
                 />
+                <circle cx={hovered.x} cy={hovered.y} r="4.2" fill={strokeColor} fillOpacity="0.24" />
                 <circle cx={hovered.x} cy={hovered.y} r="2.8" fill={strokeColor} />
               </>
             )}
@@ -382,6 +397,11 @@ function TrendStrip({
               <circle cx={latestPoint.x} cy={latestPoint.y} r="2.8" fill={strokeColor} />
             )}
           </svg>
+          <div className="pointer-events-none absolute right-0 top-0 flex h-full flex-col justify-between py-0.5 text-[8px] text-text-tertiary/85">
+            <span>100%</span>
+            <span>50%</span>
+            <span>0%</span>
+          </div>
         </div>
       )}
 

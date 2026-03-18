@@ -5,7 +5,6 @@ import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { GitBranch, Wifi, WifiOff, Brain, Monitor, Terminal, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
-import type { ThinkingLevel } from '../../lib/types';
 import type { LiveUsageOverview } from '../../lib/ipc-api';
 import { isWorkspaceArchiving } from '../../lib/workspace-operations';
 import {
@@ -15,6 +14,7 @@ import {
   normalizeTaskRateLimit,
   providerLabel,
   rateLimitTextColor,
+  resolveRateLimitProvider,
 } from '../../lib/rate-limits';
 
 export function StatusLine() {
@@ -22,7 +22,6 @@ export function StatusLine() {
     const id = s.activeTaskId;
     return id ? s.tasks.get(id) : undefined;
   });
-  const selectedThinking = useAgentStore((s) => s.selectedThinking);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const agents = useAgentStore((s) => s.agents);
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
@@ -38,11 +37,6 @@ export function StatusLine() {
 
   const repoMapConfig = useIntelligenceStore((s) => s.config);
   const repoMapStatus = useIntelligenceStore((s) => s.status);
-
-  const selectedModel = useAgentStore((s) => s.selectedModel);
-  const dynamicModels = useAgentStore((s) => s.dynamicModels);
-
-  const thinkingLevels: ThinkingLevel[] = useMemo(() => ['disabled', 'low', 'medium', 'high', 'xhigh'], []);
 
   // Rate limits state
   const [showRateLimits, setShowRateLimits] = useState(false);
@@ -99,35 +93,28 @@ export function StatusLine() {
     () => mergeRateLimits(liveRateLimits, activeTaskRateLimit),
     [liveRateLimits, activeTaskRateLimit],
   );
-  const highestSeverity = useMemo(
-    () => computeHighestSeverity(visibleRateLimits),
-    [visibleRateLimits],
+  const activeRateLimitProvider = useMemo(
+    () => resolveRateLimitProvider(activeTask?.agentId ?? selectedAgentId),
+    [activeTask?.agentId, selectedAgentId],
   );
-
-  const handleCycleModel = useCallback(() => {
-    const modelIds = dynamicModels.length > 0
-      ? dynamicModels.map((m) => m.id)
-      : selectedAgent?.models ?? [];
-    if (modelIds.length === 0) return;
-    const idx = modelIds.indexOf(selectedModel);
-    useAgentStore.getState().setSelectedModel(modelIds[(idx + 1) % modelIds.length]);
-  }, [dynamicModels, selectedAgent, selectedModel]);
-
-  const handleCycleThinking = useCallback(() => {
-    const idx = thinkingLevels.indexOf(selectedThinking);
-    useAgentStore.getState().setSelectedThinking(thinkingLevels[(idx + 1) % thinkingLevels.length]);
-  }, [selectedThinking, thinkingLevels]);
+  const scopedRateLimits = useMemo(
+    () => (
+      activeRateLimitProvider
+        ? visibleRateLimits.filter((entry) => entry.providerId === activeRateLimitProvider)
+        : []
+    ),
+    [visibleRateLimits, activeRateLimitProvider],
+  );
+  const highestSeverity = useMemo(
+    () => computeHighestSeverity(scopedRateLimits),
+    [scopedRateLimits],
+  );
 
   const handleAgentClick = useCallback(() => {
     useUiStore.getState().setOverlay('agent-selector');
   }, []);
 
   const agentName = selectedAgent?.name ?? selectedAgentId;
-  const rawModel = activeTask?.model ?? selectedModel;
-  const model = dynamicModels.find((m) => m.id === rawModel)?.name
-    ?? dynamicModels.find((m) => rawModel.includes(m.id))?.name
-    ?? rawModel;
-  const thinking = activeTask?.thinking ?? selectedThinking;
   const cost = activeTask?.costUsd ?? 0;
   const tokens = (activeTask?.inputTokens ?? 0) + (activeTask?.outputTokens ?? 0);
   const qualityGate = activeTask?.lastQualityGate;
@@ -219,7 +206,7 @@ export function StatusLine() {
             setShowRateLimits((open) => !open);
           }}
           className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[13px] text-text-tertiary hover:text-text-secondary transition-colors"
-          title="Peek rate limits"
+          title={activeRateLimitProvider ? `Peek ${providerLabel(activeRateLimitProvider)} rate limits` : 'Peek rate limits'}
           aria-label="Peek rate limits"
         >
           <Gauge size={12} />
@@ -234,6 +221,7 @@ export function StatusLine() {
                     : 'bg-text-tertiary/40'
             }`}
           />
+          <span className="text-[12px] tabular-nums">{formatTokens(tokens)} tok</span>
         </button>
       </div>
 
@@ -246,22 +234,6 @@ export function StatusLine() {
           title="Switch agent (Ctrl+Shift+A)"
         >
           {agentName}
-        </button>
-        <Dot />
-        <button
-          onClick={handleCycleModel}
-          className="text-[13px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
-          title="Cycle model (Ctrl+Shift+M)"
-        >
-          {model}
-        </button>
-        <Dot />
-        <button
-          onClick={handleCycleThinking}
-          className="text-[13px] text-text-tertiary truncate hover:text-text-secondary cursor-pointer transition-colors"
-          title="Cycle thinking level (Ctrl+Shift+T)"
-        >
-          think {thinking}
         </button>
         {qualityGate && (
           <>
@@ -276,9 +248,6 @@ export function StatusLine() {
         <Dot />
         <span className="text-[13px] text-text-tertiary tabular-nums">
           ${cost.toFixed(4)}
-        </span>
-        <span className="text-[13px] text-text-tertiary tabular-nums">
-          {formatTokens(tokens)} tok
         </span>
       </div>
 

@@ -16,8 +16,7 @@ export function normalizeTaskRateLimit(
   activeAgentId: string | undefined,
 ): RateLimitInfo | null {
   if (!info) return null;
-  const inferredProvider = info.providerId
-    ?? (activeAgentId === 'claude-code' || activeAgentId === 'codex' ? activeAgentId : null);
+  const inferredProvider = info.providerId ?? resolveRateLimitProvider(activeAgentId);
   if (!inferredProvider) return null;
   return {
     providerId: inferredProvider,
@@ -29,6 +28,14 @@ export function normalizeTaskRateLimit(
     ...(typeof info.overageResetsAt === 'number' ? { overageResetsAt: info.overageResetsAt } : {}),
     ...(typeof info.fetchedAt === 'number' ? { fetchedAt: info.fetchedAt } : {}),
   };
+}
+
+export function resolveRateLimitProvider(
+  agentId: string | undefined,
+): RateLimitInfo['providerId'] | null {
+  return agentId === 'claude-code' || agentId === 'codex'
+    ? agentId
+    : null;
 }
 
 export function coerceRateLimitStatus(

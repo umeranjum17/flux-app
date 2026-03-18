@@ -7,6 +7,7 @@ import {
   normalizeTaskRateLimit,
   providerLabel,
   rateLimitTextColor,
+  resolveRateLimitProvider,
 } from '../rate-limits';
 
 afterEach(() => {
@@ -46,6 +47,12 @@ describe('rate limit helpers', () => {
     ])).toBe('allowed_warning');
     expect(rateLimitTextColor({ status: 'allowed_warning' })).toBe('text-warning');
     expect(providerLabel('claude-code')).toBe('Claude Code');
+  });
+
+  it('maps agent ids to supported rate-limit providers', () => {
+    expect(resolveRateLimitProvider('claude-code')).toBe('claude-code');
+    expect(resolveRateLimitProvider('codex')).toBe('codex');
+    expect(resolveRateLimitProvider('openai')).toBeNull();
   });
 
   it('formats reset times compactly', () => {
