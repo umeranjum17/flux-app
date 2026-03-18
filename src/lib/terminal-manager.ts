@@ -71,6 +71,10 @@ export interface ManagedTerminal {
   searchAddon: SearchAddon;
   mounted: boolean;
   disposed: boolean;
+  /** Ack-based flow control: chars received but not yet processed by xterm */
+  _pendingChars: number;
+  /** Number of write callbacks received since last ack */
+  _ackCounter: number;
 }
 
 /** Pending data buffer for terminals that haven't been created yet */
@@ -107,29 +111,9 @@ export async function createManagedTerminal(
   term.loadAddon(new WebLinksAddon());
   term.loadAddon(searchAddon);
 
-  // Try loading WebGL renderer with canvas fallback
-  try {
-    const { WebglAddon } = await import('@xterm/addon-webgl');
-    const webgl = new WebglAddon();
-    webgl.onContextLoss(() => {
-      webgl.dispose();
-    });
-    // WebGL can only be loaded after the terminal is opened, so we defer it
-    term.onRender(() => {
-      try {
-        if (!(term as any)._webglLoaded) {
-          term.loadAddon(webgl);
-          (term as any)._webglLoaded = true;
-        }
-      } catch {
-        // WebGL not available — canvas fallback is automatic
-      }
-    });
-  } catch {
-    // WebGL addon not available — canvas rendering is fine
-  }
+  // WebGL is loaded in mountTerminal after term.open() — it needs a canvas.
 
-  const managed: ManagedTerminal = { id, term, fitAddon, searchAddon, mounted: false, disposed: false };
+  const managed: ManagedTerminal = { id, term, fitAddon, searchAddon, mounted: false, disposed: false, _pendingChars: 0, _ackCounter: 0 };
   terminals.set(id, managed);
 
   // Flush any pending data
@@ -160,6 +144,10 @@ export function mountTerminal(managed: ManagedTerminal, elementId: string): void
       managed.fitAddon.fit();
       managed.term.focus();
       managed.mounted = true;
+
+      // Load WebGL renderer now that the canvas exists
+      loadWebGl(managed.term);
+
       window.api.invoke('terminal:resize', {
         id: managed.id,
         cols: managed.term.cols,
@@ -175,6 +163,19 @@ export function mountTerminal(managed: ManagedTerminal, elementId: string): void
   requestAnimationFrame(() => attempt(0));
 }
 
+async function loadWebGl(term: Terminal): Promise<void> {
+  try {
+    const { WebglAddon } = await import('@xterm/addon-webgl');
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => {
+      webgl.dispose();
+    });
+    term.loadAddon(webgl);
+  } catch {
+    // WebGL not available — canvas fallback is automatic
+  }
+}
+
 export function getTerminal(id: string): ManagedTerminal | undefined {
   return terminals.get(id);
 }
@@ -183,10 +184,22 @@ export function getAllTerminals(): Map<string, ManagedTerminal> {
   return terminals;
 }
 
+/** How often (in write callbacks) we send an ack to the main process */
+const ACK_EVERY_N_WRITES = 5;
+
 export function writeToTerminal(id: string, data: string): void {
   const managed = terminals.get(id);
   if (managed) {
-    managed.term.write(data);
+    managed._pendingChars += data.length;
+    managed.term.write(data, () => {
+      managed._pendingChars -= data.length;
+      managed._ackCounter++;
+      if (managed._ackCounter >= ACK_EVERY_N_WRITES || managed._pendingChars < 50_000) {
+        const acked = data.length * managed._ackCounter;
+        managed._ackCounter = 0;
+        window.api.invoke('terminal:ack', { id, charCount: acked });
+      }
+    });
   } else {
     const pending = pendingData.get(id) ?? [];
     pending.push(data);

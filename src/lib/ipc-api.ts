@@ -71,6 +71,7 @@ export interface IpcChannels {
   'terminal:write': { args: [{ id: string; data: string }]; result: void };
   'terminal:resize': { args: [{ id: string; cols: number; rows: number }]; result: void };
   'terminal:kill': { args: [{ id: string }]; result: void };
+  'terminal:ack': { args: [{ id: string; charCount: number }]; result: void };
   'terminal:get-profiles': { args: []; result: Array<{ name: string; path: string; icon: string }> };
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };

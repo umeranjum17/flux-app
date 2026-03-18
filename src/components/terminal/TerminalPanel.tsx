@@ -55,28 +55,35 @@ export function TerminalPanel() {
     return () => window.removeEventListener('flux:open-workspace-terminal', handler);
   }, []);
 
-  // Resize terminals on container size change
+  // Resize terminals on container size change (debounced to avoid IPC spam during drag)
   useEffect(() => {
     if (!containerRef.current) return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new ResizeObserver(() => {
-      const id = useTerminalStore.getState().activeId;
-      if (!id) return;
-      const dims = fitTerminal(id);
-      if (dims) window.api.invoke('terminal:resize', { id, ...dims });
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const id = useTerminalStore.getState().activeId;
+        if (!id) return;
+        const dims = fitTerminal(id);
+        if (dims) window.api.invoke('terminal:resize', { id, ...dims });
 
-      // Also fit any split panes
-      const tab = useTerminalStore.getState().tabs.find((t) => t.id === id || t.splits?.some((s) => s.terminalId === id));
-      if (tab?.splits) {
-        for (const split of tab.splits) {
-          if (split.terminalId !== id) {
-            const d = fitTerminal(split.terminalId);
-            if (d) window.api.invoke('terminal:resize', { id: split.terminalId, ...d });
+        // Also fit any split panes
+        const tab = useTerminalStore.getState().tabs.find((t) => t.id === id || t.splits?.some((s) => s.terminalId === id));
+        if (tab?.splits) {
+          for (const split of tab.splits) {
+            if (split.terminalId !== id) {
+              const d = fitTerminal(split.terminalId);
+              if (d) window.api.invoke('terminal:resize', { id: split.terminalId, ...d });
+            }
           }
         }
-      }
+      }, 100);
     });
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      observer.disconnect();
+    };
   }, []);
 
   // Focus terminal when switching tabs
@@ -154,6 +161,8 @@ function TerminalContainer({
   onSplitResize: (index: number, size: number) => void;
   onCloseSplit: (termId: string) => void;
 }) {
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
   if (!tab.splits) {
     // Single pane
     return (
@@ -168,6 +177,7 @@ function TerminalContainer({
   // Split panes
   return (
     <div
+      ref={splitContainerRef}
       className="absolute inset-0 flex"
       style={{ display: isActive ? 'flex' : 'none' }}
     >
@@ -181,9 +191,9 @@ function TerminalContainer({
           {i < tab.splits!.length - 1 && (
             <SplitDivider
               onDrag={(delta) => {
-                const container = document.querySelector('.absolute.inset-0.flex');
+                const container = splitContainerRef.current;
                 if (!container) return;
-                const totalWidth = (container as HTMLElement).offsetWidth;
+                const totalWidth = container.offsetWidth;
                 const newSize = Math.max(0.15, Math.min(0.85, split.size + delta / totalWidth));
                 onSplitResize(i, newSize);
               }}

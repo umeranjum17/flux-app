@@ -216,6 +216,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'terminal:write',
     'terminal:resize',
     'terminal:kill',
+    'terminal:ack',
     'terminal:get-profiles',
     'terminal:list',
     'ssh:test',
