@@ -130,17 +130,26 @@ const SNAPSHOT_DEDUP_WINDOW_MS = 60 * 1000;
 const SNAPSHOT_ANCHOR_INTERVAL_MS = 5 * 60 * 1000;
 const CLAUDE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const CODEX_REFRESH_INTERVAL_MS = 8 * 24 * 60 * 60 * 1000;
+const FETCH_RETRY_ATTEMPTS = 2;
+const FETCH_RETRY_BASE_DELAY_MS = 1500;
+const LIVE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export class LiveUsageService {
   // In-memory cache for refreshed Claude tokens (persisting to disk fails for keychain sources).
   private claudeTokenCache: { accessToken: string; refreshToken: string; expiresAt: number } | null = null;
+  // Cache of last successful fetch results per provider, used when transient errors occur.
+  private lastGoodFetch = new Map<UsageProviderId, { result: ProviderFetchResult; fetchedAt: number }>();
 
   async getOverview(cachedRateLimits: CachedRateLimitInfo[] = []): Promise<LiveUsageOverview> {
     const now = Date.now();
-    const [claude, codex] = await Promise.all([
+    const [claudeRaw, codexRaw] = await Promise.all([
       this.fetchClaudeUsage(now),
       this.fetchCodexUsage(now),
     ]);
+
+    // On transient errors, substitute the last good fetch if still fresh.
+    const claude = this.applyLastGoodCache(claudeRaw, now);
+    const codex = this.applyLastGoodCache(codexRaw, now);
 
     this.persistSnapshots([...claude.windows, ...codex.windows].filter((window) => window.source === 'live' || window.source === 'stream_fallback'));
 
@@ -156,6 +165,34 @@ export class LiveUsageService {
       providers,
       history: this.getHistory(now - HISTORY_RETENTION_MS),
       updatedAt: now,
+    };
+  }
+
+  private applyLastGoodCache(result: ProviderFetchResult, now: number): ProviderFetchResult {
+    if (result.status === 'connected' && result.windows.length > 0) {
+      // Cache successful results.
+      this.lastGoodFetch.set(result.providerId, { result, fetchedAt: now });
+      return result;
+    }
+
+    if (result.status !== 'error') {
+      return result;
+    }
+
+    const cached = this.lastGoodFetch.get(result.providerId);
+    if (!cached || now - cached.fetchedAt > LIVE_CACHE_TTL_MS) {
+      return result;
+    }
+
+    logDiagnostic('usage', `applyLastGoodCache(${result.providerId}): using cached live data`, {
+      cacheAgeMs: now - cached.fetchedAt,
+      errorMessage: result.message,
+    });
+
+    // Return the cached good result but attach the error message so the UI can show a warning.
+    return {
+      ...cached.result,
+      message: result.message,
     };
   }
 
@@ -522,6 +559,11 @@ export class LiveUsageService {
         }
       }
 
+      // Retry on transient errors (429, 5xx).
+      if (isTransientHttpError(response.status)) {
+        response = await retryFetch(() => this.fetchClaudeUsageApi(accessToken), response.status);
+      }
+
       if (!response.ok) {
         let body = '';
         try { body = await response.text(); } catch { /* best effort */ }
@@ -649,13 +691,19 @@ export class LiveUsageService {
     }
 
     try {
-      const response = await fetch(CODEX_USAGE_URL, {
+      const fetchCodex = () => fetch(CODEX_USAGE_URL, {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${accessToken}`,
           ...(accountId ? { 'ChatGPT-Account-Id': accountId } : {}),
         },
       });
+      let response = await fetchCodex();
+
+      // Retry on transient errors (429, 5xx).
+      if (isTransientHttpError(response.status)) {
+        response = await retryFetch(fetchCodex, response.status);
+      }
 
       if ((response.status === 401 || response.status === 403) && refreshToken) {
         const refreshed = await this.refreshCodexToken(refreshToken);
@@ -1111,4 +1159,28 @@ function pickNumber(...values: unknown[]): number | null {
     }
   }
   return null;
+}
+
+function isTransientHttpError(status: number): boolean {
+  return status === 429 || (status >= 500 && status < 600);
+}
+
+async function retryFetch(fn: () => Promise<Response>, initialStatus: number): Promise<Response> {
+  let lastResponse: Response | null = null;
+  for (let attempt = 0; attempt < FETCH_RETRY_ATTEMPTS; attempt++) {
+    const delay = FETCH_RETRY_BASE_DELAY_MS * (2 ** attempt);
+    logDiagnostic('usage', 'retryFetch: waiting before retry', { attempt: attempt + 1, delayMs: delay, lastStatus: initialStatus });
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    try {
+      lastResponse = await fn();
+      if (lastResponse.ok || !isTransientHttpError(lastResponse.status)) {
+        return lastResponse;
+      }
+      initialStatus = lastResponse.status;
+    } catch (err) {
+      logDiagnostic('usage', 'retryFetch: attempt threw', { attempt: attempt + 1, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  // Return the last response we got (even if it's an error) so the caller can handle it.
+  return lastResponse ?? new Response(null, { status: initialStatus });
 }
