@@ -1,27 +1,9 @@
-const adjectives = [
-  'snappy', 'chunky', 'fuzzy', 'spicy', 'crispy', 'bouncy', 'lanky',
-  'dizzy', 'grumpy', 'peppy', 'rowdy', 'scrappy', 'salty', 'toasty',
-  'wobbly', 'zappy', 'breezy', 'cheeky', 'dorky', 'funky', 'goofy',
-  'janky', 'kooky', 'loopy', 'nerdy', 'perky', 'quirky', 'rusty',
-  'snazzy', 'tipsy', 'wacky', 'zippy', 'dusty', 'hasty', 'lucky',
-  'moody', 'noisy', 'plucky', 'shady', 'witty', 'jolly', 'tiny',
-  'mighty', 'sneaky', 'sleepy', 'speedy', 'stormy', 'sunny', 'wild',
-  'lazy', 'hungry', 'happy', 'mad', 'loud', 'chill', 'shy', 'bold',
-] as const;
-
-const animals = [
-  'ant', 'ape', 'bat', 'bee', 'bug', 'cat', 'cod', 'cow', 'cub', 'doe',
-  'dog', 'eel', 'elk', 'emu', 'ewe', 'fly', 'fox', 'gnu', 'hen', 'hog',
-  'jay', 'kit', 'koi', 'owl', 'ox', 'pig', 'pug', 'ram', 'rat', 'ray',
-  'yak', 'bear', 'boar', 'buck', 'bull', 'carp', 'clam', 'colt', 'crab',
-  'crow', 'dart', 'deer', 'dove', 'duck', 'fawn', 'fish', 'frog', 'goat',
-  'gull', 'hare', 'hawk', 'ibis', 'lamb', 'lark', 'lion', 'lynx', 'mink',
-  'mole', 'moth', 'mule', 'newt', 'puma', 'seal', 'slug', 'swan', 'toad',
-  'vole', 'wasp', 'wren', 'wolf', 'crane', 'eagle', 'finch', 'gecko',
-  'goose', 'heron', 'horse', 'hyena', 'koala', 'lemur', 'llama', 'moose',
-  'mouse', 'otter', 'panda', 'quail', 'raven', 'robin', 'shark', 'sheep',
-  'skunk', 'sloth', 'snail', 'snake', 'squid', 'stork', 'tiger', 'trout',
-  'viper', 'whale', 'zebra',
+const elements = [
+  'neon', 'argon', 'zinc', 'iron', 'cobalt', 'nickel', 'copper',
+  'silver', 'gold', 'carbon', 'silicon', 'helium', 'lithium', 'boron',
+  'titan', 'chrome', 'radium', 'xenon', 'cesium', 'barium', 'osmium',
+  'iridium', 'platinum', 'bismuth', 'thorium', 'uranium', 'neptune',
+  'pluton', 'krypton', 'sodium',
 ] as const;
 
 function pick<T>(arr: readonly T[]): T {
@@ -29,6 +11,6 @@ function pick<T>(arr: readonly T[]): T {
 }
 
 export function generateWorkspaceName(): string {
-  const suffix = Math.random().toString(36).slice(2, 4);
-  return `${pick(adjectives)}-${pick(animals)}-${suffix}`;
+  const num = Math.floor(Math.random() * 90) + 10; // 10–99
+  return `${pick(elements)}-${num}`;
 }
