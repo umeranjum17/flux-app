@@ -609,7 +609,10 @@ button:focus-visible {
   color: currentColor;
   isolation: isolate;
   transform-origin: center;
-  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease, filter 200ms ease;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, box-shadow, opacity, filter;
+  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease, filter 200ms ease, color 200ms ease;
 }
 
 .workspace-indicator-shell,
@@ -623,19 +626,21 @@ button:focus-visible {
 
 .workspace-indicator-shell {
   inset: 0;
-  border: 1.35px solid color-mix(in srgb, currentColor 76%, transparent);
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  border: 1.35px solid color-mix(in srgb, currentColor 72%, transparent);
+  background: color-mix(in srgb, currentColor 9%, transparent);
   box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, currentColor 18%, transparent),
-    0 0 0 0.5px color-mix(in srgb, currentColor 8%, transparent);
+    inset 0 0 0 0.5px color-mix(in srgb, currentColor 20%, transparent),
+    0 0 0 0.5px color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .workspace-indicator-fill {
   inset: 1.6px;
-  background: currentColor;
+  background:
+    radial-gradient(circle at 34% 30%, color-mix(in srgb, white 30%, currentColor 70%) 0 30%, transparent 32%),
+    color-mix(in srgb, currentColor 90%, black 10%);
   box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, white 24%, transparent),
-    0 0 0 0.5px color-mix(in srgb, currentColor 12%, transparent);
+    inset 0 0 0 0.5px color-mix(in srgb, white 22%, transparent),
+    0 0 0 0.5px color-mix(in srgb, currentColor 16%, transparent);
 }
 
 .workspace-indicator-core {
@@ -648,7 +653,7 @@ button:focus-visible {
   inset: 24%;
   background:
     radial-gradient(circle at 34% 30%, color-mix(in srgb, white 40%, currentColor 60%) 0 32%, transparent 34%);
-  opacity: 0.78;
+  opacity: 0.72;
 }
 
 .workspace-indicator[data-indicator-variant="ring"] .workspace-indicator-fill,
@@ -953,14 +958,98 @@ button:focus-visible {
   }
 }
 
+/* Keep tiny status icons crisp by using gentler transforms than the generic dot animation. */
+.workspace-indicator.workspace-dot-active {
+  animation: workspace-indicator-active 2.3s cubic-bezier(0.24, 0.9, 0.22, 1) infinite;
+}
+
+.workspace-indicator.workspace-dot-settled {
+  animation: workspace-indicator-settled 2.9s ease-in-out infinite;
+}
+
+.workspace-indicator.workspace-dot-attention {
+  animation: workspace-indicator-attention 1.3s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+.workspace-indicator.workspace-dot-alert {
+  animation: workspace-indicator-alert 1.05s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+@keyframes workspace-indicator-active {
+  0%, 100% {
+    transform: translateZ(0) scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
+    opacity: 0.96;
+    filter: saturate(1);
+  }
+  38% {
+    transform: translateZ(0) scale(1.055);
+    box-shadow: 0 0 0 2.2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 22%, transparent);
+    opacity: 1;
+    filter: saturate(1.06);
+  }
+  72% {
+    transform: translateZ(0) scale(0.99);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-signal-color, currentColor) 10%, transparent);
+    opacity: 0.94;
+  }
+}
+
+@keyframes workspace-indicator-settled {
+  0%, 100% {
+    transform: translateZ(0) scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color, currentColor) 0%, transparent);
+    opacity: 0.94;
+  }
+  50% {
+    transform: translateZ(0) scale(1.035);
+    box-shadow: 0 0 0 1.8px color-mix(in srgb, var(--workspace-signal-color, currentColor) 18%, transparent);
+    opacity: 0.99;
+  }
+}
+
+@keyframes workspace-indicator-attention {
+  0%, 100% {
+    transform: translateZ(0) scale(1);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 24%, transparent);
+    opacity: 0.95;
+  }
+  28% {
+    transform: translateZ(0) scale(1.16);
+    box-shadow: 0 0 6px 3px color-mix(in srgb, var(--workspace-signal-color, currentColor) 34%, transparent);
+    opacity: 1;
+  }
+  56% {
+    transform: translateZ(0) scale(0.96);
+    box-shadow: 0 0 0 1.6px color-mix(in srgb, var(--workspace-signal-color, currentColor) 16%, transparent);
+  }
+}
+
+@keyframes workspace-indicator-alert {
+  0%, 100% {
+    transform: translateZ(0) scale(1);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 24%, transparent);
+    opacity: 0.95;
+  }
+  24% {
+    transform: translateZ(0) scale(1.2);
+    box-shadow: 0 0 7px 4px color-mix(in srgb, var(--workspace-signal-color, currentColor) 38%, transparent);
+    opacity: 1;
+  }
+  52% {
+    transform: translateZ(0) scale(0.95);
+    box-shadow: 0 0 0 1.6px color-mix(in srgb, var(--workspace-signal-color, currentColor) 15%, transparent);
+  }
+}
+
 /* Expanding radar-ping ring for action-needed states */
 @keyframes dot-ring-ping {
   0% {
     transform: scale(1);
-    opacity: 0.6;
+    opacity: 0.52;
   }
   100% {
-    transform: scale(2.8);
+    transform: scale(2.35);
     opacity: 0;
   }
 }
@@ -969,13 +1058,14 @@ button:focus-visible {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1.5px solid currentColor;
+  border: 1.35px solid color-mix(in srgb, currentColor 70%, transparent);
   animation: dot-ring-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.9;
   pointer-events: none;
 }
 
 .workspace-dot-ring-fast {
-  animation-duration: 1.4s;
+  animation-duration: 1.2s;
 }
 
 .lifecycle-dot-glow {

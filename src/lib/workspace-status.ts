@@ -57,8 +57,8 @@ export const workspaceLifecycleConfig: Record<
   WorkspaceLifecycleConfigEntry
 > = {
   idle: {
-    color: 'bg-text-tertiary/50',
-    iconColor: 'text-text-tertiary/50',
+    color: 'bg-text-tertiary/60',
+    iconColor: 'text-text-tertiary/70',
     label: 'Idle',
     dotMotionClass: 'workspace-dot-idle',
     detail: 'Waiting for the next task.',
@@ -175,8 +175,8 @@ export const workspaceLifecycleConfig: Record<
     cardTint: 'lifecycle-tint-info',
   },
   merged: {
-    color: 'bg-success/60',
-    iconColor: 'text-success/60',
+    color: 'bg-success/70',
+    iconColor: 'text-success/80',
     label: 'Merged',
     dotMotionClass: 'workspace-dot-settled',
     detail: 'Successfully merged.',
@@ -219,8 +219,8 @@ interface WorkspaceListSignalConfigEntry {
 
 const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListSignalConfigEntry> = {
   idle: {
-    color: 'bg-text-tertiary/50',
-    iconColor: 'text-text-tertiary/50',
+    color: 'bg-text-tertiary/60',
+    iconColor: 'text-text-tertiary/70',
     label: 'Idle',
     detail: 'Waiting for the next task.',
     dotClassName: 'workspace-list-signal workspace-list-signal-idle',
@@ -315,8 +315,8 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     dotMotionClass: 'workspace-dot-active',
   },
   merged: {
-    color: 'bg-success/60',
-    iconColor: 'text-success/60',
+    color: 'bg-success/70',
+    iconColor: 'text-success/80',
     label: 'Merged',
     detail: 'Successfully merged.',
     dotClassName: 'workspace-list-signal workspace-list-signal-complete',
