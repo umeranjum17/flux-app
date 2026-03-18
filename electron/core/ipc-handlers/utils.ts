@@ -1318,7 +1318,7 @@ const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|S
 const ORPHAN_JSON_CLOSER = /^\s*["']?\}\s*$/gm;
 
 /** Strip FLUX protocol tokens so they don't leak into persisted plan text. */
-function stripFluxTokens(text: string): string {
+export function stripFluxTokens(text: string): string {
   let cleaned = text.replace(FLUX_LINE_PATTERN, '');
   cleaned = cleaned.replace(ORPHAN_JSON_CLOSER, '');
   return cleaned.replace(/\n{3,}/g, '\n\n').trim();
@@ -1531,22 +1531,6 @@ export function getStepTrackableContent(message: AgentMessage): string | null {
   }
 }
 
-// Matches FLUX protocol lines — complete or incomplete JSON (streaming may split
-// the closing brace into a separate message). Uses multiline mode so ^ anchors
-// to each line start.
-const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{.*$/gm;
-
-// Matches orphaned JSON closing fragments left over from a streaming-split signal
-// (e.g. `"}` or `"}\n` on its own). Only matches when the entire line is just
-// a closing brace with optional leading quote/whitespace.
-const ORPHAN_JSON_CLOSER = /^\s*["']?\}\s*$/gm;
-
-/** Strip FLUX protocol tokens from text so they don't render in the UI. */
-export function stripFluxTokens(text: string): string {
-  let result = text.replace(FLUX_LINE_PATTERN, '');
-  result = result.replace(ORPHAN_JSON_CLOSER, '');
-  return result.replace(/\n{3,}/g, '\n\n');
-}
 
 const RATE_LIMIT_TYPE_ALIASES: Record<string, string> = {
   'five_hour': '5h', 'five hour': '5h', 'fivehour': '5h',
