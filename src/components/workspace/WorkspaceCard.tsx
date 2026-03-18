@@ -2,11 +2,22 @@ import { useState, useRef, useEffect } from 'react';
 import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown, LoaderCircle } from 'lucide-react';
 import type { Workspace, WorkspaceOperation, WorkspaceOutcome } from '../../lib/ipc-api';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
+import type { WorkspaceLifecycleState } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 
 const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
+const outcomeIndicatorState = {
+  in_progress: 'idle',
+  planned: 'planned',
+  ready_for_pr: 'ready_for_review',
+  reviewing: 'reviewing',
+  changes_requested: 'changes_requested',
+  ready_to_merge: 'ready_to_merge',
+  merged: 'merged',
+  ready_to_archive: 'ready_to_archive',
+} satisfies Record<WorkspaceOutcome, WorkspaceLifecycleState>;
 
 interface WorkspaceCardProps {
   workspace: Workspace;
@@ -116,8 +127,9 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${config.color} opacity-60 hover:opacity-100 transition-opacity`}
+        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${config.color} opacity-60 transition-opacity hover:opacity-100`}
       >
+        <WorkspaceLifecycleIcon state={outcomeIndicatorState[outcome]} size={10} className={config.color} />
         {config.label}
         <ChevronDown size={8} className="opacity-50" />
       </button>
@@ -129,10 +141,11 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
               <button
                 key={opt}
                 onClick={() => handleSelect(opt)}
-                className={`w-full px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-bg-hover ${
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-bg-hover ${
                   opt === outcome ? 'font-medium' : 'font-normal'
                 } ${optConfig.color}`}
               >
+                <WorkspaceLifecycleIcon state={outcomeIndicatorState[opt]} size={10} className={optConfig.color} />
                 {optConfig.label}
               </button>
             );

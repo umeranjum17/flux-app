@@ -598,6 +598,104 @@ button:focus-visible {
   border: 1px solid transparent;
 }
 
+/* Workspace status indicators — a tighter circular language than mixed glyph icons */
+.workspace-indicator {
+  --workspace-signal-color: currentColor;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: currentColor;
+  isolation: isolate;
+  transform-origin: center;
+  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease, filter 200ms ease;
+}
+
+.workspace-indicator-shell,
+.workspace-indicator-fill,
+.workspace-indicator-core,
+.workspace-indicator-glint {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.workspace-indicator-shell {
+  inset: 0;
+  border: 1.35px solid color-mix(in srgb, currentColor 76%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, currentColor 18%, transparent),
+    0 0 0 0.5px color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.workspace-indicator-fill {
+  inset: 1.6px;
+  background: currentColor;
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, white 24%, transparent),
+    0 0 0 0.5px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.workspace-indicator-core {
+  inset: 34%;
+  background: currentColor;
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.workspace-indicator-glint {
+  inset: 24%;
+  background:
+    radial-gradient(circle at 34% 30%, color-mix(in srgb, white 40%, currentColor 60%) 0 32%, transparent 34%);
+  opacity: 0.78;
+}
+
+.workspace-indicator[data-indicator-variant="ring"] .workspace-indicator-fill,
+.workspace-indicator[data-indicator-variant="ring"] .workspace-indicator-core,
+.workspace-indicator[data-indicator-variant="ring"] .workspace-indicator-glint {
+  display: none;
+}
+
+.workspace-indicator[data-indicator-variant="half"] .workspace-indicator-fill {
+  background: linear-gradient(
+    180deg,
+    currentColor 0 48%,
+    color-mix(in srgb, currentColor 22%, transparent) 48% 100%
+  );
+}
+
+.workspace-indicator[data-indicator-variant="split"] .workspace-indicator-fill {
+  background: linear-gradient(
+    135deg,
+    currentColor 0 54%,
+    color-mix(in srgb, currentColor 18%, transparent) 54% 100%
+  );
+}
+
+.workspace-indicator[data-indicator-variant="solid"] .workspace-indicator-fill {
+  background: color-mix(in srgb, currentColor 92%, white 8%);
+}
+
+.workspace-indicator[data-indicator-variant="core"] .workspace-indicator-fill,
+.workspace-indicator[data-indicator-variant="core"] .workspace-indicator-glint {
+  display: none;
+}
+
+.workspace-indicator[data-indicator-variant="core"] .workspace-indicator-shell {
+  border-width: 1.45px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.workspace-indicator[data-indicator-variant="filled"] .workspace-indicator-shell {
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+  background: transparent;
+}
+
+.workspace-indicator[data-indicator-variant="filled"] .workspace-indicator-fill {
+  inset: 1px;
+}
+
 /* Sidebar lifecycle dot — compact but expressive enough to replace status pills */
 .lifecycle-dot {
   display: inline-block;
@@ -974,6 +1072,7 @@ button:focus-visible {
   .task-status-dot-approval,
   .task-status-dot-input,
   .task-status-dot-error,
+  .workspace-indicator,
   .workspace-list-signal,
   [class*="dot-glow-"],
   .workspace-icon-pulse,

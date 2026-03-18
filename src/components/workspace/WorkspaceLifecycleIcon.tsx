@@ -1,32 +1,28 @@
-import { CircleCheck, CircleAlert, CircleX, CirclePause, CircleDot, CircleArrowUp } from 'lucide-react';
 import { workspaceLifecycleConfig } from '../../lib/workspace-status';
 import type { WorkspaceLifecycleState, WorkspaceListSignalState } from '../../lib/workspace-status';
 
 type IconState = WorkspaceLifecycleState | WorkspaceListSignalState;
+type IndicatorVariant = 'ring' | 'half' | 'split' | 'solid' | 'core' | 'filled';
 
-/**
- * States where a Lucide icon adds real semantic value beyond what
- * color + motion can express. Everything else renders as a dot.
- */
-const iconMap: Partial<Record<IconState, React.ComponentType<{ size?: number; className?: string }>>> = {
-  ready_to_merge: CircleCheck,
-  merged: CircleCheck,
-  changes_requested: CircleAlert,
-  blocked: CircleX,
-  archive_failed: CircleX,
-  // Rare but high-impact states — circular icons for unmissable visibility
-  awaiting_approval: CirclePause,
-  ready_for_review: CircleDot,
-  merging: CircleArrowUp,
-};
-
-/** Icon animation classes — only applied to icon states. */
-const iconAnimationMap: Partial<Record<IconState, string>> = {
-  changes_requested: 'workspace-icon-nudge',
-  blocked: 'workspace-icon-pulse',
-  awaiting_approval: 'workspace-icon-pulse',
-  merging: 'workspace-icon-spin',
-};
+const indicatorVariantMap = {
+  idle: 'ring',
+  has_changes: 'split',
+  coding: 'solid',
+  planning: 'solid',
+  planned: 'half',
+  awaiting_approval: 'core',
+  awaiting_input: 'core',
+  ready_for_review: 'half',
+  reviewing: 'half',
+  changes_requested: 'core',
+  ready_to_merge: 'filled',
+  merging: 'filled',
+  merged: 'filled',
+  ready_to_archive: 'filled',
+  blocked: 'core',
+  archiving: 'filled',
+  archive_failed: 'core',
+} satisfies Record<IconState, IndicatorVariant>;
 
 /** Dot motion for list-only states not in workspaceLifecycleConfig. */
 const dotMotionFallback: Partial<Record<WorkspaceListSignalState, string>> = {
@@ -57,38 +53,26 @@ interface WorkspaceLifecycleIconProps {
 }
 
 export function WorkspaceLifecycleIcon({ state, size = 12, className = '' }: WorkspaceLifecycleIconProps) {
-  const Icon = iconMap[state];
   const showRing = ringStates.has(state);
   const ringClass = `workspace-dot-ring ${fastRingStates.has(state) ? 'workspace-dot-ring-fast' : ''}`;
-
-  if (Icon) {
-    const animation = iconAnimationMap[state] ?? '';
-    return (
-      <span className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-        <Icon size={size} className={`${animation} ${className}`.trim()} />
-        {showRing && <span className={`${ringClass} ${className}`} />}
-      </span>
-    );
-  }
-
-  // Render as a dot — size is used as the diameter in px
   const config = workspaceLifecycleConfig[state as WorkspaceLifecycleState];
   const dotMotion = config?.dotMotionClass
     ?? dotMotionFallback[state as WorkspaceListSignalState]
     ?? 'workspace-dot-idle';
-
-  const dotSize = size * 0.58;
+  const variant = indicatorVariantMap[state];
 
   return (
     <span
-      className="relative inline-flex items-center justify-center"
-      style={{ width: dotSize, height: dotSize }}
+      className={`workspace-indicator ${dotMotion} ${className}`.trim()}
+      data-state={state}
+      data-indicator-variant={variant}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
     >
-      <span
-        className={`lifecycle-dot ${className} ${dotMotion}`}
-        style={{ width: dotSize, height: dotSize, backgroundColor: 'currentColor' }}
-        aria-hidden="true"
-      />
+      <span className="workspace-indicator-shell" />
+      {variant !== 'ring' && <span className="workspace-indicator-fill" />}
+      {variant === 'core' && <span className="workspace-indicator-core" />}
+      {variant === 'filled' && <span className="workspace-indicator-glint" />}
       {showRing && <span className={`${ringClass} ${className}`} />}
     </span>
   );

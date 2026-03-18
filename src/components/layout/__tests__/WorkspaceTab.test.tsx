@@ -93,7 +93,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Planning. Agent is creating a plan.')).not.toBeNull();
     expect(scoped.queryByText('Planning')).toBeNull();
-    expect(view.container.querySelector('.lucide-lightbulb')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="planning"][data-indicator-variant="solid"]')).not.toBeNull();
   });
 
   it('renders a working icon for active coding', () => {
@@ -107,7 +107,7 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Working. Agent is working.',
     })).not.toBeNull();
-    expect(view.container.querySelector('.lucide-loader-circle')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="coding"][data-indicator-variant="solid"]')).not.toBeNull();
   });
 
   it('renders an attention icon for waiting approval', () => {
@@ -123,7 +123,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Needs approval. Paused — waiting for your approval.')).not.toBeNull();
     expect(scoped.queryByText('Needs Approval')).toBeNull();
-    expect(view.container.querySelector('.lucide-shield-alert')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="awaiting_approval"][data-indicator-variant="core"]')).not.toBeNull();
   });
 
   it('renders an attention icon for waiting input', () => {
@@ -139,7 +139,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Needs input. Agent asked a question.')).not.toBeNull();
     expect(scoped.queryByText('Needs Input')).toBeNull();
-    expect(view.container.querySelector('.lucide-message-circle')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="awaiting_input"][data-indicator-variant="core"]')).not.toBeNull();
   });
 
   it('renders a change icon when an idle workspace has unreviewed changes', () => {
@@ -156,7 +156,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Has changes. Workspace has unreviewed changes.')).not.toBeNull();
     expect(scoped.queryByText('Has changes')).toBeNull();
-    expect(view.container.querySelector('.lucide-pencil')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="has_changes"][data-indicator-variant="split"]')).not.toBeNull();
   });
 
   it('renders ready-for-review icon', () => {
@@ -173,7 +173,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Ready for review. Changes are ready to review.')).not.toBeNull();
     expect(scoped.queryByText('Ready for Review')).toBeNull();
-    expect(view.container.querySelector('.lucide-eye')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="ready_for_review"][data-indicator-variant="half"]')).not.toBeNull();
   });
 
   it('renders blocked icon', () => {
@@ -188,8 +188,8 @@ describe('WorkspaceTab', () => {
       name: 'Planning pass — Blocked. Last run failed — needs attention.',
     })).not.toBeNull();
     expect(scoped.getByTitle('Blocked. Last run failed — needs attention.')).not.toBeNull();
-    expect(scoped.queryByText('Blocked')).toBeNull();
-    expect(view.container.querySelector('.lucide-alert-triangle')).not.toBeNull();
+    expect(scoped.getByText('Blocked')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="blocked"][data-indicator-variant="core"]')).not.toBeNull();
   });
 
   it('renders archiving icon when archive operation is running', () => {
@@ -220,6 +220,6 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Archiving. Workspace archive is in progress. Removing git worktree.')).not.toBeNull();
     expect(scoped.queryByText('Archiving')).toBeNull();
-    expect(view.container.querySelector('.lucide-loader-circle')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="archiving"][data-indicator-variant="filled"]')).not.toBeNull();
   });
 });
