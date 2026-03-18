@@ -115,6 +115,7 @@ export interface SpawnOptions {
   subagentName?: string;
   /** Pre-built conversation context to inject if native session resume fails. */
   fallbackContext?: string;
+  contextless?: boolean;
 }
 
 export interface AgentHandle extends EventEmitter {

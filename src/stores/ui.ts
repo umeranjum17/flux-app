@@ -16,7 +16,7 @@ export interface RecentProject {
 
 interface UiState {
   sidebarOpen: boolean;
-  sidebarTab: 'workspaces' | 'usage';
+  sidebarTab: 'workspaces' | 'usage' | 'chats';
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
@@ -86,7 +86,7 @@ interface UiState {
   setLiveOverview(overview: LiveUsageOverview | null): void;
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
-  setSidebarTab(tab: 'workspaces' | 'usage'): void;
+  setSidebarTab(tab: 'workspaces' | 'usage' | 'chats'): void;
   toggleTheme(): void;
   setTheme(theme: 'dark' | 'light'): void;
   setSendKey(sendKey: 'cmd+enter' | 'enter'): void;

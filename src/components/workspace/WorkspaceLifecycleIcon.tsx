@@ -2,6 +2,30 @@ import { workspaceLifecycleConfig } from '../../lib/workspace-status';
 import type { WorkspaceLifecycleState, WorkspaceListSignalState } from '../../lib/workspace-status';
 import type { CSSProperties } from 'react';
 
+/** Fallback icon colors for list-only states not in workspaceLifecycleConfig. */
+const listOnlyIconColors: Partial<Record<WorkspaceListSignalState, string>> = {
+  has_changes: 'var(--color-accent)',
+  archiving: 'var(--color-info)',
+  archive_failed: 'var(--color-error)',
+};
+
+/** Resolve the inline CSS color for an icon state, bypassing Tailwind utility classes. */
+function resolveIconColor(state: IconState): string | undefined {
+  const config = workspaceLifecycleConfig[state as WorkspaceLifecycleState];
+  if (!config) return listOnlyIconColors[state as WorkspaceListSignalState];
+  const cls = config.iconColor;
+  // e.g. 'text-plan' → 'var(--color-plan)', 'text-text-tertiary/70' → 'color-mix(…)'
+  const m = cls.match(/^text-(.+?)(?:\/(\d+))?$/);
+  if (!m) return undefined;
+  const colorName = m[1]; // e.g. 'plan', 'text-tertiary', 'info'
+  const opacity = m[2]; // e.g. '70' or undefined
+  const cssVar = `var(--color-${colorName})`;
+  if (opacity) {
+    return `color-mix(in srgb, ${cssVar} ${opacity}%, transparent)`;
+  }
+  return cssVar;
+}
+
 type IconState = WorkspaceLifecycleState | WorkspaceListSignalState;
 type IndicatorVariant = 'ring' | 'quarter' | 'half' | 'three-quarter' | 'solid' | 'core' | 'filled';
 
@@ -84,6 +108,7 @@ export function WorkspaceLifecycleIcon({ state, size = 12, className = '', outli
   const label = config?.label ?? fallback?.label ?? state;
   const detail = config?.detail ?? fallback?.detail ?? '';
   const tooltip = `${label} — ${detail}`;
+  const resolvedColor = resolveIconColor(state);
   const indicatorStyle = {
     width: size,
     height: size,
@@ -91,6 +116,7 @@ export function WorkspaceLifecycleIcon({ state, size = 12, className = '', outli
     '--workspace-indicator-fill-inset': `${fillInset}px`,
     '--workspace-indicator-core-inset': size <= 9 ? '33%' : size <= 11 ? '36%' : '34%',
     '--workspace-indicator-ring-border': `${size <= 8 ? 1 : size <= 11 ? 1.1 : 1.35}px`,
+    ...(resolvedColor ? { color: resolvedColor } : {}),
   } as CSSProperties;
 
   return (

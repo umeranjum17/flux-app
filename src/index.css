@@ -1017,22 +1017,21 @@ button:focus-visible {
   animation-duration: 1.2s;
 }
 
-/* Conic-gradient loader for active/working states — smooth tail-chasing spinner */
+/* Pulsing ring for active/working states */
 .workspace-indicator-arc {
   position: absolute;
   inset: -1px;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0%, transparent 30%, currentColor 100%);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.8px), #000 calc(100% - 1.6px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 1.8px), #000 calc(100% - 1.6px));
-  animation: workspace-loader-spin 0.9s linear infinite;
-  will-change: transform;
+  border: 1.5px solid currentColor;
+  opacity: 0.6;
+  animation: workspace-loader-pulse 1.6s ease-in-out infinite;
+  will-change: opacity, transform;
   pointer-events: none;
 }
 
-@keyframes workspace-loader-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+@keyframes workspace-loader-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.15); }
 }
 
 /* Cutout border ring for avatar-overlay contexts (Slack/Discord presence pattern) */

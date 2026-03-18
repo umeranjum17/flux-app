@@ -154,6 +154,7 @@ export interface SpawnOptions {
   contextBlock?: string;
   parentTaskId?: string;
   subagentName?: string;
+  contextless?: boolean;
 }
 
 export interface SubagentState {
@@ -272,6 +273,7 @@ export interface Task {
   editedFiles: Map<string, EditedFileEntry>;
   expandedToolCallIds: Set<string>;
   scrollToToolCallId: string | null;
+  contextless?: boolean;
   planRevisions?: string[];
   planData?: PlanData;
   todoItems?: TodoItem[];

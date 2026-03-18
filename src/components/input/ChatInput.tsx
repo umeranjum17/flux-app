@@ -281,6 +281,23 @@ export function ChatInput({ focused }: ChatInputProps) {
     confirmedTerminalSend.current = false;
 
     if (!task) {
+      const sidebarTab = useUiStore.getState().sidebarTab;
+      // Incognito chats: standalone contextless task (no workspace, no project context)
+      if (sidebarTab === 'chats') {
+        const taskId = crypto.randomUUID();
+        createTask({
+          id: taskId,
+          title: text.slice(0, 80),
+          agentId: selectedAgentId,
+          model: selectedModel,
+          mode: effectiveMode,
+          thinking: effectiveThinking,
+          cwd: '.',
+          contextless: true,
+        });
+        useWorkspaceStore.getState().setActiveWorkspace(null);
+        task = useChatStore.getState().tasks.get(taskId)!;
+      } else {
       const sshConnected = useUiStore.getState().sshConnected;
       if (!sshConnected) {
         const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
@@ -330,6 +347,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         cwd: cwd || '.',
       });
       task = useChatStore.getState().tasks.get(taskId)!;
+      }
     }
 
     // Draft workspace tabs (created before first send) should bootstrap via workspace:spawn-chat
@@ -401,6 +419,7 @@ export function ChatInput({ focused }: ChatInputProps) {
           sessionId: task.sessionId,
           images: images.length > 0 ? images : undefined,
           attachments,
+          contextless: task.contextless || undefined,
         }) as { session?: Session };
         if (result?.session) {
           setTaskSessionId(task.id, result.session.id);
@@ -439,6 +458,7 @@ export function ChatInput({ focused }: ChatInputProps) {
             sessionId: task.sessionId,
             images: images.length > 0 ? images : undefined,
             attachments,
+            contextless: task.contextless || undefined,
           }) as { session?: Session };
           if (spawnResult?.session) {
             setTaskSessionId(task.id, spawnResult.session.id);

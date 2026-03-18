@@ -36,6 +36,7 @@ interface ChatState {
     sessionId?: string;
     workspaceId?: string;
     activate?: boolean;
+    contextless?: boolean;
   }): void;
   removeTask(taskId: string): void;
   removeTasksForWorkspace(workspaceId: string): void;
@@ -80,6 +81,7 @@ interface ChatState {
     sessionId?: string;
     workspaceId?: string;
     activate?: boolean;
+    contextless?: boolean;
   }): void;
   scrollToFileEdit(toolCallId: string): boolean;
   clearScrollTarget(): void;
@@ -135,6 +137,7 @@ export const useChatStore = create<ChatState>()(
             cwd: opts.cwd,
             sessionId: opts.sessionId,
             workspaceId: opts.workspaceId,
+            contextless: opts.contextless,
             subagents: new Map(),
             agentHistory: [],
             diffs: new Map(),

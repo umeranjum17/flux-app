@@ -1,13 +1,15 @@
-import { MessageSquare, Gauge, Terminal } from 'lucide-react';
+import { MessageSquare, Gauge, Terminal, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../stores/ui';
 import { UsagePanel } from './UsagePanel';
 import { WorkspaceTab } from './WorkspaceTab';
+import { ChatsPanel } from './ChatsPanel';
 
-type SidebarTab = 'workspaces' | 'usage';
+type SidebarTab = 'workspaces' | 'usage' | 'chats';
 
 const NAV_ITEMS: { id: SidebarTab; icon: typeof MessageSquare; label: string }[] = [
   { id: 'workspaces', icon: MessageSquare, label: 'Workspaces' },
+  { id: 'chats', icon: EyeOff, label: 'Incognito' },
   { id: 'usage', icon: Gauge, label: 'Usage' },
 ];
 
@@ -47,6 +49,7 @@ export function Sidebar() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {sidebarTab === 'workspaces' && <WorkspaceTab />}
+        {sidebarTab === 'chats' && <ChatsPanel />}
         {sidebarTab === 'usage' && <UsagePanel />}
       </div>
     </motion.aside>

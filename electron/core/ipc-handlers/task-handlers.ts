@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import crypto from 'crypto';
+import os from 'os';
 
 import { agentManager } from '../agents/manager';
 import { findLatestCodexSession } from '../agents/codex-utils';
@@ -338,7 +339,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
     const startedAt = Date.now();
     const existingAgentSessionId = readAgentSessionId(existingSession?.metadata, agentId);
-    const spawnCwd = sshHost ? localCwd : options.cwd;
+    let spawnCwd = sshHost ? localCwd : options.cwd;
     const previousAttachmentContext = existingSession
       ? extractLatestSessionAttachmentContext(sessionStore, session.id)
       : null;
@@ -353,6 +354,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
 
+    // Contextless tasks: skip repo map and use home directory as cwd
+    // so no project-specific CLAUDE.md or context leaks in.
+    if (options.contextless) {
+      spawnCwd = os.homedir();
+    } else {
     const repoMapConfig = configManager.get().repoMap;
     if (repoMapConfig.enabled && repoMapConfig.perAgentEnabled[agentId] !== false) {
       try {
@@ -364,6 +370,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       } catch {
         // Repo map generation failed — continue without it
       }
+    }
     }
 
     const claudeResumeId = sshHost
@@ -435,10 +442,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       cwd: spawnCwd,
       remoteCwd: sshHost ? options.cwd : undefined,
       sshHost: sshHost ?? undefined,
-      dangerouslyBypassPermissions: (agentId === 'claude-code' && options.mode !== 'plan')
+      dangerouslyBypassPermissions: !options.contextless && (
+        (agentId === 'claude-code' && options.mode !== 'plan')
         || (agentId === 'codex' && options.mode === 'act')
         || (agentId === 'copilot' && options.mode === 'act')
-        || options.workspaceAction === 'merge',
+        || options.workspaceAction === 'merge'
+      ),
       prompt: effectivePrompt,
       sessionId: agentId === 'claude-code' ? session.id : options.sessionId,
       resumeSessionId: agentId === 'codex'
