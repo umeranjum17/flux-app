@@ -909,20 +909,18 @@ export function AppShell() {
               </div>
             </div>
 
-            {bottomPanelOpen && (
-              <ErrorBoundary
-                fallback={
-                  <div className="flex shrink-0 flex-col border-t border-border bg-bg-secondary h-[120px] items-center justify-center text-xs text-text-tertiary gap-1">
-                    <span>Terminal failed to load.</span>
-                    <button onClick={() => window.location.reload()} className="underline">
-                      Reload
-                    </button>
-                  </div>
-                }
-              >
-                <BottomPanel />
-              </ErrorBoundary>
-            )}
+            <ErrorBoundary
+              fallback={
+                <div className="flex shrink-0 flex-col border-t border-border bg-bg-secondary h-[120px] items-center justify-center text-xs text-text-tertiary gap-1">
+                  <span>Terminal failed to load.</span>
+                  <button onClick={() => window.location.reload()} className="underline">
+                    Reload
+                  </button>
+                </div>
+              }
+            >
+              <BottomPanel hidden={!bottomPanelOpen} />
+            </ErrorBoundary>
 
             <StatusLine />
           </div>

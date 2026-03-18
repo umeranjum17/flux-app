@@ -23,7 +23,7 @@ function saveHeight(h: number) {
   try { localStorage.setItem(STORAGE_KEY, String(h)); } catch {}
 }
 
-export function BottomPanel() {
+export function BottomPanel({ hidden }: { hidden?: boolean }) {
   const [height, setHeight] = useState(loadHeight);
   const [maximized, setMaximized] = useState(false);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
@@ -118,7 +118,7 @@ export function BottomPanel() {
   return (
     <div
       className="flex shrink-0 flex-col border-t border-border bg-bg-secondary"
-      style={{ height: maximized ? '70vh' : height, minHeight: MIN_HEIGHT }}
+      style={{ height: maximized ? '70vh' : height, minHeight: MIN_HEIGHT, display: hidden ? 'none' : undefined }}
     >
       {/* Resize handle */}
       <div
@@ -159,7 +159,7 @@ export function BottomPanel() {
       </div>
 
       {/* Panel content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden flex flex-col">
         <TerminalPanel />
       </div>
     </div>

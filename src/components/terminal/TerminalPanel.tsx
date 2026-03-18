@@ -86,9 +86,15 @@ export function TerminalPanel() {
     };
   }, []);
 
-  // Focus terminal when switching tabs
+  // Focus and re-fit terminal when switching tabs (delayed re-fit catches layout settling)
   useEffect(() => {
-    if (activeId) requestAnimationFrame(() => focusTerminal(activeId));
+    if (!activeId) return;
+    requestAnimationFrame(() => focusTerminal(activeId));
+    const timer = setTimeout(() => {
+      const dims = fitTerminal(activeId);
+      if (dims) window.api.invoke('terminal:resize', { id: activeId, ...dims });
+    }, 150);
+    return () => clearTimeout(timer);
   }, [activeId]);
 
   // Sync activeTerminalId to ui store

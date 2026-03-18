@@ -146,7 +146,7 @@ export function mountTerminal(managed: ManagedTerminal, elementId: string): void
       managed.mounted = true;
 
       // Load WebGL renderer now that the canvas exists
-      loadWebGl(managed.term);
+      loadWebGl(managed.term, managed.fitAddon);
 
       window.api.invoke('terminal:resize', {
         id: managed.id,
@@ -163,16 +163,19 @@ export function mountTerminal(managed: ManagedTerminal, elementId: string): void
   requestAnimationFrame(() => attempt(0));
 }
 
-async function loadWebGl(term: Terminal): Promise<void> {
+async function loadWebGl(term: Terminal, fitAddon?: FitAddon): Promise<void> {
   try {
     const { WebglAddon } = await import('@xterm/addon-webgl');
     const webgl = new WebglAddon();
     webgl.onContextLoss(() => {
       webgl.dispose();
-      // Attempt to recover by loading a fresh WebGL context after a short delay
-      setTimeout(() => loadWebGl(term), 500);
+      setTimeout(() => loadWebGl(term, fitAddon), 500);
     });
     term.loadAddon(webgl);
+    // Re-fit after WebGL takes over rendering to avoid blank frame
+    if (fitAddon) {
+      requestAnimationFrame(() => { try { fitAddon.fit(); } catch {} });
+    }
   } catch {
     // WebGL not available — canvas fallback is automatic
   }
