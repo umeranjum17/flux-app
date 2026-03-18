@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare, LoaderCircle } from 'lucide-react';
+import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 import { toast } from 'sonner';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
@@ -106,7 +107,7 @@ export function WorkspaceActionBar() {
         <GitBranch size={13} className="shrink-0 text-text-tertiary" />
         <span className="truncate font-mono text-[12px] text-text-secondary">{workspace.branch}</span>
         <span className={`lifecycle-badge ${lifecycle.badgeClass}`}>
-          <span className={`lifecycle-dot h-[6px] w-[6px] ${lifecycle.color} ${lifecycle.dotMotionClass} ${lifecycle.glow ?? ''}`} />
+          <WorkspaceLifecycleIcon state={lifecycleState} size={12} />
           {lifecycle.label}
         </span>
       </div>

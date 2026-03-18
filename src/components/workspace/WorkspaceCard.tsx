@@ -4,6 +4,7 @@ import type { Workspace, WorkspaceOperation, WorkspaceOutcome } from '../../lib/
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
+import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 
 const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
 
@@ -45,8 +46,10 @@ export function WorkspaceCard({
       }`}
     >
       <div className="flex items-center gap-2.5 px-2.5 py-[7px]">
-        {/* Status dot */}
-        <span className={`lifecycle-dot h-[6px] w-[6px] shrink-0 ${lifecycle.color} ${lifecycle.dotMotionClass} ${lifecycle.glow ?? ''}`} />
+        {/* Status icon */}
+        <span className="shrink-0">
+          <WorkspaceLifecycleIcon state={lifecycleState} size={13} className={lifecycle.iconColor} />
+        </span>
 
         {/* Name */}
         <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">

@@ -83,7 +83,7 @@ beforeEach(() => {
 });
 
 describe('WorkspaceTab', () => {
-  it('keeps planning status on the lifecycle dot and badge', () => {
+  it('renders the planning icon and correct aria label', () => {
     const view = renderWorkspaceTab();
     const scoped = within(view.container);
 
@@ -93,11 +93,10 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Planning. Agent is creating a plan.')).not.toBeNull();
     expect(scoped.queryByText('Planning')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-planning.bg-plan')).not.toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-dot-active')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-lightbulb')).not.toBeNull();
   });
 
-  it('uses a distinct working color for active coding', () => {
+  it('renders a working icon for active coding', () => {
     const view = renderWorkspaceTab({
       status: 'running',
       mode: 'act',
@@ -108,10 +107,10 @@ describe('WorkspaceTab', () => {
     expect(scoped.getByRole('button', {
       name: 'Planning pass — Working. Agent is working.',
     })).not.toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-info')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-loader-circle')).not.toBeNull();
   });
 
-  it('uses an attention signal for waiting approval', () => {
+  it('renders an attention icon for waiting approval', () => {
     const view = renderWorkspaceTab({
       status: 'waiting_approval',
       mode: 'act',
@@ -124,11 +123,10 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Needs approval. Paused — waiting for your approval.')).not.toBeNull();
     expect(scoped.queryByText('Needs Approval')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-approval.bg-warning')).not.toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-dot-attention')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-shield-alert')).not.toBeNull();
   });
 
-  it('uses an attention signal for waiting input', () => {
+  it('renders an attention icon for waiting input', () => {
     const view = renderWorkspaceTab({
       status: 'waiting_input',
       mode: 'act',
@@ -141,10 +139,10 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Needs input. Agent asked a question.')).not.toBeNull();
     expect(scoped.queryByText('Needs Input')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-input.bg-info')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-message-circle')).not.toBeNull();
   });
 
-  it('uses a change signal when an idle workspace has unreviewed changes', () => {
+  it('renders a change icon when an idle workspace has unreviewed changes', () => {
     useWorkspaceHasChangesMock.mockReturnValue(true);
     const view = renderWorkspaceTab({
       status: 'done',
@@ -158,10 +156,10 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Has changes. Workspace has unreviewed changes.')).not.toBeNull();
     expect(scoped.queryByText('Has changes')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-has-changes.bg-accent')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-pencil')).not.toBeNull();
   });
 
-  it('keeps ready-for-review state on the lifecycle dot', () => {
+  it('renders ready-for-review icon', () => {
     const view = renderWorkspaceTab({
       status: 'done',
       outcome: 'ready_for_pr',
@@ -175,10 +173,10 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Ready for review. Changes are ready to review.')).not.toBeNull();
     expect(scoped.queryByText('Ready for Review')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-review-ready.bg-plan')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-eye')).not.toBeNull();
   });
 
-  it('keeps blocked state on the lifecycle dot', () => {
+  it('renders blocked icon', () => {
     const view = renderWorkspaceTab({
       status: 'error',
       mode: 'act',
@@ -191,11 +189,10 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Blocked. Last run failed — needs attention.')).not.toBeNull();
     expect(scoped.queryByText('Blocked')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-blocked.bg-error')).not.toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-dot-alert')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-alert-triangle')).not.toBeNull();
   });
 
-  it('lets archive progress override the sidebar dot signal', () => {
+  it('renders archiving icon when archive operation is running', () => {
     const view = renderWorkspaceTab(
       {
         status: 'done',
@@ -223,6 +220,6 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Archiving. Workspace archive is in progress. Removing git worktree.')).not.toBeNull();
     expect(scoped.queryByText('Archiving')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-info')).not.toBeNull();
+    expect(view.container.querySelector('.lucide-loader-circle')).not.toBeNull();
   });
 });

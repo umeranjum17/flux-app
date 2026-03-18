@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle } from 'lucide-react';
+import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
@@ -451,8 +452,8 @@ function WorkspaceListItem({
       aria-label={signal.ariaLabel}
       className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
     >
-      <div className="relative mt-0.5 shrink-0 pt-0.5">
-        <span aria-hidden="true" className={signal.dotClassName} />
+      <div className="relative mt-0.5 shrink-0 pt-0.5" aria-hidden="true">
+        <WorkspaceLifecycleIcon state={signal.state} size={14} className={signal.iconColor} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium text-text-primary">

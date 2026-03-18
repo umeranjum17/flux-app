@@ -6,6 +6,7 @@ import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
+import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { toast } from 'sonner';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow } from '../../lib/ipc-api';
 import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
@@ -114,11 +115,6 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
 
   const lifecycleState = getWorkspaceLifecycleState(workspace);
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
-  const statusDotClass = [
-    lifecycle.color,
-    lifecycle.dotMotionClass,
-    lifecycle.glow ?? '',
-  ].filter(Boolean).join(' ');
 
   return (
     <button
@@ -126,7 +122,9 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
       className="group flex flex-col gap-2 rounded-xl border border-border/60 bg-bg-elevated/60 p-3.5 text-left transition-all hover:border-border hover:bg-bg-elevated/90 hover:shadow-lg"
     >
       <div className="flex items-start gap-2.5">
-        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusDotClass}`} />
+        <span className="mt-1 shrink-0">
+          <WorkspaceLifecycleIcon state={lifecycleState} size={14} className={lifecycle.iconColor} />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-medium text-text-primary">
             <AnimatedWorkspaceName name={workspace.name} />
