@@ -101,7 +101,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         '## Workspace Naming (DO THIS FIRST)',
         '',
-        'The current workspace name is auto-generated.',
+        'The current workspace has an auto-generated name.',
         '**Before doing ANY other work**, analyze the user prompt and derive a concise',
         'descriptive workspace name (3-5 words, title case).',
         '',
@@ -109,8 +109,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         'FLUX_SIGNAL: {"type":"rename","workspace_name":"<Your Workspace Name>"}',
         '',
-        'Flux will rename the worktree directory and workspace metadata automatically.',
-        'Do NOT run `git branch -m` yourself — Flux handles branch renaming.',
+        'This updates the display title only — directories and branches stay as-is.',
         '',
         'Good examples: `"Fix Token Refresh Logic"`, `"Improve Workspace Rename UX"`.',
       );
@@ -215,7 +214,7 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
     '- `in_progress` — Work is ongoing, not yet at a reviewable state.',
     '',
     'Rules:',
-    '- workspace_name: A 3-5 word description of what was done (used as the workspace title).',
+    '- workspace_name: A 3-5 word description of what was done (displayed as the workspace title — does NOT rename directories or branches).',
     '- Emit exactly once, as the very last line of your final response.',
     '- This line must NOT be inside a code block.',
   ];

@@ -1,15 +1,12 @@
 const adjectives = [
-  'bold', 'calm', 'cool', 'dark', 'deep', 'dry', 'fair', 'fast', 'firm',
-  'free', 'glad', 'gold', 'gray', 'keen', 'kind', 'late', 'lean', 'live',
-  'long', 'loud', 'main', 'mild', 'neat', 'open', 'pale', 'pure', 'rare',
-  'raw', 'real', 'rich', 'ripe', 'safe', 'shy', 'slim', 'slow', 'soft',
-  'sour', 'tall', 'thin', 'true', 'vast', 'warm', 'wide', 'wild', 'wise',
-  'apt', 'big', 'dim', 'dry', 'fit', 'hot', 'icy', 'lit', 'odd', 'red',
-  'tan', 'wry', 'zen', 'arid', 'blue', 'cozy', 'deft', 'even', 'flat',
-  'gray', 'hazy', 'jade', 'lush', 'mint', 'neon', 'opal', 'pink', 'rosy',
-  'rust', 'sage', 'teal', 'wavy', 'ashy', 'bone', 'coal', 'dusk', 'echo',
-  'fawn', 'gilt', 'hemp', 'iron', 'java', 'knit', 'lime', 'moss', 'navy',
-  'onyx', 'plum', 'reed', 'silk', 'vine', 'wax', 'zinc',
+  'snappy', 'chunky', 'fuzzy', 'spicy', 'crispy', 'bouncy', 'lanky',
+  'dizzy', 'grumpy', 'peppy', 'rowdy', 'scrappy', 'salty', 'toasty',
+  'wobbly', 'zappy', 'breezy', 'cheeky', 'dorky', 'funky', 'goofy',
+  'janky', 'kooky', 'loopy', 'nerdy', 'perky', 'quirky', 'rusty',
+  'snazzy', 'tipsy', 'wacky', 'zippy', 'dusty', 'hasty', 'lucky',
+  'moody', 'noisy', 'plucky', 'shady', 'witty', 'jolly', 'tiny',
+  'mighty', 'sneaky', 'sleepy', 'speedy', 'stormy', 'sunny', 'wild',
+  'lazy', 'hungry', 'happy', 'mad', 'loud', 'chill', 'shy', 'bold',
 ] as const;
 
 const animals = [
