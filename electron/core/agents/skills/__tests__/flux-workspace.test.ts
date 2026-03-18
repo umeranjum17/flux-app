@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fluxWorkspaceSkill } from '../flux-workspace';
 
 describe('fluxWorkspaceSkill', () => {
-  it('guides auto-generated workspaces to provide a semantic workspace_name', () => {
+  it('puts branch naming guidance first for auto-generated workspaces', () => {
     const prompt = fluxWorkspaceSkill.buildPrompt({
       agentId: 'codex',
       mode: 'act',
@@ -17,9 +17,13 @@ describe('fluxWorkspaceSkill', () => {
       },
     });
 
-    expect(prompt).toContain('## Workspace Rename');
-    expect(prompt).toContain('not just the first few prompt words');
-    expect(prompt).toContain('Flux will rename the branch and worktree path in-place');
-    expect(prompt).not.toContain('git branch -m');
+    const branchNamingIdx = prompt.indexOf('## Branch Naming');
+    const workspaceContextIdx = prompt.indexOf('## Workspace Context');
+    expect(branchNamingIdx).toBeGreaterThan(-1);
+    expect(workspaceContextIdx).toBeGreaterThan(-1);
+    expect(branchNamingIdx).toBeLessThan(workspaceContextIdx);
+    expect(prompt).toContain('Before doing any other work, analyze the user prompt');
+    expect(prompt).toContain('`git branch -m <descriptive-name>`');
+    expect(prompt).toContain('Prefer intent-aware naming over copying the first few prompt words');
   });
 });
