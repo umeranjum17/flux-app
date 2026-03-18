@@ -15,11 +15,6 @@ export function isFileEditToolName(toolName: string): boolean {
   return name.includes('edit') || name.includes('write') || name.includes('patch');
 }
 
-function isShellToolName(toolName: string): boolean {
-  const name = toolName.toLowerCase();
-  return name.includes('bash') || name.includes('command') || name.includes('shell');
-}
-
 function hasStructuredTodoPayload(toolName: string, toolInput?: Record<string, unknown>): boolean {
   if (!toolInput) return false;
   const lowerToolName = toolName.toLowerCase();
@@ -64,7 +59,7 @@ export function getToolCallDisplayTier(
     return 'important';
   }
 
-  if (isShellToolName(toolName) || hasStructuredQuestionPayload(toolName, message.toolInput)) {
+  if (hasStructuredQuestionPayload(toolName, message.toolInput)) {
     return 'important';
   }
 

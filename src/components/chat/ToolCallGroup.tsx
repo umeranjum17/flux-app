@@ -24,7 +24,7 @@ interface ToolCallGroupProps {
 
 export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupProps) {
   const [expanded, setExpanded] = useState(false);
-  const summary = useMemo(() => summarizeGroup(items), [items]);
+  const summaryParts = useMemo(() => summarizeGroupParts(items), [items]);
   const hasRunningItems = items.some((item) => item.isRunning && !item.mergedResult);
 
   const dominantIcon = useMemo(() => {
@@ -55,7 +55,18 @@ export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupP
           )}
         </span>
         <span className="text-[11px] font-medium text-text-secondary/80">{label}</span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-text-tertiary/60">{summary}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[11px] text-text-tertiary/60">
+          {summaryParts.map((part, i) => (
+            <React.Fragment key={part.toolName}>
+              {i > 0 && <span>·</span>}
+              <span className="inline-flex items-center gap-0.5">
+                <part.Icon size={10} className={part.color} />
+                {part.count > 1 ? `${part.label} x${part.count}` : part.label}
+              </span>
+            </React.Fragment>
+          ))}
+          {summaryParts.length === 0 && ''}
+        </span>
         <span className="shrink-0 rounded-full bg-bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary">{items.length}</span>
         <span className="ml-1 shrink-0 text-text-tertiary/70">
           {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
@@ -96,20 +107,31 @@ export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupP
   );
 }
 
-function summarizeGroup(items: ToolCallGroupItem[]): string {
-  const labels = new Map<string, number>();
+interface SummaryPart {
+  toolName: string;
+  label: string;
+  count: number;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  color: string;
+}
+
+function summarizeGroupParts(items: ToolCallGroupItem[]): SummaryPart[] {
+  const toolCounts = new Map<string, number>();
   for (const item of items) {
-    const label = formatToolCallLabel(item.message.toolName ?? 'Unknown');
-    labels.set(label, (labels.get(label) ?? 0) + 1);
+    const name = item.message.toolName ?? 'Unknown';
+    toolCounts.set(name, (toolCounts.get(name) ?? 0) + 1);
   }
 
-  const parts = Array.from(labels.entries())
-    .slice(0, 3)
-    .map(([label, count]) => (count > 1 ? `${label} x${count}` : label));
-
-  if (labels.size > 3) {
-    parts.push(`+${labels.size - 3} more`);
-  }
-
-  return parts.join(' · ');
+  return Array.from(toolCounts.entries())
+    .slice(0, 4)
+    .map(([toolName, count]) => {
+      const icon = getToolIcon(toolName);
+      return {
+        toolName,
+        label: formatToolCallLabel(toolName),
+        count,
+        Icon: icon.Icon,
+        color: icon.color,
+      };
+    });
 }
