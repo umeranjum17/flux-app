@@ -620,13 +620,14 @@ button:focus-visible {
 .workspace-indicator-core,
 .workspace-indicator-glint {
   position: absolute;
+  box-sizing: border-box;
   border-radius: 999px;
   pointer-events: none;
 }
 
 .workspace-indicator-shell {
-  inset: 0;
-  border: 1.35px solid color-mix(in srgb, currentColor 72%, transparent);
+  inset: var(--workspace-indicator-shell-inset, 0);
+  border: var(--workspace-indicator-shell-border, 1.35px) solid color-mix(in srgb, currentColor 72%, transparent);
   background: color-mix(in srgb, currentColor 9%, transparent);
   box-shadow:
     inset 0 0 0 0.5px color-mix(in srgb, currentColor 20%, transparent),
@@ -634,9 +635,9 @@ button:focus-visible {
 }
 
 .workspace-indicator-fill {
-  inset: 1.6px;
+  inset: var(--workspace-indicator-fill-inset, 1.6px);
   background:
-    radial-gradient(circle at 34% 30%, color-mix(in srgb, white 30%, currentColor 70%) 0 30%, transparent 32%),
+    radial-gradient(circle at 34% 30%, color-mix(in srgb, white 30%, currentColor 70%) 0 28%, transparent 31%),
     color-mix(in srgb, currentColor 90%, black 10%);
   box-shadow:
     inset 0 0 0 0.5px color-mix(in srgb, white 22%, transparent),
@@ -644,7 +645,7 @@ button:focus-visible {
 }
 
 .workspace-indicator-core {
-  inset: 34%;
+  inset: var(--workspace-indicator-core-inset, 34%);
   background: currentColor;
   box-shadow: 0 0 0 0.5px color-mix(in srgb, currentColor 14%, transparent);
 }
@@ -688,7 +689,7 @@ button:focus-visible {
 }
 
 .workspace-indicator[data-indicator-variant="core"] .workspace-indicator-shell {
-  border-width: 1.45px;
+  border-width: calc(var(--workspace-indicator-shell-border, 1.35px) + 0.1px);
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
@@ -698,7 +699,7 @@ button:focus-visible {
 }
 
 .workspace-indicator[data-indicator-variant="filled"] .workspace-indicator-fill {
-  inset: 1px;
+  inset: max(1px, calc(var(--workspace-indicator-fill-inset, 1.6px) - 0.6px));
 }
 
 /* Sidebar lifecycle dot — compact but expressive enough to replace status pills */
@@ -1057,8 +1058,9 @@ button:focus-visible {
 .workspace-dot-ring {
   position: absolute;
   inset: 0;
+  box-sizing: border-box;
   border-radius: 50%;
-  border: 1.35px solid color-mix(in srgb, currentColor 70%, transparent);
+  border: var(--workspace-indicator-ring-border, 1.35px) solid color-mix(in srgb, currentColor 70%, transparent);
   animation: dot-ring-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
   opacity: 0.9;
   pointer-events: none;

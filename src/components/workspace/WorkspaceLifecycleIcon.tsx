@@ -1,5 +1,6 @@
 import { workspaceLifecycleConfig } from '../../lib/workspace-status';
 import type { WorkspaceLifecycleState, WorkspaceListSignalState } from '../../lib/workspace-status';
+import type { CSSProperties } from 'react';
 
 type IconState = WorkspaceLifecycleState | WorkspaceListSignalState;
 type IndicatorVariant = 'ring' | 'half' | 'split' | 'solid' | 'core' | 'filled';
@@ -60,20 +61,29 @@ export function WorkspaceLifecycleIcon({ state, size = 12, className = '' }: Wor
     ?? dotMotionFallback[state as WorkspaceListSignalState]
     ?? 'workspace-dot-idle';
   const variant = indicatorVariantMap[state];
+  const indicatorStyle = {
+    width: size,
+    height: size,
+    '--workspace-indicator-shell-border': `${size <= 11 ? 1.05 : 1.3}px`,
+    '--workspace-indicator-shell-inset': size <= 11 ? '0.2px' : '0px',
+    '--workspace-indicator-fill-inset': `${size <= 11 ? 1.15 : 1.55}px`,
+    '--workspace-indicator-core-inset': size <= 11 ? '36%' : '34%',
+    '--workspace-indicator-ring-border': `${size <= 11 ? 1.1 : 1.35}px`,
+  } as CSSProperties;
 
   return (
     <span
       className={`workspace-indicator ${dotMotion} ${className}`.trim()}
       data-state={state}
       data-indicator-variant={variant}
-      style={{ width: size, height: size }}
+      style={indicatorStyle}
       aria-hidden="true"
     >
       <span className="workspace-indicator-shell" />
       {variant !== 'ring' && <span className="workspace-indicator-fill" />}
       {variant === 'core' && <span className="workspace-indicator-core" />}
       {variant === 'filled' && <span className="workspace-indicator-glint" />}
-      {showRing && <span className={`${ringClass} ${className}`} />}
+      {showRing && <span className={ringClass} />}
     </span>
   );
 }
