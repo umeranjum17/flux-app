@@ -454,8 +454,8 @@ function WorkspaceListItem({
       className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''} ${actionNeeded ? 'workspace-row-action-needed' : ''}`}
       style={actionNeeded ? { '--workspace-signal-color': `var(--color-${signal.state === 'awaiting_approval' ? 'warning' : signal.state === 'awaiting_input' ? 'info' : 'error'})` } as React.CSSProperties : undefined}
     >
-      <div className="relative mt-0.5 shrink-0 pt-0.5" aria-hidden="true">
-        <WorkspaceLifecycleIcon state={signal.state} size={14} className={signal.iconColor} />
+      <div className="relative shrink-0" aria-hidden="true">
+        <WorkspaceLifecycleIcon state={signal.state} size={8} className={signal.iconColor} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium text-text-primary">
