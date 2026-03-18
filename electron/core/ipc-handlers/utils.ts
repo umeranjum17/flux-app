@@ -1320,6 +1320,18 @@ export function extractFullPlanText(sessionStore: SessionStore, sessionId: strin
   return '';
 }
 
+/**
+ * Read plan text from `.context/plan.md` on disk — used as fallback when
+ * the DB-based extraction returns nothing (e.g. after context compression).
+ */
+export function readPlanFileSync(cwd: string): string {
+  try {
+    return fs.readFileSync(path.join(cwd, '.context', 'plan.md'), 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
 export async function writePlanFile(cwd: string, planText: string): Promise<string | null> {
   if (!planText) return null;
   try {

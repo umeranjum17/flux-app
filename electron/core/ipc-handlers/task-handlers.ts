@@ -31,6 +31,7 @@ import {
   buildConversationContext,
   extractLatestSessionAttachmentContext,
   extractFullPlanText,
+  readPlanFileSync,
   writePlanFile,
   writeAttachmentContextFile,
   extractPlanTodoItems,
@@ -475,15 +476,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (isAgentSwitch) {
       const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
       if (existingSession.mode === 'plan' && options.mode === 'act') {
-        const planText = extractFullPlanText(sessionStore, session.id);
+        const planText = extractFullPlanText(sessionStore, session.id) || readPlanFileSync(options.cwd);
         const planPath = await writePlanFile(options.cwd, planText);
         const planSteps = extractPlanTodoItems(sessionStore, session.id);
         const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
+        const contextRecovery = `If plan details are missing or incomplete, read \`.context/plan.md\` for the full plan and \`.context/attachments.json\` for any user-provided images or files.`;
         spawnOptions.prompt = [
           `You are implementing a plan created by ${fromAgent}. The approved plan is below.`,
           planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
+          contextRecovery,
           '',
-          planText ? `## Approved Plan\n\n${planText}` : '',
+          planText ? `## Approved Plan\n\n${planText}` : '## Approved Plan\n\n_Plan text unavailable — read `.context/plan.md` for the full plan._',
           stepTracking,
           '',
           `## User instruction`,
@@ -512,15 +515,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (existingSession && !isAgentSwitch && !hasWorkingResume) {
       const isPlanToAct = existingSession.mode === 'plan' && options.mode === 'act';
       if (isPlanToAct) {
-        const planText = extractFullPlanText(sessionStore, session.id);
+        const planText = extractFullPlanText(sessionStore, session.id) || readPlanFileSync(options.cwd);
         const planPath = await writePlanFile(options.cwd, planText);
         const planSteps = extractPlanTodoItems(sessionStore, session.id);
         const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
+        const contextRecovery = `If plan details are missing or incomplete, read \`.context/plan.md\` for the full plan and \`.context/attachments.json\` for any user-provided images or files.`;
         spawnOptions.prompt = [
           'You are implementing an approved plan. The full plan is below.',
           planPath ? `The plan is also saved at \`${planPath}\`.` : '',
+          contextRecovery,
           '',
-          planText ? `## Approved Plan\n\n${planText}` : '',
+          planText ? `## Approved Plan\n\n${planText}` : '## Approved Plan\n\n_Plan text unavailable — read `.context/plan.md` for the full plan._',
           stepTracking,
           '',
           `## Current request`,
@@ -546,13 +551,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     }
 
     if (existingSession && !isAgentSwitch && existingSession.mode === 'plan' && options.mode === 'act' && hasWorkingResume) {
-      const planText = extractFullPlanText(sessionStore, session.id);
+      const planText = extractFullPlanText(sessionStore, session.id) || readPlanFileSync(options.cwd);
       const planPath = await writePlanFile(options.cwd, planText);
       const planSteps = extractPlanTodoItems(sessionStore, session.id);
       const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
+      const contextRecovery = `If plan details are missing or incomplete, read \`.context/plan.md\` for the full plan and \`.context/attachments.json\` for any user-provided images or files.`;
       spawnOptions.prompt = [
         'The user reviewed and approved the plan above. Implement each step now.',
         planPath ? `The full plan is also saved at \`${planPath}\`.` : '',
+        contextRecovery,
         stepTracking,
         '',
         spawnOptions.prompt,

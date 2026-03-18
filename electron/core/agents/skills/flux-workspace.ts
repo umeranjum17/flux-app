@@ -43,6 +43,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         'Follow the plan steps. Commit changes with clear messages when done.',
         'Review `.context/plan.md` for the approved plan.',
+        'If context was lost (e.g. after conversation compression), re-read `.context/plan.md` and `.context/attachments.json` to recover plan details and user-provided images or files.',
         'Do NOT push to remote or create pull requests.',
         '',
         ...buildOutcomeSection(ctx),
