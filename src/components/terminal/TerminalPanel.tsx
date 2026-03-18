@@ -146,15 +146,22 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle>(
           pendingDataRef.current.delete(id);
         }
 
-        requestAnimationFrame(() => {
+        // Retry mounting until the DOM element is available (React may not have committed yet)
+        const mountTerminal = (attempt: number) => {
           const el = document.getElementById(`terminal-${id}`);
           if (el) {
             term.open(el);
             fitAddon.fit();
             term.focus();
             window.api.invoke('terminal:resize', { id, cols: term.cols, rows: term.rows });
+          } else if (attempt < 10) {
+            setTimeout(() => mountTerminal(attempt + 1), 50);
+          } else {
+            console.error(`[TerminalPanel] Failed to find DOM element for terminal-${id} after retries`);
+            term.write('\r\n\x1b[31m[Terminal failed to mount — DOM element not found]\x1b[0m\r\n');
           }
-        });
+        };
+        requestAnimationFrame(() => mountTerminal(0));
 
         term.onData((data: string) => {
           window.api.invoke('terminal:write', { id, data });

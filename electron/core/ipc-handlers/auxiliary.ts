@@ -560,15 +560,17 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       spawnCwd = getSshHost() ? getLocalCwd() : (termCwd ?? getCurrentCwd());
     }
 
-    if (getSshHost() && !workspaceId) {
+    if (getSshHost()) {
       // SSH: fall back to child_process with pseudo-tty allocation
       const proc = spawn(resolveSshCommand(), ['-tt', getSshHost()!], {
-        cwd: spawnCwd,
+        cwd: getLocalCwd(),
         env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      if (termCwd) {
-        safeWriteToChildStdin(proc, `cd ${toRemoteShellPath(termCwd)}\n`, `terminal:${id}`);
+      // cd to workspace worktree path or explicit cwd on the remote host
+      const remoteCwd = workspaceId ? spawnCwd : termCwd;
+      if (remoteCwd) {
+        safeWriteToChildStdin(proc, `cd ${toRemoteShellPath(remoteCwd)}\n`, `terminal:${id}`);
       }
       attachChildStdinErrorHandler(proc, `terminal:${id}`);
       activeTerminals.set(id, proc);
