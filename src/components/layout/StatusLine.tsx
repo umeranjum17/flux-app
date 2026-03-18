@@ -13,6 +13,7 @@ import {
   mergeRateLimits,
   normalizeTaskRateLimit,
   providerLabel,
+  rateLimitTextColor,
   resolveRateLimitProvider,
 } from '../../lib/rate-limits';
 
@@ -108,6 +109,13 @@ export function StatusLine() {
     () => computeHighestSeverity(scopedRateLimits),
     [scopedRateLimits],
   );
+
+  // Tick every 30s to keep reset countdowns fresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleAgentClick = useCallback(() => {
     useUiStore.getState().setOverlay('agent-selector');
@@ -221,7 +229,18 @@ export function StatusLine() {
           />
           <span className="text-[12px] tabular-nums">
             {scopedRateLimits.length > 0
-              ? `${Math.max(0, 100 - Math.round(Math.max(...scopedRateLimits.map((r) => r.utilization)) * 100))}% left`
+              ? scopedRateLimits.map((entry, i) => {
+                  const pct = Math.round(entry.utilization * 100);
+                  const reset = entry.resetsAt > 0 ? ` ↻${formatTimeUntil(entry.resetsAt)}` : '';
+                  return (
+                    <span key={`${entry.providerId}:${entry.rateLimitType}`}>
+                      {i > 0 && <span className="text-text-tertiary/40"> · </span>}
+                      <span className={rateLimitTextColor(entry)}>
+                        {entry.rateLimitType.replace(/[_-]+/g, ' ')} {pct}%{reset}
+                      </span>
+                    </span>
+                  );
+                })
               : '—'}
           </span>
         </button>
