@@ -41,9 +41,11 @@ const taskRetryCounts = new Map<string, number>();
 const activeSubagents = new Map<string, SubagentEntry>();
 const cachedRateLimits = new Map<string, RateLimitInfo>();
 
-const USAGE_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const USAGE_POLL_INITIAL_DELAY_MS = 5 * 1000;  // 5s after startup
+const USAGE_POLL_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const USAGE_POLL_MAX_INTERVAL_MS = 60 * 60 * 1000; // 1 hour max backoff
+const USAGE_POLL_INITIAL_DELAY_MS = 15 * 1000;  // 15s after startup
 let usagePollTimer: NodeJS.Timeout | null = null;
+let usagePollCurrentInterval = USAGE_POLL_INTERVAL_MS;
 
 const TRACKED_RENDERER_EVENT_CHANNELS = new Set([
   'workspace:created',
@@ -400,7 +402,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Start background usage poller — independent of any agent or chat activity.
-  // Fires once after a short delay, then every 2 minutes.
+  // Fires once after a short delay, then every 15 minutes (backs off on errors).
+  usagePollCurrentInterval = USAGE_POLL_INTERVAL_MS;
   function schedulePoll(delayMs: number): void {
     usagePollTimer = setTimeout(async () => {
       try {
@@ -420,10 +423,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           })),
         });
         sendToRenderer('usage:live-update', result);
+        // Reset to normal interval on success
+        usagePollCurrentInterval = USAGE_POLL_INTERVAL_MS;
       } catch (err) {
         console.warn('[usage-poller] fetch failed:', err instanceof Error ? err.message : String(err));
+        // Back off: double the interval on failure, capped at max
+        usagePollCurrentInterval = Math.min(usagePollCurrentInterval * 2, USAGE_POLL_MAX_INTERVAL_MS);
+        logDiagnostic('usage', 'usage-poller: backing off', { nextIntervalMs: usagePollCurrentInterval });
       }
-      schedulePoll(USAGE_POLL_INTERVAL_MS);
+      schedulePoll(usagePollCurrentInterval);
     }, delayMs);
   }
   schedulePoll(USAGE_POLL_INITIAL_DELAY_MS);

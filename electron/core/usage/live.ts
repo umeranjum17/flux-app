@@ -126,12 +126,12 @@ const PROVIDER_LABELS: Record<UsageProviderId, string> = {
   codex: 'Codex',
 };
 const HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-const SNAPSHOT_DEDUP_WINDOW_MS = 60 * 1000;
-const SNAPSHOT_ANCHOR_INTERVAL_MS = 5 * 60 * 1000;
+const SNAPSHOT_DEDUP_WINDOW_MS = 3 * 60 * 1000;
+const SNAPSHOT_ANCHOR_INTERVAL_MS = 15 * 60 * 1000;
 const CLAUDE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const CODEX_REFRESH_INTERVAL_MS = 8 * 24 * 60 * 60 * 1000;
 const FETCH_RETRY_ATTEMPTS = 2;
-const FETCH_RETRY_BASE_DELAY_MS = 1500;
+const FETCH_RETRY_BASE_DELAY_MS = 3000;
 const LIVE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export class LiveUsageService {
@@ -1168,8 +1168,9 @@ function isTransientHttpError(status: number): boolean {
 async function retryFetch(fn: () => Promise<Response>, initialStatus: number): Promise<Response> {
   let lastResponse: Response | null = null;
   for (let attempt = 0; attempt < FETCH_RETRY_ATTEMPTS; attempt++) {
-    const delay = FETCH_RETRY_BASE_DELAY_MS * (2 ** attempt);
-    logDiagnostic('usage', 'retryFetch: waiting before retry', { attempt: attempt + 1, delayMs: delay, lastStatus: initialStatus });
+    const jitter = Math.random() * FETCH_RETRY_BASE_DELAY_MS * 0.5;
+    const delay = FETCH_RETRY_BASE_DELAY_MS * (2 ** attempt) + jitter;
+    logDiagnostic('usage', 'retryFetch: waiting before retry', { attempt: attempt + 1, delayMs: Math.round(delay), lastStatus: initialStatus });
     await new Promise((resolve) => setTimeout(resolve, delay));
     try {
       lastResponse = await fn();
