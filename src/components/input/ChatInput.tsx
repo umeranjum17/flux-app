@@ -108,10 +108,13 @@ export function ChatInput({ focused }: ChatInputProps) {
 
   const isMac = window.api?.platform === 'darwin';
 
-  // Focus textarea when panel switches to agent mode
+  // Focus textarea when panel switches to agent mode (skip if terminal has focus)
   useEffect(() => {
     if (focused) {
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      requestAnimationFrame(() => {
+        if (document.activeElement?.closest('.xterm')) return;
+        textareaRef.current?.focus();
+      });
     }
   }, [focused]);
 
@@ -123,7 +126,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         return [...prev, pendingMention];
       });
       useUiStore.getState().setPendingMention(null);
-      textareaRef.current?.focus();
+      if (!document.activeElement?.closest('.xterm')) textareaRef.current?.focus();
     }
   }, [pendingMention]);
 
@@ -1017,7 +1020,6 @@ export function ChatInput({ focused }: ChatInputProps) {
             onPaste={handlePaste}
             placeholder={placeholder}
             rows={2}
-            autoFocus
             className={`chat-input-textarea w-full resize-none bg-transparent text-[14px] leading-5 text-text-primary placeholder:text-text-tertiary outline-none ${isTerminal ? 'font-mono' : ''}`}
             style={{ minHeight: 60, maxHeight: 160 }}
           />

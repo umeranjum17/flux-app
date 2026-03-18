@@ -170,6 +170,7 @@ function TerminalContainer({
         id={`terminal-${tab.id}`}
         className="absolute inset-0 p-0.5"
         style={{ display: isActive ? 'block' : 'none' }}
+        onMouseDown={() => focusTerminal(tab.id)}
       />
     );
   }
@@ -186,7 +187,10 @@ function TerminalContainer({
           <div
             id={`terminal-${split.terminalId}`}
             className="flex-1 p-0.5"
-            onClick={() => useTerminalStore.getState().setActiveTab(split.terminalId)}
+            onMouseDown={() => {
+              useTerminalStore.getState().setActiveTab(split.terminalId);
+              focusTerminal(split.terminalId);
+            }}
           />
           {i < tab.splits!.length - 1 && (
             <SplitDivider

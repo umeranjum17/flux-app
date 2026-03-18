@@ -169,6 +169,8 @@ async function loadWebGl(term: Terminal): Promise<void> {
     const webgl = new WebglAddon();
     webgl.onContextLoss(() => {
       webgl.dispose();
+      // Attempt to recover by loading a fresh WebGL context after a short delay
+      setTimeout(() => loadWebGl(term), 500);
     });
     term.loadAddon(webgl);
   } catch {

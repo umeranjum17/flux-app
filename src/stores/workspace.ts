@@ -49,7 +49,7 @@ interface WorkspaceState {
   changesPanelSelectedFile: string | null;
   changesPanelSelectedScope: WorkspaceDiffScope | null;
   changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
-  openChangesPanel(workspaceId: string): Promise<void>;
+  openChangesPanel(workspaceId: string, initialFile?: string, initialScope?: WorkspaceDiffScope): Promise<void>;
   closeChangesPanel(): void;
   toggleChangesPanel(workspaceId: string): void;
   changesPanelSelectFile(path: string, scope?: WorkspaceDiffScope): Promise<void>;
@@ -255,25 +255,42 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       });
     },
 
-    async openChangesPanel(workspaceId) {
+    async openChangesPanel(workspaceId, initialFile, initialScope) {
       const requestVersion = ++changesPanelRequestVersion;
+      const diffVersion = initialFile ? ++changesPanelFileDiffVersion : changesPanelFileDiffVersion;
       set((state) => {
         state.changesPanelOpen = true;
         state.changesPanelWorkspaceId = workspaceId;
         state.changesPanelFiles = [];
-        state.changesPanelSelectedFile = null;
-        state.changesPanelSelectedScope = null;
+        state.changesPanelSelectedFile = initialFile ?? null;
+        state.changesPanelSelectedScope = initialFile ? (initialScope ?? 'all') : null;
         state.changesPanelFileDiff = null;
       });
 
-      try {
-        const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
+      // Fetch file list and initial file diff concurrently
+      const fileListPromise = window.api.invoke('workspace:diff-files', { workspaceId }).then((files) => {
         set((state) => {
           if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
-          state.changesPanelFiles = files;
+          state.changesPanelFiles = files as DiffFile[];
         });
-      } catch {
-        // Failed to load diff files
+      }).catch(() => {});
+
+      if (initialFile) {
+        const scope = initialScope ?? 'all';
+        const diffPromise = window.api.invoke('workspace:file-diff', { workspaceId, filePath: initialFile, scope }).then((diff) => {
+          set((state) => {
+            if (
+              diffVersion !== changesPanelFileDiffVersion ||
+              state.changesPanelWorkspaceId !== workspaceId ||
+              state.changesPanelSelectedFile !== initialFile ||
+              state.changesPanelSelectedScope !== scope
+            ) return;
+            state.changesPanelFileDiff = diff as { oldContent: string; newContent: string; unified: string };
+          });
+        }).catch(() => {});
+        await Promise.all([fileListPromise, diffPromise]);
+      } else {
+        await fileListPromise;
       }
     },
 

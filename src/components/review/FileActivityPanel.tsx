@@ -304,8 +304,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
                         if (didScroll || !workspaceId) return;
                       }
                       if (!workspaceId) return;
-                      await openChangesPanel(workspaceId);
-                      await changesPanelSelectFile(entry.filePath, entry.scope);
+                      await openChangesPanel(workspaceId, entry.filePath, entry.scope);
                     }}
                     onDiscard={
                       changesPanelOpen && workspaceId && entry.scope === 'uncommitted'

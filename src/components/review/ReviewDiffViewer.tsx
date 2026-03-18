@@ -1,6 +1,31 @@
 import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback, createElement } from 'react';
 import { Columns2, AlignJustify, Undo2 } from 'lucide-react';
+import { getHighlighter } from '../../lib/shiki';
+import type { Highlighter } from 'shiki';
+
+function getLangFromFileName(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+    py: 'python', rs: 'rust', go: 'go', sh: 'bash', bash: 'bash',
+    json: 'json', yaml: 'yaml', yml: 'yaml', html: 'html', css: 'css',
+    sql: 'sql', md: 'markdown', toml: 'toml', c: 'c', cpp: 'cpp',
+    h: 'c', hpp: 'cpp', java: 'java', rb: 'ruby', php: 'php',
+    txt: 'text',
+  };
+  return map[ext] ?? 'text';
+}
+
+function useShikiHighlighter(): Highlighter | null {
+  const [hl, setHl] = useState<Highlighter | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getHighlighter().then((h) => { if (!cancelled) setHl(h); });
+    return () => { cancelled = true; };
+  }, []);
+  return hl;
+}
 
 interface ReviewDiffViewerProps {
   oldContent: string;
@@ -11,6 +36,46 @@ interface ReviewDiffViewerProps {
 
 export function ReviewDiffViewer({ oldContent, newContent, fileName, onDiscard }: ReviewDiffViewerProps) {
   const [splitView, setSplitView] = useState(false);
+  const highlighter = useShikiHighlighter();
+  const lang = useMemo(() => getLangFromFileName(fileName), [fileName]);
+
+  const highlightedLines = useMemo(() => {
+    if (!highlighter) return null;
+    const loadedLangs = highlighter.getLoadedLanguages();
+    if (!loadedLangs.includes(lang as never)) return null;
+
+    const cache = new Map<string, string>();
+    const highlight = (source: string): string => {
+      const cached = cache.get(source);
+      if (cached !== undefined) return cached;
+      const tokens = highlighter.codeToTokens(source, { lang, theme: 'github-dark' });
+      const html = tokens.tokens
+        .flat()
+        .map((t) => {
+          const escaped = t.content
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          return t.color ? `<span style="color:${t.color}">${escaped}</span>` : escaped;
+        })
+        .join('');
+      cache.set(source, html);
+      return html;
+    };
+
+    return highlight;
+  }, [highlighter, lang]);
+
+  const renderContent = useCallback(
+    (source: string) => {
+      if (!highlightedLines) {
+        return createElement('span', null, source);
+      }
+      const html = highlightedLines(source);
+      return createElement('span', { dangerouslySetInnerHTML: { __html: html } });
+    },
+    [highlightedLines],
+  );
 
   const diffStyles = useMemo(
     () => ({
@@ -85,6 +150,7 @@ export function ReviewDiffViewer({ oldContent, newContent, fileName, onDiscard }
           useDarkTheme
           compareMethod={DiffMethod.WORDS}
           styles={diffStyles}
+          renderContent={renderContent}
         />
       </div>
     </div>
