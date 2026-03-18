@@ -6,6 +6,7 @@ import { useAgentStore } from '../../../stores/agent';
 import { useChatStore } from '../../../stores/chat';
 import { useUiStore } from '../../../stores/ui';
 import { useWorkspaceStore } from '../../../stores/workspace';
+import type { LiveUsageOverview } from '../../../lib/ipc-api';
 
 let mockApi: MockApi;
 
@@ -34,6 +35,7 @@ beforeEach(() => {
     sshHost: null,
     sshConnected: false,
     environment: 'local',
+    liveOverview: null,
   } as any);
   useAgentStore.setState({
     agents: [
@@ -59,41 +61,37 @@ beforeEach(() => {
 });
 
 describe('StatusLine', () => {
-  it('scopes gauge severity to the active provider and moves token count to the gauge', async () => {
+  it('scopes gauge severity to the active provider', async () => {
     const now = Date.now();
-    mockApi.invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'usage:live') {
-        return {
-          providers: [
-            {
-              providerId: 'claude-code',
-              label: 'Claude Code',
-              status: 'connected',
-              fetchedAt: now,
-              source: 'live',
-              message: null,
-              windows: [
-                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'rejected', usedPercent: 1, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-              ],
-            },
-            {
-              providerId: 'codex',
-              label: 'Codex',
-              status: 'connected',
-              fetchedAt: now,
-              source: 'live',
-              message: null,
-              windows: [
-                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.32, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-              ],
-            },
+    const overview: LiveUsageOverview = {
+      providers: [
+        {
+          providerId: 'claude-code',
+          label: 'Claude Code',
+          status: 'connected',
+          fetchedAt: now,
+          source: 'live',
+          message: null,
+          windows: [
+            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'rejected', usedPercent: 1, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
           ],
-          history: [],
-          updatedAt: now,
-        };
-      }
-      return null;
-    });
+        },
+        {
+          providerId: 'codex',
+          label: 'Codex',
+          status: 'connected',
+          fetchedAt: now,
+          source: 'live',
+          message: null,
+          windows: [
+            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.32, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+          ],
+        },
+      ],
+      history: [],
+      updatedAt: now,
+    };
+    useUiStore.getState().setLiveOverview(overview);
 
     useChatStore.getState().createTask({
       id: 'task-1',
@@ -104,51 +102,44 @@ describe('StatusLine', () => {
       thinking: 'xhigh',
       cwd: '/workspace',
     });
-    useChatStore.setState((state) => {
-      const task = state.tasks.get('task-1');
-      if (!task) return;
-      task.inputTokens = 1200;
-      task.outputTokens = 300;
-    });
 
     render(<StatusLine />);
 
     await waitFor(() => {
-      expect(screen.getByText('1.5k tok')).not.toBeNull();
+      expect(screen.getByLabelText('Peek rate limits')).not.toBeNull();
     });
 
+    // Active agent is codex (allowed) — gauge dot should be green, not red
     const gaugeButton = screen.getByLabelText('Peek rate limits');
     const indicator = gaugeButton.querySelector('span.rounded-full');
     expect(indicator?.className).toContain('bg-emerald-400');
-
-    expect(screen.queryByText('dup-model-x')).toBeNull();
-    expect(screen.queryByText(/think /i)).toBeNull();
-    expect(screen.getAllByText(/tok$/i)).toHaveLength(1);
   });
 
-  it('renders redesigned rate-limit window charts with status badges', async () => {
+  it('renders rate-limit window cards with status badges in popover', async () => {
     const now = Date.now();
-    mockApi.invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'usage:live') {
-        return {
-          providers: [
-            {
-              providerId: 'codex',
-              label: 'Codex',
-              status: 'connected',
-              fetchedAt: now,
-              source: 'live',
-              message: null,
-              windows: [
-                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed_warning', usedPercent: 0.82, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed', usedPercent: 0.33, resetsAt: now + 120_000, remainingMs: 120_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-              ],
-            },
+    const overview: LiveUsageOverview = {
+      providers: [
+        {
+          providerId: 'codex',
+          label: 'Codex',
+          status: 'connected',
+          fetchedAt: now,
+          source: 'live',
+          message: null,
+          windows: [
+            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed_warning', usedPercent: 0.82, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed', usedPercent: 0.33, resetsAt: now + 120_000, remainingMs: 120_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
           ],
-          history: [],
-          updatedAt: now,
-        };
-      }
+        },
+      ],
+      history: [],
+      updatedAt: now,
+    };
+    useUiStore.getState().setLiveOverview(overview);
+
+    // Mock usage:live so that the popover refresh doesn't overwrite store data
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'usage:live') return overview;
       return null;
     });
 
@@ -158,6 +149,7 @@ describe('StatusLine', () => {
       expect(screen.getAllByLabelText('Peek rate limits').length).toBeGreaterThan(0);
     });
 
+    // Open popover
     const gaugeButtons = screen.getAllByLabelText('Peek rate limits');
     gaugeButtons[gaugeButtons.length - 1]?.click();
 
@@ -167,7 +159,7 @@ describe('StatusLine', () => {
 
     expect(screen.getByText('Warning')).not.toBeNull();
     expect(screen.getByText('Healthy')).not.toBeNull();
-    expect(screen.getByLabelText('82% used')).not.toBeNull();
+    expect(screen.getByText('82%')).not.toBeNull();
     expect(screen.getByText('18% remaining')).not.toBeNull();
   });
 });

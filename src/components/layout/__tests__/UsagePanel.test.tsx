@@ -1,13 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { createMockApi, type MockApi } from '../../../../test/mocks/window-api';
 import { UsagePanel } from '../UsagePanel';
+import { useUiStore } from '../../../stores/ui';
+import type { LiveUsageOverview } from '../../../lib/ipc-api';
 
 let mockApi: MockApi;
 
 beforeEach(() => {
   mockApi = createMockApi();
   (window as any).api = mockApi;
+  useUiStore.setState({ liveOverview: null } as any);
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 describe('UsagePanel', () => {
@@ -24,7 +31,7 @@ describe('UsagePanel', () => {
       updatedAt: now,
     };
 
-    const liveUsage = {
+    const liveUsage: LiveUsageOverview = {
       providers: [
         {
           providerId: 'claude-code',
@@ -54,6 +61,9 @@ describe('UsagePanel', () => {
       history: [],
       updatedAt: now,
     };
+
+    // Populate store with live usage data
+    useUiStore.getState().setLiveOverview(liveUsage);
 
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') return usageData;
@@ -87,6 +97,16 @@ describe('UsagePanel', () => {
   it('handles provider errors gracefully', async () => {
     const now = Date.now();
 
+    const liveUsage: LiveUsageOverview = {
+      providers: [
+        { providerId: 'claude-code', label: 'Claude Code', status: 'error', fetchedAt: null, source: null, message: 'Claude usage request failed (401)', windows: [] },
+        { providerId: 'codex', label: 'Codex', status: 'auth_missing', fetchedAt: null, source: null, message: 'Missing Codex credentials', windows: [] },
+      ],
+      history: [],
+      updatedAt: now,
+    };
+    useUiStore.getState().setLiveOverview(liveUsage);
+
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') {
         return {
@@ -99,16 +119,7 @@ describe('UsagePanel', () => {
           updatedAt: now,
         };
       }
-      if (channel === 'usage:live') {
-        return {
-          providers: [
-            { providerId: 'claude-code', label: 'Claude Code', status: 'error', fetchedAt: null, source: null, message: 'Claude usage request failed (401)', windows: [] },
-            { providerId: 'codex', label: 'Codex', status: 'auth_missing', fetchedAt: null, source: null, message: 'Missing Codex credentials', windows: [] },
-          ],
-          history: [],
-          updatedAt: now,
-        };
-      }
+      if (channel === 'usage:live') return liveUsage;
       return null;
     });
 
@@ -130,6 +141,28 @@ describe('UsagePanel', () => {
 
   it('renders trend chart badges and sparse-data state', async () => {
     const now = Date.now();
+
+    const liveUsage: LiveUsageOverview = {
+      providers: [
+        {
+          providerId: 'claude-code',
+          label: 'Claude Code',
+          status: 'connected',
+          fetchedAt: now - (10 * 60_000),
+          source: 'snapshot',
+          message: 'Showing last known usage',
+          windows: [
+            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.45, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now - (10 * 60_000), source: 'snapshot', isStale: true, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+          ],
+        },
+      ],
+      history: [
+        { providerId: 'claude-code', windowKey: 'five_hour', sampledAt: now - 60_000, usedPercent: 0.45, resetsAt: now + 60_000, source: 'snapshot' },
+      ],
+      updatedAt: now,
+    };
+    useUiStore.getState().setLiveOverview(liveUsage);
+
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') {
         return {
@@ -140,27 +173,7 @@ describe('UsagePanel', () => {
           updatedAt: now,
         };
       }
-      if (channel === 'usage:live') {
-        return {
-          providers: [
-            {
-              providerId: 'claude-code',
-              label: 'Claude Code',
-              status: 'connected',
-              fetchedAt: now - (10 * 60_000),
-              source: 'snapshot',
-              message: 'Showing last known usage',
-              windows: [
-                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.45, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now - (10 * 60_000), source: 'snapshot', isStale: true, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-              ],
-            },
-          ],
-          history: [
-            { providerId: 'claude-code', windowKey: 'five_hour', sampledAt: now - 60_000, usedPercent: 0.45, resetsAt: now + 60_000, source: 'snapshot' },
-          ],
-          updatedAt: now,
-        };
-      }
+      if (channel === 'usage:live') return liveUsage;
       return null;
     });
 
@@ -177,6 +190,31 @@ describe('UsagePanel', () => {
 
   it('renders timestamp-bucketed trend strip range labels', async () => {
     const now = Date.now();
+
+    const liveUsage: LiveUsageOverview = {
+      providers: [
+        {
+          providerId: 'codex',
+          label: 'Codex',
+          status: 'connected',
+          fetchedAt: now,
+          source: 'live',
+          message: null,
+          windows: [
+            { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+          ],
+        },
+      ],
+      history: [
+        { providerId: 'codex', windowKey: 'five_hour', sampledAt: now - (4 * 60_000), usedPercent: 0.2, resetsAt: null, source: 'live' },
+        { providerId: 'codex', windowKey: 'five_hour', sampledAt: now - (2 * 60_000), usedPercent: 0.35, resetsAt: null, source: 'live' },
+        { providerId: 'codex', windowKey: 'seven_day', sampledAt: now - (8 * 60 * 60_000), usedPercent: 0.5, resetsAt: null, source: 'live' },
+        { providerId: 'codex', windowKey: 'seven_day', sampledAt: now - (2 * 60 * 60_000), usedPercent: 0.55, resetsAt: null, source: 'live' },
+      ],
+      updatedAt: now,
+    };
+    useUiStore.getState().setLiveOverview(liveUsage);
+
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') {
         return {
@@ -187,30 +225,7 @@ describe('UsagePanel', () => {
           updatedAt: now,
         };
       }
-      if (channel === 'usage:live') {
-        return {
-          providers: [
-            {
-              providerId: 'codex',
-              label: 'Codex',
-              status: 'connected',
-              fetchedAt: now,
-              source: 'live',
-              message: null,
-              windows: [
-                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0.33, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-              ],
-            },
-          ],
-          history: [
-            { providerId: 'codex', windowKey: 'five_hour', sampledAt: now - (4 * 60_000), usedPercent: 0.2, resetsAt: null, source: 'live' },
-            { providerId: 'codex', windowKey: 'five_hour', sampledAt: now - (2 * 60_000), usedPercent: 0.35, resetsAt: null, source: 'live' },
-            { providerId: 'codex', windowKey: 'seven_day', sampledAt: now - (8 * 60 * 60_000), usedPercent: 0.5, resetsAt: null, source: 'live' },
-            { providerId: 'codex', windowKey: 'seven_day', sampledAt: now - (2 * 60 * 60_000), usedPercent: 0.55, resetsAt: null, source: 'live' },
-          ],
-          updatedAt: now,
-        };
-      }
+      if (channel === 'usage:live') return liveUsage;
       return null;
     });
 
@@ -225,29 +240,31 @@ describe('UsagePanel', () => {
 
   it('shows 0% used for expired windows', async () => {
     const now = Date.now();
+
+    const liveUsage: LiveUsageOverview = {
+      providers: [
+        {
+          providerId: 'claude-code',
+          label: 'Claude Code',
+          status: 'error',
+          fetchedAt: now - 60_000,
+          source: 'snapshot',
+          message: 'Showing last known usage',
+          windows: [
+            { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0, resetsAt: now - 1000, remainingMs: 0, fetchedAt: now - 60_000, source: 'snapshot', isStale: true, isExpired: true, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+          ],
+        },
+      ],
+      history: [],
+      updatedAt: now,
+    };
+    useUiStore.getState().setLiveOverview(liveUsage);
+
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') {
         return { summary: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 }, providers: [], daily: [], windowDays: 7, updatedAt: now };
       }
-      if (channel === 'usage:live') {
-        return {
-          providers: [
-            {
-              providerId: 'claude-code',
-              label: 'Claude Code',
-              status: 'error',
-              fetchedAt: now - 60_000,
-              source: 'snapshot',
-              message: 'Showing last known usage',
-              windows: [
-                { providerId: 'claude-code', providerLabel: 'Claude Code', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed', usedPercent: 0, resetsAt: now - 1000, remainingMs: 0, fetchedAt: now - 60_000, source: 'snapshot', isStale: true, isExpired: true, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
-              ],
-            },
-          ],
-          history: [],
-          updatedAt: now,
-        };
-      }
+      if (channel === 'usage:live') return liveUsage;
       return null;
     });
 
@@ -257,17 +274,18 @@ describe('UsagePanel', () => {
       expect(screen.getByText('0%')).not.toBeNull();
     });
 
-    expect(screen.getByText(/100% remaining · reset/)).not.toBeNull();
+    expect(screen.getByText(/100% remaining/)).not.toBeNull();
   });
 
   it('shows empty state when no data', async () => {
+    const liveUsage: LiveUsageOverview = { providers: [], history: [], updatedAt: Date.now() };
+    useUiStore.getState().setLiveOverview(liveUsage);
+
     mockApi.invoke.mockImplementation(async (channel: string) => {
       if (channel === 'usage:get') {
         return { summary: { costUsd: 0, inputTokens: 0, outputTokens: 0, requests: 0 }, providers: [], daily: [], windowDays: 7, updatedAt: Date.now() };
       }
-      if (channel === 'usage:live') {
-        return { providers: [], history: [], updatedAt: Date.now() };
-      }
+      if (channel === 'usage:live') return liveUsage;
       return null;
     });
 

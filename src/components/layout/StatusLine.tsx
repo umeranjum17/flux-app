@@ -40,37 +40,26 @@ export function StatusLine() {
 
   // Rate limits state
   const [showRateLimits, setShowRateLimits] = useState(false);
-  const [liveOverview, setLiveOverview] = useState<LiveUsageOverview | null>(null);
+  const liveOverview = useUiStore((s) => s.liveOverview);
 
   const refreshLiveUsage = useCallback(async () => {
     try {
       const result = await window.api.invoke('usage:live') as LiveUsageOverview;
-      setLiveOverview(result);
+      useUiStore.getState().setLiveOverview(result);
     } catch {
       // keep previous state
     }
   }, []);
 
   useEffect(() => {
-    void refreshLiveUsage();
+    // Only subscribe to the background poller broadcast — no mount-triggered fetch.
     const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
-      setLiveOverview(data as LiveUsageOverview);
-    });
-    const cleanupMessage = window.api.on('agent:message', (...args: unknown[]) => {
-      const data = args[0] as { message?: { type?: string } } | undefined;
-      if (data?.message?.type === 'rate_limit') {
-        void refreshLiveUsage();
-      }
-    });
-    const cleanupDone = window.api.on('agent:done', () => {
-      void refreshLiveUsage();
+      useUiStore.getState().setLiveOverview(data as LiveUsageOverview);
     });
     return () => {
       cleanupLiveUpdate();
-      cleanupMessage();
-      cleanupDone();
     };
-  }, [refreshLiveUsage]);
+  }, []);
 
   const activeTaskRateLimit = useMemo(
     () => normalizeTaskRateLimit(activeTask?.rateLimitInfo, activeTask?.agentId),
@@ -231,7 +220,8 @@ export function StatusLine() {
             {scopedRateLimits.length > 0
               ? scopedRateLimits.map((entry, i) => {
                   const pct = Math.round(entry.utilization * 100);
-                  const reset = entry.resetsAt > 0 ? ` ↻${formatTimeUntil(entry.resetsAt)}` : '';
+                  const resetLabel = entry.resetsAt > 0 ? formatTimeUntil(entry.resetsAt) : '';
+                  const reset = resetLabel && resetLabel !== 'expired' ? ` ↻${resetLabel}` : '';
                   return (
                     <span key={`${entry.providerId}:${entry.rateLimitType}`}>
                       {i > 0 && <span className="text-text-tertiary/40"> · </span>}
@@ -242,6 +232,9 @@ export function StatusLine() {
                   );
                 })
               : '—'}
+            {liveOverview?.updatedAt && Date.now() - liveOverview.updatedAt > 5 * 60 * 1000 && (
+              <span className="text-text-tertiary/50"> · {formatRelativeTime(liveOverview.updatedAt)}</span>
+            )}
           </span>
         </button>
       </div>

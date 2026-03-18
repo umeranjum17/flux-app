@@ -1,6 +1,7 @@
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BarChart3, RefreshCw, WifiOff } from 'lucide-react';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow, UsageHistoryPoint, UsageInfo } from '../../lib/ipc-api';
+import { useUiStore } from '../../stores/ui';
 
 const PROVIDER_COLORS: Record<'claude-code' | 'codex', string> = {
   'claude-code': 'var(--color-info)',
@@ -34,14 +35,14 @@ interface TrendPoint {
 
 export function UsagePanel() {
   const [usage, setUsage] = useState<UsageInfo | null>(null);
-  const [liveUsage, setLiveUsage] = useState<LiveUsageOverview | null>(null);
+  const liveUsage = useUiStore((s) => s.liveOverview);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Debounce event-driven refreshes so bursts of agent:done / rate_limit
   // messages don't each trigger their own API call.
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const REFRESH_DEBOUNCE_MS = 10_000; // 10 seconds
+  const REFRESH_DEBOUNCE_MS = 30_000; // 30 seconds
 
   const loadUsage = useCallback(async (background = false): Promise<void> => {
     if (background) {
@@ -56,10 +57,9 @@ export function UsagePanel() {
         window.api.invoke('usage:live') as Promise<LiveUsageOverview>,
       ]);
       setUsage(usageResult);
-      setLiveUsage(liveResult);
+      useUiStore.getState().setLiveOverview(liveResult);
     } catch {
       setUsage(null);
-      setLiveUsage(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -75,13 +75,19 @@ export function UsagePanel() {
   }, [loadUsage]);
 
   useEffect(() => {
-    void loadUsage();
-    // The main process pushes live-update events every ~5 min via the
-    // background poller, so we do NOT run our own polling interval here.
-    // This avoids duplicate API calls that were causing 429s.
-    const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
-      setLiveUsage(data as LiveUsageOverview);
-    });
+    // Load local usage stats on mount; live data comes from the store (populated by background poller).
+    void (async () => {
+      setLoading(true);
+      try {
+        const usageResult = await window.api.invoke('usage:get') as UsageInfo;
+        setUsage(usageResult);
+      } catch {
+        setUsage(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+
     const cleanupDone = window.api.on('agent:done', () => {
       debouncedRefresh();
     });
@@ -93,11 +99,10 @@ export function UsagePanel() {
     });
     return () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
-      cleanupLiveUpdate();
       cleanupDone();
       cleanupMessage();
     };
-  }, [loadUsage, debouncedRefresh]);
+  }, [debouncedRefresh]);
 
   const providers = useMemo(() => liveUsage?.providers ?? [], [liveUsage]);
   const historyByProvider = useMemo(() => groupHistoryByProvider(liveUsage?.history ?? []), [liveUsage?.history]);
@@ -497,9 +502,10 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 function formatTimeUntil(timestamp: number): string {
-  const diffMs = Math.max(0, timestamp - Date.now());
+  const diffMs = timestamp - Date.now();
+  if (diffMs <= 0) return 'expired';
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'now';
+  if (minutes < 1) return '<1m';
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ${minutes % 60}m`;

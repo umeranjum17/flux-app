@@ -431,7 +431,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         usagePollCurrentInterval = Math.min(usagePollCurrentInterval * 2, USAGE_POLL_MAX_INTERVAL_MS);
         logDiagnostic('usage', 'usage-poller: backing off', { nextIntervalMs: usagePollCurrentInterval });
       }
-      schedulePoll(usagePollCurrentInterval);
+      const jitter = Math.floor(Math.random() * 60_000); // 0-60s jitter
+      schedulePoll(usagePollCurrentInterval + jitter);
     }, delayMs);
   }
   schedulePoll(USAGE_POLL_INITIAL_DELAY_MS);

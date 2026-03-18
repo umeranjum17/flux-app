@@ -132,7 +132,7 @@ const CLAUDE_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const CODEX_REFRESH_INTERVAL_MS = 8 * 24 * 60 * 60 * 1000;
 const FETCH_RETRY_ATTEMPTS = 2;
 const FETCH_RETRY_BASE_DELAY_MS = 3000;
-const LIVE_CACHE_TTL_MS = 10 * 60 * 1000;
+const LIVE_CACHE_TTL_MS = 20 * 60 * 1000;
 
 export class LiveUsageService {
   // In-memory cache for refreshed Claude tokens (persisting to disk fails for keychain sources).
@@ -417,7 +417,7 @@ export class LiveUsageService {
 
   private snapshotRowToWindow(result: ProviderFetchResult, row: UsageSnapshotRow, now: number): LiveUsageWindow {
     const isExpired = row.resets_at !== null && row.resets_at <= now;
-    const usedPercent = isExpired ? 0 : clampPercent(row.used_percent);
+    const usedPercent = clampPercent(row.used_percent);
     return {
       providerId: result.providerId,
       providerLabel: result.label,
@@ -431,9 +431,9 @@ export class LiveUsageService {
       source: 'snapshot',
       isStale: true,
       isExpired,
-      usedValue: isExpired ? null : row.used_value,
+      usedValue: row.used_value,
       limitValue: row.limit_value,
-      remainingValue: isExpired ? null : row.remaining_value,
+      remainingValue: row.remaining_value,
       unit: row.unit,
     };
   }
@@ -441,7 +441,7 @@ export class LiveUsageService {
   private cachedRateLimitToWindow(item: CachedRateLimitInfo, now: number): LiveUsageWindow {
     const windowKey = toUsageWindowKey(item.rateLimitType);
     const isExpired = !!item.resetsAt && item.resetsAt <= now;
-    const usedPercent = isExpired ? 0 : clampPercent(item.utilization);
+    const usedPercent = clampPercent(item.utilization);
     return {
       providerId: item.providerId,
       providerLabel: PROVIDER_LABELS[item.providerId],
@@ -836,7 +836,7 @@ function normalizeClaudeWindow(windowKey: UsageWindowKey, raw: any, now: number)
 
   const rawUtilization = raw.utilization ?? raw.used_percent ?? raw.percent_capacity ?? raw.percentCapacity
     ?? raw.percent_used ?? raw.usage ?? raw.percentage ?? raw.consumed;
-  const normalizedPercent = normalizePercent(rawUtilization);
+  const normalizedPercent = normalizePercent100(rawUtilization);
   const usedPercent = clampPercent(normalizedPercent);
   const rawResetsAt = raw.resets_at ?? raw.resetsAt ?? raw.reset_at ?? raw.resetAt;
   const resetsAt = parseClaudeTimestamp(rawResetsAt) ?? parseNumericTimestamp(rawResetsAt);
@@ -888,7 +888,7 @@ function normalizeCodexWindow(raw: any, now: number): InternalWindow | null {
 
   const seconds = typeof raw.limit_window_seconds === 'number' ? raw.limit_window_seconds : null;
   const windowKey = seconds === 604800 ? 'seven_day' : 'five_hour';
-  const usedPercent = clampPercent(normalizePercent(raw.used_percent));
+  const usedPercent = clampPercent(normalizePercent100(raw.used_percent));
   const limitValue = typeof raw.limit === 'number' ? raw.limit : null;
   const remainingValue = typeof raw.remaining === 'number' ? raw.remaining : null;
   const usedValue = limitValue !== null && remainingValue !== null ? limitValue - remainingValue : null;
@@ -922,6 +922,17 @@ function parseNumericTimestamp(value: unknown): number | null {
   // Distinguish seconds vs milliseconds: values below 1e12 are likely seconds.
   const ms = value < 1e12 ? value * 1000 : value;
   return ms;
+}
+
+/** Normalize a value known to be on a 0-100 scale (both Anthropic and Codex APIs). */
+function normalizePercent100(value: unknown): number {
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) return normalizePercent100(parsed);
+  }
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+  // Always divide by 100: the API returns 6.0 for 6%, 0.5 for 0.5%
+  return value / 100;
 }
 
 function normalizePercent(value: unknown): number {

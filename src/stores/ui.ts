@@ -2,6 +2,7 @@ import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
+import type { LiveUsageOverview } from '../lib/ipc-api';
 
 type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | null;
 
@@ -74,11 +75,15 @@ interface UiState {
   workspacePanelOpen: boolean;
   workspacePanelTab: 'files' | 'search' | 'activity';
 
+  // Live usage overview (shared across StatusLine / UsagePanel)
+  liveOverview: LiveUsageOverview | null;
+
   // Smart terminal input
   inputMode: 'chat' | 'terminal';
   shellHistory: string[];
   completionModel: string;
 
+  setLiveOverview(overview: LiveUsageOverview | null): void;
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
   setSidebarTab(tab: 'workspaces' | 'usage'): void;
@@ -175,9 +180,16 @@ export const useUiStore = create<UiState>()(
     fileActivityPanelOpenContexts: new Set(),
     workspacePanelOpen: false,
     workspacePanelTab: 'activity' as const,
+    liveOverview: null,
     inputMode: 'chat',
     shellHistory: [],
     completionModel: 'haiku',
+
+    setLiveOverview(overview) {
+      set((state) => {
+        state.liveOverview = overview;
+      });
+    },
 
     toggleSidebar() {
       set((state) => {

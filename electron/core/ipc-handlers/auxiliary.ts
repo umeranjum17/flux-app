@@ -257,7 +257,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   // API round-trip.  The background poller in index.ts also updates this cache
   // via sendToRenderer('usage:live-update'), so the renderer rarely needs to
   // trigger its own fetch.
-  const USAGE_LIVE_THROTTLE_MS = 2 * 60 * 1000; // 2 minutes
+  const USAGE_LIVE_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
   let lastLiveResult: LiveUsageOverview | null = null;
   let lastLiveFetchAt = 0;
   let inflightLiveFetch: Promise<LiveUsageOverview> | null = null;
