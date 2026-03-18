@@ -1,51 +1,31 @@
-import {
-  Circle,
-  CircleDot,
-  CircleDashed,
-  CircleCheck,
-  CircleDotDashed,
-  CircleAlert,
-  CirclePause,
-  CirclePlay,
-  CircleX,
-  CircleArrowDown,
-} from 'lucide-react';
+import { CircleCheck, CircleAlert, CircleX } from 'lucide-react';
+import { workspaceLifecycleConfig } from '../../lib/workspace-status';
 import type { WorkspaceLifecycleState, WorkspaceListSignalState } from '../../lib/workspace-status';
 
 type IconState = WorkspaceLifecycleState | WorkspaceListSignalState;
 
-const iconMap: Record<IconState, React.ComponentType<{ size?: number; className?: string }>> = {
-  idle: Circle,
-  coding: CircleDot,
-  planning: CircleDashed,
-  planned: CircleDotDashed,
-  awaiting_approval: CirclePause,
-  awaiting_input: CirclePause,
-  ready_for_review: CircleDot,
-  reviewing: CircleDashed,
-  changes_requested: CircleAlert,
+/**
+ * States where a Lucide icon adds real semantic value beyond what
+ * color + motion can express. Everything else renders as a dot.
+ */
+const iconMap: Partial<Record<IconState, React.ComponentType<{ size?: number; className?: string }>>> = {
   ready_to_merge: CircleCheck,
-  merging: CircleDashed,
   merged: CircleCheck,
-  ready_to_archive: CircleArrowDown,
+  changes_requested: CircleAlert,
   blocked: CircleX,
-  has_changes: CircleDot,
-  archiving: CircleDashed,
   archive_failed: CircleX,
 };
 
-/** Maps each state to a subtle animation CSS class. */
-const animationMap: Partial<Record<IconState, string>> = {
-  idle: 'workspace-icon-idle',
-  coding: 'workspace-icon-breathe',
-  planning: 'workspace-icon-breathe',
-  merging: 'workspace-icon-breathe',
-  archiving: 'workspace-icon-breathe',
-  awaiting_approval: 'workspace-icon-nudge',
-  awaiting_input: 'workspace-icon-nudge',
+/** Icon animation classes — only applied to icon states. */
+const iconAnimationMap: Partial<Record<IconState, string>> = {
   changes_requested: 'workspace-icon-nudge',
   blocked: 'workspace-icon-pulse',
-  reviewing: 'workspace-icon-breathe',
+};
+
+/** Dot motion for list-only states not in workspaceLifecycleConfig. */
+const dotMotionFallback: Partial<Record<WorkspaceListSignalState, string>> = {
+  has_changes: 'workspace-dot-settled',
+  archiving: 'workspace-dot-active',
 };
 
 interface WorkspaceLifecycleIconProps {
@@ -55,13 +35,24 @@ interface WorkspaceLifecycleIconProps {
 }
 
 export function WorkspaceLifecycleIcon({ state, size = 12, className = '' }: WorkspaceLifecycleIconProps) {
-  const Icon = iconMap[state] ?? Circle;
-  const animation = animationMap[state] ?? '';
+  const Icon = iconMap[state];
+
+  if (Icon) {
+    const animation = iconAnimationMap[state] ?? '';
+    return <Icon size={size} className={`${animation} ${className}`.trim()} />;
+  }
+
+  // Render as a dot — size is used as the diameter in px
+  const config = workspaceLifecycleConfig[state as WorkspaceLifecycleState];
+  const dotMotion = config?.dotMotionClass
+    ?? dotMotionFallback[state as WorkspaceListSignalState]
+    ?? 'workspace-dot-idle';
 
   return (
-    <Icon
-      size={size}
-      className={`${animation} ${className}`.trim()}
+    <span
+      className={`lifecycle-dot ${className} ${dotMotion}`}
+      style={{ width: size * 0.58, height: size * 0.58, backgroundColor: 'currentColor' }}
+      aria-hidden="true"
     />
   );
 }
