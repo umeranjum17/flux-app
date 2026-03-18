@@ -15,7 +15,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Sparkles,
+  Bot,
 } from 'lucide-react';
 import { BashPanel, ReadPanel, EditDiffPanel, SearchPanel, GlobPanel, GenericPanel } from './ToolPanels';
 import { formatToolCallLabel, isFileEditToolName, type ToolCallImportance } from '../../lib/tool-call-display';
@@ -97,7 +97,7 @@ export function getToolIcon(toolName: string) {
   if (name.includes('glob') || name.includes('find'))
     return { Icon: FolderSearch, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   if (name.includes('agent'))
-    return { Icon: Sparkles, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
+    return { Icon: Bot, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
   return { Icon: Wrench, color: 'text-text-tertiary', bg: 'bg-bg-hover/50' };
 }
 

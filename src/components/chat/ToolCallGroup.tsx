@@ -27,38 +27,19 @@ export function ToolCallGroup({ items, label = 'Tool activity' }: ToolCallGroupP
   const summaryParts = useMemo(() => summarizeGroupParts(items), [items]);
   const hasRunningItems = items.some((item) => item.isRunning && !item.mergedResult);
 
-  const dominantIcon = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of items) {
-      const name = item.message.toolName ?? 'unknown';
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-    let best = 'unknown';
-    let bestCount = 0;
-    for (const [name, count] of counts) {
-      if (count > bestCount) { best = name; bestCount = count; }
-    }
-    return getToolIcon(best);
-  }, [items]);
-
   return (
     <div className="tool-call-row group">
       <button
         onClick={() => setExpanded((current) => !current)}
         className="flex w-full items-center gap-1.5 rounded-md py-0.5 text-left transition-colors hover:bg-bg-hover/40"
       >
-        <span className={`inline-flex shrink-0 items-center justify-center rounded-full p-0.5 ${hasRunningItems ? 'bg-bg-hover/50' : dominantIcon.bg}`}>
-          {hasRunningItems ? (
-            <Loader2 size={11} className="shrink-0 animate-spin text-text-tertiary" />
-          ) : (
-            <dominantIcon.Icon size={11} className={`shrink-0 ${dominantIcon.color}`} />
-          )}
-        </span>
+        {hasRunningItems && (
+          <Loader2 size={11} className="shrink-0 animate-spin text-text-tertiary" />
+        )}
         <span className="text-[11px] font-medium text-text-secondary/80">{label}</span>
         <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[11px] text-text-tertiary/60">
           {summaryParts.map((part, i) => (
             <React.Fragment key={part.toolName}>
-              {i > 0 && <span>·</span>}
               <span className="inline-flex items-center gap-0.5">
                 <part.Icon size={10} className={part.color} />
                 {part.count > 1 ? `${part.label} x${part.count}` : part.label}

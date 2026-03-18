@@ -92,7 +92,8 @@ describe('SubagentBlock', () => {
 
     expect(screen.queryByText('Report intent')).toBeNull();
     expect(screen.getByText('Tool activity')).not.toBeNull();
-    expect(screen.getByText('Read · Glob')).not.toBeNull();
+    expect(screen.getByText('Read')).not.toBeNull();
+    expect(screen.getByText('Glob')).not.toBeNull();
     expect(screen.getByText('Edit')).not.toBeNull();
     expect(screen.queryByText('src/example.ts (1 lines)')).toBeNull();
 
