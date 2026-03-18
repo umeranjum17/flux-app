@@ -1150,10 +1150,14 @@ async function readAttachmentPreview(
 }
 
 const AUTO_BRANCH_PATTERNS = [
+  /^flux\/[a-z]+-[a-z]+-[a-z0-9]{2}$/,        // adjective-animal-suffix like flux/quirky-newt-gi
   /^flux\/[a-z]+-[a-z]+$/,                     // fun names like flux/zagreb-lima
+  /^flux\/[a-z]+-\d{1,3}$/,                    // element-number like flux/neon-42, flux/cobalt-17
   /^flux\/workspace-[a-z0-9-]+$/,              // flux/workspace-20260315-abc123
   /^flux\/[a-z0-9-]+-[a-z0-9]{6}$/,           // prompt-derived like flux/fix-token-refresh-abc123
+  /^[a-z]+-[a-z]+-[a-z0-9]{2}$/,              // bare adjective-animal-suffix like quirky-newt-gi
   /^[a-z]+-[a-z]+(-v\d+)?$/,                   // bare fun names like zagreb-v2
+  /^[a-z]+-\d{1,3}$/,                            // bare element-number like neon-42, cobalt-17
   /^workspace-\d{8}-[a-z0-9]+$/,               // workspace-20260315-abc123
 ];
 

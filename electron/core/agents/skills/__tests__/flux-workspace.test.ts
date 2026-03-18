@@ -23,8 +23,7 @@ describe('fluxWorkspaceSkill', () => {
     expect(workspaceContextIdx).toBeGreaterThan(-1);
     expect(workspaceNamingIdx).toBeLessThan(workspaceContextIdx);
     expect(prompt).toContain('FLUX_SIGNAL: {"type":"rename","workspace_name":"<Your Workspace Name>"}');
-    expect(prompt).toContain('Do NOT run `git branch -m` yourself');
-    expect(prompt).not.toContain('`git branch -m <descriptive-name>`');
+    expect(prompt).toContain('FIRST LINE of your response');
   });
 
   it('skips workspace naming for resumed sessions', () => {

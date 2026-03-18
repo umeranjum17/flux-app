@@ -1113,6 +1113,20 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             lifecycleManager.setOutcome(workspace.id, targetOutcome, { force: true });
           }
 
+          // Apply workspace_name from outcome/completed signals to update sidebar title
+          if (sig.workspace_name) {
+            const agentName = sig.workspace_name.trim().slice(0, 50);
+            if (agentName) {
+              const currentWs = workspaceStore.get(workspace.id) ?? workspace;
+              workspaceStore.update(workspace.id, { name: agentName });
+              sendToRenderer('workspace:updated', {
+                workspaceId: workspace.id,
+                name: agentName,
+                branch: currentWs.branch,
+              });
+            }
+          }
+
           // Emit lifecycle message for the renderer
           const lifecycleStateMap: Record<string, string> = {
             ready_for_pr: 'ready_for_review',
