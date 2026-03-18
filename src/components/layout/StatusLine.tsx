@@ -338,7 +338,7 @@ export function StatusLine() {
 function RateLimitWindowCard({ entry }: { entry: RateLimitInfo }) {
   const usedPercent = Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100);
   const remainingPercent = Math.max(0, 100 - usedPercent);
-  const chartPercent = `${Math.max(0, Math.min(100, usedPercent))}%`;
+  const barWidth = usedPercent === 0 ? 0 : Math.max(4, usedPercent);
   const statusMeta = rateLimitStatusMeta(entry.status);
 
   return (
@@ -352,33 +352,24 @@ function RateLimitWindowCard({ entry }: { entry: RateLimitInfo }) {
         </span>
       </div>
 
-      <div className="mt-2 flex items-center gap-2.5">
-        <div
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full"
-          role="img"
-          aria-label={`${usedPercent}% used`}
-          style={{
-            background: `conic-gradient(${statusMeta.ringColor} ${chartPercent}, color-mix(in oklab, var(--color-border) 72%, transparent) ${chartPercent} 100%)`,
-          }}
-        >
-          <div className="grid h-7 w-7 place-items-center rounded-full bg-bg-elevated text-[9px] font-semibold text-text-secondary tabular-nums">
-            {usedPercent}%
-          </div>
+      <div className="mt-2">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-[11px] font-semibold tabular-nums text-text-primary">{usedPercent}%</span>
+          <span className="text-[10px] text-text-tertiary tabular-nums">
+            {remainingPercent}% remaining
+          </span>
         </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="h-1.5 overflow-hidden rounded-full bg-border/35">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${statusMeta.fillClass}`}
-              style={{ width: `${usedPercent}%` }}
-            />
-          </div>
-          <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
-            <span className="truncate">{remainingPercent}% remaining</span>
-            <span className="shrink-0">
-              {entry.resetsAt > 0 ? `resets ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
-            </span>
-          </div>
+        <div className="h-2 overflow-hidden rounded-full bg-border/30">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${barWidth}%`,
+              background: `linear-gradient(90deg, ${statusMeta.ringColor}, color-mix(in oklab, ${statusMeta.ringColor} 80%, white))`,
+            }}
+          />
+        </div>
+        <div className="mt-1.5 text-[10px] text-text-tertiary text-right">
+          {entry.resetsAt > 0 ? `resets ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
         </div>
       </div>
     </div>
