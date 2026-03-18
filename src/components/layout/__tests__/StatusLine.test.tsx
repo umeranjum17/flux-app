@@ -125,4 +125,49 @@ describe('StatusLine', () => {
     expect(screen.queryByText(/think /i)).toBeNull();
     expect(screen.getAllByText(/tok$/i)).toHaveLength(1);
   });
+
+  it('renders redesigned rate-limit window charts with status badges', async () => {
+    const now = Date.now();
+    mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'usage:live') {
+        return {
+          providers: [
+            {
+              providerId: 'codex',
+              label: 'Codex',
+              status: 'connected',
+              fetchedAt: now,
+              source: 'live',
+              message: null,
+              windows: [
+                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'five_hour', windowLabel: '5h', status: 'allowed_warning', usedPercent: 0.82, resetsAt: now + 60_000, remainingMs: 60_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+                { providerId: 'codex', providerLabel: 'Codex', windowKey: 'seven_day', windowLabel: '7d', status: 'allowed', usedPercent: 0.33, resetsAt: now + 120_000, remainingMs: 120_000, fetchedAt: now, source: 'live', isStale: false, isExpired: false, usedValue: null, limitValue: null, remainingValue: null, unit: 'percent' },
+              ],
+            },
+          ],
+          history: [],
+          updatedAt: now,
+        };
+      }
+      return null;
+    });
+
+    render(<StatusLine />);
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Peek rate limits').length).toBeGreaterThan(0);
+    });
+
+    const gaugeButtons = screen.getAllByLabelText('Peek rate limits');
+    gaugeButtons[gaugeButtons.length - 1]?.click();
+
+    await waitFor(() => {
+      expect(screen.getByText('Rate Limits')).not.toBeNull();
+    });
+
+    expect(screen.getByText('Warning')).not.toBeNull();
+    expect(screen.getByText('Healthy')).not.toBeNull();
+    expect(screen.getByLabelText('82% used')).not.toBeNull();
+    expect(screen.getByText('18% remaining')).not.toBeNull();
+  });
 });

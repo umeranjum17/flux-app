@@ -5,7 +5,7 @@ import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { GitBranch, Wifi, WifiOff, Brain, Monitor, Terminal, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
-import type { LiveUsageOverview } from '../../lib/ipc-api';
+import type { LiveUsageOverview, RateLimitInfo } from '../../lib/ipc-api';
 import { isWorkspaceArchiving } from '../../lib/workspace-operations';
 import {
   computeHighestSeverity,
@@ -13,7 +13,6 @@ import {
   mergeRateLimits,
   normalizeTaskRateLimit,
   providerLabel,
-  rateLimitTextColor,
   resolveRateLimitProvider,
 } from '../../lib/rate-limits';
 
@@ -85,13 +84,33 @@ export function StatusLine() {
         rateLimitType: w.windowLabel,
         utilization: w.usedPercent,
         fetchedAt: w.fetchedAt,
-      } satisfies import('../../lib/ipc-api').RateLimitInfo)),
+      } satisfies RateLimitInfo)),
     ),
     [liveOverview],
   );
   const visibleRateLimits = useMemo(
     () => mergeRateLimits(liveRateLimits, activeTaskRateLimit),
     [liveRateLimits, activeTaskRateLimit],
+  );
+  const groupedRateLimits = useMemo(
+    () => {
+      const grouped = new Map<RateLimitInfo['providerId'], RateLimitInfo[]>();
+      for (const entry of visibleRateLimits) {
+        const entries = grouped.get(entry.providerId);
+        if (entries) {
+          entries.push(entry);
+          continue;
+        }
+        grouped.set(entry.providerId, [entry]);
+      }
+      return Array.from(grouped.entries())
+        .sort(([left], [right]) => providerLabel(left).localeCompare(providerLabel(right)))
+        .map(([providerId, entries]) => ({
+          providerId,
+          entries: [...entries].sort((left, right) => left.rateLimitType.localeCompare(right.rateLimitType)),
+        }));
+    },
+    [visibleRateLimits],
   );
   const activeRateLimitProvider = useMemo(
     () => resolveRateLimitProvider(activeTask?.agentId ?? selectedAgentId),
@@ -274,38 +293,22 @@ export function StatusLine() {
             {visibleRateLimits.length === 0 ? (
               <p className="py-3 text-center text-[11px] text-text-tertiary">No rate limit data yet.</p>
             ) : (
-              <div className="space-y-2">
-                {visibleRateLimits.map((entry) => {
-                  const pct = Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100);
-                  const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
-                  return (
-                    <div
-                      key={`${entry.providerId}:${entry.rateLimitType}`}
-                      className="rounded-lg border border-border/50 bg-bg-primary/60 px-2.5 py-2"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-[11px] font-medium text-text-primary">
-                          {providerLabel(entry.providerId)}
-                        </p>
-                        <span className={`text-[11px] font-bold tabular-nums ${rateLimitTextColor(entry)}`}>
-                          {pct}%
-                        </span>
-                      </div>
-                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-border/30">
-                        <div
-                          className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                          style={{ width: `${pct}%` }}
+              <div className="space-y-3">
+                {groupedRateLimits.map((group) => (
+                  <section key={group.providerId} className="space-y-2">
+                    <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+                      {providerLabel(group.providerId)}
+                    </p>
+                    <div className="space-y-2">
+                      {group.entries.map((entry) => (
+                        <RateLimitWindowCard
+                          key={`${entry.providerId}:${entry.rateLimitType}`}
+                          entry={entry}
                         />
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
-                        <span className="truncate">{entry.rateLimitType.replace(/[_-]+/g, ' ')}</span>
-                        <span className="shrink-0">
-                          {entry.resetsAt > 0 ? `resets ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
-                        </span>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
+                  </section>
+                ))}
               </div>
             )}
 
@@ -330,6 +333,86 @@ export function StatusLine() {
       )}
     </div>
   );
+}
+
+function RateLimitWindowCard({ entry }: { entry: RateLimitInfo }) {
+  const usedPercent = Math.round(Math.max(0, Math.min(1, entry.utilization)) * 100);
+  const remainingPercent = Math.max(0, 100 - usedPercent);
+  const chartPercent = `${Math.max(0, Math.min(100, usedPercent))}%`;
+  const statusMeta = rateLimitStatusMeta(entry.status);
+
+  return (
+    <div className="rounded-lg border border-border/55 bg-bg-primary/65 px-2.5 py-2 shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.05)]">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[11px] font-medium text-text-primary">
+          {entry.rateLimitType.replace(/[_-]+/g, ' ')}
+        </p>
+        <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${statusMeta.badgeClass}`}>
+          {statusMeta.label}
+        </span>
+      </div>
+
+      <div className="mt-2 flex items-center gap-2.5">
+        <div
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full"
+          role="img"
+          aria-label={`${usedPercent}% used`}
+          style={{
+            background: `conic-gradient(${statusMeta.ringColor} ${chartPercent}, color-mix(in oklab, var(--color-border) 72%, transparent) ${chartPercent} 100%)`,
+          }}
+        >
+          <div className="grid h-7 w-7 place-items-center rounded-full bg-bg-elevated text-[9px] font-semibold text-text-secondary tabular-nums">
+            {usedPercent}%
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="h-1.5 overflow-hidden rounded-full bg-border/35">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${statusMeta.fillClass}`}
+              style={{ width: `${usedPercent}%` }}
+            />
+          </div>
+          <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
+            <span className="truncate">{remainingPercent}% remaining</span>
+            <span className="shrink-0">
+              {entry.resetsAt > 0 ? `resets ${formatTimeUntil(entry.resetsAt)}` : 'no reset'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function rateLimitStatusMeta(status: RateLimitInfo['status']): {
+  label: string;
+  badgeClass: string;
+  fillClass: string;
+  ringColor: string;
+} {
+  if (status === 'rejected') {
+    return {
+      label: 'Limited',
+      badgeClass: 'border-error/30 bg-error/10 text-error',
+      fillClass: 'bg-error',
+      ringColor: 'var(--color-error)',
+    };
+  }
+  if (status === 'allowed_warning') {
+    return {
+      label: 'Warning',
+      badgeClass: 'border-warning/35 bg-warning/12 text-warning',
+      fillClass: 'bg-warning',
+      ringColor: 'var(--color-warning)',
+    };
+  }
+  return {
+    label: 'Healthy',
+    badgeClass: 'border-success/30 bg-success/10 text-success',
+    fillClass: 'bg-success',
+    ringColor: 'var(--color-success)',
+  };
 }
 
 function Dot() {
