@@ -34,6 +34,7 @@ import {
   readPlanFileSync,
   writePlanFile,
   writeAttachmentContextFile,
+  writeSessionContextFile,
   extractPlanTodoItems,
   buildStepTrackingPrompt,
   captureGitSnapshot,
@@ -293,7 +294,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         ...originalOptions,
         sessionId,
         fallbackContext: context || undefined,
-        prompt: '[Resuming previous session]',
+        prompt: '[Resuming previous session]\nIf `.context/session-context.md` exists, read it for prior session state.',
       });
     } catch (err) {
       sendToRenderer('agent:done', {
@@ -348,6 +349,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       attachments: options.attachments?.length ? options.attachments : previousAttachmentContext?.attachments,
       sshHost,
     });
+
+    // Write initial session context to disk for crash/compression recovery
+    await writeSessionContextFile(options.cwd, session.id, sessionStore);
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
 
@@ -769,6 +773,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     // Guard against emitting duplicate lifecycle messages for the same state
     let lastEmittedLifecycleState = '';
 
+    // Throttled session-context writes (every 30s)
+    const SESSION_CONTEXT_INTERVAL_MS = 30_000;
+    let lastSessionContextWrite = Date.now();
+    let sessionContextTimer: ReturnType<typeof setTimeout> | null = null;
+
     handle.on('agent-todo', (payload: { todos: any[] }) => {
       agentUsedTodoWrite = true;
       const todoItems = extractTodoItemsFromPayload(payload.todos ?? payload);
@@ -840,6 +849,19 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
 
       sessionStore.addMessage(session.id, toStoredMessage(message));
+
+      // Throttled session-context write
+      const now = Date.now();
+      if (now - lastSessionContextWrite >= SESSION_CONTEXT_INTERVAL_MS) {
+        lastSessionContextWrite = now;
+        writeSessionContextFile(options.cwd, session.id, sessionStore).catch(() => {});
+      } else if (!sessionContextTimer) {
+        sessionContextTimer = setTimeout(() => {
+          sessionContextTimer = null;
+          lastSessionContextWrite = Date.now();
+          writeSessionContextFile(options.cwd, session.id, sessionStore).catch(() => {});
+        }, SESSION_CONTEXT_INTERVAL_MS - (now - lastSessionContextWrite));
+      }
 
       // Accumulate text into the signal buffer for parsing FLUX_WORKSPACE_LIFECYCLE,
       // FLUX_SIGNAL, FLUX_TODO, etc. Streaming deltas split signals across
@@ -1332,6 +1354,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       // Always clear tool heartbeats immediately to prevent leaked intervals.
       for (const interval of toolHeartbeats.values()) clearInterval(interval);
       toolHeartbeats.clear();
+      if (sessionContextTimer) { clearTimeout(sessionContextTimer); sessionContextTimer = null; }
+      // Final session-context write on completion
+      writeSessionContextFile(options.cwd, session.id, sessionStore).catch(() => {});
 
       void (async () => {
         // ── Guard: bail if task was already cleaned up by stop/cleanup ──
@@ -1388,7 +1413,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               ...options,
               sessionId: session.id,
               fallbackContext: context || undefined,
-              prompt: '[Resuming previous session]',
+              prompt: '[Resuming previous session]\nIf `.context/session-context.md` exists, read it for prior session state.',
             });
             return;
           } catch {
@@ -1762,7 +1787,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       return await spawnTaskRun({
         taskId,
         sessionId,
-        prompt: '[Resuming previous session]',
+        prompt: '[Resuming previous session]\nIf `.context/session-context.md` exists, read it for prior session state.',
         cwd: session.cwd,
         mode: session.mode as 'plan' | 'act',
         model: session.model,

@@ -138,6 +138,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '3. Do NOT push to remote or create pull requests — the user merges via the Flux UI.',
         '4. After committing, summarize what you changed.',
         '5. If `.context/attachments.json` exists, review it for any persisted image or file attachment context.',
+        '6. If `.context/session-context.md` exists, read it first to orient yourself on prior session state.',
       );
 
       if (ctx.hasNativeTodoTool) {
@@ -168,6 +169,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '3. Do NOT use ExitPlanMode or any native planning tools — output the plan directly.',
         '4. Read files, search code, and explore — but do not change source code.',
         '5. After outputting your plan, write it to `.context/plan.md` (`mkdir -p .context` first).',
+        '6. If `.context/session-context.md` exists, read it first to orient yourself on prior session state.',
         '',
         '## Workspace Lifecycle',
         '',
