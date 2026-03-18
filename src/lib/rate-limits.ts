@@ -11,6 +11,29 @@ interface TaskRateLimitLike {
   fetchedAt?: number;
 }
 
+/** Map variant rate-limit type strings from the API to a canonical short form. */
+const RATE_LIMIT_TYPE_ALIASES: Record<string, string> = {
+  'five_hour': '5h',
+  'five hour': '5h',
+  'fivehour': '5h',
+  '5_hour': '5h',
+  '5 hour': '5h',
+  '5h': '5h',
+  'seven_day': '7d',
+  'seven day': '7d',
+  'sevenday': '7d',
+  '7_day': '7d',
+  '7 day': '7d',
+  '7d': '7d',
+  'daily': 'daily',
+  'minute': 'minute',
+  '1m': 'minute',
+};
+
+export function canonicalRateLimitType(raw: string): string {
+  return RATE_LIMIT_TYPE_ALIASES[raw.toLowerCase().trim()] ?? raw;
+}
+
 export function normalizeTaskRateLimit(
   info: TaskRateLimitLike | undefined,
   activeAgentId: string | undefined,
@@ -22,7 +45,7 @@ export function normalizeTaskRateLimit(
     providerId: inferredProvider,
     status: coerceRateLimitStatus(info.status, info.utilization),
     resetsAt: typeof info.resetsAt === 'number' ? info.resetsAt : 0,
-    rateLimitType: info.rateLimitType ?? 'unknown',
+    rateLimitType: canonicalRateLimitType(info.rateLimitType ?? 'unknown'),
     utilization: typeof info.utilization === 'number' ? info.utilization : 0,
     ...(typeof info.overageStatus === 'string' ? { overageStatus: info.overageStatus } : {}),
     ...(typeof info.overageResetsAt === 'number' ? { overageResetsAt: info.overageResetsAt } : {}),

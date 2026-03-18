@@ -64,7 +64,7 @@ export function UsagePanel() {
   useEffect(() => {
     void loadUsage();
     // Poll periodically so the panel recovers from transient API errors (429, 5xx).
-    const pollInterval = setInterval(() => void loadUsage(true), 90_000);
+    const pollInterval = setInterval(() => void loadUsage(true), 5 * 60_000);
     const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
       setLiveUsage(data as LiveUsageOverview);
     });

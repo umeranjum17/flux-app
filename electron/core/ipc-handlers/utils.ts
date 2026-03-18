@@ -1548,6 +1548,18 @@ export function stripFluxTokens(text: string): string {
   return result.replace(/\n{3,}/g, '\n\n');
 }
 
+const RATE_LIMIT_TYPE_ALIASES: Record<string, string> = {
+  'five_hour': '5h', 'five hour': '5h', 'fivehour': '5h',
+  '5_hour': '5h', '5 hour': '5h', '5h': '5h',
+  'seven_day': '7d', 'seven day': '7d', 'sevenday': '7d',
+  '7_day': '7d', '7 day': '7d', '7d': '7d',
+  'daily': 'daily', 'minute': 'minute', '1m': 'minute',
+};
+
+function canonicalRateLimitType(raw: string): string {
+  return RATE_LIMIT_TYPE_ALIASES[raw.toLowerCase().trim()] ?? raw;
+}
+
 export interface RateLimitInfo {
   providerId: 'claude-code' | 'codex';
   status: 'allowed' | 'allowed_warning' | 'rejected';
@@ -1576,7 +1588,7 @@ export function normalizeRateLimitInfo(
           : 0;
 
   const resetsAt = raw.resetsAt ?? raw.resets_at ?? raw.resetAt ?? 0;
-  const rateLimitType = raw.rateLimitType ?? raw.rate_limit_type ?? raw.type ?? 'unknown';
+  const rateLimitType = canonicalRateLimitType(raw.rateLimitType ?? raw.rate_limit_type ?? raw.type ?? 'unknown');
 
   logDiagnostic('usage', `normalizeRateLimitInfo(${providerId}): stream event`, {
     rawKeys: Object.keys(raw),

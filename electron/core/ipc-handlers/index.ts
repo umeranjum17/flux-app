@@ -41,7 +41,7 @@ const taskRetryCounts = new Map<string, number>();
 const activeSubagents = new Map<string, SubagentEntry>();
 const cachedRateLimits = new Map<string, RateLimitInfo>();
 
-const USAGE_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const USAGE_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const USAGE_POLL_INITIAL_DELAY_MS = 5 * 1000;  // 5s after startup
 let usagePollTimer: NodeJS.Timeout | null = null;
 
