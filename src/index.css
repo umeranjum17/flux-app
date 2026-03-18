@@ -859,6 +859,49 @@ button:focus-visible {
   box-shadow: 0 0 6px 1px currentColor;
 }
 
+/* Icon-specific animations for Lucide lifecycle icons */
+@keyframes icon-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@keyframes icon-bounce {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-1.5px); }
+  60% { transform: translateY(0.5px); }
+}
+
+.workspace-icon-idle {
+  opacity: 0.45;
+}
+
+/* Gentle opacity breathe for active/working states */
+.workspace-icon-breathe {
+  animation: icon-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes icon-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Subtle horizontal nudge for attention states */
+.workspace-icon-nudge {
+  animation: icon-nudge 2s cubic-bezier(0.36, 0, 0.2, 1) infinite;
+}
+
+@keyframes icon-nudge {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(1px); }
+  40% { transform: translateX(-1px); }
+  60% { transform: translateX(0.5px); }
+  80% { transform: translateX(0); }
+}
+
+.workspace-icon-pulse {
+  animation: icon-pulse 2s ease-in-out infinite;
+}
+
 /* Status dot glow animations — gentle breathing for attention states */
 @keyframes dot-breathe {
   0%, 100% { box-shadow: 0 0 0 0 var(--dot-glow-color); }
@@ -907,7 +950,10 @@ button:focus-visible {
   .task-status-dot-input,
   .task-status-dot-error,
   .workspace-list-signal,
-  [class*="dot-glow-"] {
+  [class*="dot-glow-"],
+  .workspace-icon-pulse,
+  .workspace-icon-breathe,
+  .workspace-icon-nudge {
     animation: none !important;
     transition: none !important;
   }
