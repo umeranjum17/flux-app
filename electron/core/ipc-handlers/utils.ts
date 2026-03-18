@@ -1167,10 +1167,19 @@ export async function moveWorktreeDirectory(
     .slice(0, 64);
   if (!sanitized) return currentWorktreePath;
 
-  const worktreeDir = path.dirname(currentWorktreePath);
+  // Resolve symlinks so `git worktree move` gets the real path. A previous
+  // rename may have left currentWorktreePath as a symlink.
+  let realCurrentPath: string;
+  try {
+    realCurrentPath = await fs.promises.realpath(currentWorktreePath);
+  } catch {
+    realCurrentPath = currentWorktreePath;
+  }
+
+  const worktreeDir = path.dirname(realCurrentPath);
   let candidatePath = path.join(worktreeDir, sanitized);
 
-  if (candidatePath === currentWorktreePath) return currentWorktreePath;
+  if (candidatePath === realCurrentPath) return realCurrentPath;
 
   if (fs.existsSync(candidatePath)) {
     let found = false;
@@ -1188,17 +1197,27 @@ export async function moveWorktreeDirectory(
   }
 
   try {
-    await execFileAsync('git', ['worktree', 'move', currentWorktreePath, candidatePath], {
+    await execFileAsync('git', ['worktree', 'move', realCurrentPath, candidatePath], {
       cwd: parentRepo,
       timeout: 30000,
     });
-    // Create a symlink from the old path to the new path so any running agent
-    // process whose cwd still points to the old directory continues to work.
-    try {
-      await fs.promises.symlink(candidatePath, currentWorktreePath);
-    } catch {
-      // Non-fatal: the agent may hit errors but the move itself succeeded.
+
+    // Clean up any stale symlink left by a previous rename that pointed to
+    // the path we just moved away from.
+    if (realCurrentPath !== currentWorktreePath) {
+      try { await fs.promises.unlink(currentWorktreePath); } catch { /* already gone */ }
     }
+
+    // Leave a symlink at the old real path so running agent subprocesses whose
+    // CWD still points to the original directory can continue to resolve
+    // relative paths (e.g. `.context/attachments.json`).
+    try {
+      await fs.promises.symlink(candidatePath, realCurrentPath);
+    } catch {
+      // Best-effort — if the symlink fails (e.g. path was already reclaimed)
+      // the rename itself still succeeded.
+    }
+
     return candidatePath;
   } catch (error) {
     console.warn('[moveWorktreeDirectory] failed to move worktree', error);
