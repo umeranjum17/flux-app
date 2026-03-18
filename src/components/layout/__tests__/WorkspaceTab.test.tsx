@@ -93,7 +93,21 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Planning. Agent is creating a plan.')).not.toBeNull();
     expect(scoped.queryByText('Planning')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-planning.bg-info')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-planning.bg-plan')).not.toBeNull();
+  });
+
+  it('uses a distinct working color for active coding', () => {
+    const view = renderWorkspaceTab({
+      status: 'running',
+      mode: 'act',
+      updatedAt: 1,
+    });
+    const scoped = within(view.container);
+
+    expect(scoped.getByRole('button', {
+      name: 'Planning pass — Working. Agent is working.',
+    })).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-success')).not.toBeNull();
   });
 
   it('uses an attention signal for waiting approval', () => {
@@ -125,7 +139,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Needs input. Agent asked a question.')).not.toBeNull();
     expect(scoped.queryByText('Needs Input')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-input.bg-warning')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-needs-input.bg-info')).not.toBeNull();
   });
 
   it('uses a change signal when an idle workspace has unreviewed changes', () => {
@@ -159,7 +173,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Ready for review. Changes are ready to review.')).not.toBeNull();
     expect(scoped.queryByText('Ready for Review')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-review-ready.bg-accent')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-review-ready.bg-plan')).not.toBeNull();
   });
 
   it('keeps blocked state on the lifecycle dot', () => {
@@ -206,6 +220,6 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Archiving. Workspace archive is in progress. Removing git worktree.')).not.toBeNull();
     expect(scoped.queryByText('Archiving')).toBeNull();
-    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-accent')).not.toBeNull();
+    expect(view.container.querySelector('.lifecycle-dot.workspace-list-signal-working.bg-info')).not.toBeNull();
   });
 });

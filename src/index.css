@@ -546,6 +546,10 @@ button:focus-visible {
   background: linear-gradient(135deg, hsl(200 62% 64% / 0.04) 0%, transparent 60%);
 }
 
+.lifecycle-tint-plan {
+  background: linear-gradient(135deg, hsl(0 0% 74% / 0.04) 0%, transparent 60%);
+}
+
 .lifecycle-tint-success {
   background: linear-gradient(135deg, hsl(148 42% 54% / 0.04) 0%, transparent 60%);
 }
@@ -565,6 +569,10 @@ button:focus-visible {
 
 .theme-light .lifecycle-tint-info {
   background: linear-gradient(135deg, hsl(200 62% 54% / 0.06) 0%, transparent 60%);
+}
+
+.theme-light .lifecycle-tint-plan {
+  background: linear-gradient(135deg, hsl(86 36% 44% / 0.08) 0%, transparent 60%);
 }
 
 .theme-light .lifecycle-tint-success {
@@ -623,17 +631,14 @@ button:focus-visible {
   --workspace-signal-color: var(--color-accent);
   opacity: 0.96;
   filter: saturate(1.08);
-  animation: workspace-signal-working 2s ease-in-out infinite;
 }
 
 .workspace-list-signal-planning {
-  --workspace-signal-color: var(--color-info);
-  animation: workspace-signal-working 1.6s ease-in-out infinite;
+  --workspace-signal-color: var(--color-plan);
 }
 
 .workspace-list-signal-working {
-  --workspace-signal-color: var(--color-accent);
-  animation: workspace-signal-working 1.6s ease-in-out infinite;
+  --workspace-signal-color: var(--color-success);
 }
 
 .workspace-list-signal-needs-approval {
@@ -642,7 +647,7 @@ button:focus-visible {
 }
 
 .workspace-list-signal-needs-input {
-  --workspace-signal-color: var(--color-warning);
+  --workspace-signal-color: var(--color-info);
   animation: workspace-signal-attention 1.2s ease-in-out infinite;
 }
 
@@ -652,12 +657,11 @@ button:focus-visible {
 }
 
 .workspace-list-signal-review-ready {
-  --workspace-signal-color: var(--color-accent);
-  animation: workspace-signal-attention 1.3s ease-in-out infinite;
+  --workspace-signal-color: var(--color-plan);
 }
 
 .workspace-list-signal-reviewing {
-  --workspace-signal-color: var(--color-warning);
+  --workspace-signal-color: var(--color-plan);
 }
 
 .workspace-list-signal-ready-to-merge {
@@ -671,7 +675,6 @@ button:focus-visible {
 
 .workspace-list-signal-ready-to-archive {
   --workspace-signal-color: var(--color-warning);
-  animation: workspace-signal-attention 1.4s ease-in-out infinite;
 }
 
 .workspace-list-signal-changes-requested {
@@ -682,19 +685,6 @@ button:focus-visible {
 .workspace-list-signal-blocked {
   --workspace-signal-color: var(--color-error);
   animation: workspace-signal-alert 1.1s ease-in-out infinite;
-}
-
-@keyframes workspace-signal-working {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.9;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--workspace-signal-color) 0%, transparent);
-  }
-  50% {
-    transform: scale(1.14);
-    opacity: 1;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--workspace-signal-color) 18%, transparent);
-  }
 }
 
 @keyframes workspace-signal-attention {
@@ -744,6 +734,11 @@ button:focus-visible {
 
 .dot-glow-info {
   --dot-glow-color: var(--color-info);
+  animation: dot-breathe 2.4s ease-in-out infinite;
+}
+
+.dot-glow-plan {
+  --dot-glow-color: var(--color-plan);
   animation: dot-breathe 2.4s ease-in-out infinite;
 }
 

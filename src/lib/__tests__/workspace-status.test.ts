@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getWorkspaceLifecycleState, getWorkspaceListSignal } from '../workspace-status';
+import {
+  getWorkspaceLifecycleState,
+  getWorkspaceListSignal,
+  workspaceLifecycleConfig,
+} from '../workspace-status';
 
 describe('getWorkspaceLifecycleState', () => {
   it('returns merged for outcome merged', () => {
@@ -35,5 +39,21 @@ describe('getWorkspaceListSignal', () => {
     const signal = getWorkspaceListSignal({ name: 'test', status: 'done', outcome: 'merged' });
     expect(signal.state).toBe('merged');
     expect(signal.dotClassName).toContain('workspace-list-signal-complete');
+  });
+
+  it('uses a non-attention color for active coding state', () => {
+    const signal = getWorkspaceListSignal({ name: 'test', status: 'running', outcome: 'in_progress', mode: 'act' });
+    expect(signal.state).toBe('coding');
+    expect(signal.dotClassName).toContain('bg-success');
+  });
+});
+
+describe('workspaceLifecycleConfig', () => {
+  it('does not pulse for active working state', () => {
+    expect(workspaceLifecycleConfig.coding.pulse).toBeUndefined();
+  });
+
+  it('keeps pulse for attention-needed approval state', () => {
+    expect(workspaceLifecycleConfig.awaiting_approval.pulse).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
+import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { toast } from 'sonner';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow } from '../../lib/ipc-api';
 import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
@@ -111,13 +112,13 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
     useUiStore.getState().setBottomPanelMode('agent');
   }, [workspace.id, workspace.parentRepo]);
 
-  const statusColor = workspace.status === 'running'
-    ? 'bg-accent animate-pulse'
-    : workspace.status === 'waiting_approval' || workspace.status === 'waiting_input'
-      ? 'bg-warning animate-pulse'
-      : workspace.status === 'error'
-        ? 'bg-error'
-        : 'bg-success';
+  const lifecycleState = getWorkspaceLifecycleState(workspace);
+  const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
+  const statusDotClass = [
+    lifecycle.color,
+    lifecycle.pulse ? 'animate-pulse' : '',
+    lifecycle.glow ?? '',
+  ].filter(Boolean).join(' ');
 
   return (
     <button
@@ -125,7 +126,7 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
       className="group flex flex-col gap-2 rounded-xl border border-border/60 bg-bg-elevated/60 p-3.5 text-left transition-all hover:border-border hover:bg-bg-elevated/90 hover:shadow-lg"
     >
       <div className="flex items-start gap-2.5">
-        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
+        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusDotClass}`} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-medium text-text-primary">
             <AnimatedWorkspaceName name={workspace.name} />
