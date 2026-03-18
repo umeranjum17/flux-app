@@ -616,3 +616,17 @@ describe('getActiveTask', () => {
     expect(useChatStore.getState().getActiveTask()).toBeUndefined();
   });
 });
+
+describe('updateWorkspaceTaskCwd', () => {
+  it('updates cwd for all tasks in the target workspace', () => {
+    makeTask('ws-1-a', { workspaceId: 'ws-1' });
+    makeTask('ws-1-b', { workspaceId: 'ws-1' });
+    makeTask('ws-2-a', { workspaceId: 'ws-2' });
+
+    useChatStore.getState().updateWorkspaceTaskCwd('ws-1', '/repo/.flux-worktrees/fix-rename');
+
+    expect(useChatStore.getState().tasks.get('ws-1-a')?.cwd).toBe('/repo/.flux-worktrees/fix-rename');
+    expect(useChatStore.getState().tasks.get('ws-1-b')?.cwd).toBe('/repo/.flux-worktrees/fix-rename');
+    expect(useChatStore.getState().tasks.get('ws-2-a')?.cwd).toBe('/tmp');
+  });
+});

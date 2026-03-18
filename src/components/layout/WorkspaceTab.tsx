@@ -10,6 +10,7 @@ import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
+import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
 
 function basename(p: string): string {
   return p.split('/').pop() || p.split('\\').pop() || p;
@@ -454,7 +455,9 @@ function WorkspaceListItem({
         <span aria-hidden="true" className={signal.dotClassName} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium text-text-primary">{workspace.name}</div>
+        <div className="truncate text-[13px] font-medium text-text-primary">
+          <AnimatedWorkspaceName name={workspace.name} />
+        </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
           <GitBranch size={10} className="opacity-50" />
           <span className="truncate font-mono">{workspace.branch}</span>

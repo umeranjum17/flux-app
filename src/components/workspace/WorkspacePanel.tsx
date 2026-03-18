@@ -3,6 +3,7 @@ import { useChatStore } from '../../stores/chat';
 import { MessageList } from '../chat/MessageList';
 import { ChatInput } from '../input/ChatInput';
 import { ArrowLeft, Eye } from 'lucide-react';
+import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
 
 export function WorkspacePanel() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -31,7 +32,9 @@ export function WorkspacePanel() {
           <ArrowLeft size={14} />
         </button>
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-text-primary">{workspace.name}</span>
+          <span className="block truncate text-sm font-medium text-text-primary">
+            <AnimatedWorkspaceName name={workspace.name} />
+          </span>
           <span className="text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{workspace.branch} · {workspace.agentId} · {workspace.model}</span>
         </div>
         <button

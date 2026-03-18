@@ -7,6 +7,7 @@ import { useAgentStore } from '../../stores/agent';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import { toast } from 'sonner';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow } from '../../lib/ipc-api';
+import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
 
 interface WelcomeScreenProps {
   onOpenProject: (path?: string, options?: { isSSH?: boolean; sshHost?: string }) => void;
@@ -126,7 +127,9 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
       <div className="flex items-start gap-2.5">
         <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-medium text-text-primary">{workspace.name}</div>
+          <div className="truncate text-[13px] font-medium text-text-primary">
+            <AnimatedWorkspaceName name={workspace.name} />
+          </div>
           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-text-tertiary">
             <GitBranch size={10} className="opacity-50" />
             <span className="truncate font-mono">{workspace.branch}</span>

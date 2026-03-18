@@ -14,6 +14,7 @@ import {
   parseFluxTodoAll,
   parseStepMarkers,
   parseTodoBlock,
+  extractAgentWorkspaceName,
   writeAttachmentContextFile,
 } from '../utils';
 import type { AgentMessage } from '../../agents/types';
@@ -314,6 +315,35 @@ describe('parseAgentTodos', () => {
     const result = parseAgentTodos('just regular text');
     expect(result.source).toBe('none');
     expect(result.items).toEqual([]);
+  });
+});
+
+describe('extractAgentWorkspaceName', () => {
+  it('reads workspace_name from FLUX_SIGNAL outcome events', () => {
+    const sessionStore = {
+      getMessages: () => [{
+        role: 'assistant',
+        type: 'result',
+        content: 'FLUX_SIGNAL: {"type":"outcome","outcome":"ready_for_pr","workspace_name":"Improve Workspace Rename UX"}',
+      }],
+    } as any;
+
+    expect(extractAgentWorkspaceName(sessionStore, 'session-1')).toBe('Improve Workspace Rename UX');
+  });
+
+  it('finds later outcome signals even when earlier FLUX_SIGNAL lines are unrelated', () => {
+    const sessionStore = {
+      getMessages: () => [{
+        role: 'assistant',
+        type: 'result',
+        content: [
+          'FLUX_SIGNAL: {"type":"todo_update","todos":[{"label":"Investigate","status":"done"}]}',
+          'FLUX_SIGNAL: {"type":"outcome","outcome":"ready_for_pr","workspace_name":"Fix Worktree Rename Flow"}',
+        ].join('\n'),
+      }],
+    } as any;
+
+    expect(extractAgentWorkspaceName(sessionStore, 'session-1')).toBe('Fix Worktree Rename Flow');
   });
 });
 

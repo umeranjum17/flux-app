@@ -269,6 +269,10 @@ describe('ChatInput', () => {
     });
     expect(useChatStore.getState().tasks.has('task-draft')).toBe(true);
     expect(mockApi.invoke).not.toHaveBeenCalledWith(
+      'workspace:rename-branch',
+      expect.anything(),
+    );
+    expect(mockApi.invoke).not.toHaveBeenCalledWith(
       'task:spawn',
       expect.objectContaining({
         workspaceId: 'ws-1',

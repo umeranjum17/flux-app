@@ -329,7 +329,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     }
 
     // Draft workspace tabs (created before first send) should bootstrap via workspace:spawn-chat
-    // so first-message branch/worktree renaming and workspace session setup run consistently.
+    // so workspace session setup runs consistently.
     if (task.workspaceId && !task.sessionId) {
       const workspace = useWorkspaceStore.getState().workspaces.get(task.workspaceId);
       if (workspace) {

@@ -48,6 +48,7 @@ interface ChatState {
   ingestStreamBatch(batch: Array<{ taskId: string; message: AgentMessage }>): void;
   setTaskStatus(taskId: string, status: TaskStatus): void;
   setTaskSessionId(taskId: string, sessionId: string): void;
+  updateWorkspaceTaskCwd(workspaceId: string, cwd: string): void;
   setPendingApproval(
     taskId: string,
     approval: {
@@ -317,6 +318,16 @@ export const useChatStore = create<ChatState>()(
         const task = state.tasks.get(taskId);
         if (!task) return;
         task.sessionId = sessionId;
+      });
+    },
+
+    updateWorkspaceTaskCwd(workspaceId, cwd) {
+      set((state) => {
+        for (const task of state.tasks.values()) {
+          if (task.workspaceId === workspaceId) {
+            task.cwd = cwd;
+          }
+        }
       });
     },
 

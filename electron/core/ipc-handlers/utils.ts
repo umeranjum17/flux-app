@@ -7,7 +7,7 @@ import { app } from 'electron';
 import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
 import { parseWorkspaceEvent } from '../worktree/workspace-protocol';
 import { composeSkillPrompts } from '../agents/skills';
-import { parseFluxSignal } from '../agents/skills/signal-parser';
+import { parseAllFluxSignals } from '../agents/skills/signal-parser';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv, resolveSshCommand } from '../process-utils';
 import type { SessionStore } from '../session/store';
@@ -1253,7 +1253,7 @@ const WORKSPACE_NAME_PATTERN = /WORKSPACE_NAME:\s*(.+)/i;
 /**
  * Extract a workspace name suggested by the agent from its session messages.
  * Checks (in priority order):
- *   1. FLUX_SIGNAL completed event with workspace_name (new unified protocol)
+ *   1. FLUX_SIGNAL outcome/completed event with workspace_name (new unified protocol)
  *   2. FLUX_WORKSPACE completed/ready_for_review event with workspace_name
  *   3. Legacy WORKSPACE_NAME: marker
  * Searches result/text messages from last → first.
@@ -1270,10 +1270,14 @@ export function extractAgentWorkspaceName(
     if (m.type !== 'result' && m.type !== 'text') continue;
     if (!m.content) continue;
 
-    // Check FLUX_SIGNAL completed event first (new unified protocol)
-    const fluxSignal = parseFluxSignal(m.content);
-    if (fluxSignal?.type === 'completed' && fluxSignal.workspace_name) {
-      return fluxSignal.workspace_name.trim().slice(0, 50);
+    // Check FLUX_SIGNAL outcome/completed events first (new unified protocol)
+    const fluxSignals = parseAllFluxSignals(
+      m.content,
+      new Set<import('../agents/skills/types').FluxSignalType>(['completed', 'outcome']),
+    );
+    for (let j = fluxSignals.length - 1; j >= 0; j -= 1) {
+      const signalName = fluxSignals[j]?.workspace_name?.trim();
+      if (signalName) return signalName.slice(0, 50);
     }
 
     // Check for workspace lifecycle event

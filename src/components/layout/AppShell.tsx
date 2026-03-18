@@ -303,8 +303,20 @@ export function AppShell() {
       useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
     });
     const unsubUpdated = window.api.on('workspace:updated', (data: unknown) => {
-      const { workspaceId, branch, name } = data as { workspaceId: string; branch: string; name: string };
-      useWorkspaceStore.getState().updateWorkspace(workspaceId, { branch, name });
+      const { workspaceId, branch, name, worktreePath } = data as {
+        workspaceId: string;
+        branch: string;
+        name: string;
+        worktreePath?: string;
+      };
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, {
+        branch,
+        name,
+        ...(worktreePath ? { worktreePath } : {}),
+      });
+      if (worktreePath) {
+        useChatStore.getState().updateWorkspaceTaskCwd(workspaceId, worktreePath);
+      }
     });
     const unsubCreated = window.api.on('workspace:created', (data: unknown) => {
       const { workspace } = data as { workspace: Workspace };

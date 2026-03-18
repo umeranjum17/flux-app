@@ -3,6 +3,7 @@ import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown
 import type { Workspace, WorkspaceOperation, WorkspaceOutcome } from '../../lib/ipc-api';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
 
 const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
 
@@ -49,7 +50,7 @@ export function WorkspaceCard({
 
         {/* Name */}
         <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">
-          {workspace.name}
+          <AnimatedWorkspaceName name={workspace.name} />
         </span>
 
         {/* Hover actions — replace status text on hover */}
