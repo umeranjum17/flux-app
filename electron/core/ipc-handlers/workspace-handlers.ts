@@ -6,10 +6,10 @@ import fs from 'fs';
 import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
-import type { WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
+import type { DiffScope, WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
 import { createWorktree, removeWorktree, listWorktrees } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
-import { getChangedFiles, getFileDiff, discardFile, discardAll, getFullDiff } from '../worktree/diff';
+import { getChangedFiles, getChangedFilesSeparated, getFileDiff, discardFile, discardAll, getFullDiff } from '../worktree/diff';
 import { resolveGitState } from '../worktree/outcome';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv } from '../process-utils';
@@ -533,25 +533,36 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     return files;
   });
 
+  ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
+    return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo);
+  });
+
   ipcMain.handle(
     'workspace:file-diff',
-    async (_event, { workspaceId, filePath }: { workspaceId: string; filePath: string }) => {
+    async (_event, { workspaceId, filePath, scope }: { workspaceId: string; filePath: string; scope?: DiffScope }) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo);
+      return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
     },
   );
 
   ipcMain.handle(
     'workspace:discard-file',
-    async (_event, { workspaceId, filePath }: { workspaceId: string; filePath: string }) => {
+    async (
+      _event,
+      { workspaceId, filePath, scope }: { workspaceId: string; filePath: string; scope?: Exclude<DiffScope, 'committed'> },
+    ) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo);
+      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
     },
   );
 

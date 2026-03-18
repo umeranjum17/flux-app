@@ -1,7 +1,15 @@
 import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { Workspace, WorkspaceOutcome, DiffFile, Checkpoint, WorkspaceSession, WorkspaceOperation } from '../lib/ipc-api';
+import type {
+  Workspace,
+  WorkspaceOutcome,
+  DiffFile,
+  Checkpoint,
+  WorkspaceSession,
+  WorkspaceOperation,
+  WorkspaceDiffScope,
+} from '../lib/ipc-api';
 import type { SystemActivity } from '../lib/types';
 import { appendSystemActivity } from '../lib/system-activities';
 
@@ -39,11 +47,12 @@ interface WorkspaceState {
   changesPanelWorkspaceId: string | null;
   changesPanelFiles: DiffFile[];
   changesPanelSelectedFile: string | null;
+  changesPanelSelectedScope: WorkspaceDiffScope | null;
   changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
   openChangesPanel(workspaceId: string): Promise<void>;
   closeChangesPanel(): void;
   toggleChangesPanel(workspaceId: string): void;
-  changesPanelSelectFile(path: string): Promise<void>;
+  changesPanelSelectFile(path: string, scope?: WorkspaceDiffScope): Promise<void>;
   refreshChangesPanelFiles(): Promise<void>;
 
   // Checkpoint actions
@@ -70,6 +79,7 @@ function clearWorkspaceUiState(state: {
   changesPanelWorkspaceId: string | null;
   changesPanelFiles: DiffFile[];
   changesPanelSelectedFile: string | null;
+  changesPanelSelectedScope: WorkspaceDiffScope | null;
   changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
 }, workspaceId: string): void {
   if (state.activeWorkspaceId === workspaceId) {
@@ -85,6 +95,7 @@ function clearWorkspaceUiState(state: {
     state.changesPanelWorkspaceId = null;
     state.changesPanelFiles = [];
     state.changesPanelSelectedFile = null;
+    state.changesPanelSelectedScope = null;
     state.changesPanelFileDiff = null;
   }
 }
@@ -102,6 +113,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     changesPanelWorkspaceId: null,
     changesPanelFiles: [],
     changesPanelSelectedFile: null,
+    changesPanelSelectedScope: null,
     changesPanelFileDiff: null,
 
     setWorkspaces(workspaces) {
@@ -250,6 +262,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.changesPanelWorkspaceId = workspaceId;
         state.changesPanelFiles = [];
         state.changesPanelSelectedFile = null;
+        state.changesPanelSelectedScope = null;
         state.changesPanelFileDiff = null;
       });
 
@@ -272,6 +285,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.changesPanelWorkspaceId = null;
         state.changesPanelFiles = [];
         state.changesPanelSelectedFile = null;
+        state.changesPanelSelectedScope = null;
         state.changesPanelFileDiff = null;
       });
     },
@@ -285,18 +299,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       }
     },
 
-    async changesPanelSelectFile(filePath) {
+    async changesPanelSelectFile(filePath, scope = 'all') {
       const workspaceId = get().changesPanelWorkspaceId;
       if (!workspaceId) return;
       const requestVersion = ++changesPanelFileDiffVersion;
 
       set((state) => {
         state.changesPanelSelectedFile = filePath;
+        state.changesPanelSelectedScope = scope;
         state.changesPanelFileDiff = null;
       });
 
       try {
-        const diff = await window.api.invoke('workspace:file-diff', { workspaceId, filePath }) as {
+        const diff = await window.api.invoke('workspace:file-diff', { workspaceId, filePath, scope }) as {
           oldContent: string;
           newContent: string;
           unified: string;
@@ -305,7 +320,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (
             requestVersion !== changesPanelFileDiffVersion ||
             state.changesPanelWorkspaceId !== workspaceId ||
-            state.changesPanelSelectedFile !== filePath
+            state.changesPanelSelectedFile !== filePath ||
+            state.changesPanelSelectedScope !== scope
           ) return;
           state.changesPanelFileDiff = diff;
         });

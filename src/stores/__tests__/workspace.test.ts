@@ -19,6 +19,7 @@ beforeEach(() => {
     changesPanelWorkspaceId: null,
     changesPanelFiles: [],
     changesPanelSelectedFile: null,
+    changesPanelSelectedScope: null,
     changesPanelFileDiff: null,
   });
 });

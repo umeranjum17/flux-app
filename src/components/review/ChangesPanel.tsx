@@ -12,6 +12,7 @@ import { ReviewDiffViewer } from './ReviewDiffViewer';
 export function ChangesPanel() {
   const open = useWorkspaceStore((s) => s.changesPanelOpen);
   const selectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
+  const selectedScope = useWorkspaceStore((s) => s.changesPanelSelectedScope);
   const fileDiff = useWorkspaceStore((s) => s.changesPanelFileDiff);
   const workspaceId = useWorkspaceStore((s) => s.changesPanelWorkspaceId);
 
@@ -41,9 +42,9 @@ export function ChangesPanel() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [open, close]);
 
-  const handleDiscard = useCallback(async (filePath: string) => {
+  const handleDiscard = useCallback(async (filePath: string, scope: 'all' | 'uncommitted') => {
     if (!workspaceId) return;
-    await window.api.invoke('workspace:discard-file', { workspaceId, filePath });
+    await window.api.invoke('workspace:discard-file', { workspaceId, filePath, scope });
     useWorkspaceStore.getState().refreshChangesPanelFiles();
   }, [workspaceId]);
 
@@ -84,7 +85,11 @@ export function ChangesPanel() {
             oldContent={fileDiff.oldContent}
             newContent={fileDiff.newContent}
             fileName={selectedFile}
-            onDiscard={() => handleDiscard(selectedFile)}
+            onDiscard={
+              selectedScope === 'committed'
+                ? undefined
+                : () => handleDiscard(selectedFile, selectedScope === 'uncommitted' ? 'uncommitted' : 'all')
+            }
           />
         ) : (
           <div className="flex items-center justify-center h-full text-xs text-text-tertiary">

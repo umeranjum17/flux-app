@@ -123,11 +123,12 @@ export interface IpcChannels {
   'workspace:archive': { args: [{ workspaceId: string }]; result: { operation: WorkspaceOperation } };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
+  'workspace:diff-files-separated': { args: [{ workspaceId: string }]; result: WorkspaceDiffSections };
   'workspace:file-diff': {
-    args: [{ workspaceId: string; filePath: string }];
+    args: [{ workspaceId: string; filePath: string; scope?: WorkspaceDiffScope }];
     result: { oldContent: string; newContent: string; unified: string };
   };
-  'workspace:discard-file': { args: [{ workspaceId: string; filePath: string }]; result: void };
+  'workspace:discard-file': { args: [{ workspaceId: string; filePath: string; scope?: WorkspaceDiscardScope }]; result: void };
   'checkpoint:list': { args: [{ workspaceId: string }]; result: Checkpoint[] };
   'checkpoint:diff': { args: [{ checkpointId: string; workspaceId: string }]; result: string };
   'checkpoint:revert': { args: [{ checkpointId: string; workspaceId: string }]; result: void };
@@ -413,6 +414,15 @@ export interface DiffFile {
   additions: number;
   deletions: number;
   patch?: string;
+}
+
+export type WorkspaceDiffScope = 'all' | 'committed' | 'uncommitted';
+
+export type WorkspaceDiscardScope = 'all' | 'uncommitted';
+
+export interface WorkspaceDiffSections {
+  committed: DiffFile[];
+  uncommitted: DiffFile[];
 }
 
 export interface Workspace {

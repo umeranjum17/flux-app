@@ -18,6 +18,13 @@ export interface DiffFile {
   newContent?: string;
 }
 
+export type DiffScope = 'all' | 'committed' | 'uncommitted';
+
+export interface DiffFileSections {
+  committed: DiffFile[];
+  uncommitted: DiffFile[];
+}
+
 export interface MergeResult {
   success: boolean;
   conflicts?: string[];

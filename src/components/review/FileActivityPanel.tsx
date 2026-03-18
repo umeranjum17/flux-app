@@ -3,9 +3,41 @@ import { X, FilePen, Undo2 } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
-import type { DiffFile } from '../../lib/ipc-api';
+import type { DiffFile, WorkspaceDiffSections } from '../../lib/ipc-api';
 import type { EditedFileEntry } from '../../lib/types';
 import { getDisplayPath } from '../../lib/path-utils';
+
+type FileScope = 'committed' | 'uncommitted';
+
+interface ActivityFileEntry extends EditedFileEntry {
+  scope: FileScope;
+}
+
+interface FileSection {
+  id: FileScope;
+  label: string;
+  entries: ActivityFileEntry[];
+}
+
+function toActivityEntries(
+  files: DiffFile[],
+  scope: FileScope,
+  trackedByPath: Map<string, EditedFileEntry>,
+  idPrefix: string,
+): ActivityFileEntry[] {
+  const now = Date.now();
+  return files.map((file, index) => {
+    const tracked = trackedByPath.get(file.path);
+    return {
+      filePath: file.path,
+      toolCallId: tracked?.toolCallId ?? `${idPrefix}-${index}`,
+      additions: file.additions,
+      deletions: file.deletions,
+      timestamp: tracked?.timestamp ?? now - index,
+      scope,
+    };
+  }).sort((a, b) => b.timestamp - a.timestamp);
+}
 
 function FileRow({
   entry,
@@ -13,7 +45,7 @@ function FileRow({
   onClick,
   onDiscard,
 }: {
-  entry: EditedFileEntry;
+  entry: ActivityFileEntry;
   isActive: boolean;
   onClick: () => void;
   onDiscard?: () => void;
@@ -66,54 +98,67 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const changesPanelSelectFile = useWorkspaceStore((s) => s.changesPanelSelectFile);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const changesPanelSelectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
+  const changesPanelSelectedScope = useWorkspaceStore((s) => s.changesPanelSelectedScope);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [workspaceFallbackFiles, setWorkspaceFallbackFiles] = useState<EditedFileEntry[]>([]);
-  const [loadingFallback, setLoadingFallback] = useState(false);
+  const [workspaceSections, setWorkspaceSections] = useState<WorkspaceDiffSections | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   const editedFiles = task?.editedFiles;
   const trackedFiles = editedFiles ? Array.from(editedFiles.values()) : [];
+  const trackedByPath = new Map(trackedFiles.map((entry) => [entry.filePath, entry]));
   const workspaceId = task?.workspaceId ?? null;
   const contextKey = task?.workspaceId ?? task?.id ?? '';
-  const files = trackedFiles.length > 0 ? trackedFiles : workspaceFallbackFiles;
+  const uncommittedEntries = workspaceSections
+    ? toActivityEntries(workspaceSections.uncommitted, 'uncommitted', trackedByPath, 'workspace-uncommitted')
+    : trackedFiles.map((entry) => ({ ...entry, scope: 'uncommitted' as const }));
+  const committedEntries = workspaceSections
+    ? toActivityEntries(workspaceSections.committed, 'committed', trackedByPath, 'workspace-committed')
+    : [];
+  const sections: FileSection[] = [];
+  if (uncommittedEntries.length > 0) {
+    sections.push({ id: 'uncommitted', label: 'Uncommitted', entries: uncommittedEntries });
+  }
+  if (committedEntries.length > 0) {
+    sections.push({ id: 'committed', label: 'Committed', entries: committedEntries });
+  }
+  const files = sections.flatMap((section) => section.entries);
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
 
-  const sortedFiles = [...files].sort((a, b) => b.timestamp - a.timestamp);
-
   useEffect(() => {
     let cancelled = false;
-    if (!workspaceId || trackedFiles.length > 0) {
-      setWorkspaceFallbackFiles([]);
-      setLoadingFallback(false);
+
+    if (!workspaceId) {
+      setWorkspaceSections(null);
+      setLoadingFiles(false);
       return;
     }
 
-    setLoadingFallback(true);
-    window.api.invoke('workspace:diff-files', { workspaceId })
-      .then((diffFiles) => {
-        if (cancelled) return;
-        const now = Date.now();
-        setWorkspaceFallbackFiles(
-          (diffFiles as DiffFile[]).map((file, index) => ({
-            filePath: file.path,
-            toolCallId: `workspace-diff-${index}`,
-            additions: file.additions,
-            deletions: file.deletions,
-            timestamp: now - index,
-          })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setWorkspaceFallbackFiles([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingFallback(false);
-      });
+    async function loadDiffSections() {
+      setLoadingFiles(true);
+      try {
+        const sections = await window.api.invoke('workspace:diff-files-separated', { workspaceId }) as WorkspaceDiffSections;
+        if (!cancelled) setWorkspaceSections(sections);
+      } catch {
+        try {
+          const legacyFiles = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
+          if (!cancelled) {
+            setWorkspaceSections({ committed: [], uncommitted: legacyFiles });
+          }
+        } catch {
+          if (!cancelled) setWorkspaceSections({ committed: [], uncommitted: [] });
+        }
+      } finally {
+        if (!cancelled) setLoadingFiles(false);
+      }
+    }
+
+    void loadDiffSections();
 
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, trackedFiles.length]);
+  }, [workspaceId]);
 
   // Close on Escape
   useEffect(() => {
@@ -130,7 +175,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
 
   // Keyboard navigation (up/down) when changes panel is open
   useEffect(() => {
-    if (!changesPanelOpen || sortedFiles.length === 0) return;
+    if (!changesPanelOpen || files.length === 0) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
       const active = document.activeElement;
@@ -138,8 +183,10 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
 
       e.preventDefault();
       const store = useWorkspaceStore.getState();
-      const currentIdx = sortedFiles.findIndex((f) => f.filePath === store.changesPanelSelectedFile);
-      const len = sortedFiles.length;
+      const currentIdx = files.findIndex(
+        (f) => f.filePath === store.changesPanelSelectedFile && f.scope === store.changesPanelSelectedScope,
+      );
+      const len = files.length;
       if (len === 0) return;
 
       let nextIdx: number;
@@ -148,16 +195,23 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
       } else {
         nextIdx = currentIdx < 0 ? len - 1 : (currentIdx - 1 + len) % len;
       }
-      store.changesPanelSelectFile(sortedFiles[nextIdx].filePath);
+      const next = files[nextIdx];
+      store.changesPanelSelectFile(next.filePath, next.scope);
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [changesPanelOpen, sortedFiles]);
+  }, [changesPanelOpen, files]);
 
   const handleDiscard = useCallback(async (filePath: string) => {
     if (!workspaceId) return;
-    await window.api.invoke('workspace:discard-file', { workspaceId, filePath });
+    await window.api.invoke('workspace:discard-file', { workspaceId, filePath, scope: 'uncommitted' as const });
     useWorkspaceStore.getState().refreshChangesPanelFiles();
+    try {
+      const latest = await window.api.invoke('workspace:diff-files-separated', { workspaceId }) as WorkspaceDiffSections;
+      setWorkspaceSections(latest);
+    } catch {
+      // Keep current list if refresh fails.
+    }
   }, [workspaceId]);
 
   const wrapperClass = embedded
@@ -180,7 +234,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
         </div>
         <div className="flex-1 flex items-center justify-center px-3">
           <p className="text-[12px] text-text-tertiary text-center">
-            {loadingFallback ? 'Loading files...' : 'No files edited yet'}
+            {loadingFiles ? 'Loading files...' : 'No committed or uncommitted changes yet'}
           </p>
         </div>
       </div>
@@ -211,31 +265,56 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
       </div>
 
       {/* File list */}
-      <div className="flex-1 overflow-y-auto px-1 py-1 space-y-0.5">
-        {sortedFiles.map((entry) => (
-            <FileRow
-              key={entry.filePath}
-              entry={entry}
-              isActive={changesPanelOpen && changesPanelSelectedFile === entry.filePath}
-              onClick={async () => {
-                // When changes panel is already open, just select the file
-                if (changesPanelOpen) {
-                  await changesPanelSelectFile(entry.filePath);
-                  return;
-                }
-                // Copilot inline diffs don't render well — open full Changes Panel directly
-                const isCopilot = task?.agentId === 'copilot';
-                if (!isCopilot) {
-                  const didScroll = scrollToFileEdit(entry.toolCallId);
-                  if (didScroll || !workspaceId) return;
-                }
-                if (!workspaceId) return;
-                await openChangesPanel(workspaceId);
-                await changesPanelSelectFile(entry.filePath);
-              }}
-              onDiscard={changesPanelOpen && workspaceId ? () => handleDiscard(entry.filePath) : undefined}
-            />
-          ))}
+      <div className="flex-1 overflow-y-auto px-1 py-1">
+        {sections.map((section) => {
+          const sectionAdditions = section.entries.reduce((sum, entry) => sum + entry.additions, 0);
+          const sectionDeletions = section.entries.reduce((sum, entry) => sum + entry.deletions, 0);
+
+          return (
+            <div key={section.id} className="mb-2 last:mb-0">
+              <div className="px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-text-tertiary flex items-center justify-between">
+                <span>{section.label} ({section.entries.length})</span>
+                <span className="font-mono normal-case tracking-normal">
+                  <span className="text-success">+{sectionAdditions}</span>
+                  <span className="text-error ml-1">-{sectionDeletions}</span>
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                {section.entries.map((entry) => (
+                  <FileRow
+                    key={`${section.id}:${entry.filePath}`}
+                    entry={entry}
+                    isActive={
+                      changesPanelOpen &&
+                      changesPanelSelectedFile === entry.filePath &&
+                      changesPanelSelectedScope === entry.scope
+                    }
+                    onClick={async () => {
+                      if (changesPanelOpen) {
+                        await changesPanelSelectFile(entry.filePath, entry.scope);
+                        return;
+                      }
+
+                      const isCopilot = task?.agentId === 'copilot';
+                      if (!isCopilot && entry.scope === 'uncommitted') {
+                        const didScroll = scrollToFileEdit(entry.toolCallId);
+                        if (didScroll || !workspaceId) return;
+                      }
+                      if (!workspaceId) return;
+                      await openChangesPanel(workspaceId);
+                      await changesPanelSelectFile(entry.filePath, entry.scope);
+                    }}
+                    onDiscard={
+                      changesPanelOpen && workspaceId && entry.scope === 'uncommitted'
+                        ? () => handleDiscard(entry.filePath)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

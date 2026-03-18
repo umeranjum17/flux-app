@@ -15,7 +15,7 @@ import { repoMapService } from './intelligence/repomap';
 import { WorkspaceStore } from './worktree/store';
 import { createWorktree, removeWorktree } from './worktree/manager';
 import { generateWorkspaceName } from './worktree/names';
-import { discardFile, getChangedFiles, getFileDiff } from './worktree/diff';
+import { discardFile, getChangedFiles, getChangedFilesSeparated, getFileDiff } from './worktree/diff';
 import { createCheckpoint, listCheckpoints } from './checkpoint/manager';
 import type { Workspace, WorkspaceStatus, WorkspaceOutcome } from './worktree/types';
 import { extendedEnv, resolveSshCommand, classifySpawnError, detectEnvironment } from './process-utils';
@@ -799,6 +799,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:unarchive',
     'workspace:open-ide',
     'workspace:diff-files',
+    'workspace:diff-files-separated',
     'workspace:file-diff',
     'workspace:discard-file',
     'checkpoint:list',
@@ -2610,25 +2611,39 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     return files;
   });
 
+  ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
+    const workspace = workspaceStore.get(workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
+    return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo);
+  });
+
   ipcMain.handle(
     'workspace:file-diff',
-    async (_event, { workspaceId, filePath }: { workspaceId: string; filePath: string }) => {
+    async (
+      _event,
+      { workspaceId, filePath, scope }: { workspaceId: string; filePath: string; scope?: 'all' | 'committed' | 'uncommitted' },
+    ) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo);
+      return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
     },
   );
 
   ipcMain.handle(
     'workspace:discard-file',
-    async (_event, { workspaceId, filePath }: { workspaceId: string; filePath: string }) => {
+    async (
+      _event,
+      { workspaceId, filePath, scope }: { workspaceId: string; filePath: string; scope?: 'all' | 'uncommitted' },
+    ) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo);
+      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
     },
   );
 

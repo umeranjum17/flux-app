@@ -238,6 +238,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:unarchive',
     'workspace:open-ide',
     'workspace:diff-files',
+    'workspace:diff-files-separated',
     'workspace:file-diff',
     'workspace:discard-file',
     'workspace:discard-all',

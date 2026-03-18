@@ -20,6 +20,7 @@ const HIGH_VOLUME_EVENT_CHANNELS = new Set([
   'terminal:data',
   'workspace:run-output',
   'workspace:diff-files',
+  'workspace:diff-files-separated',
   'workspace:file-diff',
 ]);
 
