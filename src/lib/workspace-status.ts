@@ -396,6 +396,15 @@ export function getWorkspaceLifecycleState(
   return 'idle';
 }
 
+/** Whether a lifecycle state requires user action (approval, input, review of changes, or error). */
+export function isActionNeededState(state: WorkspaceLifecycleState | WorkspaceListSignalState): boolean {
+  return state === 'awaiting_approval'
+    || state === 'awaiting_input'
+    || state === 'changes_requested'
+    || state === 'blocked'
+    || state === 'archive_failed';
+}
+
 export function getWorkspaceListSignal(
   workspace: Pick<Workspace, 'name' | 'status' | 'outcome'> & Partial<Pick<Workspace, 'mode'>>,
   operation?: Pick<WorkspaceOperation, 'kind' | 'status' | 'message' | 'error'>,

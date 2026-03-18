@@ -827,13 +827,13 @@ button:focus-visible {
     box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 28%, transparent);
     opacity: 0.94;
   }
-  38% {
-    transform: scale(1.25);
-    box-shadow: 0 0 4px 5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 36%, transparent);
+  30% {
+    transform: scale(1.35);
+    box-shadow: 0 0 6px 5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 40%, transparent);
     opacity: 1;
   }
-  70% {
-    transform: scale(0.95);
+  55% {
+    transform: scale(0.92);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 18%, transparent);
   }
 }
@@ -844,19 +844,55 @@ button:focus-visible {
     box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--workspace-signal-color, currentColor) 28%, transparent);
     opacity: 0.94;
   }
-  32% {
-    transform: scale(1.3);
-    box-shadow: 0 0 5px 6px color-mix(in srgb, var(--workspace-signal-color, currentColor) 40%, transparent);
+  25% {
+    transform: scale(1.4);
+    box-shadow: 0 0 8px 6px color-mix(in srgb, var(--workspace-signal-color, currentColor) 44%, transparent);
     opacity: 1;
   }
-  60% {
-    transform: scale(0.9);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 18%, transparent);
+  50% {
+    transform: scale(0.88);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 16%, transparent);
   }
+}
+
+/* Expanding radar-ping ring for action-needed states */
+@keyframes dot-ring-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.workspace-dot-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: dot-ring-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.workspace-dot-ring-fast {
+  animation-duration: 1.4s;
 }
 
 .lifecycle-dot-glow {
   box-shadow: 0 0 6px 1px currentColor;
+}
+
+/* Row tint for workspace list items needing user action */
+.workspace-row-action-needed {
+  background: color-mix(in srgb, var(--workspace-signal-color, var(--color-warning)) 6%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--workspace-signal-color) 50%, transparent);
+  transition: background 300ms ease, border-color 300ms ease;
+}
+
+.workspace-row-action-needed:hover {
+  background: color-mix(in srgb, var(--workspace-signal-color, var(--color-warning)) 10%, transparent);
 }
 
 /* Icon-specific animations for Lucide lifecycle icons */
@@ -932,7 +968,9 @@ button:focus-visible {
   .workspace-list-signal,
   [class*="dot-glow-"],
   .workspace-icon-pulse,
-  .workspace-icon-nudge {
+  .workspace-icon-nudge,
+  .workspace-dot-ring,
+  .workspace-dot-ring-fast {
     animation: none !important;
     transition: none !important;
   }

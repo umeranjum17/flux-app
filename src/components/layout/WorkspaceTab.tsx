@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import { getWorkspaceListSignal } from '../../lib/workspace-status';
+import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
 import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { toast } from 'sonner';
@@ -443,6 +443,7 @@ function WorkspaceListItem({
   });
   const signal = getWorkspaceListSignal(workspace, operation, { hasChanges });
   const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
+  const actionNeeded = isActionNeededState(signal.state);
 
   return (
     <button
@@ -450,7 +451,8 @@ function WorkspaceListItem({
       onContextMenu={onOpenContextMenu}
       title={signal.tooltip}
       aria-label={signal.ariaLabel}
-      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''}`}
+      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''} ${actionNeeded ? 'workspace-row-action-needed' : ''}`}
+      style={actionNeeded ? { '--workspace-signal-color': `var(--color-${signal.state === 'awaiting_approval' ? 'warning' : signal.state === 'awaiting_input' ? 'info' : 'error'})` } as React.CSSProperties : undefined}
     >
       <div className="relative mt-0.5 shrink-0 pt-0.5" aria-hidden="true">
         <WorkspaceLifecycleIcon state={signal.state} size={14} className={signal.iconColor} />
@@ -460,8 +462,14 @@ function WorkspaceListItem({
           <AnimatedWorkspaceName name={workspace.name} />
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
-          <GitBranch size={10} className="opacity-50" />
-          <span className="truncate font-mono">{workspace.branch}</span>
+          {actionNeeded ? (
+            <span className={`font-medium ${signal.iconColor}`}>{signal.label}</span>
+          ) : (
+            <>
+              <GitBranch size={10} className="opacity-50" />
+              <span className="truncate font-mono">{workspace.branch}</span>
+            </>
+          )}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-0.5 self-start">
