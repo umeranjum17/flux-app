@@ -24,10 +24,10 @@ export function ActivityIndicator({
       {showSpinner ? (
         <Loader2 size={13} className="shrink-0 animate-spin text-text-secondary" />
       ) : showDots ? (
-        <span className="inline-flex w-5 items-center justify-center gap-[3px]">
-          <span className="h-1.5 w-1.5 rounded-full bg-text-secondary/85 animate-pulse" />
-          <span className="h-1.5 w-1.5 rounded-full bg-text-secondary/65 animate-pulse [animation-delay:160ms]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-text-secondary/45 animate-pulse [animation-delay:320ms]" />
+        <span className="inline-flex w-6 items-center justify-center gap-[3px]" aria-hidden>
+          <span className="chat-progress-dot chat-progress-dot-primary" />
+          <span className="chat-progress-dot chat-progress-dot-secondary" />
+          <span className="chat-progress-dot chat-progress-dot-tertiary" />
         </span>
       ) : (
         <span className="flex items-center justify-center w-5 h-5">

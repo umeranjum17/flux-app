@@ -615,19 +615,93 @@ button:focus-visible {
 }
 
 .workspace-dot-active {
-  animation: workspace-dot-active 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  animation: workspace-dot-active 2.2s cubic-bezier(0.24, 0.9, 0.22, 1) infinite;
 }
 
 .workspace-dot-settled {
-  animation: workspace-dot-settled 3.2s ease-in-out infinite;
+  animation: workspace-dot-settled 2.7s ease-in-out infinite;
 }
 
 .workspace-dot-attention {
-  animation: workspace-dot-attention 1.5s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+  animation: workspace-dot-attention 1.2s cubic-bezier(0.32, 0, 0.2, 1) infinite;
 }
 
 .workspace-dot-alert {
-  animation: workspace-dot-alert 1.15s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+  animation: workspace-dot-alert 0.95s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+/* Chat progress dots — brighter and more legible than generic pulse */
+@keyframes chat-progress-dot {
+  0%, 100% {
+    transform: translateY(0) scale(0.92);
+    opacity: 0.42;
+    filter: saturate(0.9);
+  }
+  42% {
+    transform: translateY(-1px) scale(1.14);
+    opacity: 1;
+    filter: saturate(1.15);
+  }
+}
+
+.chat-progress-dot {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 999px;
+  animation: chat-progress-dot 1.05s ease-in-out infinite;
+  box-shadow: 0 0 0 1px hsl(0 0% 100% / 0.05);
+}
+
+.chat-progress-dot-primary {
+  background: var(--color-info);
+  animation-delay: 0ms;
+}
+
+.chat-progress-dot-secondary {
+  background: var(--color-plan);
+  animation-delay: 150ms;
+}
+
+.chat-progress-dot-tertiary {
+  background: var(--color-warning);
+  animation-delay: 300ms;
+}
+
+/* Tab status dots — distinct color + motion per state */
+.task-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.task-status-dot-idle {
+  background: color-mix(in srgb, var(--color-text-tertiary) 38%, transparent);
+}
+
+.task-status-dot-running {
+  background: var(--color-info);
+  animation: workspace-dot-active 2.05s cubic-bezier(0.24, 0.9, 0.22, 1) infinite;
+}
+
+.task-status-dot-approval {
+  background: var(--color-warning);
+  animation: workspace-dot-attention 1.05s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+.task-status-dot-input {
+  background: var(--color-plan);
+  animation: workspace-dot-attention 1.2s cubic-bezier(0.32, 0, 0.2, 1) infinite;
+}
+
+.task-status-dot-done {
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
+}
+
+.task-status-dot-error {
+  background: var(--color-error);
+  animation: workspace-dot-alert 0.92s cubic-bezier(0.32, 0, 0.2, 1) infinite;
 }
 
 .workspace-list-signal {
@@ -813,6 +887,11 @@ button:focus-visible {
   .workspace-dot-settled,
   .workspace-dot-attention,
   .workspace-dot-alert,
+  .chat-progress-dot,
+  .task-status-dot-running,
+  .task-status-dot-approval,
+  .task-status-dot-input,
+  .task-status-dot-error,
   .workspace-list-signal,
   [class*="dot-glow-"] {
     animation: none !important;
@@ -822,9 +901,25 @@ button:focus-visible {
   .workspace-dot-active,
   .workspace-dot-settled,
   .workspace-dot-attention,
-  .workspace-dot-alert {
+  .workspace-dot-alert,
+  .task-status-dot-running,
+  .task-status-dot-approval,
+  .task-status-dot-input,
+  .task-status-dot-error {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-signal-color, currentColor) 22%, transparent);
     opacity: 1;
+  }
+
+  .chat-progress-dot-primary {
+    background: var(--color-info);
+  }
+
+  .chat-progress-dot-secondary {
+    background: var(--color-plan);
+  }
+
+  .chat-progress-dot-tertiary {
+    background: var(--color-warning);
   }
 }
 

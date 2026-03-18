@@ -9,17 +9,17 @@ import type { TaskStatus } from '../../lib/types';
 function StatusDot({ status }: { status: TaskStatus }) {
   switch (status) {
     case 'running':
-      return <span className="w-2 h-2 rounded-full bg-info shrink-0" />;
+      return <span className="task-status-dot task-status-dot-running shrink-0" />;
     case 'waiting_approval':
-      return <span className="w-2 h-2 rounded-full bg-warning animate-pulse shrink-0" />;
+      return <span className="task-status-dot task-status-dot-approval shrink-0" />;
     case 'waiting_input':
-      return <span className="w-2 h-2 rounded-full bg-info animate-pulse shrink-0" />;
+      return <span className="task-status-dot task-status-dot-input shrink-0" />;
     case 'done':
-      return <span className="w-2 h-2 rounded-full bg-success shrink-0" />;
+      return <span className="task-status-dot task-status-dot-done shrink-0" />;
     case 'error':
-      return <span className="w-2 h-2 rounded-full bg-error shrink-0" />;
+      return <span className="task-status-dot task-status-dot-error shrink-0" />;
     default:
-      return <span className="w-2 h-2 rounded-full bg-text-tertiary/30 shrink-0" />;
+      return <span className="task-status-dot task-status-dot-idle shrink-0" />;
   }
 }
 
