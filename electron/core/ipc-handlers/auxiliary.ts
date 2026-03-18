@@ -367,6 +367,11 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     if (initGit) {
       try {
         await execFileAsync('git', ['init'], { cwd: newPath, timeout: 10000 });
+        // Create an initial empty commit so worktrees work immediately
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+          cwd: newPath,
+          timeout: 10000,
+        });
       } catch (err: any) {
         return { error: `Folder created but git init failed: ${err.message}` };
       }
@@ -374,6 +379,21 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     setCurrentCwd(newPath);
     setLocalCwd(newPath);
     return { path: newPath };
+  });
+
+  ipcMain.handle('git:init', async (_event, { dirPath }: { dirPath?: string } = {}) => {
+    const target = dirPath ?? getCurrentCwd();
+    try {
+      await execFileAsync('git', ['init'], { cwd: target, timeout: 10000 });
+      // Create an initial empty commit so worktrees work immediately
+      await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+        cwd: target,
+        timeout: 10000,
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message ?? 'Failed to initialize git repository' };
+    }
   });
 
   ipcMain.handle('git:is-repo', async (_event, { dirPath }: { dirPath?: string } = {}) => {

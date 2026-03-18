@@ -97,9 +97,9 @@ export function CreateFolderDialog() {
             <div className="px-5 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <FolderPlus size={16} className="text-text-secondary" />
-                Create New Folder
+                Create New Project
               </h2>
-              <p className="text-[11px] text-text-tertiary mt-0.5">Create a directory and optionally initialize a git repository</p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">Create a project directory with git initialized, ready for workspaces</p>
             </div>
 
             {/* Form */}

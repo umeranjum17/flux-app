@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Zap, FolderPlus, GitBranch, MessageSquare, Plus, RefreshCw } from 'lucide-react';
+import { Zap, FolderPlus, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal } from 'lucide-react';
 import { useUiStore, type RecentProject } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -45,14 +45,17 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
           <p className="mt-2 text-[14px] text-text-tertiary">Type a message below or press <kbd className="premium-pill px-1.5 py-0.5 text-[12px] font-mono text-text-secondary">Cmd+K</kbd> to open commands</p>
         </div>
 
-        <div className="mb-6 flex justify-center">
+        <div className="mb-6 flex justify-center gap-2">
           <button
             onClick={() => useUiStore.getState().setOverlay('create-folder')}
             className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             <FolderPlus size={14} />
-            Create New Folder
+            Create New Project
           </button>
+          {!isGitRepo && cwd && (
+            <InitGitButton cwd={cwd} />
+          )}
         </div>
 
         {/* Workspaces grid */}
@@ -150,7 +153,29 @@ function NewWorkspaceButton({ cwd, isGitRepo }: { cwd: string; isGitRepo: boolea
   const [creating, setCreating] = useState(false);
 
   const handleCreate = useCallback(async () => {
-    if (creating || !isGitRepo) return;
+    if (creating) return;
+
+    // If not a git repo, offer to initialize git first
+    if (!isGitRepo) {
+      setCreating(true);
+      try {
+        const result = await window.api.invoke('git:init', { dirPath: cwd }) as { success: boolean; error?: string };
+        if (!result.success) {
+          toast.error(result.error || 'Failed to initialize git');
+          return;
+        }
+        useUiStore.getState().setIsGitRepo(true);
+        const branch = await window.api.invoke('git:branch') as string | null;
+        useUiStore.getState().setGitBranch(branch);
+        toast.success('Git repository initialized');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : String(err));
+        return;
+      } finally {
+        setCreating(false);
+      }
+    }
+
     setCreating(true);
     try {
       const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
@@ -179,12 +204,50 @@ function NewWorkspaceButton({ cwd, isGitRepo }: { cwd: string; isGitRepo: boolea
   return (
     <button
       onClick={handleCreate}
-      disabled={creating || !isGitRepo}
+      disabled={creating}
       className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-text-secondary disabled:opacity-50"
-      title={isGitRepo ? 'New workspace' : 'Not a git repository'}
+      title={isGitRepo ? 'New workspace' : 'Initialize git & create workspace'}
     >
       <Plus size={12} />
       New
+    </button>
+  );
+}
+
+// --- Init Git Button ---
+
+function InitGitButton({ cwd }: { cwd: string }) {
+  const [initing, setIniting] = useState(false);
+
+  const handleInit = useCallback(async () => {
+    if (initing) return;
+    setIniting(true);
+    try {
+      const result = await window.api.invoke('git:init', { dirPath: cwd }) as { success: boolean; error?: string };
+      if (!result.success) {
+        toast.error(result.error || 'Failed to initialize git');
+        return;
+      }
+      useUiStore.getState().setIsGitRepo(true);
+      // Re-detect git state
+      const branch = await window.api.invoke('git:branch') as string | null;
+      useUiStore.getState().setGitBranch(branch);
+      toast.success('Git repository initialized');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIniting(false);
+    }
+  }, [cwd, initing]);
+
+  return (
+    <button
+      onClick={handleInit}
+      disabled={initing}
+      className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
+    >
+      <GitCommitHorizontal size={14} />
+      {initing ? 'Initializing...' : 'Initialize Git'}
     </button>
   );
 }

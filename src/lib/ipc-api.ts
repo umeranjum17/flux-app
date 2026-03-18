@@ -59,6 +59,7 @@ export interface IpcChannels {
     result: { path: string } | { error: string };
   };
   'fs:pick-directory': { args: [{ defaultPath?: string }]; result: string | null };
+  'git:init': { args: [{ dirPath?: string }?]; result: { success: boolean; error?: string } };
   'git:is-repo': { args: [{ dirPath?: string }?]; result: boolean };
   'git:branch': { args: []; result: string | null };
   'git:upstream': { args: []; result: string | null };
