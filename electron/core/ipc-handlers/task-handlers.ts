@@ -60,6 +60,7 @@ import { parseAllFluxSignals } from '../agents/skills/signal-parser';
 import { getActiveSkillIds } from '../agents/skills';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs';
 
 const execFileAsync = promisify(execFile);
 
@@ -1171,12 +1172,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           try {
             // 1. Detect if the agent renamed the branch
             try {
+              const freshWsForBranch = workspaceStore.get(workspace.id) ?? workspace;
               const { stdout: actualBranch } = await execFileAsync(
                 'git', ['branch', '--show-current'],
-                { cwd: workspace.worktreePath, timeout: 5000 },
+                { cwd: freshWsForBranch.worktreePath, timeout: 5000 },
               );
               const trimmedBranch = actualBranch.trim();
-              const freshWsBranch = workspaceStore.get(workspace.id)?.branch ?? workspace.branch;
+              const freshWsBranch = freshWsForBranch.branch;
               if (trimmedBranch && trimmedBranch !== freshWsBranch) {
                 const nameSlug = trimmedBranch
                   .replace(/^[^/]*\//, '')
@@ -1213,8 +1215,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               // No fallback transitionOutcome here — the agent is the authority.
             }
 
-            // 3. Agent-driven workspace rename
-            if (options.workspaceAction !== 'merge' && workspace.branch.startsWith('flux/')) {
+            // 3. Agent-driven workspace rename (skip if FLUX_SIGNAL already handled it)
+            if (!renameHandled && options.workspaceAction !== 'merge' && workspace.branch.startsWith('flux/')) {
               try {
                 const currentWs = workspaceStore.get(workspace.id) ?? workspace;
                 let agentName = extractAgentWorkspaceName(sessionStore, session.id);
@@ -1634,12 +1636,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
             // 1. Detect if the agent renamed the branch
             try {
+              const freshWsForDone = workspaceStore.get(workspace.id) ?? workspace;
               const { stdout: actualBranch } = await execFileAsync(
                 'git', ['branch', '--show-current'],
-                { cwd: workspace.worktreePath, timeout: 5000 },
+                { cwd: freshWsForDone.worktreePath, timeout: 5000 },
               );
               const trimmedBranch = actualBranch.trim();
-              if (trimmedBranch && trimmedBranch !== workspace.branch) {
+              if (trimmedBranch && trimmedBranch !== freshWsForDone.branch) {
                 const nameSlug = trimmedBranch
                   .replace(/^[^/]*\//, '')
                   .replace(/-[a-z0-9]{4,8}$/, '')
@@ -1676,8 +1679,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 console.error('[done-handler] Outcome transition failed:', err);
               }
 
-              // 3. Agent-driven workspace rename
-              if (options.workspaceAction !== 'merge' && !finalError && workspace.branch.startsWith('flux/')) {
+              // 3. Agent-driven workspace rename (skip if FLUX_SIGNAL already handled it)
+              if (!renameHandled && options.workspaceAction !== 'merge' && !finalError && workspace.branch.startsWith('flux/')) {
                 try {
                   const currentWs = workspaceStore.get(workspace.id) ?? workspace;
                   let agentName = extractAgentWorkspaceName(sessionStore, session.id);
@@ -1815,11 +1818,14 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
 
       const context = buildConversationContext(sessionId, sessionStore);
+      // Resolve symlinks — session.cwd may be a symlink from a previous rename
+      let restartCwd = session.cwd;
+      try { restartCwd = fs.realpathSync(session.cwd); } catch {}
       return await spawnTaskRun({
         taskId,
         sessionId,
         prompt: '[Resuming previous session]\nIf `.context/session-context.md` exists, read it for prior session state.',
-        cwd: session.cwd,
+        cwd: restartCwd,
         mode: session.mode as 'plan' | 'act',
         model: session.model,
         agentId: session.agentId,
