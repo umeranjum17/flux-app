@@ -235,7 +235,9 @@ export const useUiStore = create<UiState>()(
 
     toggleMode() {
       set((state) => {
-        state.mode = state.mode === 'plan' ? 'act' : 'plan';
+        const order: TaskMode[] = ['plan', 'act', 'ask', 'architect'];
+        const idx = order.indexOf(state.mode);
+        state.mode = order[(idx + 1) % order.length];
       });
     },
 

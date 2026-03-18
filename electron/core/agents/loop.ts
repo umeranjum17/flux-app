@@ -50,7 +50,7 @@ export class ConversationLoop {
     this.model = options.model;
     this.mode = options.mode;
     this.thinking = options.thinking;
-    this.tools = options.mode === 'act' ? options.tools : undefined;
+    this.tools = (options.mode === 'act' || options.mode === 'architect') ? options.tools : undefined;
     this.toolHandler = options.toolHandler ?? null;
     this.maxTurns = options.maxTurns ?? 10;
 
@@ -330,6 +330,16 @@ Working directory: ${cwd}`;
     return `${base}
 
 MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive commands.`;
+  }
+  if (mode === 'ask') {
+    return `${base}
+
+MODE: ASK — Answer questions only. Do NOT modify files, run destructive commands, or make any changes. Read and search code as needed to provide accurate answers.`;
+  }
+  if (mode === 'architect') {
+    return `${base}
+
+MODE: ARCHITECT — Read, analyze, and propose high-level architecture and design. Do NOT modify files or run destructive commands. Focus on system design, trade-offs, and recommendations.`;
   }
   return `${base}
 

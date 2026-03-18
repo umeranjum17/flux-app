@@ -186,6 +186,16 @@ Use absolute paths. Prefer search_files to locate code before making changes.`;
 
 MODE: PLAN — Read and analyze only. Do NOT modify files or run destructive commands.`;
   }
+  if (mode === 'ask') {
+    return `${base}
+
+MODE: ASK — Answer questions only. Do NOT modify files, run destructive commands, or make any changes. Read and search code as needed to provide accurate answers.`;
+  }
+  if (mode === 'architect') {
+    return `${base}
+
+MODE: ARCHITECT — Read, analyze, and propose high-level architecture and design. Do NOT modify files or run destructive commands. Focus on system design, trade-offs, and recommendations.`;
+  }
   return `${base}
 
 MODE: ACT — Make changes directly. After modifications, verify with run_command when appropriate. Be concise about what you changed and why.`;

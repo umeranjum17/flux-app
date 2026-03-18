@@ -39,7 +39,7 @@ type ModeSelection = {
 };
 
 function getModeSelection(workspace: Workspace, mode: TaskMode, fallbackThinking: ThinkingLevel): ModeSelection {
-  if (mode === 'plan') {
+  if (mode === 'plan' || mode === 'ask' || mode === 'architect') {
     return {
       agentId: (workspace.planAgentId ?? workspace.agentId) as AgentId,
       model: workspace.planModel ?? workspace.model,
@@ -54,7 +54,7 @@ function getModeSelection(workspace: Workspace, mode: TaskMode, fallbackThinking
 }
 
 function buildModeSelectionPatch(mode: TaskMode, selection: ModeSelection): Partial<Workspace> {
-  if (mode === 'plan') {
+  if (mode === 'plan' || mode === 'ask' || mode === 'architect') {
     return {
       planAgentId: selection.agentId,
       planModel: selection.model,
@@ -568,7 +568,7 @@ export function AppShell() {
           if (cur.model !== snapshot.model) wsPartial.model = cur.model;
           if (cur.thinking !== snapshot.thinking) wsPartial.thinking = cur.thinking;
           const mode = useUiStore.getState().mode;
-          if (mode === 'plan') {
+          if (mode === 'plan' || mode === 'ask' || mode === 'architect') {
             wsPartial.planAgentId = cur.agent;
             wsPartial.planModel = cur.model;
             wsPartial.planThinking = cur.thinking;

@@ -16,6 +16,7 @@ import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
 import { getLatestPlanText, startPlanImplementation } from '../../lib/plan';
+import { ModeDropdown, nextTaskMode } from './ModeDropdown';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   disabled: 'Off',
@@ -527,11 +528,11 @@ export function ChatInput({ focused }: ChatInputProps) {
 
     if (showSlash || showMention) return;
 
-    // Shift+Tab toggles plan/act mode (chat mode only)
+    // Shift+Tab cycles modes (chat mode only)
     if (!isTerminal && e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
       const currentMode = useUiStore.getState().mode;
-      const nextMode: TaskMode = currentMode === 'plan' ? 'act' : 'plan';
+      const nextMode = nextTaskMode(currentMode);
       useUiStore.getState().setMode(nextMode);
       const task = getActiveTask();
       const shouldStartPlanImplementation = currentMode === 'plan'
@@ -688,6 +689,14 @@ export function ChatInput({ focused }: ChatInputProps) {
       case '/act':
         ui.setMode('act');
         if (activeTaskForSlash) setTaskMode(activeTaskForSlash.id, 'act');
+        break;
+      case '/ask':
+        ui.setMode('ask');
+        if (activeTaskForSlash) setTaskMode(activeTaskForSlash.id, 'ask');
+        break;
+      case '/architect':
+        ui.setMode('architect');
+        if (activeTaskForSlash) setTaskMode(activeTaskForSlash.id, 'architect');
         break;
       case '/shell':
         ui.setInputMode('terminal');
@@ -1078,34 +1087,11 @@ export function ChatInput({ focused }: ChatInputProps) {
                   {/* Divider */}
                   <span className="mx-0.5 h-3.5 w-px bg-border/50" aria-hidden />
 
-                  {/* Plan / Act toggle — segmented pill */}
-                  <div
-                    className="inline-flex items-center rounded-full border border-border/40 bg-bg-elevated/50 p-0.5 text-[11px] font-semibold"
-                    title="Shift+Tab to toggle"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => useUiStore.getState().setMode('plan')}
-                      className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
-                        mode === 'plan'
-                          ? 'bg-white/10 text-text-primary ring-1 ring-white/15'
-                          : 'text-text-tertiary hover:text-text-secondary'
-                      }`}
-                    >
-                      Plan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => useUiStore.getState().setMode('act')}
-                      className={`rounded-full px-2.5 py-0.5 transition-all duration-150 ${
-                        mode === 'act'
-                          ? 'bg-white/10 text-text-primary ring-1 ring-white/15'
-                          : 'text-text-tertiary hover:text-text-secondary'
-                      }`}
-                    >
-                      Act
-                    </button>
-                  </div>
+                  {/* Mode dropdown */}
+                  <ModeDropdown
+                    mode={mode}
+                    onModeChange={(m) => useUiStore.getState().setMode(m)}
+                  />
 
                 </>
               )}

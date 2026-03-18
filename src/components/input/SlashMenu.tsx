@@ -7,6 +7,8 @@ import {
   Settings,
   Trash2,
   Terminal,
+  MessageCircleQuestion,
+  Compass,
 } from 'lucide-react';
 
 interface SlashMenuProps {
@@ -18,6 +20,8 @@ interface SlashMenuProps {
 const commands = [
   { name: '/plan', description: 'Switch to plan mode', icon: ClipboardList },
   { name: '/act', description: 'Switch to act mode', icon: Zap },
+  { name: '/ask', description: 'Switch to ask mode', icon: MessageCircleQuestion },
+  { name: '/architect', description: 'Switch to architect mode', icon: Compass },
   { name: '/shell', description: 'Switch to terminal mode', icon: Terminal },
   { name: '/agent', description: 'Select an agent', icon: Bot },
   { name: '/session', description: 'Open session picker', icon: FolderOpen },
