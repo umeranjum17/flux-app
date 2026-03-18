@@ -480,9 +480,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (isAgentSwitch) {
       const fromAgent = getAgentLabel(existingSession.agentId as AgentId);
       if (existingSession.mode === 'plan' && options.mode === 'act') {
-        const planText = extractFullPlanText(sessionStore, session.id) || readPlanFileSync(options.cwd);
+        const planText = readPlanFileSync(options.cwd) || extractFullPlanText(sessionStore, session.id);
         const planPath = await writePlanFile(options.cwd, planText);
-        const planSteps = extractPlanTodoItems(sessionStore, session.id);
+        const planSteps = extractPlanTodoItems(options.cwd, sessionStore, session.id);
         const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
         const contextRecovery = `If plan details are missing or incomplete, read \`.context/plan.md\` for the full plan and \`.context/attachments.json\` for any user-provided images or files.`;
         spawnOptions.prompt = [
@@ -519,9 +519,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (existingSession && !isAgentSwitch && !hasWorkingResume) {
       const isPlanToAct = existingSession.mode === 'plan' && options.mode === 'act';
       if (isPlanToAct) {
-        const planText = extractFullPlanText(sessionStore, session.id) || readPlanFileSync(options.cwd);
+        const planText = readPlanFileSync(options.cwd) || extractFullPlanText(sessionStore, session.id);
         const planPath = await writePlanFile(options.cwd, planText);
-        const planSteps = extractPlanTodoItems(sessionStore, session.id);
+        const planSteps = extractPlanTodoItems(options.cwd, sessionStore, session.id);
         const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
         const contextRecovery = `If plan details are missing or incomplete, read \`.context/plan.md\` for the full plan and \`.context/attachments.json\` for any user-provided images or files.`;
         spawnOptions.prompt = [
@@ -555,9 +555,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     }
 
     if (existingSession && !isAgentSwitch && existingSession.mode === 'plan' && options.mode === 'act' && hasWorkingResume) {
-      const planText = extractFullPlanText(sessionStore, session.id) || readPlanFileSync(options.cwd);
+      const planText = readPlanFileSync(options.cwd) || extractFullPlanText(sessionStore, session.id);
       const planPath = await writePlanFile(options.cwd, planText);
-      const planSteps = extractPlanTodoItems(sessionStore, session.id);
+      const planSteps = extractPlanTodoItems(options.cwd, sessionStore, session.id);
       const stepTracking = buildStepTrackingPrompt(planSteps, agentId);
       const contextRecovery = `If plan details are missing or incomplete, read \`.context/plan.md\` for the full plan and \`.context/attachments.json\` for any user-provided images or files.`;
       spawnOptions.prompt = [

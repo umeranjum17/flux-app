@@ -1310,12 +1310,48 @@ export function branchNameFromLabel(label: string): string {
   return `flux/${slug}`;
 }
 
+// Match entire FLUX signal lines, including nested JSON payloads.
+const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{.*$/gm;
+// Match orphaned closing braces left behind when a streamed FLUX signal was
+// split across chunks and only the closing fragment landed in this message.
+const ORPHAN_JSON_CLOSER = /^\s*["']?\}\s*$/gm;
+
+/** Strip FLUX protocol tokens so they don't leak into persisted plan text. */
+function stripFluxTokens(text: string): string {
+  let cleaned = text.replace(FLUX_LINE_PATTERN, '');
+  cleaned = cleaned.replace(ORPHAN_JSON_CLOSER, '');
+  return cleaned.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+const PLAN_SECTION_PATTERN = /^#{2,3}\s+(summary|analysis|steps|trade-offs|tradeoffs|verification|considerations)\b/im;
+const ORDERED_STEP_PATTERN = /^\d+\.\s+\S+/gm;
+const BULLET_STEP_PATTERN = /^[-*]\s+\S+/gm;
+
+/** Check whether text looks like a structured plan (mirrors renderer's isLikelyPlanText). */
+function isLikelyPlanText(text: string): boolean {
+  const normalized = text.trim();
+  if (normalized.length < 80) return false;
+
+  const planSections = (normalized.match(PLAN_SECTION_PATTERN) || []).length;
+  const genericSections = (normalized.match(/^#{2,3}\s+\S+/gm) || []).length;
+  const orderedSteps = (normalized.match(ORDERED_STEP_PATTERN) || []).length;
+  const bulletSteps = (normalized.match(BULLET_STEP_PATTERN) || []).length;
+
+  if (planSections >= 2 && (orderedSteps >= 1 || bulletSteps >= 3)) return true;
+  if (genericSections >= 3 && orderedSteps >= 1) return true;
+  return orderedSteps >= 3 && normalized.length >= 160;
+}
+
 export function extractFullPlanText(sessionStore: SessionStore, sessionId: string): string {
   const messages = sessionStore.getMessages(sessionId);
+  // Search backwards for the most recent assistant message that looks like an actual plan
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.role === 'assistant' && m.type === 'text' && m.content && m.content.length > 80) {
-      return m.content;
+      const cleaned = stripFluxTokens(m.content);
+      if (isLikelyPlanText(cleaned)) {
+        return cleaned;
+      }
     }
   }
   return '';
@@ -1327,7 +1363,8 @@ export function extractFullPlanText(sessionStore: SessionStore, sessionId: strin
  */
 export function readPlanFileSync(cwd: string): string {
   try {
-    return fs.readFileSync(path.join(cwd, '.context', 'plan.md'), 'utf-8');
+    const raw = fs.readFileSync(path.join(cwd, '.context', 'plan.md'), 'utf-8');
+    return stripFluxTokens(raw);
   } catch {
     return '';
   }
@@ -1339,6 +1376,20 @@ export async function writePlanFile(cwd: string, planText: string): Promise<stri
     const contextDir = path.join(cwd, '.context');
     await fs.promises.mkdir(contextDir, { recursive: true });
     const planPath = path.join(contextDir, 'plan.md');
+
+    // Don't overwrite an existing plan.md with content that doesn't look like a plan.
+    // The agent may have written a good plan to disk that we failed to extract from messages.
+    if (!isLikelyPlanText(planText)) {
+      try {
+        const existing = await fs.promises.readFile(planPath, 'utf-8');
+        if (existing && isLikelyPlanText(existing)) {
+          return planPath; // keep the existing good plan
+        }
+      } catch {
+        // no existing file — write what we have
+      }
+    }
+
     await fs.promises.writeFile(planPath, planText, 'utf-8');
     return planPath;
   } catch {
@@ -1359,21 +1410,36 @@ function cleanStepLabel(raw: string): string {
   return raw;
 }
 
-export function extractPlanTodoItems(sessionStore: SessionStore, sessionId: string): { label: string }[] {
-  const messages = sessionStore.getMessages(sessionId);
-  const planMsg = [...messages]
-    .reverse()
-    .find(m => m.role === 'assistant' && m.type === 'text' && m.content && m.content.length > 80);
-  if (!planMsg) return [];
-
-  const stepsMatch = planMsg.content.match(/^#{2,3}\s+Steps?\b[^\n]*\n([\s\S]*?)(?=^#{2,3}\s|\s*$)/im);
-  const source = stepsMatch ? stepsMatch[1] : planMsg.content;
+function parseTodoItemsFromText(text: string): { label: string }[] {
+  const stepsMatch = text.match(/^#{2,3}\s+Steps?\b[^\n]*\n([\s\S]*?)(?=^#{2,3}\s|\s*$)/im);
+  const source = stepsMatch ? stepsMatch[1] : text;
   const items: { label: string }[] = [];
   for (const line of source.split('\n')) {
     const match = line.match(/^\d+\.\s+(.+)/);
     if (match) items.push({ label: cleanStepLabel(match[1].trim()) });
   }
   return items;
+}
+
+export function extractPlanTodoItems(cwd: string, sessionStore: SessionStore, sessionId: string): { label: string }[] {
+  // Prefer the filesystem — the agent writes plan.md directly and it's the most reliable source.
+  const diskPlan = readPlanFileSync(cwd);
+  if (diskPlan && isLikelyPlanText(diskPlan)) {
+    const items = parseTodoItemsFromText(diskPlan);
+    if (items.length > 0) return items;
+  }
+
+  // Fallback: scan session messages
+  const messages = sessionStore.getMessages(sessionId);
+  const planMsg = [...messages]
+    .reverse()
+    .find(m => {
+      if (m.role !== 'assistant' || m.type !== 'text' || !m.content || m.content.length <= 80) return false;
+      return isLikelyPlanText(stripFluxTokens(m.content));
+    });
+  if (!planMsg) return [];
+
+  return parseTodoItemsFromText(stripFluxTokens(planMsg.content));
 }
 
 export function buildStepTrackingPrompt(steps: { label: string }[], agentId?: AgentId): string {
