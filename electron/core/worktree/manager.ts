@@ -281,40 +281,9 @@ export async function removeWorktree(
   try {
     options.onStage?.('removing_worktree_files');
 
-    // If worktreePath is a symlink (created by moveWorktreeDirectory), resolve
-    // the real directory so we can remove both the symlink and the actual files.
-    let realPath = worktreePath;
-    try {
-      const stat = await fs.promises.lstat(worktreePath);
-      if (stat.isSymbolicLink()) {
-        realPath = await fs.promises.realpath(worktreePath);
-        await fs.promises.unlink(worktreePath); // remove the symlink itself
-      }
-    } catch { /* path may already be gone */ }
-
-    await fs.promises.rm(realPath, { recursive: true, force: true });
+    await fs.promises.rm(worktreePath, { recursive: true, force: true });
   } catch {
     // Directory may already be gone
-  }
-
-  // Clean up any symlinks in the parent directory that point to the worktree
-  // (created by moveWorktreeDirectory to preserve agent CWD after rename)
-  try {
-    const parentDir = path.dirname(worktreePath);
-    const realWorktree = await fs.promises.realpath(worktreePath).catch(() => worktreePath);
-    const entries = await fs.promises.readdir(parentDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isSymbolicLink()) {
-        const linkPath = path.join(parentDir, entry.name);
-        const target = await fs.promises.readlink(linkPath);
-        const resolved = path.resolve(parentDir, target);
-        if (resolved === path.resolve(worktreePath) || resolved === path.resolve(realWorktree)) {
-          await fs.promises.unlink(linkPath);
-        }
-      }
-    }
-  } catch {
-    // Best-effort symlink cleanup
   }
 }
 
