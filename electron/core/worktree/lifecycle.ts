@@ -154,8 +154,13 @@ export class WorkspaceLifecycleManager {
             const fresh = this.workspaceStore.get(ws.id);
             if (!fresh) return;
 
-            // Validate worktree directory exists on disk
-            if (!fs.existsSync(fresh.worktreePath)) {
+            // Validate worktree directory exists on disk.
+            // After a symlink-based rename, worktreePath may be a symlink.
+            // Resolve to the real path first; if the symlink is stale but the
+            // real directory still exists, the workspace is still valid.
+            let resolvedWorktreePath = fresh.worktreePath;
+            try { resolvedWorktreePath = await fs.promises.realpath(fresh.worktreePath); } catch {}
+            if (!fs.existsSync(resolvedWorktreePath)) {
               console.warn(`[lifecycle:reconcile] Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
               if (fresh.outcome === 'in_progress') {
                 // No commits and worktree gone — auto-archive

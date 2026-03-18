@@ -18,6 +18,12 @@ import { requireFields, commandExists, moveWorktreeDirectory } from './utils';
 
 const execFileAsync = promisify(execFile);
 
+/** Resolve a worktree path through symlinks so the agent always gets the real
+ *  directory as CWD, surviving future symlink replacements from renames. */
+function resolveWorktreeCwd(worktreePath: string): string {
+  try { return fs.realpathSync(worktreePath); } catch { return worktreePath; }
+}
+
 export function registerWorkspaceHandlers(ctx: IpcContext): void {
   const {
     configManager,
@@ -298,7 +304,11 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      if (!fs.existsSync(workspace.worktreePath)) {
+      // Resolve symlinks — after a rename, worktreePath is a symlink pointing
+      // to the real directory. Use the real path as CWD so the agent process
+      // survives if the symlink is later replaced by another rename.
+      const resolvedCwd = resolveWorktreeCwd(workspace.worktreePath);
+      if (!fs.existsSync(resolvedCwd)) {
         throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
       }
 
@@ -310,7 +320,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         agentId: workspace.agentId,
         model: workspace.model,
         mode: mode ?? workspace.mode,
-        cwd: workspace.worktreePath,
+        cwd: resolvedCwd,
         sessionId: workspace.sessionId,
       });
       return { taskId, session: result.session };
@@ -334,7 +344,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      if (!fs.existsSync(workspace.worktreePath)) {
+      const resolvedCwd = resolveWorktreeCwd(workspace.worktreePath);
+      if (!fs.existsSync(resolvedCwd)) {
         throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
       }
 
@@ -346,7 +357,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         agentId: (overrideAgentId ?? workspace.agentId) as any,
         model: overrideModel ?? workspace.model,
         mode: mode ?? workspace.mode,
-        cwd: workspace.worktreePath,
+        cwd: resolvedCwd,
         images,
         attachments,
       });
@@ -844,7 +855,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       // Also prune orphaned git worktrees that aren't tracked in our DB
       try {
         const gitWorktrees = await listWorktrees(parentRepo);
-        const knownPaths = new Set(workspaceStore.list(parentRepo).map((w) => w.worktreePath));
+        // Build known paths set with both stored paths AND resolved real paths,
+        // because after a symlink-based rename the stored path is a symlink while
+        // git worktree list returns the real directory path.
+        const knownPaths = new Set<string>();
+        for (const w of workspaceStore.list(parentRepo)) {
+          knownPaths.add(w.worktreePath);
+          try { knownPaths.add(await fs.promises.realpath(w.worktreePath)); } catch {}
+        }
         for (const wt of gitWorktrees) {
           if (!knownPaths.has(wt.path)) {
             // Orphaned worktree — not in DB
