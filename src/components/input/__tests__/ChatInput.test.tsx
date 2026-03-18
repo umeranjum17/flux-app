@@ -364,6 +364,39 @@ describe('ChatInput', () => {
     expect(useUiStore.getState().mode).toBe('act');
   });
 
+  it('shows a Shift+Tab prompt when a plan task is done', () => {
+    useUiStore.getState().setMode('plan');
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Plan task',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'plan',
+      thinking: 'medium',
+      cwd: '/workspace',
+      sessionId: 'session-1',
+    });
+    useChatStore.getState().addMessage('task-1', {
+      type: 'text',
+      role: 'assistant',
+      content: [
+        '## Summary',
+        'Implement the plan in act mode.',
+        '## Steps',
+        '1. Add plan completion hint',
+        '2. Add tests',
+        '3. Validate behavior',
+      ].join('\n'),
+      timestamp: Date.now(),
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
+
+    render(<ChatInput />);
+
+    expect(screen.getByText('Plan complete. Press Shift+Tab to switch to Act and start implementing.')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Plan complete. Press Shift+Tab to switch to Act and start implementing.')).toBeInTheDocument();
+  });
+
   it('sends attachments as structured metadata instead of mutating the prompt text', async () => {
     const user = userEvent.setup();
     useUiStore.getState().setPendingMention({ path: '/workspace/src/app.ts', name: 'app.ts' });

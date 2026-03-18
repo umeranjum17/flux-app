@@ -15,6 +15,7 @@ import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
+import { getLatestPlanText } from '../../lib/plan';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
   disabled: 'Off',
@@ -715,10 +716,16 @@ export function ChatInput({ focused }: ChatInputProps) {
   );
   const canSpawnSubagents = hasActiveRun;
   const pendingQuestion = activeTask?.pendingQuestion;
+  const latestPlanText = activeTask ? getLatestPlanText(activeTask.messages) : '';
+  const isPlanTaskDone = activeTask?.mode === 'plan' && activeTask?.status === 'done';
+  const hasPlanContent = !!activeTask && (!!activeTask.planData || latestPlanText.length > 0);
+  const showPlanDoneShiftTabHint = !isTerminal && mode === 'plan' && isPlanTaskDone && hasPlanContent;
   const placeholder = isTerminal
     ? 'Run a command...'
     : pendingQuestion
     ? pendingQuestion.placeholder ?? pendingQuestion.prompt
+    : showPlanDoneShiftTabHint
+    ? 'Plan complete. Press Shift+Tab to switch to Act and start implementing.'
     : 'Ask to make changes, @mention files, run /commands';
 
   const hasContent = isTerminal ? value.trim().length > 2 : value.trim().length > 0;
@@ -843,6 +850,14 @@ export function ChatInput({ focused }: ChatInputProps) {
               Continue
             </button>
           </div>
+        </div>
+      )}
+
+      {showPlanDoneShiftTabHint && (
+        <div className="mb-1.5 flex items-center gap-2 rounded-lg border border-plan/25 bg-plan/10 px-3 py-2">
+          <span className="text-xs text-plan">
+            Plan complete. Press Shift+Tab to switch to Act and start implementing.
+          </span>
         </div>
       )}
 
