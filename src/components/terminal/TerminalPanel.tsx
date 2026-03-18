@@ -1,400 +1,223 @@
-import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useUiStore } from '../../stores/ui';
+import { useTerminalStore, setupTerminalIpc, setupThemeSync, teardownAllTerminals, type TerminalTab } from '../../stores/terminal';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { TerminalTabs, type TerminalTab } from './TerminalTabs';
+import { fitTerminal, focusTerminal, searchInTerminal, searchPrevInTerminal, clearSearch } from '../../lib/terminal-manager';
+import { TerminalTabs } from './TerminalTabs';
+import { TerminalSearchBar } from './TerminalSearchBar';
 
-const DARK_THEME = {
-  background: '#1e1e1e',
-  foreground: '#cccccc',
-  cursor: '#aeafad',
-  cursorAccent: '#000000',
-  selectionBackground: '#264f78',
-  selectionForeground: '#ffffff',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#2472c8',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d18b',
-  brightYellow: '#f5f543',
-  brightBlue: '#3b8eea',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
-  brightWhite: '#e5e5e5',
-};
+export function TerminalPanel() {
+  const tabs = useTerminalStore((s) => s.tabs);
+  const activeId = useTerminalStore((s) => s.activeId);
+  const searchOpen = useTerminalStore((s) => s.searchOpen);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-const LIGHT_THEME = {
-  background: '#ffffff',
-  foreground: '#383a42',
-  cursor: '#383a42',
-  cursorAccent: '#ffffff',
-  selectionBackground: '#add6ff',
-  selectionForeground: '#000000',
-  black: '#000000',
-  red: '#e45649',
-  green: '#50a14f',
-  yellow: '#c18401',
-  blue: '#4078f2',
-  magenta: '#a626a4',
-  cyan: '#0184bc',
-  white: '#a0a1a7',
-  brightBlack: '#5c6370',
-  brightRed: '#e06c75',
-  brightGreen: '#98c379',
-  brightYellow: '#d19a66',
-  brightBlue: '#61afef',
-  brightMagenta: '#c678dd',
-  brightCyan: '#56b6c2',
-  brightWhite: '#ffffff',
-};
+  const createTerminal = useTerminalStore((s) => s.createTerminal);
+  const closeTerminal = useTerminalStore((s) => s.closeTerminal);
+  const setActiveTab = useTerminalStore((s) => s.setActiveTab);
+  const splitTerminal = useTerminalStore((s) => s.splitTerminal);
+  const setSplitSize = useTerminalStore((s) => s.setSplitSize);
+  const closeSplit = useTerminalStore((s) => s.closeSplit);
 
-let termCounter = 0;
+  // Set up IPC listeners and theme sync once
+  useEffect(() => {
+    const cleanupIpc = setupTerminalIpc();
+    const cleanupTheme = setupThemeSync();
+    return () => {
+      cleanupIpc();
+      cleanupTheme();
+      teardownAllTerminals();
+    };
+  }, []);
 
-export interface TerminalPanelHandle {
-  focusActive: () => void;
-  openWorkspaceTerminal: (workspaceId: string) => void;
-  createTerminal: () => void;
+  // Create first terminal on mount (or pending workspace terminal)
+  useEffect(() => {
+    if (tabs.length > 0) return;
+    const pendingWsId = useUiStore.getState().pendingWorkspaceTerminalId;
+    if (pendingWsId) {
+      useUiStore.getState().setPendingWorkspaceTerminalId(null);
+      const ws = useWorkspaceStore.getState().workspaces.get(pendingWsId);
+      if (ws) {
+        createTerminal({ workspaceId: pendingWsId, workspaceName: ws.name, workspaceBranch: ws.branch }).catch(() => {});
+        return;
+      }
+    }
+    createTerminal().catch(() => {});
+  }, [tabs.length, createTerminal]);
+
+  // Listen for workspace terminal open requests
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { workspaceId } = (e as CustomEvent).detail;
+      if (workspaceId) useTerminalStore.getState().openWorkspaceTerminal(workspaceId);
+    };
+    window.addEventListener('flux:open-workspace-terminal', handler);
+    return () => window.removeEventListener('flux:open-workspace-terminal', handler);
+  }, []);
+
+  // Resize terminals on container size change
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      const id = useTerminalStore.getState().activeId;
+      if (!id) return;
+      const dims = fitTerminal(id);
+      if (dims) window.api.invoke('terminal:resize', { id, ...dims });
+
+      // Also fit any split panes
+      const tab = useTerminalStore.getState().tabs.find((t) => t.id === id || t.splits?.some((s) => s.terminalId === id));
+      if (tab?.splits) {
+        for (const split of tab.splits) {
+          if (split.terminalId !== id) {
+            const d = fitTerminal(split.terminalId);
+            if (d) window.api.invoke('terminal:resize', { id: split.terminalId, ...d });
+          }
+        }
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Focus terminal when switching tabs
+  useEffect(() => {
+    if (activeId) requestAnimationFrame(() => focusTerminal(activeId));
+  }, [activeId]);
+
+  // Sync activeTerminalId to ui store
+  useEffect(() => {
+    useUiStore.getState().setActiveTerminalId(activeId);
+  }, [activeId]);
+
+  const handleCreate = useCallback(() => {
+    useUiStore.getState().setBottomPanelOpen(true);
+    createTerminal().catch(() => {});
+  }, [createTerminal]);
+
+  const handleSplit = useCallback(() => {
+    splitTerminal().catch(() => {});
+  }, [splitTerminal]);
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <TerminalTabs
+        tabs={tabs}
+        activeId={activeId}
+        onSelect={setActiveTab}
+        onClose={closeTerminal}
+        onCreate={handleCreate}
+        onSplit={handleSplit}
+      />
+
+      {searchOpen && <TerminalSearchBar />}
+
+      <div ref={containerRef} className="flex-1 overflow-hidden relative bg-[#1e1e1e] dark:bg-[#1e1e1e]">
+        {tabs.map((tab) => (
+          <TerminalContainer
+            key={tab.id}
+            tab={tab}
+            isActive={tab.id === activeId || tab.splits?.some((s) => s.terminalId === activeId) === true}
+            activeId={activeId}
+            onSplitResize={(index, size) => setSplitSize(tab.id, index, size)}
+            onCloseSplit={(termId) => closeSplit(tab.id, termId)}
+          />
+        ))}
+
+        {tabs.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <button
+              onClick={() => createTerminal().catch(() => {})}
+              className="flex items-center gap-2 px-4 py-2 text-xs text-text-tertiary hover:text-text-primary bg-bg-hover/50 hover:bg-bg-hover rounded-md transition-colors"
+            >
+              <span className="text-base">+</span>
+              Create Terminal
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-export const TerminalPanel = forwardRef<TerminalPanelHandle>(
-  function TerminalPanel(_props, ref) {
-    const cwd = useUiStore((s) => s.cwd);
-    const appTheme = useUiStore((s) => s.theme);
-    const setActiveTerminalId = useUiStore((s) => s.setActiveTerminalId);
-    const setBottomPanelOpen = useUiStore((s) => s.setBottomPanelOpen);
-    const [tabs, setTabs] = useState<TerminalTab[]>([]);
-    const [activeId, setActiveId] = useState<string | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const terminalRefs = useRef<Map<string, { term: any; fitAddon: any }>>(new Map());
-    // Buffer PTY data that arrives before the xterm Terminal instance is ready
-    const pendingDataRef = useRef<Map<string, string[]>>(new Map());
+// ── Split-aware terminal container ──────────────────────────────────────────
 
-    const createTerminal = useCallback(async (opts?: {
-      workspaceId?: string;
-      workspaceName?: string;
-      workspaceBranch?: string;
-    }) => {
-      const id = `term-${++termCounter}`;
-
-      // Placeholder title until we get shellName back
-      const placeholderTitle = opts?.workspaceName
-        ? opts.workspaceName
-        : `Terminal ${termCounter}`;
-
-      setTabs((prev) => [...prev, {
-        id,
-        title: placeholderTitle,
-        workspaceId: opts?.workspaceId,
-        workspaceBranch: opts?.workspaceBranch,
-      }]);
-      setActiveId(id);
-      setActiveTerminalId(id);
-
-      try {
-        const result = await window.api.invoke('terminal:create', {
-          id,
-          cwd: opts?.workspaceId ? undefined : cwd,
-          workspaceId: opts?.workspaceId,
-        }) as { id: string; shellName: string };
-
-        // Update tab with shell info
-        setTabs((prev) => prev.map((t) =>
-          t.id === id
-            ? {
-              ...t,
-              shellName: result.shellName,
-              title: opts?.workspaceName || result.shellName || placeholderTitle,
-            }
-            : t
-        ));
-
-        const { Terminal } = await import('@xterm/xterm');
-        const { FitAddon } = await import('@xterm/addon-fit');
-        const { WebLinksAddon } = await import('@xterm/addon-web-links');
-
-        const currentTheme = useUiStore.getState().theme;
-        const term = new Terminal({
-          cursorBlink: true,
-          cursorStyle: 'bar',
-          fontSize: 13,
-          lineHeight: 1.2,
-          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Cascadia Code", monospace',
-          theme: currentTheme === 'dark' ? DARK_THEME : LIGHT_THEME,
-          scrollback: 10000,
-          allowProposedApi: true,
-        });
-
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
-        term.loadAddon(new WebLinksAddon());
-
-        // Store the ref so the terminal:data listener can start writing to it.
-        // xterm buffers writes made before open(), so buffered data will render.
-        terminalRefs.current.set(id, { term, fitAddon });
-
-        // Flush any PTY data that arrived before the terminal ref was stored
-        const buffered = pendingDataRef.current.get(id);
-        if (buffered) {
-          for (const chunk of buffered) {
-            term.write(chunk);
-          }
-          pendingDataRef.current.delete(id);
-        }
-
-        // Retry mounting until the DOM element is available (React may not have committed yet)
-        const mountTerminal = (attempt: number) => {
-          const el = document.getElementById(`terminal-${id}`);
-          if (el) {
-            term.open(el);
-            fitAddon.fit();
-            term.focus();
-            window.api.invoke('terminal:resize', { id, cols: term.cols, rows: term.rows });
-          } else if (attempt < 10) {
-            setTimeout(() => mountTerminal(attempt + 1), 50);
-          } else {
-            console.error(`[TerminalPanel] Failed to find DOM element for terminal-${id} after retries`);
-            term.write('\r\n\x1b[31m[Terminal failed to mount — DOM element not found]\x1b[0m\r\n');
-          }
-        };
-        requestAnimationFrame(() => mountTerminal(0));
-
-        term.onData((data: string) => {
-          window.api.invoke('terminal:write', { id, data });
-        });
-
-        return id;
-      } catch (err) {
-        console.error('[TerminalPanel] Failed to create terminal:', err);
-        pendingDataRef.current.delete(id);
-        setTabs((prev) => prev.filter((t) => t.id !== id));
-        setActiveId((current) => current === id ? null : current);
-        return null;
-      }
-    }, [cwd]);
-
-    useImperativeHandle(ref, () => ({
-      focusActive() {
-        if (activeId) {
-          const active = terminalRefs.current.get(activeId);
-          if (active) active.term.focus();
-        }
-      },
-      openWorkspaceTerminal(workspaceId: string) {
-        setBottomPanelOpen(true);
-        const existing = tabs.find((t) => t.workspaceId === workspaceId);
-        if (existing) {
-          setActiveId(existing.id);
-          setActiveTerminalId(existing.id);
-          const termRef = terminalRefs.current.get(existing.id);
-          if (termRef) termRef.term.focus();
-          return;
-        }
-        const workspaces = useWorkspaceStore.getState().workspaces;
-        const ws = workspaces.get(workspaceId);
-        if (ws) {
-          createTerminal({
-            workspaceId,
-            workspaceName: ws.name,
-            workspaceBranch: ws.branch,
-          }).catch(() => {});
-        }
-      },
-      createTerminal() {
-        setBottomPanelOpen(true);
-        createTerminal().catch(() => {});
-      },
-    }), [activeId, tabs, createTerminal, setActiveTerminalId, setBottomPanelOpen]);
-
-    // Create first terminal on mount (or a pending workspace terminal)
-    useEffect(() => {
-      setActiveTerminalId(activeId);
-    }, [activeId, setActiveTerminalId]);
-
-    useEffect(() => {
-      if (tabs.length === 0) {
-        const pendingWsId = useUiStore.getState().pendingWorkspaceTerminalId;
-        if (pendingWsId) {
-          useUiStore.getState().setPendingWorkspaceTerminalId(null);
-          const workspaces = useWorkspaceStore.getState().workspaces;
-          const ws = workspaces.get(pendingWsId);
-          if (ws) {
-            createTerminal({
-              workspaceId: pendingWsId,
-              workspaceName: ws.name,
-              workspaceBranch: ws.branch,
-            }).catch(() => {});
-            return;
-          }
-        }
-        createTerminal().catch(() => {});
-      }
-    }, [tabs.length, createTerminal]);
-
-    // Listen for workspace terminal open requests (when panel is already mounted)
-    useEffect(() => {
-      const handler = (e: Event) => {
-        const { workspaceId } = (e as CustomEvent).detail;
-        if (workspaceId && ref && 'current' in ref && ref.current) {
-          ref.current.openWorkspaceTerminal(workspaceId);
-        }
-      };
-      window.addEventListener('flux:open-workspace-terminal', handler);
-      return () => window.removeEventListener('flux:open-workspace-terminal', handler);
-    }, [ref]);
-
-    // Listen for terminal data from main process
-    useEffect(() => {
-      const cleanup = window.api.on('terminal:data', (...args: unknown[]) => {
-        const { id, data } = args[0] as { id: string; data: string };
-        const termRef = terminalRefs.current.get(id);
-        if (termRef) {
-          termRef.term.write(data);
-        } else {
-          // Buffer data until the xterm Terminal is ready
-          const pending = pendingDataRef.current.get(id) ?? [];
-          pending.push(data);
-          pendingDataRef.current.set(id, pending);
-        }
-      });
-
-      const cleanupExit = window.api.on('terminal:exit', (...args: unknown[]) => {
-        const { id } = args[0] as { id: string };
-        const termRef = terminalRefs.current.get(id);
-        if (termRef) termRef.term.dispose();
-        terminalRefs.current.delete(id);
-        pendingDataRef.current.delete(id);
-        setTabs((prev) => {
-          const next = prev.filter((t) => t.id !== id);
-          setActiveId((current) => current === id ? (next[0]?.id ?? null) : current);
-          return next;
-        });
-      });
-
-      const cleanupIntegration = window.api.on('terminal:integration', (...args: unknown[]) => {
-        const { id, event } = args[0] as { id: string; event: { type: string; cwd?: string; exitCode?: number } };
-        if (event.type === 'cwd' && event.cwd) {
-          setTabs((prev) => prev.map((t) =>
-            t.id === id ? { ...t, cwd: event.cwd } : t
-          ));
-        }
-      });
-
-      return () => {
-        cleanup();
-        cleanupExit();
-        cleanupIntegration();
-      };
-    }, []);
-
-    useEffect(() => {
-      return () => {
-        for (const [id, termRef] of terminalRefs.current) {
-          termRef.term.dispose();
-          void window.api.invoke('terminal:kill', { id });
-        }
-        terminalRefs.current.clear();
-        pendingDataRef.current.clear();
-      };
-    }, []);
-
-    // Update terminal theme when app theme changes
-    useEffect(() => {
-      const theme = appTheme === 'dark' ? DARK_THEME : LIGHT_THEME;
-      for (const [, termRef] of terminalRefs.current) {
-        termRef.term.options.theme = theme;
-      }
-    }, [appTheme]);
-
-    // Resize on container size change
-    useEffect(() => {
-      if (!containerRef.current) return;
-
-      const observer = new ResizeObserver(() => {
-        if (activeId) {
-          const termRef = terminalRefs.current.get(activeId);
-          if (termRef) {
-            termRef.fitAddon.fit();
-            window.api.invoke('terminal:resize', { id: activeId, cols: termRef.term.cols, rows: termRef.term.rows });
-          }
-        }
-      });
-
-      observer.observe(containerRef.current);
-      return () => observer.disconnect();
-    }, [activeId]);
-
-    // Focus terminal when switching tabs
-    useEffect(() => {
-      if (activeId) {
-        requestAnimationFrame(() => {
-          const termRef = terminalRefs.current.get(activeId);
-          if (termRef) {
-            termRef.fitAddon.fit();
-            termRef.term.focus();
-          }
-        });
-      }
-    }, [activeId]);
-
-    const handleClose = useCallback((id: string) => {
-      window.api.invoke('terminal:kill', { id });
-      const termRef = terminalRefs.current.get(id);
-      if (termRef) termRef.term.dispose();
-      terminalRefs.current.delete(id);
-      setTabs((prev) => {
-        const next = prev.filter((t) => t.id !== id);
-        if (activeId === id && next.length > 0) setActiveId(next[next.length - 1].id);
-        else if (next.length === 0) setActiveId(null);
-        return next;
-      });
-    }, [activeId]);
-
-    const handleCreate = useCallback(() => {
-      setBottomPanelOpen(true);
-      createTerminal().catch(() => {});
-    }, [createTerminal, setBottomPanelOpen]);
-
+function TerminalContainer({
+  tab,
+  isActive,
+  activeId,
+  onSplitResize,
+  onCloseSplit,
+}: {
+  tab: TerminalTab;
+  isActive: boolean;
+  activeId: string | null;
+  onSplitResize: (index: number, size: number) => void;
+  onCloseSplit: (termId: string) => void;
+}) {
+  if (!tab.splits) {
+    // Single pane
     return (
-      <div className="flex flex-col flex-1 min-h-0">
-        {/* Terminal tabs + toolbar */}
-        <TerminalTabs
-          tabs={tabs}
-          activeId={activeId}
-          onSelect={setActiveId}
-          onClose={handleClose}
-          onCreate={handleCreate}
-        />
-
-        {/* Terminal containers */}
-        <div ref={containerRef} className="flex-1 overflow-hidden relative bg-[#1e1e1e] dark:bg-[#1e1e1e]">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              id={`terminal-${tab.id}`}
-              className="absolute inset-0 p-0.5"
-              style={{ display: tab.id === activeId ? 'block' : 'none' }}
-            />
-          ))}
-
-          {/* Empty state when no terminals */}
-          {tabs.length === 0 && (
-            <div className="flex items-center justify-center h-full">
-              <button
-                onClick={() => createTerminal().catch(() => {})}
-                className="flex items-center gap-2 px-4 py-2 text-xs text-text-tertiary hover:text-text-primary bg-bg-hover/50 hover:bg-bg-hover rounded-md transition-colors"
-              >
-                <span className="text-base">+</span>
-                Create Terminal
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      <div
+        id={`terminal-${tab.id}`}
+        className="absolute inset-0 p-0.5"
+        style={{ display: isActive ? 'block' : 'none' }}
+      />
     );
   }
-);
+
+  // Split panes
+  return (
+    <div
+      className="absolute inset-0 flex"
+      style={{ display: isActive ? 'flex' : 'none' }}
+    >
+      {tab.splits.map((split, i) => (
+        <div key={split.terminalId} className="flex" style={{ width: `${split.size * 100}%`, position: 'relative' }}>
+          <div
+            id={`terminal-${split.terminalId}`}
+            className="flex-1 p-0.5"
+            onClick={() => useTerminalStore.getState().setActiveTab(split.terminalId)}
+          />
+          {i < tab.splits!.length - 1 && (
+            <SplitDivider
+              onDrag={(delta) => {
+                const container = document.querySelector('.absolute.inset-0.flex');
+                if (!container) return;
+                const totalWidth = (container as HTMLElement).offsetWidth;
+                const newSize = Math.max(0.15, Math.min(0.85, split.size + delta / totalWidth));
+                onSplitResize(i, newSize);
+              }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Split divider ───────────────────────────────────────────────────────────
+
+function SplitDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    let lastX = e.clientX;
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - lastX;
+      lastX = ev.clientX;
+      onDrag(delta);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [onDrag]);
+
+  return (
+    <div
+      className="w-[3px] cursor-col-resize bg-border/30 hover:bg-accent/50 transition-colors shrink-0"
+      onMouseDown={handleMouseDown}
+    />
+  );
+}

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { AlertTriangle, FolderOpen, Terminal } from 'lucide-react';
 import { TopBar } from './TopBar';
@@ -13,7 +13,6 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { TabBar } from './TabBar';
 import { BottomPanel } from './BottomPanel';
 import { FileExplorer } from '../explorer/FileExplorer';
-import { type TerminalPanelHandle } from '../terminal/TerminalPanel';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore, normalizeClaudeCodeModel } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
@@ -81,7 +80,7 @@ export function AppShell() {
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const termRef = useRef<TerminalPanelHandle>(null);
+  // Terminal actions are now exposed via useTerminalStore (no ref needed)
 
   const hasTasks = tasks.size > 0;
   const mergingWorkspace = useMemo(() => {
@@ -921,7 +920,7 @@ export function AppShell() {
                   </div>
                 }
               >
-                <BottomPanel ref={termRef} />
+                <BottomPanel />
               </ErrorBoundary>
             )}
 
