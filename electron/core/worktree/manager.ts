@@ -183,6 +183,17 @@ export async function createWorktree(
     }
   }
 
+  // Ensure the repo has at least one commit — git worktree add fails on empty repos
+  // because HEAD doesn't point to a valid object yet.
+  try {
+    await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
+  } catch {
+    await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+      cwd: parentRepo,
+      timeout: 10000,
+    });
+  }
+
   await execFileAsync('git', ['worktree', 'add', worktreePath, '-b', branchName], {
     cwd: parentRepo,
     timeout: 30000,

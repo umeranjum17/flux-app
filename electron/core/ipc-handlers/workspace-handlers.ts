@@ -122,12 +122,18 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error('Workspaces are only supported for local repositories right now');
       }
 
+      // Auto-initialize git if needed
       try {
         await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
       } catch {
-        throw new Error(
-          `"${parentRepo}" is not a git repository. Run "git init" in that folder first, then try again.`,
-        );
+        if (!fs.existsSync(parentRepo)) {
+          throw new Error(`Directory "${parentRepo}" does not exist.`);
+        }
+        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+          cwd: parentRepo,
+          timeout: 10000,
+        });
       }
 
       // Capture the currently checked-out branch so merges default back to it
@@ -167,12 +173,20 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error('Workspaces are only supported for local repositories right now');
       }
 
+      // Ensure parentRepo exists
+      if (!fs.existsSync(parentRepo)) {
+        throw new Error(`Directory "${parentRepo}" does not exist.`);
+      }
+
+      // Auto-initialize git if needed
       try {
         await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
       } catch {
-        throw new Error(
-          `"${parentRepo}" is not a git repository. Run "git init" in that folder first, then try again.`,
-        );
+        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+          cwd: parentRepo,
+          timeout: 10000,
+        });
       }
 
       // Capture the currently checked-out branch so merges default back to it
