@@ -304,15 +304,15 @@ export function AppShell() {
     const unsubUpdated = window.api.on('workspace:updated', (data: unknown) => {
       const { workspaceId, branch, name, worktreePath } = data as {
         workspaceId: string;
-        branch: string;
-        name: string;
+        branch?: string;
+        name?: string;
         worktreePath?: string;
       };
-      useWorkspaceStore.getState().updateWorkspace(workspaceId, {
-        branch,
-        name,
-        ...(worktreePath ? { worktreePath } : {}),
-      });
+      const updates: Record<string, unknown> = {};
+      if (branch != null) updates.branch = branch;
+      if (name != null) updates.name = name;
+      if (worktreePath) updates.worktreePath = worktreePath;
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, updates);
       if (worktreePath) {
         useChatStore.getState().updateWorkspaceTaskCwd(workspaceId, worktreePath);
       }

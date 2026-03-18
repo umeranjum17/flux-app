@@ -921,10 +921,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               const agentName = sig.workspace_name.trim().slice(0, 50);
               if (agentName && workspace) {
                 // Update workspace name in store — directory stays as-is
+                const currentWs = workspaceStore.get(workspace.id) ?? workspace;
                 workspaceStore.update(workspace.id, { name: agentName });
                 sendToRenderer('workspace:updated', {
                   workspaceId: workspace.id,
                   name: agentName,
+                  branch: currentWs.branch,
                 });
               }
             }
