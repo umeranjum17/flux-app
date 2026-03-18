@@ -1202,6 +1202,25 @@ export async function moveWorktreeDirectory(
       timeout: 30000,
     });
 
+    // `git worktree move` only moves tracked content. Untracked files/dirs
+    // (e.g. `.context/`) are left behind at the old path, which blocks
+    // symlink creation. Move them to the new path, then remove the old dir.
+    try {
+      const leftover = await fs.promises.readdir(realCurrentPath);
+      for (const entry of leftover) {
+        const src = path.join(realCurrentPath, entry);
+        const dest = path.join(candidatePath, entry);
+        // Only move if the destination doesn't already exist
+        if (!fs.existsSync(dest)) {
+          await fs.promises.rename(src, dest);
+        }
+      }
+      // Remove the now-empty (or stale) old directory so the symlink can be created
+      await fs.promises.rm(realCurrentPath, { recursive: true, force: true });
+    } catch {
+      // Old path may already be gone if there were no untracked files
+    }
+
     // Clean up any stale symlink left by a previous rename that pointed to
     // the path we just moved away from.
     if (realCurrentPath !== currentWorktreePath) {
