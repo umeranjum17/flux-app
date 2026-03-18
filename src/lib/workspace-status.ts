@@ -11,10 +11,10 @@ export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; lab
 };
 
 export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; label: string }> = {
-  in_progress: { color: 'text-text-tertiary', label: 'In Progress' },
-  planned: { color: 'text-info', label: 'Planned' },
+  in_progress: { color: 'text-info', label: 'In Progress' },
+  planned: { color: 'text-plan', label: 'Planned' },
   ready_for_pr: { color: 'text-accent', label: 'Ready for Review' },
-  reviewing: { color: 'text-warning', label: 'Reviewing' },
+  reviewing: { color: 'text-plan', label: 'Reviewing' },
   changes_requested: { color: 'text-error', label: 'Changes Requested' },
   ready_to_merge: { color: 'text-success', label: 'Ready to Merge' },
   merged: { color: 'text-success', label: 'Merged' },
