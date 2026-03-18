@@ -13,7 +13,7 @@ import { WorkspaceStore } from '../worktree/store';
 import type { WorkspaceLifecycleManager } from '../worktree/lifecycle';
 import { SessionStore } from '../session/store';
 import { UsageTracker } from '../usage/tracker';
-import { LiveUsageService } from '../usage/live';
+import { LiveUsageService, type LiveUsageOverview } from '../usage/live';
 import { setSshHost as setToolsSshHost } from '../tools/ssh';
 import { grepFiles } from '../tools/grep';
 import { repoMapService } from '../intelligence/repomap';
@@ -253,13 +253,46 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     return result;
   });
 
+  // Throttle usage:live so concurrent/rapid renderer calls coalesce into one
+  // API round-trip.  The background poller in index.ts also updates this cache
+  // via sendToRenderer('usage:live-update'), so the renderer rarely needs to
+  // trigger its own fetch.
+  const USAGE_LIVE_THROTTLE_MS = 2 * 60 * 1000; // 2 minutes
+  let lastLiveResult: LiveUsageOverview | null = null;
+  let lastLiveFetchAt = 0;
+  let inflightLiveFetch: Promise<LiveUsageOverview> | null = null;
+
   ipcMain.handle('usage:live', async () => {
+    const now = Date.now();
+
+    // Return cached result if still fresh
+    if (lastLiveResult && now - lastLiveFetchAt < USAGE_LIVE_THROTTLE_MS) {
+      logDiagnostic('usage', 'IPC usage:live throttled (returning cached)', {
+        ageMs: now - lastLiveFetchAt,
+      });
+      return lastLiveResult;
+    }
+
+    // Coalesce concurrent callers into one in-flight fetch
+    if (inflightLiveFetch) {
+      logDiagnostic('usage', 'IPC usage:live coalesced into in-flight fetch');
+      return inflightLiveFetch;
+    }
+
     const cached = Array.from(cachedRateLimits.values());
     logDiagnostic('usage', 'IPC usage:live invoked', {
       cachedRateLimitCount: cached.length,
       cachedKeys: cached.map((r) => `${r.providerId}:${r.rateLimitType}`),
     });
-    const overview = await liveUsageService.getOverview(cached);
+
+    inflightLiveFetch = liveUsageService.getOverview(cached).finally(() => {
+      inflightLiveFetch = null;
+    });
+
+    const overview = await inflightLiveFetch;
+    lastLiveResult = overview;
+    lastLiveFetchAt = Date.now();
+
     logDiagnostic('usage', 'IPC usage:live response', {
       providerCount: overview.providers.length,
       providers: overview.providers.map((p) => ({

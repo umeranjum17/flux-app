@@ -1,4 +1,4 @@
-import { type MouseEvent as ReactMouseEvent, useEffect, useId, useMemo, useState } from 'react';
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BarChart3, RefreshCw, WifiOff } from 'lucide-react';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow, UsageHistoryPoint, UsageInfo } from '../../lib/ipc-api';
 
@@ -38,7 +38,12 @@ export function UsagePanel() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  async function loadUsage(background = false): Promise<void> {
+  // Debounce event-driven refreshes so bursts of agent:done / rate_limit
+  // messages don't each trigger their own API call.
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const REFRESH_DEBOUNCE_MS = 10_000; // 10 seconds
+
+  const loadUsage = useCallback(async (background = false): Promise<void> => {
     if (background) {
       setRefreshing(true);
     } else {
@@ -59,31 +64,40 @@ export function UsagePanel() {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, []);
+
+  const debouncedRefresh = useCallback(() => {
+    if (refreshTimer.current) return; // already scheduled
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      void loadUsage(true);
+    }, REFRESH_DEBOUNCE_MS);
+  }, [loadUsage]);
 
   useEffect(() => {
     void loadUsage();
-    // Poll periodically so the panel recovers from transient API errors (429, 5xx).
-    const pollInterval = setInterval(() => void loadUsage(true), 5 * 60_000);
+    // The main process pushes live-update events every ~5 min via the
+    // background poller, so we do NOT run our own polling interval here.
+    // This avoids duplicate API calls that were causing 429s.
     const cleanupLiveUpdate = window.api.on('usage:live-update', (data: unknown) => {
       setLiveUsage(data as LiveUsageOverview);
     });
     const cleanupDone = window.api.on('agent:done', () => {
-      void loadUsage(true);
+      debouncedRefresh();
     });
     const cleanupMessage = window.api.on('agent:message', (...args: unknown[]) => {
       const data = args[0] as { message?: { type?: string } } | undefined;
       if (data?.message?.type === 'rate_limit') {
-        void loadUsage(true);
+        debouncedRefresh();
       }
     });
     return () => {
-      clearInterval(pollInterval);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
       cleanupLiveUpdate();
       cleanupDone();
       cleanupMessage();
     };
-  }, []);
+  }, [loadUsage, debouncedRefresh]);
 
   const providers = useMemo(() => liveUsage?.providers ?? [], [liveUsage]);
   const historyByProvider = useMemo(() => groupHistoryByProvider(liveUsage?.history ?? []), [liveUsage?.history]);
