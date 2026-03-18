@@ -1192,6 +1192,13 @@ export async function moveWorktreeDirectory(
       cwd: parentRepo,
       timeout: 30000,
     });
+    // Create a symlink from the old path to the new path so any running agent
+    // process whose cwd still points to the old directory continues to work.
+    try {
+      await fs.promises.symlink(candidatePath, currentWorktreePath);
+    } catch {
+      // Non-fatal: the agent may hit errors but the move itself succeeded.
+    }
     return candidatePath;
   } catch (error) {
     console.warn('[moveWorktreeDirectory] failed to move worktree', error);
