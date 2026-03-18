@@ -92,26 +92,6 @@ export function StatusLine() {
     () => mergeRateLimits(liveRateLimits, activeTaskRateLimit),
     [liveRateLimits, activeTaskRateLimit],
   );
-  const groupedRateLimits = useMemo(
-    () => {
-      const grouped = new Map<RateLimitInfo['providerId'], RateLimitInfo[]>();
-      for (const entry of visibleRateLimits) {
-        const entries = grouped.get(entry.providerId);
-        if (entries) {
-          entries.push(entry);
-          continue;
-        }
-        grouped.set(entry.providerId, [entry]);
-      }
-      return Array.from(grouped.entries())
-        .sort(([left], [right]) => providerLabel(left).localeCompare(providerLabel(right)))
-        .map(([providerId, entries]) => ({
-          providerId,
-          entries: [...entries].sort((left, right) => left.rateLimitType.localeCompare(right.rateLimitType)),
-        }));
-    },
-    [visibleRateLimits],
-  );
   const activeRateLimitProvider = useMemo(
     () => resolveRateLimitProvider(activeTask?.agentId ?? selectedAgentId),
     [activeTask?.agentId, selectedAgentId],
@@ -135,7 +115,6 @@ export function StatusLine() {
 
   const agentName = selectedAgent?.name ?? selectedAgentId;
   const cost = activeTask?.costUsd ?? 0;
-  const tokens = (activeTask?.inputTokens ?? 0) + (activeTask?.outputTokens ?? 0);
   const qualityGate = activeTask?.lastQualityGate;
 
   const handleSshClick = useCallback(() => {
@@ -240,7 +219,11 @@ export function StatusLine() {
                     : 'bg-text-tertiary/40'
             }`}
           />
-          <span className="text-[12px] tabular-nums">{formatTokens(tokens)} tok</span>
+          <span className="text-[12px] tabular-nums">
+            {scopedRateLimits.length > 0
+              ? `${Math.max(0, 100 - Math.round(Math.max(...scopedRateLimits.map((r) => r.utilization)) * 100))}% left`
+              : '—'}
+          </span>
         </button>
       </div>
 
@@ -290,24 +273,22 @@ export function StatusLine() {
               </button>
             </div>
 
-            {visibleRateLimits.length === 0 ? (
-              <p className="py-3 text-center text-[11px] text-text-tertiary">No rate limit data yet.</p>
+            {scopedRateLimits.length === 0 ? (
+              <p className="py-3 text-center text-[11px] text-text-tertiary">
+                {activeRateLimitProvider
+                  ? `No rate limit data for ${providerLabel(activeRateLimitProvider)}.`
+                  : 'No rate limit data yet.'}
+              </p>
             ) : (
-              <div className="space-y-3">
-                {groupedRateLimits.map((group) => (
-                  <section key={group.providerId} className="space-y-2">
-                    <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-                      {providerLabel(group.providerId)}
-                    </p>
-                    <div className="space-y-2">
-                      {group.entries.map((entry) => (
-                        <RateLimitWindowCard
-                          key={`${entry.providerId}:${entry.rateLimitType}`}
-                          entry={entry}
-                        />
-                      ))}
-                    </div>
-                  </section>
+              <div className="space-y-2">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
+                  {providerLabel(activeRateLimitProvider!)}
+                </p>
+                {scopedRateLimits.map((entry) => (
+                  <RateLimitWindowCard
+                    key={`${entry.providerId}:${entry.rateLimitType}`}
+                    entry={entry}
+                  />
                 ))}
               </div>
             )}
@@ -412,12 +393,6 @@ function Dot() {
       &middot;
     </span>
   );
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
 }
 
 function formatRelativeTime(timestamp: number): string {
