@@ -1,4 +1,4 @@
-import { CircleCheck, CircleAlert, CircleX } from 'lucide-react';
+import { CircleCheck, CircleAlert, CircleX, CirclePause, CircleDot, CircleArrowUp } from 'lucide-react';
 import { workspaceLifecycleConfig } from '../../lib/workspace-status';
 import type { WorkspaceLifecycleState, WorkspaceListSignalState } from '../../lib/workspace-status';
 
@@ -14,12 +14,18 @@ const iconMap: Partial<Record<IconState, React.ComponentType<{ size?: number; cl
   changes_requested: CircleAlert,
   blocked: CircleX,
   archive_failed: CircleX,
+  // Rare but high-impact states — circular icons for unmissable visibility
+  awaiting_approval: CirclePause,
+  ready_for_review: CircleDot,
+  merging: CircleArrowUp,
 };
 
 /** Icon animation classes — only applied to icon states. */
 const iconAnimationMap: Partial<Record<IconState, string>> = {
   changes_requested: 'workspace-icon-nudge',
   blocked: 'workspace-icon-pulse',
+  awaiting_approval: 'workspace-icon-pulse',
+  merging: 'workspace-icon-spin',
 };
 
 /** Dot motion for list-only states not in workspaceLifecycleConfig. */

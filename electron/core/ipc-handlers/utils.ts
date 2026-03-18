@@ -1202,6 +1202,7 @@ export async function moveWorktreeDirectory(
 const AUTO_BRANCH_PATTERNS = [
   /^flux\/[a-z]+-[a-z]+$/,                     // fun names like flux/zagreb-lima
   /^flux\/workspace-[a-z0-9-]+$/,              // flux/workspace-20260315-abc123
+  /^flux\/[a-z0-9-]+-[a-z0-9]{6}$/,           // prompt-derived like flux/fix-token-refresh-abc123
   /^[a-z]+-[a-z]+(-v\d+)?$/,                   // bare fun names like zagreb-v2
   /^workspace-\d{8}-[a-z0-9]+$/,               // workspace-20260315-abc123
 ];

@@ -918,6 +918,15 @@ button:focus-visible {
   animation: icon-pulse 2s ease-in-out infinite;
 }
 
+.workspace-icon-spin {
+  animation: icon-spin 1.8s linear infinite;
+}
+
+@keyframes icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Status dot glow animations — gentle breathing for attention states */
 @keyframes dot-breathe {
   0%, 100% { box-shadow: 0 0 0 0 var(--dot-glow-color); }
@@ -969,6 +978,7 @@ button:focus-visible {
   [class*="dot-glow-"],
   .workspace-icon-pulse,
   .workspace-icon-nudge,
+  .workspace-icon-spin,
   .workspace-dot-ring,
   .workspace-dot-ring-fast {
     animation: none !important;
