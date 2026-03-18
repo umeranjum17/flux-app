@@ -284,6 +284,24 @@ export async function removeWorktree(
   } catch {
     // Directory may already be gone
   }
+
+  // Clean up any symlinks in the parent directory that point to this worktree
+  // (created by moveWorktreeDirectory to bridge running agents after rename)
+  try {
+    const parentDir = path.dirname(worktreePath);
+    const entries = await fs.promises.readdir(parentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        const linkPath = path.join(parentDir, entry.name);
+        const target = await fs.promises.readlink(linkPath);
+        if (path.resolve(parentDir, target) === path.resolve(worktreePath)) {
+          await fs.promises.unlink(linkPath);
+        }
+      }
+    }
+  } catch {
+    // Best-effort symlink cleanup
+  }
 }
 
 export async function listWorktrees(parentRepo: string): Promise<WorktreeInfo[]> {
