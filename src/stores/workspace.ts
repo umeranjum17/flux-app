@@ -9,6 +9,7 @@ import type {
   WorkspaceSession,
   WorkspaceOperation,
   WorkspaceDiffScope,
+  WorkspaceDiffSections,
 } from '../lib/ipc-api';
 import type { SystemActivity } from '../lib/types';
 import { appendSystemActivity } from '../lib/system-activities';
@@ -46,6 +47,7 @@ interface WorkspaceState {
   changesPanelOpen: boolean;
   changesPanelWorkspaceId: string | null;
   changesPanelFiles: DiffFile[];
+  changesPanelSections: WorkspaceDiffSections | null;
   changesPanelSelectedFile: string | null;
   changesPanelSelectedScope: WorkspaceDiffScope | null;
   changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
@@ -78,6 +80,7 @@ function clearWorkspaceUiState(state: {
   changesPanelOpen: boolean;
   changesPanelWorkspaceId: string | null;
   changesPanelFiles: DiffFile[];
+  changesPanelSections: WorkspaceDiffSections | null;
   changesPanelSelectedFile: string | null;
   changesPanelSelectedScope: WorkspaceDiffScope | null;
   changesPanelFileDiff: { oldContent: string; newContent: string; unified: string } | null;
@@ -94,6 +97,7 @@ function clearWorkspaceUiState(state: {
     state.changesPanelOpen = false;
     state.changesPanelWorkspaceId = null;
     state.changesPanelFiles = [];
+    state.changesPanelSections = null;
     state.changesPanelSelectedFile = null;
     state.changesPanelSelectedScope = null;
     state.changesPanelFileDiff = null;
@@ -112,6 +116,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,
     changesPanelFiles: [],
+    changesPanelSections: null,
     changesPanelSelectedFile: null,
     changesPanelSelectedScope: null,
     changesPanelFileDiff: null,
@@ -262,18 +267,32 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.changesPanelOpen = true;
         state.changesPanelWorkspaceId = workspaceId;
         state.changesPanelFiles = [];
+        state.changesPanelSections = null;
         state.changesPanelSelectedFile = initialFile ?? null;
         state.changesPanelSelectedScope = initialFile ? (initialScope ?? 'all') : null;
         state.changesPanelFileDiff = null;
       });
 
-      // Fetch file list and initial file diff concurrently
-      const fileListPromise = window.api.invoke('workspace:diff-files', { workspaceId }).then((files) => {
+      // Fetch separated file list and initial file diff concurrently
+      const fileListPromise = window.api.invoke('workspace:diff-files-separated', { workspaceId }).then((result) => {
+        const sections = result as WorkspaceDiffSections;
+        const allFiles = [...sections.uncommitted, ...sections.committed];
         set((state) => {
           if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
-          state.changesPanelFiles = files as DiffFile[];
+          state.changesPanelFiles = allFiles;
+          state.changesPanelSections = sections;
         });
-      }).catch(() => {});
+      }).catch(() => {
+        // Fallback to flat list
+        return window.api.invoke('workspace:diff-files', { workspaceId }).then((files) => {
+          const allFiles = files as DiffFile[];
+          set((state) => {
+            if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
+            state.changesPanelFiles = allFiles;
+            state.changesPanelSections = { committed: [], uncommitted: allFiles };
+          });
+        }).catch(() => {});
+      });
 
       if (initialFile) {
         const scope = initialScope ?? 'all';
@@ -291,6 +310,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         await Promise.all([fileListPromise, diffPromise]);
       } else {
         await fileListPromise;
+        // Auto-select the first file when no initial file was specified
+        const { changesPanelFiles, changesPanelWorkspaceId, changesPanelSelectedFile } = get();
+        if (
+          requestVersion === changesPanelRequestVersion &&
+          changesPanelWorkspaceId === workspaceId &&
+          !changesPanelSelectedFile &&
+          changesPanelFiles.length > 0
+        ) {
+          const first = changesPanelFiles[0];
+          await get().changesPanelSelectFile(first.path, 'all');
+        }
       }
     },
 
@@ -301,6 +331,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.changesPanelOpen = false;
         state.changesPanelWorkspaceId = null;
         state.changesPanelFiles = [];
+        state.changesPanelSections = null;
         state.changesPanelSelectedFile = null;
         state.changesPanelSelectedScope = null;
         state.changesPanelFileDiff = null;
@@ -353,13 +384,24 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       const requestVersion = ++changesPanelRequestVersion;
 
       try {
-        const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
+        const sections = await window.api.invoke('workspace:diff-files-separated', { workspaceId }) as WorkspaceDiffSections;
+        const allFiles = [...sections.uncommitted, ...sections.committed];
         set((state) => {
           if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
-          state.changesPanelFiles = files;
+          state.changesPanelFiles = allFiles;
+          state.changesPanelSections = sections;
         });
       } catch {
-        // Failed to refresh
+        try {
+          const files = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
+          set((state) => {
+            if (requestVersion !== changesPanelRequestVersion || state.changesPanelWorkspaceId !== workspaceId) return;
+            state.changesPanelFiles = files;
+            state.changesPanelSections = { committed: [], uncommitted: files };
+          });
+        } catch {
+          // Failed to refresh
+        }
       }
     },
 

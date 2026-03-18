@@ -100,8 +100,9 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const changesPanelSelectedFile = useWorkspaceStore((s) => s.changesPanelSelectedFile);
   const changesPanelSelectedScope = useWorkspaceStore((s) => s.changesPanelSelectedScope);
+  const storeSections = useWorkspaceStore((s) => s.changesPanelSections);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [workspaceSections, setWorkspaceSections] = useState<WorkspaceDiffSections | null>(null);
+  const [localSections, setLocalSections] = useState<WorkspaceDiffSections | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
 
   const taskWorkspaceId = task?.workspaceId ?? null;
@@ -111,6 +112,8 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const trackedFiles = editedFiles ? Array.from(editedFiles.values()) : [];
   const trackedByPath = new Map(trackedFiles.map((entry) => [entry.filePath, entry]));
   const contextKey = workspaceId ?? task?.id ?? '';
+  // Prefer store sections (from openChangesPanel) over local state to avoid data inconsistency
+  const workspaceSections = (changesPanelOpen && storeSections) ? storeSections : localSections;
   const uncommittedEntries = workspaceSections
     ? toActivityEntries(workspaceSections.uncommitted, 'uncommitted', trackedByPath, 'workspace-uncommitted')
     : trackedFiles.map((entry) => ({ ...entry, scope: 'uncommitted' as const }));
@@ -132,7 +135,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
     let cancelled = false;
 
     if (!workspaceId) {
-      setWorkspaceSections(null);
+      setLocalSections(null);
       setLoadingFiles(false);
       return;
     }
@@ -141,15 +144,15 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
       setLoadingFiles(true);
       try {
         const sections = await window.api.invoke('workspace:diff-files-separated', { workspaceId }) as WorkspaceDiffSections;
-        if (!cancelled) setWorkspaceSections(sections);
+        if (!cancelled) setLocalSections(sections);
       } catch {
         try {
           const legacyFiles = await window.api.invoke('workspace:diff-files', { workspaceId }) as DiffFile[];
           if (!cancelled) {
-            setWorkspaceSections({ committed: [], uncommitted: legacyFiles });
+            setLocalSections({ committed: [], uncommitted: legacyFiles });
           }
         } catch {
-          if (!cancelled) setWorkspaceSections({ committed: [], uncommitted: [] });
+          if (!cancelled) setLocalSections({ committed: [], uncommitted: [] });
         }
       } finally {
         if (!cancelled) setLoadingFiles(false);
@@ -158,10 +161,19 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
 
     void loadDiffSections();
 
+    // Poll for file changes while the changes panel is open
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    if (changesPanelOpen) {
+      intervalId = setInterval(() => {
+        if (!cancelled) void loadDiffSections();
+      }, 3000);
+    }
+
     return () => {
       cancelled = true;
+      if (intervalId) clearInterval(intervalId);
     };
-  }, [workspaceId]);
+  }, [workspaceId, changesPanelOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -211,7 +223,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
     useWorkspaceStore.getState().refreshChangesPanelFiles();
     try {
       const latest = await window.api.invoke('workspace:diff-files-separated', { workspaceId }) as WorkspaceDiffSections;
-      setWorkspaceSections(latest);
+      setLocalSections(latest);
     } catch {
       // Keep current list if refresh fails.
     }
