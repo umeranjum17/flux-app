@@ -2031,6 +2031,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     }
 
     handle.steer(effectivePrompt, images);
+    taskStallMonitors.get(taskId)?.resume();
 
     if (sessionId) {
       sessionStore.addMessage(

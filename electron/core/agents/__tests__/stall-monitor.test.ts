@@ -304,6 +304,37 @@ describe('StallMonitor', () => {
     monitor.dispose();
   });
 
+  it('resume after pause re-enables tool timeout (steer-after-question regression)', () => {
+    const onStallDetected = vi.fn();
+    const monitor = new StallMonitor({
+      taskId: 'test-steer-resume',
+      maxAutoRestarts: 2,
+      onStallDetected,
+      onProcessDead: vi.fn(),
+    });
+
+    // Simulate: question pauses the monitor
+    monitor.pause();
+    vi.advanceTimersByTime(400_000);
+    expect(onStallDetected).not.toHaveBeenCalled();
+
+    // Simulate: user answer routed via steer resumes the monitor
+    monitor.resume();
+
+    // Now a new tool call should be tracked and its timeout should fire
+    monitor.trackToolCall('tc-steer', 'Read');
+    vi.advanceTimersByTime(180_000);
+    expect(onStallDetected).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'tool_timeout',
+        toolName: 'Read',
+        toolCallId: 'tc-steer',
+      }),
+    );
+
+    monitor.dispose();
+  });
+
   it('double pause and double resume are safe', () => {
     const onStallDetected = vi.fn();
     const monitor = new StallMonitor({
