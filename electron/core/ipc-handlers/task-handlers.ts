@@ -55,6 +55,7 @@ import { trackAgentPid, untrackAgentPid } from '../agents/pid-tracker';
 import { classifyErrorContent } from '../agents/spawn-utils';
 import { getActiveSkillIds } from '../agents/skills';
 import { ContextWatcher } from '../context/watcher';
+import { ContextRequestDispatcher } from '../context/request-dispatcher';
 import type { ContextState } from '../context/protocol';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -94,6 +95,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
   // Context watchers: poll .context/state.json for file-based protocol
   const taskContextWatchers = new Map<string, ContextWatcher>();
+  // Context request dispatchers: handle .context/requests/ actions (terminal, etc.)
+  const taskRequestDispatchers = new Map<string, ContextRequestDispatcher>();
 
   // Circuit breaker: track crash timestamps per workspace to prevent
   // infinite crash loops from workspace-specific issues (corrupt git, disk full)
@@ -211,9 +214,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     activeTasks.delete(taskId);
     untrackAgentPid(taskId);
 
-    // Stop context watcher
+    // Stop context watcher and request dispatcher
     taskContextWatchers.get(taskId)?.stop();
     taskContextWatchers.delete(taskId);
+    taskRequestDispatchers.get(taskId)?.dispose();
+    taskRequestDispatchers.delete(taskId);
 
     // Clear timers
     if (taskIdleHeartbeats.has(taskId)) {
@@ -430,6 +435,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           'flux-merge': { name: 'Flux Merge', description: 'Agent-driven merge workflow with conflict handling rules' },
           'flux-plan': { name: 'Flux Plan', description: 'Structured planning with progress tracking' },
           'flux-todo': { name: 'Flux Todo', description: 'Step-by-step task tracking and progress signals' },
+          'flux-terminal': { name: 'Flux Terminal', description: 'Run commands and manage processes via context requests' },
           'flux-attachments': { name: 'Flux Attachments', description: 'Structured attachment manifest for downstream agents' },
         };
         sendToRenderer('agent:skills', {
@@ -690,6 +696,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     let contextWatcherLastTodoSnapshot = '';
     let contextWatcherRenameHandled = false;
     if (workspace) {
+      // Create dispatcher before the watcher — the onRequest closure captures it,
+      // and start() triggers the first poll synchronously.
+      const dispatcher = new ContextRequestDispatcher({ cwd: options.cwd });
+      taskRequestDispatchers.set(options.taskId, dispatcher);
+
       const contextWatcher = new ContextWatcher({
         cwd: options.cwd,
         onStateChange: (state: ContextState) => {
@@ -763,9 +774,56 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           }
         },
         onRequest: (request) => {
-          // Extensible: handle agent→Flux requests here
-          // For now, just acknowledge with an error that the action is unsupported
-          contextWatcher.writeResponse(request.id, false, undefined, `Unknown action: ${request.action}`);
+          // Emit a tool_call message so the user can see what the agent requested
+          if (request.action.startsWith('terminal:')) {
+            const cmd = (request.payload as Record<string, unknown> | undefined)?.command;
+            const termId = (request.payload as Record<string, unknown> | undefined)?.terminalId;
+            const label = request.action === 'terminal:kill'
+              ? `Stopping process ${termId ?? '?'}`
+              : `${cmd ?? request.action}`;
+            emitTaskMessage(options.taskId, session.id, {
+              type: 'tool_call',
+              role: 'assistant',
+              toolName: request.action,
+              toolCallId: `ctx-${request.id}`,
+              toolInput: request.payload,
+              content: label,
+              timestamp: Date.now(),
+            });
+          }
+
+          void dispatcher.dispatch(request).then((result) => {
+            contextWatcher.writeResponse(request.id, result.ok, result.data, result.error);
+
+            // Emit a tool_result message with the outcome
+            if (request.action.startsWith('terminal:')) {
+              const data = result.data as Record<string, unknown> | undefined;
+              let content = '';
+              if (request.action === 'terminal:exec') {
+                const stdout = (data?.stdout as string) ?? '';
+                const stderr = (data?.stderr as string) ?? '';
+                const exitCode = data?.exitCode as number | undefined;
+                content = stdout || stderr || '(no output)';
+                if (exitCode !== undefined && exitCode !== 0) {
+                  content = `Exit code: ${exitCode}\n${content}`;
+                }
+              } else if (request.action === 'terminal:spawn') {
+                content = `Spawned background process (id: ${data?.terminalId ?? '?'})`;
+              } else if (request.action === 'terminal:kill') {
+                content = result.ok ? 'Process stopped' : (result.error ?? 'Failed to stop');
+              }
+
+              emitTaskMessage(options.taskId, session.id, {
+                type: 'tool_result',
+                role: 'tool',
+                toolName: request.action,
+                toolCallId: `ctx-${request.id}`,
+                content: content.slice(0, 5000),
+                isError: !result.ok,
+                timestamp: Date.now(),
+              });
+            }
+          });
         },
       });
       contextWatcher.start();

@@ -102,6 +102,42 @@ function normalizeTodoStatus(value: unknown): ContextTodoStatus {
   return 'pending';
 }
 
+// ---------------------------------------------------------------------------
+// Terminal action payload/response types (used by request dispatcher)
+// ---------------------------------------------------------------------------
+
+export interface TerminalExecPayload {
+  /** Shell command to execute. */
+  command: string;
+  /** Working directory (defaults to workspace root). */
+  cwd?: string;
+  /** Timeout in ms (default 30s, max 5min). */
+  timeout?: number;
+}
+
+export interface TerminalExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+export interface TerminalSpawnPayload {
+  /** Shell command to run as a background process. */
+  command: string;
+  /** Working directory (defaults to workspace root). */
+  cwd?: string;
+}
+
+export interface TerminalSpawnResult {
+  /** Opaque ID to reference this process later (e.g. for terminal:kill). */
+  terminalId: string;
+}
+
+export interface TerminalKillPayload {
+  /** ID returned by a previous terminal:spawn response. */
+  terminalId: string;
+}
+
 /**
  * Parse and validate a ContextRequest from raw JSON.
  */

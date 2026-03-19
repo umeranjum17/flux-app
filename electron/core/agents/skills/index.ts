@@ -8,6 +8,7 @@ import { fluxPlanSkill } from './flux-plan';
 import { fluxAskSkill } from './flux-ask';
 import { fluxArchitectSkill } from './flux-architect';
 import { fluxTodoSkill } from './flux-todo';
+import { fluxTerminalSkill } from './flux-terminal';
 
 export type { FluxSkill, SkillContext } from './types';
 // ---------------------------------------------------------------------------
@@ -22,6 +23,7 @@ const ALL_SKILLS: FluxSkill[] = [
   fluxAskSkill,
   fluxArchitectSkill,
   fluxTodoSkill,
+  fluxTerminalSkill,
   fluxAttachmentsSkill,
 ];
 
