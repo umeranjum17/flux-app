@@ -310,17 +310,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         await Promise.all([fileListPromise, diffPromise]);
       } else {
         await fileListPromise;
-        // Auto-select the first file when no initial file was specified
-        const { changesPanelFiles, changesPanelWorkspaceId, changesPanelSelectedFile } = get();
-        if (
-          requestVersion === changesPanelRequestVersion &&
-          changesPanelWorkspaceId === workspaceId &&
-          !changesPanelSelectedFile &&
-          changesPanelFiles.length > 0
-        ) {
-          const first = changesPanelFiles[0];
-          await get().changesPanelSelectFile(first.path, 'all');
-        }
       }
     },
 
