@@ -426,16 +426,18 @@ export function ChatInput({ focused }: ChatInputProps) {
           upsertSession(result.session);
         }
       } else {
-        setTaskStatus(task.id, 'running');
-        const steerResult = await window.api.invoke('task:steer', {
-          taskId: task.id,
-          prompt: text,
-          images: images.length > 0 ? images : undefined,
-          attachments,
-        }) as { steerFailed?: boolean };
+        // If the user switched model or agent mid-execution, stop the current
+        // agent and respawn with the new selection so the rest of the task
+        // continues on the updated model.
+        const modelOrAgentChanged = task.agentId !== selectedAgentId || task.model !== selectedModel;
 
-        if (steerResult?.steerFailed) {
-          // Task already finished between UI check and IPC call — fall back to spawn
+        if (modelOrAgentChanged) {
+          // Stop running agent, then respawn with the new model
+          try {
+            await window.api.invoke('task:stop', { taskId: task.id });
+          } catch {
+            // agent may have already exited — that's fine
+          }
           const currentMode = modeOverride ?? useUiStore.getState().mode;
           if (task.mode !== currentMode) {
             setTaskMode(task.id, currentMode);
@@ -443,9 +445,8 @@ export function ChatInput({ focused }: ChatInputProps) {
           if (task.thinking !== effectiveThinking) {
             setTaskThinking(task.id, effectiveThinking);
           }
-          if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
-            useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
-          }
+          useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+          setTaskStatus(task.id, 'running');
           const spawnResult = await window.api.invoke('task:spawn', {
             taskId: task.id,
             workspaceId: task.workspaceId,
@@ -463,6 +464,46 @@ export function ChatInput({ focused }: ChatInputProps) {
           if (spawnResult?.session) {
             setTaskSessionId(task.id, spawnResult.session.id);
             upsertSession(spawnResult.session);
+          }
+        } else {
+          setTaskStatus(task.id, 'running');
+          const steerResult = await window.api.invoke('task:steer', {
+            taskId: task.id,
+            prompt: text,
+            images: images.length > 0 ? images : undefined,
+            attachments,
+          }) as { steerFailed?: boolean };
+
+          if (steerResult?.steerFailed) {
+            // Task already finished between UI check and IPC call — fall back to spawn
+            const currentMode = modeOverride ?? useUiStore.getState().mode;
+            if (task.mode !== currentMode) {
+              setTaskMode(task.id, currentMode);
+            }
+            if (task.thinking !== effectiveThinking) {
+              setTaskThinking(task.id, effectiveThinking);
+            }
+            if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
+              useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+            }
+            const spawnResult = await window.api.invoke('task:spawn', {
+              taskId: task.id,
+              workspaceId: task.workspaceId,
+              prompt: text,
+              agentId: selectedAgentId,
+              model: selectedModel,
+              mode: currentMode,
+              thinking: effectiveThinking,
+              cwd: task.cwd,
+              sessionId: task.sessionId,
+              images: images.length > 0 ? images : undefined,
+              attachments,
+              contextless: task.contextless || undefined,
+            }) as { session?: Session };
+            if (spawnResult?.session) {
+              setTaskSessionId(task.id, spawnResult.session.id);
+              upsertSession(spawnResult.session);
+            }
           }
         }
       }
