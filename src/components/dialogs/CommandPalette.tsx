@@ -128,6 +128,24 @@ export function CommandPalette() {
         },
       },
       {
+        id: 'quick-open',
+        name: 'Quick Open File',
+        icon: Search,
+        shortcut: 'Ctrl+P',
+        handler: () => {
+          setOverlay('quick-open');
+        },
+      },
+      {
+        id: 'search-files',
+        name: 'Search in Files',
+        icon: Search,
+        shortcut: 'Ctrl+Shift+F',
+        handler: () => {
+          setOverlay('search-files');
+        },
+      },
+      {
         id: 'session-list',
         name: 'Session List',
         icon: FolderOpen,

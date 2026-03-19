@@ -28,6 +28,8 @@ import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
+import { QuickOpen } from '../dialogs/QuickOpen';
+import { SearchFiles } from '../dialogs/SearchFiles';
 import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 
@@ -740,14 +742,13 @@ export function AppShell() {
           ui.openWorkspacePanelTab('files');
         }
       }
+      if (meta && !e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        useUiStore.getState().setOverlay('quick-open');
+      }
       if (meta && e.shiftKey && e.key === 'F') {
         e.preventDefault();
-        const ui = useUiStore.getState();
-        if (ui.workspacePanelOpen && ui.workspacePanelTab === 'search') {
-          ui.setWorkspacePanelOpen(false);
-        } else {
-          ui.openWorkspacePanelTab('search');
-        }
+        useUiStore.getState().setOverlay('search-files');
       }
       if (e.ctrlKey && e.key === '`') { e.preventDefault(); useUiStore.getState().toggleTerminal(); }
 
@@ -934,6 +935,8 @@ export function AppShell() {
           onClose={() => useWorkspaceStore.getState().closeMerge()}
         />
       )}
+      <QuickOpen />
+      <SearchFiles />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 
+import fg from 'fast-glob';
 import { agentManager } from '../agents/manager';
 import type { AgentHandle } from '../agents/types';
 import { logDiagnostic, tailDiagnostics, getDiagnosticsLogPath } from '../diagnostics/logger';
@@ -561,6 +562,50 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       line: result.line,
       text: result.content,
     }));
+  });
+
+  ipcMain.handle('fs:glob', async (_event, { cwd, limit = 5000 }: { cwd: string; limit?: number }) => {
+    try {
+      if (getSshHost()) {
+        const escapedDir = cwd.replace(/'/g, "'\\''");
+        const cmd = `cd '${escapedDir}' && git ls-files 2>/dev/null || find . -type f -not -path '*/.*' -not -path '*/node_modules/*' | head -${limit}`;
+        const { stdout } = await execFileAsync(resolveSshCommand(), [getSshHost()!, cmd], {
+          timeout: 15000,
+          env: extendedEnv(),
+        });
+        return stdout.trim().split('\n').filter(Boolean).slice(0, limit).map((rel) => ({
+          path: rel,
+          name: rel.split('/').pop() || rel,
+        }));
+      }
+
+      // Local: prefer git ls-files for speed and .gitignore respect
+      try {
+        const { stdout } = await execFileAsync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+          cwd,
+          timeout: 10000,
+        });
+        const files = stdout.trim().split('\n').filter(Boolean).slice(0, limit);
+        return files.map((rel) => ({
+          path: rel,
+          name: rel.split('/').pop() || rel,
+        }));
+      } catch {
+        // Not a git repo — fall back to fast-glob
+        const files = await fg('**/*', {
+          cwd,
+          ignore: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/.next/**', '**/__pycache__/**', '**/.cache/**'],
+          onlyFiles: true,
+          dot: false,
+        });
+        return files.slice(0, limit).map((rel) => ({
+          path: rel,
+          name: rel.split('/').pop() || rel,
+        }));
+      }
+    } catch {
+      return [];
+    }
   });
 
   ipcMain.handle('fs:listdirs', async (_event, { dirPath }: { dirPath: string }) => {

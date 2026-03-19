@@ -213,6 +213,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'fs:write',
     'fs:stat',
     'fs:grep',
+    'fs:glob',
     'fs:listdirs',
     'terminal:create',
     'terminal:write',

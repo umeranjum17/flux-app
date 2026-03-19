@@ -4,7 +4,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
 import type { LiveUsageOverview } from '../lib/ipc-api';
 
-type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | null;
+type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | 'quick-open' | 'search-files' | null;
 
 export interface RecentProject {
   path: string;

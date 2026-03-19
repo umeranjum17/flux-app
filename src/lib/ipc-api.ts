@@ -68,6 +68,7 @@ export interface IpcChannels {
   'fs:read': { args: [{ filePath: string }]; result: { content: string | null; error: string | null } };
   'fs:listdirs': { args: [{ dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
   'fs:grep': { args: [{ pattern: string; cwd: string }]; result: Array<{ file: string; line: number; text: string }> };
+  'fs:glob': { args: [{ cwd: string; limit?: number }]; result: Array<{ path: string; name: string }> };
   'terminal:create': { args: [{ id: string; cwd?: string; workspaceId?: string; shell?: string }]; result: { id: string; shellName: string } };
   'terminal:write': { args: [{ id: string; data: string }]; result: void };
   'terminal:resize': { args: [{ id: string; cols: number; rows: number }]; result: void };
