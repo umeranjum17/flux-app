@@ -43,7 +43,9 @@ export function spawnGemini(options: SpawnOptions): AgentHandle {
       },
       answerQuestion(proc, _requestId, response) {
         const payload = { type: 'user_message', content: response };
-        safeWriteToChildStdin(proc, JSON.stringify(payload) + '\n', 'gemini');
+        if (!proc.stdin?.writable || !safeWriteToChildStdin(proc, JSON.stringify(payload) + '\n', 'gemini')) {
+          throw new Error('Agent process stdin is not writable — answer cannot be delivered');
+        }
       },
     },
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CircleHelp, SendHorizontal } from 'lucide-react';
+import { CheckCircle2, CircleHelp, SendHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import type { QuestionField } from '../../lib/types';
@@ -21,6 +21,9 @@ export function QuestionPrompt({
   allowFreeform = true,
   placeholder,
 }: QuestionPromptProps) {
+  const pendingQuestion = useChatStore((s) => s.tasks.get(taskId)?.pendingQuestion);
+  const isActive = pendingQuestion?.requestId === requestId;
+
   const [selectedOptions, setSelectedOptions] = useState<Record<number, string[]>>({});
   const [freeformAnswers, setFreeformAnswers] = useState<Record<number, string>>({});
   const isSimpleSingleChoice = questions.length === 1
@@ -90,6 +93,20 @@ export function QuestionPrompt({
     allowFreeform,
     placeholder,
   }];
+
+  // Already answered — show compact read-only view
+  if (!isActive) {
+    return (
+      <div className="rounded-lg border border-border/50 bg-bg-surface/50 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-text-secondary">{prompt}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-info/30 bg-info/5 p-4">

@@ -46,7 +46,9 @@ export function spawnOllama(options: SpawnOptions): AgentHandle {
       },
       answerQuestion(proc, _requestId, response) {
         if (idleTimer) clearTimeout(idleTimer);
-        safeWriteToChildStdin(proc, response + '\n', 'ollama');
+        if (!proc.stdin?.writable || !safeWriteToChildStdin(proc, response + '\n', 'ollama')) {
+          throw new Error('Agent process stdin is not writable — answer cannot be delivered');
+        }
       },
     },
 

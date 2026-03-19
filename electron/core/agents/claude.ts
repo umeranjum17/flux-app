@@ -477,7 +477,9 @@ function writeClaudeControlResponse(
   requestId: string,
   response: { behavior: 'allow' } | { behavior: 'deny'; message: string },
 ): void {
-  if (!proc.stdin?.writable) return;
+  if (!proc.stdin?.writable) {
+    throw new Error('Agent process stdin is not writable — response cannot be delivered');
+  }
 
   safeWriteToChildStdin(proc, JSON.stringify({
     type: 'control_response',
@@ -490,9 +492,11 @@ function writeClaudeControlResponse(
 }
 
 function writeClaudeQuestionResponse(proc: ChildProcess, requestId: string, response: string): void {
-  if (!proc.stdin?.writable) return;
+  if (!proc.stdin?.writable) {
+    throw new Error('Agent process stdin is not writable — answer cannot be delivered');
+  }
 
-  safeWriteToChildStdin(proc, JSON.stringify({
+  const written = safeWriteToChildStdin(proc, JSON.stringify({
     type: 'user',
     message: {
       role: 'user',
@@ -503,6 +507,9 @@ function writeClaudeQuestionResponse(proc: ChildProcess, requestId: string, resp
       }],
     },
   }) + '\n', 'claude');
+  if (!written) {
+    throw new Error('Failed to write answer to agent process');
+  }
 }
 
 function toClaudeImageBlock(image: string): Record<string, unknown> | null {

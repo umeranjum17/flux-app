@@ -150,7 +150,9 @@ export function spawnCodex(
         safeWriteToChildStdin(proc, prompt + '\n', 'codex');
       },
       answerQuestion(proc, _requestId, response) {
-        safeWriteToChildStdin(proc, response + '\n', 'codex');
+        if (!proc.stdin?.writable || !safeWriteToChildStdin(proc, response + '\n', 'codex')) {
+          throw new Error('Agent process stdin is not writable — answer cannot be delivered');
+        }
       },
     },
 

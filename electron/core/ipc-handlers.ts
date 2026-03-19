@@ -2167,6 +2167,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       throw new Error('Agent process has exited — answer cannot be delivered');
     }
 
+    // Deliver the answer first — this may throw if stdin is not writable.
+    // We must not change status or emit the user message if delivery fails,
+    // so the UI can restore the question prompt and let the user retry.
+    handle.answerQuestion(requestId, response);
+
     const sessionId = taskSessions.get(taskId);
     if (sessionId) {
       emitTaskMessage(taskId, sessionId, buildUserMessagePayload(response));
@@ -2177,7 +2182,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       updateWorkspaceTaskStatus(taskId, workspaceId, 'running', sessionId ? { sessionId } : undefined);
     }
 
-    handle.answerQuestion(requestId, response);
     taskStallMonitors.get(taskId)?.resume();
   });
 
