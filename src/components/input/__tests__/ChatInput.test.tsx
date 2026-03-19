@@ -391,6 +391,7 @@ describe('ChatInput', () => {
 
     render(<ChatInput />);
 
+    await user.click(screen.getByRole('textbox'));
     await user.keyboard('{Shift>}{Tab}{/Shift}');
 
     await waitFor(() => {
@@ -538,5 +539,61 @@ describe('ChatInput', () => {
       'task:steer',
       expect.anything(),
     );
+  });
+
+  it('uses latest model when sending immediately after selector change', async () => {
+    const user = userEvent.setup();
+    useChatStore.getState().createTask({
+      id: 'task-1',
+      title: 'Existing task',
+      agentId: 'codex',
+      model: 'o4-mini',
+      mode: 'act',
+      thinking: 'medium',
+      cwd: '/workspace',
+      sessionId: 'session-1',
+    });
+    useChatStore.getState().setTaskStatus('task-1', 'done');
+
+    mockApi.invoke.mockImplementation((channel: string) => {
+      if (channel === 'completion:providers') {
+        return Promise.resolve({ providers: [] });
+      }
+      if (channel === 'task:spawn') {
+        return Promise.resolve({ taskId: 'task-1', session: { id: 'session-1' } });
+      }
+      if (channel === 'task:stop') {
+        return Promise.resolve(undefined);
+      }
+      if (channel === 'task:steer') {
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<ChatInput />);
+
+    await user.type(getChatInput(), 'Use the newest model');
+    useAgentStore.setState({
+      selectedAgentId: 'codex',
+      selectedModel: 'gpt-5.4',
+      selectedThinking: 'high',
+      dynamicModels: [],
+      modelsLoading: false,
+    });
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:spawn',
+        expect.objectContaining({
+          taskId: 'task-1',
+          prompt: 'Use the newest model',
+          agentId: 'codex',
+          model: 'gpt-5.4',
+          thinking: 'high',
+        }),
+      );
+    });
   });
 });

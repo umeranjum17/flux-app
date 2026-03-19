@@ -210,8 +210,13 @@ export function ChatInput({ focused }: ChatInputProps) {
   const handleSend = useCallback(async (modeOverride?: TaskMode) => {
     const text = value.trim();
     if (!text) return;
+    const {
+      selectedAgentId: currentSelectedAgentId,
+      selectedModel: currentSelectedModel,
+      selectedThinking: currentSelectedThinking,
+    } = useAgentStore.getState();
     const effectiveMode = modeOverride ?? useUiStore.getState().mode;
-    const effectiveThinking = selectedThinking;
+    const effectiveThinking = currentSelectedThinking;
 
     // ── Terminal mode: run shell command ──
     if (isTerminal && text.startsWith('$ ')) {
@@ -224,8 +229,8 @@ export function ChatInput({ focused }: ChatInputProps) {
         createTask({
           id: taskId,
           title: `$ ${command}`.slice(0, 80),
-          agentId: selectedAgentId,
-          model: selectedModel,
+          agentId: currentSelectedAgentId,
+          model: currentSelectedModel,
           mode: effectiveMode,
           thinking: effectiveThinking,
           cwd: cwd || '.',
@@ -288,8 +293,8 @@ export function ChatInput({ focused }: ChatInputProps) {
         createTask({
           id: taskId,
           title: text.slice(0, 80),
-          agentId: selectedAgentId,
-          model: selectedModel,
+          agentId: currentSelectedAgentId,
+          model: currentSelectedModel,
           mode: effectiveMode,
           thinking: effectiveThinking,
           cwd: '.',
@@ -309,8 +314,8 @@ export function ChatInput({ focused }: ChatInputProps) {
             await startWorkspaceChat({
               workspace: activeWorkspace,
               prompt: text,
-              agentId: selectedAgentId,
-              model: selectedModel,
+              agentId: currentSelectedAgentId,
+              model: currentSelectedModel,
               mode: effectiveMode,
               thinking: effectiveThinking,
               images: images.length > 0 ? images : undefined,
@@ -318,8 +323,8 @@ export function ChatInput({ focused }: ChatInputProps) {
             });
           } else {
             await createWorkspaceAndChat(text, {
-              agentId: selectedAgentId,
-              model: selectedModel,
+              agentId: currentSelectedAgentId,
+              model: currentSelectedModel,
               mode: effectiveMode,
               thinking: effectiveThinking,
               cwd: cwd || '.',
@@ -340,8 +345,8 @@ export function ChatInput({ focused }: ChatInputProps) {
       createTask({
         id: taskId,
         title: text.slice(0, 80),
-        agentId: selectedAgentId,
-        model: selectedModel,
+        agentId: currentSelectedAgentId,
+        model: currentSelectedModel,
         mode: effectiveMode,
         thinking: effectiveThinking,
         cwd: cwd || '.',
@@ -360,8 +365,8 @@ export function ChatInput({ focused }: ChatInputProps) {
             taskId: task.id,
             workspace,
             prompt: text,
-            agentId: selectedAgentId,
-            model: selectedModel,
+            agentId: currentSelectedAgentId,
+            model: currentSelectedModel,
             mode: effectiveMode,
             thinking: effectiveThinking,
             images: images.length > 0 ? images : undefined,
@@ -403,16 +408,16 @@ export function ChatInput({ focused }: ChatInputProps) {
           setTaskThinking(task.id, effectiveThinking);
         }
         // Sync agent/model selection to the task (user may have changed the selector)
-        if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
-          useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+        if (task.agentId !== currentSelectedAgentId || task.model !== currentSelectedModel) {
+          useChatStore.getState().switchTaskAgent(task.id, currentSelectedAgentId, currentSelectedModel);
         }
         setTaskStatus(task.id, 'running');
         const result = await window.api.invoke('task:spawn', {
           taskId: task.id,
           workspaceId: task.workspaceId,
           prompt: text,
-          agentId: selectedAgentId,
-          model: selectedModel,
+          agentId: currentSelectedAgentId,
+          model: currentSelectedModel,
           mode: currentMode,
           thinking: effectiveThinking,
           cwd: task.cwd,
@@ -429,7 +434,7 @@ export function ChatInput({ focused }: ChatInputProps) {
         // If the user switched model or agent mid-execution, stop the current
         // agent and respawn with the new selection so the rest of the task
         // continues on the updated model.
-        const modelOrAgentChanged = task.agentId !== selectedAgentId || task.model !== selectedModel;
+        const modelOrAgentChanged = task.agentId !== currentSelectedAgentId || task.model !== currentSelectedModel;
 
         if (modelOrAgentChanged) {
           // Stop running agent, then respawn with the new model
@@ -445,14 +450,14 @@ export function ChatInput({ focused }: ChatInputProps) {
           if (task.thinking !== effectiveThinking) {
             setTaskThinking(task.id, effectiveThinking);
           }
-          useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+          useChatStore.getState().switchTaskAgent(task.id, currentSelectedAgentId, currentSelectedModel);
           setTaskStatus(task.id, 'running');
           const spawnResult = await window.api.invoke('task:spawn', {
             taskId: task.id,
             workspaceId: task.workspaceId,
             prompt: text,
-            agentId: selectedAgentId,
-            model: selectedModel,
+            agentId: currentSelectedAgentId,
+            model: currentSelectedModel,
             mode: currentMode,
             thinking: effectiveThinking,
             cwd: task.cwd,
@@ -483,15 +488,15 @@ export function ChatInput({ focused }: ChatInputProps) {
             if (task.thinking !== effectiveThinking) {
               setTaskThinking(task.id, effectiveThinking);
             }
-            if (task.agentId !== selectedAgentId || task.model !== selectedModel) {
-              useChatStore.getState().switchTaskAgent(task.id, selectedAgentId, selectedModel);
+            if (task.agentId !== currentSelectedAgentId || task.model !== currentSelectedModel) {
+              useChatStore.getState().switchTaskAgent(task.id, currentSelectedAgentId, currentSelectedModel);
             }
             const spawnResult = await window.api.invoke('task:spawn', {
               taskId: task.id,
               workspaceId: task.workspaceId,
               prompt: text,
-              agentId: selectedAgentId,
-              model: selectedModel,
+              agentId: currentSelectedAgentId,
+              model: currentSelectedModel,
               mode: currentMode,
               thinking: effectiveThinking,
               cwd: task.cwd,
@@ -521,7 +526,7 @@ export function ChatInput({ focused }: ChatInputProps) {
     setValue('');
     setImages([]);
     setAttachedFiles([]);
-  }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, selectedAgentId, selectedModel, selectedThinking, setTaskStatus, setTaskSessionId, setTaskMode, setTaskThinking, upsertSession, isTerminal, cwd]);
+  }, [value, images, attachedFiles, getActiveTask, createTask, addUserMessage, setTaskStatus, setTaskSessionId, setTaskMode, setTaskThinking, upsertSession, isTerminal, cwd]);
 
   const handleStop = useCallback(async () => {
     const task = getActiveTask();
