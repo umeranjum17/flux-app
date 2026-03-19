@@ -82,4 +82,43 @@ describe('ContextWatcher', () => {
     expect(callCount).toBe(0);
     expect(watcher.hasReceivedState).toBe(false);
   });
+
+  it('leaves requests unclaimed when shouldProcessRequest returns false', () => {
+    const cwd = makeTempDir();
+    const requestsDir = path.join(cwd, '.context', 'requests');
+    fs.mkdirSync(requestsDir, { recursive: true });
+    fs.writeFileSync(path.join(requestsDir, 'r1.json'), JSON.stringify({
+      id: 'r1',
+      action: 'terminal:spawn',
+      payload: { command: 'npm run dev' },
+    }));
+
+    let callCount = 0;
+    const watcher = new ContextWatcher({
+      cwd,
+      onStateChange: () => {},
+      onRequest: () => {
+        callCount += 1;
+      },
+      shouldProcessRequest: () => false,
+    });
+
+    watcher.start();
+    watcher.stop();
+
+    expect(callCount).toBe(0);
+
+    const secondWatcher = new ContextWatcher({
+      cwd,
+      onStateChange: () => {},
+      onRequest: () => {
+        callCount += 1;
+      },
+    });
+
+    secondWatcher.start();
+    secondWatcher.stop();
+
+    expect(callCount).toBe(1);
+  });
 });

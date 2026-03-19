@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { ipcMain, BrowserWindow, app } from 'electron';
 import type { ChildProcess } from 'child_process';
 
@@ -28,6 +30,8 @@ import { registerTaskHandlers } from './task-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { registerProjectGroupHandlers } from './project-group-handlers';
 import { ProjectGroupStore } from '../project-group/store';
+import { ContextWatcher } from '../context/watcher';
+import { ContextRequestDispatcher } from '../context/request-dispatcher';
 
 console.log('[ipc-handlers] module loaded');
 
@@ -376,6 +380,39 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   registerWorkspaceHandlers(fullCtx);
 
+  // Support `.context/requests/*.json` terminal actions even when no agent task
+  // is active, so external agents can open visible terminals in the Flux UI.
+  let globalContextWatcher: ContextWatcher | null = null;
+  let globalRequestDispatcher: ContextRequestDispatcher | null = null;
+  const contextRoot = process.cwd();
+  if (fs.existsSync(path.join(contextRoot, '.context'))) {
+    globalRequestDispatcher = new ContextRequestDispatcher({
+      cwd: contextRoot,
+      onSpawnVisibleTerminal: (req) => {
+        sendToRenderer('terminal:agent-create', {
+          id: req.id,
+          command: req.command,
+          cwd: req.cwd,
+        });
+      },
+      onKillVisibleTerminal: (terminalId) => {
+        sendToRenderer('terminal:agent-kill', { id: terminalId });
+      },
+    });
+
+    globalContextWatcher = new ContextWatcher({
+      cwd: contextRoot,
+      onStateChange: () => {},
+      shouldProcessRequest: (request) => activeTasks.size === 0 && request.action.startsWith('terminal:'),
+      onRequest: (request) => {
+        void globalRequestDispatcher!.dispatch(request).then((result) => {
+          globalContextWatcher?.writeResponse(request.id, result.ok, result.data, result.error);
+        });
+      },
+    });
+    globalContextWatcher.start();
+  }
+
   // Self-heal workspace state before renderer connects.
   // Fire-and-forget but log errors — must not block handler registration.
   lifecycleManager.reconcileOnStartup().catch(err => {
@@ -386,6 +423,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerProjectGroupHandlers({ projectGroupStore, workspaceStore });
 
   app.once('before-quit', () => {
+    globalContextWatcher?.stop();
+    globalRequestDispatcher?.dispose();
     operationManager.cancelAll();
   });
 

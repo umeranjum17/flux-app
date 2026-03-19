@@ -14,6 +14,8 @@ export interface ContextWatcherOptions {
   onStateChange: (state: ContextState) => void;
   /** Called when a new request file appears in .context/requests/. */
   onRequest?: (request: ContextRequest) => void;
+  /** Optional gate for whether a parsed request should be claimed now. */
+  shouldProcessRequest?: (request: ContextRequest) => boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ export class ContextWatcher {
   private readonly pollIntervalMs: number;
   private readonly onStateChange: (state: ContextState) => void;
   private readonly onRequest?: (request: ContextRequest) => void;
+  private readonly shouldProcessRequest?: (request: ContextRequest) => boolean;
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastStateContent = '';
@@ -42,6 +45,7 @@ export class ContextWatcher {
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.onStateChange = options.onStateChange;
     this.onRequest = options.onRequest;
+    this.shouldProcessRequest = options.shouldProcessRequest;
   }
 
   /** Start polling. Idempotent. */
@@ -141,6 +145,7 @@ export class ContextWatcher {
 
       const request = parseContextRequest(parsed);
       if (!request) continue;
+      if (this.shouldProcessRequest && !this.shouldProcessRequest(request)) continue;
 
       this.processedRequestIds.add(id);
       this.onRequest!(request);
