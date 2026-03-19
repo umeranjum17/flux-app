@@ -172,18 +172,8 @@ export function WorkspaceTab() {
     }
   }, [creating]);
 
-  const handleAddProject = useCallback(async () => {
-    const picked = await window.api.invoke('cwd:pick') as string | null;
-    if (picked) {
-      useUiStore.getState().addOpenProject(picked);
-      // Load workspaces for the new project
-      try {
-        const result = await window.api.invoke('workspace:list', { parentRepo: picked }) as Workspace[];
-        useWorkspaceStore.getState().mergeWorkspaces(result);
-      } catch {
-        // best-effort
-      }
-    }
+  const handleAddProject = useCallback(() => {
+    useUiStore.getState().setOverlay('create-folder');
   }, []);
 
   const isRunning = (ws: Workspace) =>
