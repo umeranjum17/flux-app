@@ -198,20 +198,10 @@ export function WorkspaceTab() {
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
         <span className="classic-section-label">Workspaces</span>
         <div className="flex items-center gap-0.5">
-          {hasMultipleProjects && (
-            <button
-              onClick={handleAddProject}
-              className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-              title="Add project to group"
-            >
-              <FolderOpen size={14} />
-            </button>
-          )}
           <button
-            onClick={() => handleCreateWorkspace(cwd)}
-            disabled={creating}
+            onClick={handleAddProject}
             className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-            title="New workspace"
+            title="Add project"
           >
             <Plus size={14} />
           </button>
@@ -222,7 +212,7 @@ export function WorkspaceTab() {
         {groupedWorkspaces.size === 0 && standaloneTasks.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-[13px] text-text-secondary">No workspaces</p>
-            <p className="mt-1 text-[11px] text-text-tertiary">Click + to create one.</p>
+            <p className="mt-1 text-[11px] text-text-tertiary">Click + to add a project.</p>
           </div>
         )}
 
@@ -331,16 +321,6 @@ export function WorkspaceTab() {
           </>
         )}
 
-        {/* Add project button when no multi-project yet */}
-        {!hasMultipleProjects && openProjects.length > 0 && (
-          <button
-            onClick={handleAddProject}
-            className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-2 text-[11px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
-          >
-            <FolderOpen size={12} />
-            <span>Add another project</span>
-          </button>
-        )}
       </div>
 
       {/* Context menu */}
