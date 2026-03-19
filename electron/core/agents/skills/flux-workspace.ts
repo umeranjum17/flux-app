@@ -43,7 +43,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         'Follow the plan steps. Commit changes with clear messages when done.',
         'Review `.context/plan.md` for the approved plan.',
-        'If context was lost (e.g. after conversation compression), re-read `.context/plan.md` and `.context/attachments.json` to recover plan details and user-provided images or files.',
+        'If context was lost (e.g. after conversation compression), re-read `.context/` files to recover plan details and attachments.',
         'Do NOT push to remote or create pull requests.',
         '',
         ...buildOutcomeSection(ctx),
@@ -134,8 +134,6 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '2. Commit with clear, descriptive messages when done.',
         '3. Do NOT push to remote or create pull requests — the user merges via the Flux UI.',
         '4. After committing, summarize what you changed.',
-        '5. If `.context/attachments.json` exists, review it for any persisted image or file attachment context.',
-        '6. If `.context/session-context.md` exists, read it first to orient yourself on prior session state.',
       );
 
       if (ctx.hasNativeTodoTool) {
@@ -166,7 +164,6 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '3. Do NOT use ExitPlanMode or any native planning tools — output the plan directly.',
         '4. Read files, search code, and explore — but do not change source code.',
         '5. After outputting your plan, write it to `.context/plan.md` (`mkdir -p .context` first).',
-        '6. If `.context/session-context.md` exists, read it first to orient yourself on prior session state.',
         '',
         '## Workspace Lifecycle',
         '',

@@ -251,6 +251,18 @@ export const useChatStore = create<ChatState>()(
             continue;
           }
 
+          // If the persisted message was a replacement (authoritative full event),
+          // overwrite the target's content instead of appending.
+          if (message.replaceLastContent) {
+            const replaceTarget = findStreamMergeTarget(task.messages, message);
+            if (replaceTarget) {
+              replaceTarget.content = message.content;
+              replaceTarget.timestamp = message.timestamp;
+              trackEditedFile(task, message);
+              continue;
+            }
+          }
+
           // Merge text/thinking chunks that were persisted as separate rows
           // during streaming (e.g. Copilot delta flushes that interleave
           // text and thinking). Uses backward search so interleaved rows
@@ -646,6 +658,20 @@ function ingestOne(state: { tasks: Map<string, Task> }, taskId: string, message:
         return;
       }
     }
+  }
+
+  // If the message carries authoritative content that should replace the
+  // delta-accumulated text (e.g. Copilot full events with correct spacing),
+  // find the merge target and overwrite instead of appending.
+  if (message.replaceLastContent) {
+    const replaceTarget = findStreamMergeTarget(task.messages, message);
+    if (replaceTarget) {
+      replaceTarget.content = message.content;
+      replaceTarget.timestamp = message.timestamp;
+      promoteTaskStatus(task, message);
+      return;
+    }
+    // No target found — fall through to normal append
   }
 
   // Search backwards for a merge target of the same type within the current

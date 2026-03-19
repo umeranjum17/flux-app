@@ -78,6 +78,8 @@ export interface AgentMessage {
   retryAttempt?: number;
   maxRetries?: number;
   isPreExisting?: boolean;
+  /** When true, replace the content of the last matching message instead of appending. */
+  replaceLastContent?: boolean;
   // For lifecycle events
   lifecycleState?: string;
   lifecycleLabel?: string;

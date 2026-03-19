@@ -1,6 +1,7 @@
 import type { AgentId, TaskMode } from '../types';
 import type { FluxSkill, SkillContext } from './types';
 import { fluxAttachmentsSkill } from './flux-attachments';
+import { fluxContextSkill } from './flux-context';
 import { fluxMergeSkill } from './flux-merge';
 import { fluxWorkspaceSkill } from './flux-workspace';
 import { fluxPlanSkill } from './flux-plan';
@@ -18,6 +19,7 @@ export type { FluxSignal, FluxSignalType } from './types';
 const ALL_SKILLS: FluxSkill[] = [
   fluxWorkspaceSkill,
   fluxMergeSkill,
+  fluxContextSkill,
   fluxPlanSkill,
   fluxAskSkill,
   fluxArchitectSkill,

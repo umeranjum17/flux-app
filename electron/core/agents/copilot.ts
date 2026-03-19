@@ -150,14 +150,35 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
 
         flushDeltas(ctx.emitMessage);
 
-        // Suppress full assistant.message when deltas already delivered the content
+        // When deltas already delivered content, the full event carries the
+        // authoritative text with correct spacing. Emit it as a replacement
+        // so the renderer overwrites the (potentially garbled) delta accumulation.
         if (event.type === 'assistant.message' && hasReceivedTextDelta) {
           hasReceivedTextDelta = false;
+          const content = (event.data?.content ?? '') as string;
+          if (content) {
+            ctx.emitMessage({
+              type: 'text',
+              role: 'assistant',
+              content,
+              timestamp: Date.now(),
+              replaceLastContent: true,
+            });
+          }
           return true;
         }
-        // Suppress full assistant.reasoning when deltas already delivered the content
         if (event.type === 'assistant.reasoning' && hasReceivedReasoningDelta) {
           hasReceivedReasoningDelta = false;
+          const content = (event.data?.content ?? '') as string;
+          if (content) {
+            ctx.emitMessage({
+              type: 'thinking',
+              role: 'assistant',
+              content,
+              timestamp: Date.now(),
+              replaceLastContent: true,
+            });
+          }
           return true;
         }
 
