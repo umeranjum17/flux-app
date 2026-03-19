@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, File } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 
 interface GrepResult {
   file: string;
@@ -28,7 +29,16 @@ function groupByFile(results: GrepResult[]): GroupedResult[] {
 }
 
 export function SearchFiles() {
-  const { activeOverlay, setOverlay, setActiveFile, cwd } = useUiStore();
+  const { activeOverlay, setOverlay, setActiveFile, cwd: globalCwd } = useUiStore();
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const cwd = useMemo(() => {
+    if (activeWorkspaceId) {
+      const ws = workspaces.get(activeWorkspaceId);
+      if (ws?.worktreePath) return ws.worktreePath;
+    }
+    return globalCwd;
+  }, [activeWorkspaceId, workspaces, globalCwd]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GroupedResult[]>([]);
   const [flatResults, setFlatResults] = useState<{ file: string; name: string; line: number; text: string }[]>([]);

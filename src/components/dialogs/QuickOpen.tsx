@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { File, Search } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 
 interface FileEntry {
   path: string;
@@ -18,7 +19,16 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export function QuickOpen() {
-  const { activeOverlay, setOverlay, setActiveFile, cwd } = useUiStore();
+  const { activeOverlay, setOverlay, setActiveFile, cwd: globalCwd } = useUiStore();
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const cwd = useMemo(() => {
+    if (activeWorkspaceId) {
+      const ws = workspaces.get(activeWorkspaceId);
+      if (ws?.worktreePath) return ws.worktreePath;
+    }
+    return globalCwd;
+  }, [activeWorkspaceId, workspaces, globalCwd]);
   const [query, setQuery] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
