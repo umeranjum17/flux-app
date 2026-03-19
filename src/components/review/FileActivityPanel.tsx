@@ -112,8 +112,9 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
   const trackedFiles = editedFiles ? Array.from(editedFiles.values()) : [];
   const trackedByPath = new Map(trackedFiles.map((entry) => [entry.filePath, entry]));
   const contextKey = workspaceId ?? task?.id ?? '';
-  // Prefer store sections (from openChangesPanel) over local state to avoid data inconsistency
-  const workspaceSections = (changesPanelOpen && storeSections) ? storeSections : localSections;
+  // Prefer local sections (kept fresh by polling) when available; fall back to store sections
+  // during the brief window before the first local fetch completes.
+  const workspaceSections = localSections ?? (changesPanelOpen ? storeSections : null);
   const uncommittedEntries = workspaceSections
     ? toActivityEntries(workspaceSections.uncommitted, 'uncommitted', trackedByPath, 'workspace-uncommitted')
     : trackedFiles.map((entry) => ({ ...entry, scope: 'uncommitted' as const }));
@@ -133,6 +134,7 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
 
   useEffect(() => {
     let cancelled = false;
+    let isInitialLoad = true;
 
     if (!workspaceId) {
       setLocalSections(null);
@@ -141,7 +143,10 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
     }
 
     async function loadDiffSections() {
-      setLoadingFiles(true);
+      // Only show loading indicator on the initial fetch, not during polls
+      if (isInitialLoad) {
+        setLoadingFiles(true);
+      }
       try {
         const sections = await window.api.invoke('workspace:diff-files-separated', { workspaceId }) as WorkspaceDiffSections;
         if (!cancelled) setLocalSections(sections);
@@ -155,7 +160,10 @@ export function FileActivityPanel({ embedded }: { embedded?: boolean } = {}) {
           if (!cancelled) setLocalSections({ committed: [], uncommitted: [] });
         }
       } finally {
-        if (!cancelled) setLoadingFiles(false);
+        if (!cancelled) {
+          setLoadingFiles(false);
+          isInitialLoad = false;
+        }
       }
     }
 
