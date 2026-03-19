@@ -8,6 +8,7 @@ import {
   Play,
   AlertTriangle,
   FileCode,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
@@ -127,6 +128,11 @@ export function PlanCard({ task }: PlanCardProps) {
   // Get summary and considerations from sections
   const summary = useMemo(() => {
     const s = sections.find((sec) => sec.title.toLowerCase().includes('summary') || sec.title.toLowerCase().includes('overview'));
+    return s?.content || '';
+  }, [sections]);
+
+  const research = useMemo(() => {
+    const s = sections.find((sec) => sec.title.toLowerCase().includes('research'));
     return s?.content || '';
   }, [sections]);
 
@@ -263,7 +269,21 @@ export function PlanCard({ task }: PlanCardProps) {
         </div>
       )}
 
-      {/* Sections that aren't summary/steps/considerations (fallback for unparsed content) */}
+      {/* Research */}
+      {research && (
+        <div className="px-4 py-2.5 border-t border-border/50">
+          <div className="flex items-start gap-2 text-[12px] text-text-tertiary">
+            <Search size={12} className="shrink-0 mt-0.5 text-plan" />
+            <div className="markdown-prose leading-relaxed">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {research}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sections that aren't summary/steps/considerations/research (fallback for unparsed content) */}
       {sections
         .filter((s) => {
           const t = s.title.toLowerCase();
@@ -274,6 +294,7 @@ export function PlanCard({ task }: PlanCardProps) {
             !t.includes('consideration') &&
             !t.includes('risk') &&
             !t.includes('trade') &&
+            !t.includes('research') &&
             s.content.trim()
           );
         })
