@@ -119,7 +119,7 @@ export class SessionStore {
   getMessages(sessionId: string): SessionMessage[] {
     const db = getDb();
     const rows = db
-      .prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC')
+      .prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC')
       .all(sessionId) as any[];
     return rows.map(rowToMessage);
   }
