@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import * as pty from 'node-pty';
 
+import { createInitialTerminalCommandController } from './initial-command';
 import { setupShellIntegration, parseShellIntegrationEvents } from './shell-integration';
 import {
   extendedEnv,
@@ -131,6 +132,7 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
 
   const activePtys = new Map<string, pty.IPty>();
   const flowStates = new Map<string, FlowState>();
+  const initialCommandControllers = new Map<string, ReturnType<typeof createInitialTerminalCommandController>>();
   const dataBuffer = new TerminalDataBuffer((id, data) => {
     sendToRenderer('terminal:data', { id, data });
     // Track unacked chars for flow control
@@ -191,6 +193,12 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
       if (remoteCwd) {
         safeWriteToChildStdin(proc, `cd ${toRemoteShellPath(remoteCwd)}\n`, `terminal:${id}`);
       }
+      const initialCommand = createInitialTerminalCommandController({
+        id,
+        command,
+        write: (data) => safeWriteToChildStdin(proc, data, `terminal:${id}`),
+      });
+      initialCommandControllers.set(id, initialCommand);
       attachChildStdinErrorHandler(proc, `terminal:${id}`);
       activeTerminals.set(id, proc);
 
@@ -201,6 +209,8 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
         dataBuffer.push(id, data.toString());
       });
       proc.on('exit', () => {
+        initialCommand.dispose();
+        initialCommandControllers.delete(id);
         activeTerminals.delete(id);
         flowStates.delete(id);
         sendToRenderer('terminal:exit', { id });
@@ -232,6 +242,12 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
     });
 
     activePtys.set(id, ptyProcess);
+    const initialCommand = createInitialTerminalCommandController({
+      id,
+      command,
+      write: (data) => ptyProcess.write(data),
+    });
+    initialCommandControllers.set(id, initialCommand);
 
     ptyProcess.onData((data: string) => {
       dataBuffer.push(id, data);
@@ -239,23 +255,20 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
       // Parse shell integration OSC sequences and emit structured events
       const events = parseShellIntegrationEvents(data);
       for (const event of events) {
+        if (event.type === 'prompt-start') {
+          initialCommand.markPromptReady();
+        }
         sendToRenderer('terminal:integration', { id, event });
       }
     });
 
     ptyProcess.onExit(({ exitCode }) => {
+      initialCommand.dispose();
+      initialCommandControllers.delete(id);
       activePtys.delete(id);
       flowStates.delete(id);
       sendToRenderer('terminal:exit', { id, exitCode });
     });
-
-    // If a command was provided, write it to the PTY after a short delay
-    // so the shell has time to initialize
-    if (command) {
-      setTimeout(() => {
-        ptyProcess.write(command + '\n');
-      }, 100);
-    }
 
     return { id, shellName };
   });
@@ -320,6 +333,8 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
   // ── terminal:kill ────────────────────────────────────────────────
 
   ipcMain.handle('terminal:kill', async (_event, { id }: { id: string }) => {
+    initialCommandControllers.get(id)?.dispose();
+    initialCommandControllers.delete(id);
     const ptyProc = activePtys.get(id);
     if (ptyProc) {
       ptyProc.kill();
@@ -354,6 +369,10 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
   return {
     dispose() {
       dataBuffer.dispose();
+      for (const [, controller] of initialCommandControllers) {
+        controller.dispose();
+      }
+      initialCommandControllers.clear();
       for (const [, ptyProc] of activePtys) {
         try { ptyProc.kill(); } catch {}
       }

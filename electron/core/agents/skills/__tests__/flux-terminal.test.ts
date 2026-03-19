@@ -31,5 +31,7 @@ describe('fluxTerminalSkill', () => {
     expect(prompt).toContain('Use `terminal:spawn` whenever terminal visibility matters');
     expect(prompt).toContain('tests, typechecks, and final checks');
     expect(prompt).toContain('"command": "npm test"');
+    expect(prompt).toContain('non-interactive, self-contained shell lines');
+    expect(prompt).toContain('.context/responses/<id>.json');
   });
 });

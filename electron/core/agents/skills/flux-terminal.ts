@@ -93,6 +93,8 @@ export const fluxTerminalSkill: FluxSkill = {
       '- If you have a native shell/Bash tool, prefer it for simple one-off commands.',
       '- Use `terminal:spawn` whenever terminal visibility matters, especially for project servers, tests, typechecks, and final checks.',
       '- Use `terminal:spawn` for long-running processes that should persist.',
+      '- Treat `terminal:spawn` commands as non-interactive, self-contained shell lines; do not rely on follow-up keystrokes to finish setup.',
+      '- Wait for the `.context/responses/<id>.json` file before issuing follow-up actions that depend on the spawned terminal ID.',
       '',
       '</flux-skill>',
     ];
