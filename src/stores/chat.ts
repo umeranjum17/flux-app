@@ -63,7 +63,7 @@ interface ChatState {
   setPendingQuestion(taskId: string, question: PendingQuestionState | null): void;
   setTaskMode(taskId: string, mode: TaskMode): void;
   setTaskThinking(taskId: string, thinking: ThinkingLevel): void;
-  switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string): void;
+  switchTaskAgent(taskId: string, newAgentId: AgentId, newModel: string, options?: { stopActiveRun?: boolean }): void;
   addUserMessage(taskId: string, content: string, images?: string[], attachments?: FileAttachment[]): void;
   setPlanData(taskId: string, planData: import('../lib/types').PlanData): void;
   setTodoItems(taskId: string, items: TodoItem[]): void;
@@ -390,9 +390,14 @@ export const useChatStore = create<ChatState>()(
       });
     },
 
-    switchTaskAgent(taskId, newAgentId, newModel) {
+    switchTaskAgent(taskId, newAgentId, newModel, options) {
       const task = get().tasks.get(taskId);
-      if (task && (task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input')) {
+      const shouldStopActiveRun = options?.stopActiveRun !== false;
+      if (
+        shouldStopActiveRun
+        && task
+        && (task.status === 'running' || task.status === 'waiting_approval' || task.status === 'waiting_input')
+      ) {
         window.api?.invoke('task:stop', { taskId }).catch(() => {});
       }
       set((state) => {

@@ -70,6 +70,8 @@ function buildModeSelectionPatch(mode: TaskMode, selection: ModeSelection): Part
   };
 }
 
+const MODEL_SWITCH_RESPAWN_DELAY_MS = 10_000;
+
 export function AppShell() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const bottomPanelOpen = useUiStore((s) => s.bottomPanelOpen);
@@ -473,6 +475,122 @@ export function AppShell() {
       }).catch(() => {});
     });
     return unsub;
+  }, []);
+
+  // When the user changes agent/model/thinking during an active run, wait for
+  // the selection to settle before restarting the task on the new selection.
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    const clearPendingRestart = () => {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+    };
+
+    const scheduleSelectionRestart = () => {
+      const chat = useChatStore.getState();
+      const taskId = chat.activeTaskId;
+      if (!taskId) {
+        clearPendingRestart();
+        return;
+      }
+
+      const task = chat.tasks.get(taskId);
+      const selection = useAgentStore.getState();
+      const selectionChanged = !!task && (
+        task.agentId !== selection.selectedAgentId
+        || task.model !== selection.selectedModel
+        || task.thinking !== selection.selectedThinking
+      );
+
+      if (!task || task.status !== 'running' || !task.sessionId || !selectionChanged) {
+        clearPendingRestart();
+        return;
+      }
+
+      clearPendingRestart();
+      timeout = setTimeout(async () => {
+        const currentChat = useChatStore.getState();
+        if (currentChat.activeTaskId !== taskId) return;
+        const currentTask = currentChat.tasks.get(taskId);
+        const currentSelection = useAgentStore.getState();
+        if (
+          !currentTask
+          || currentTask.status !== 'running'
+          || !currentTask.sessionId
+          || (
+            currentTask.agentId === currentSelection.selectedAgentId
+            && currentTask.model === currentSelection.selectedModel
+            && currentTask.thinking === currentSelection.selectedThinking
+          )
+        ) {
+          return;
+        }
+
+        try {
+          if (currentTask.thinking !== currentSelection.selectedThinking) {
+            currentChat.setTaskThinking(taskId, currentSelection.selectedThinking);
+          }
+          if (
+            currentTask.agentId !== currentSelection.selectedAgentId
+            || currentTask.model !== currentSelection.selectedModel
+          ) {
+            currentChat.switchTaskAgent(
+              taskId,
+              currentSelection.selectedAgentId,
+              currentSelection.selectedModel,
+              { stopActiveRun: false },
+            );
+          }
+          currentChat.setTaskStatus(taskId, 'running');
+          const result = await window.api.invoke('task:restart', {
+            taskId,
+            agentId: currentSelection.selectedAgentId,
+            model: currentSelection.selectedModel,
+            mode: currentTask.mode,
+            thinking: currentSelection.selectedThinking,
+            cwd: currentTask.cwd,
+          }) as { taskId: string; session: Session };
+          if (result?.session) {
+            currentChat.setTaskSessionId(taskId, result.session.id);
+            useSessionStore.getState().upsertSession(result.session);
+          }
+        } catch (error) {
+          currentChat.setTaskStatus(taskId, 'error');
+          toast.error(error instanceof Error ? error.message : 'Failed to restart task with the new selection');
+        }
+      }, MODEL_SWITCH_RESPAWN_DELAY_MS);
+    };
+
+    let previousSelection = {
+      agentId: useAgentStore.getState().selectedAgentId,
+      model: useAgentStore.getState().selectedModel,
+      thinking: useAgentStore.getState().selectedThinking,
+    };
+
+    const unsubscribeSelection = useAgentStore.subscribe((state) => {
+      const nextSelection = {
+        agentId: state.selectedAgentId,
+        model: state.selectedModel,
+        thinking: state.selectedThinking,
+      };
+      if (
+        nextSelection.agentId === previousSelection.agentId
+        && nextSelection.model === previousSelection.model
+        && nextSelection.thinking === previousSelection.thinking
+      ) {
+        return;
+      }
+      previousSelection = nextSelection;
+      scheduleSelectionRestart();
+    });
+
+    return () => {
+      clearPendingRestart();
+      unsubscribeSelection();
+    };
   }, []);
 
   // Fetch git info when CWD changes

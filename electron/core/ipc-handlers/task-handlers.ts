@@ -65,6 +65,8 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 
 const MAX_RECOVERY_DELAY_MS = 5000;
+const RESUME_PROMPT = '[Resuming previous session]';
+const APPLY_SELECTION_PROMPT = '[Applying updated selection]';
 
 function recoveryDelay(retryCount: number): number {
   return Math.min(RECOVERY_DELAY_MS * Math.pow(2, retryCount), MAX_RECOVERY_DELAY_MS);
@@ -478,6 +480,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             : undefined,
       fallbackContext: fallbackContext || undefined,
     };
+    const isResumeControlPrompt = options.prompt.startsWith(RESUME_PROMPT) || options.prompt.startsWith(APPLY_SELECTION_PROMPT);
+    const currentRequestPrompt = options.prompt.startsWith(APPLY_SELECTION_PROMPT)
+      ? `Continue from the latest task state using the newly selected ${agentId} configuration. Do not repeat completed work.`
+      : options.prompt.startsWith(RESUME_PROMPT)
+        ? 'Continue from the latest task state. Do not repeat completed work.'
+        : spawnOptions.prompt;
+    if (isResumeControlPrompt) {
+      spawnOptions.prompt = currentRequestPrompt;
+    }
     let detectedCodexSessionId: string | undefined = existingAgentSessionId;
 
     if (sshHost) {
@@ -520,7 +531,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           stepTracking,
           '',
           `## User instruction`,
-          spawnOptions.prompt,
+          currentRequestPrompt,
         ].filter(Boolean).join('\n');
 
         if (planSteps.length > 0) {
@@ -535,7 +546,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             context,
             '',
             `## Current request`,
-            spawnOptions.prompt,
+            currentRequestPrompt,
           ].join('\n');
         }
       }
@@ -559,7 +570,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           stepTracking,
           '',
           `## Current request`,
-          spawnOptions.prompt,
+          currentRequestPrompt,
         ].filter(Boolean).join('\n');
 
         if (planSteps.length > 0) {
@@ -574,7 +585,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             context,
             '',
             `## Current request`,
-            spawnOptions.prompt,
+            currentRequestPrompt,
           ].join('\n');
         }
       }
@@ -647,7 +658,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       // Only reset terminal outcomes when the user explicitly sends a new prompt
       // (not during auto-recovery or session resume), to prevent merged/completed
       // workspaces from being accidentally restarted.
-      const isExplicitUserAction = options.prompt !== '[Resuming previous session]'
+      const isExplicitUserAction = !isResumeControlPrompt
         && options.workspaceAction !== 'merge';
       if (
         isExplicitUserAction
@@ -658,7 +669,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
     }
 
-    if (options.prompt !== '[Resuming previous session]') {
+    if (!isResumeControlPrompt) {
       sessionStore.addMessage(
         session.id,
         buildStoredUserMessage(options.prompt, options.images, options.attachments),
@@ -1692,7 +1703,24 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
   const restartingTasks = new Set<string>();
 
-  ipcMain.handle('task:restart', async (_event, { taskId }: { taskId: string }) => {
+  ipcMain.handle('task:restart', async (
+    _event,
+    {
+      taskId,
+      agentId,
+      model,
+      mode,
+      thinking,
+      cwd,
+    }: {
+      taskId: string;
+      agentId?: AgentId;
+      model?: string;
+      mode?: 'plan' | 'act' | 'ask' | 'architect';
+      thinking?: 'disabled' | 'low' | 'medium' | 'high' | 'xhigh';
+      cwd?: string;
+    },
+  ) => {
     requireFields({ taskId }, 'taskId');
 
     // Guard against concurrent restarts (e.g. rapid double-click)
@@ -1712,14 +1740,24 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       await new Promise(resolve => setTimeout(resolve, RECOVERY_DELAY_MS));
 
       const context = buildConversationContext(sessionId, sessionStore);
+      const nextAgentId = agentId ?? (session.agentId as AgentId);
+      const nextModel = model ?? session.model;
+      const nextMode = mode ?? (session.mode as 'plan' | 'act' | 'ask' | 'architect');
+      const nextThinking = thinking ?? 'medium';
+      const selectionChanged =
+        nextAgentId !== session.agentId
+        || nextModel !== session.model
+        || nextMode !== session.mode
+        || thinking !== undefined;
       return await spawnTaskRun({
         taskId,
         sessionId,
-        prompt: '[Resuming previous session]\nIf `.context/session-context.md` exists, read it for prior session state.',
-        cwd: session.cwd,
-        mode: session.mode as 'plan' | 'act',
-        model: session.model,
-        agentId: session.agentId,
+        prompt: `${selectionChanged ? APPLY_SELECTION_PROMPT : RESUME_PROMPT}\nIf \`.context/session-context.md\` exists, read it for prior session state.`,
+        cwd: cwd ?? session.cwd,
+        mode: nextMode,
+        model: nextModel,
+        thinking: nextThinking,
+        agentId: nextAgentId,
         fallbackContext: context || undefined,
       });
     } finally {

@@ -28,7 +28,17 @@ export interface IpcChannels {
     result: { taskId: string; session: Session };
   };
   'task:stop': { args: [{ taskId: string }]; result: void };
-  'task:restart': { args: [{ taskId: string }]; result: { taskId: string; session: Session } };
+  'task:restart': {
+    args: [{
+      taskId: string;
+      agentId?: string;
+      model?: string;
+      mode?: TaskMode;
+      thinking?: ThinkingLevel;
+      cwd?: string;
+    }];
+    result: { taskId: string; session: Session };
+  };
   'subagent:spawn': {
     args: [{ parentTaskId: string; prompt: string; model?: string; name: string; cwd?: string }];
     result: { subagentId: string };

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMockApi, type MockApi } from '../../../../test/mocks/window-api';
 import { AgentSelector } from '../AgentSelector';
 import { useAgentStore } from '../../../stores/agent';
@@ -92,5 +93,24 @@ describe('AgentSelector', () => {
     const copilotButtons = screen.getAllByRole('button', { name: /GitHub Copilot/i });
     expect(copilotButtons.length).toBeGreaterThan(0);
     expect(copilotButtons.some((button) => !button.hasAttribute('disabled'))).toBe(true);
+  });
+
+  it('commits the selected model only after Done is pressed', async () => {
+    const user = userEvent.setup();
+    mockApi.invoke.mockResolvedValue([
+      { id: 'sonnet', name: 'sonnet' },
+      { id: 'opus', name: 'opus' },
+    ]);
+
+    render(<AgentSelector />);
+
+    const modelSelect = await screen.findByRole('combobox');
+    await user.selectOptions(modelSelect, 'opus');
+
+    expect(useAgentStore.getState().selectedModel).toBe('sonnet');
+
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(useAgentStore.getState().selectedModel).toBe('opus');
   });
 });

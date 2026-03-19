@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useChatStore } from '../chat';
 import type { AgentMessage } from '../../lib/types';
 
@@ -17,6 +17,9 @@ function makeTask(id = 'task-1', options?: { workspaceId?: string; activate?: bo
 }
 
 beforeEach(() => {
+  (window as any).api = {
+    invoke: vi.fn().mockResolvedValue(undefined),
+  };
   useChatStore.setState({ tasks: new Map(), activeTaskId: null, tabOrder: [] });
 });
 
@@ -107,6 +110,20 @@ describe('removeTasksForWorkspace', () => {
 
     expect(useChatStore.getState().activeTaskId).toBe('standalone');
     expect(useChatStore.getState().tasks.has('standalone')).toBe(true);
+  });
+});
+
+describe('switchTaskAgent', () => {
+  it('can update the task selection without stopping the active run', () => {
+    makeTask('running-task');
+    useChatStore.getState().setTaskStatus('running-task', 'running');
+
+    useChatStore.getState().switchTaskAgent('running-task', 'codex', 'gpt-5.4', { stopActiveRun: false });
+
+    const task = useChatStore.getState().tasks.get('running-task')!;
+    expect(task.agentId).toBe('codex');
+    expect(task.model).toBe('gpt-5.4');
+    expect((window as any).api.invoke).not.toHaveBeenCalledWith('task:stop', { taskId: 'running-task' });
   });
 });
 
