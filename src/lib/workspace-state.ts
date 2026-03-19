@@ -427,7 +427,7 @@ export async function createWorkspaceAndChat(
   opts: CreateWorkspaceAndChatOptions,
 ): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
   // Derive a meaningful branch name and workspace title from the prompt upfront.
-  // The agent can still refine via FLUX_SIGNAL workspace_name at completion.
+  // The agent can still refine via `.context/state.json` workspace_name at completion.
   const branch = createFluxBranchName(prompt);
   const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
 

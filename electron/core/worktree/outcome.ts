@@ -2,9 +2,9 @@
  * System-driven workspace outcome transitions.
  *
  * Agent-driven outcomes (task completion, plan completion, etc.) are handled
- * via FLUX_SIGNAL outcome/completed signals in task-handlers. This module
- * only handles external/system events: merge detection (sync) and merge action
- * completion (task_completed_merge).
+ * via `.context/state.json` in task-handlers. This module only handles
+ * external/system events: merge detection (sync) and merge action completion
+ * (task_completed_merge).
  */
 
 import fs from 'fs';
@@ -37,7 +37,7 @@ const execFileAsync = promisify(execFile);
  * Triggers for outcome transitions that are NOT agent-driven.
  *
  * Agent-driven outcomes (task completion, plan completion, etc.) are handled
- * via FLUX_SIGNAL outcome/completed signals parsed in task-handlers.
+ * via `.context/state.json` parsed in task-handlers.
  * Only external/system events use the state machine.
  */
 export type WorkspaceOutcomeTrigger =
@@ -192,7 +192,7 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
  * compute the next outcome. Returns `null` if no transition should happen.
  *
  * Only handles system/external triggers. Agent-driven outcome transitions
- * are handled via FLUX_SIGNAL in task-handlers.
+ * are handled via `.context/state.json` in task-handlers.
  */
 export function computeNextOutcome(
   current: WorkspaceOutcome,

@@ -362,7 +362,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       }
 
       // Outcome stays as-is when agent is stopped — the agent is the authority
-      // on outcome transitions via FLUX_SIGNAL. No guessing from git state.
+      // on outcome transitions via `.context/state.json`. No guessing from git state.
       lifecycleManager.setStatus(workspaceId, 'idle');
     });
   });

@@ -48,36 +48,3 @@ export interface FluxSkill {
   /** Build the prompt text to inject. */
   buildPrompt(ctx: SkillContext): string;
 }
-
-// ---------------------------------------------------------------------------
-// Unified signal protocol types
-// ---------------------------------------------------------------------------
-
-/**
- * All structured JSON signals emitted by agents use this prefix:
- *   FLUX_SIGNAL: {"type":"<signal_type>", ...}
- *
- * This replaces the older FLUX_TODO, FLUX_WORKSPACE_LIFECYCLE, and WORKSPACE_NAME
- * protocols with one unified, parseable contract.
- */
-export type FluxSignalType =
-  | 'step_start'
-  | 'step_done'
-  | 'todo_update'
-  | 'completed'
-  | 'outcome'
-  | 'rename';
-
-export interface FluxSignal {
-  type: FluxSignalType;
-  /** Step number (1-indexed). Used with step_start / step_done. */
-  step?: number;
-  /** Short label for the step (under 50 chars). Used with step_start. */
-  label?: string;
-  /** Full todo list snapshot. Used with todo_update. */
-  todos?: Array<{ label: string; status: 'pending' | 'in_progress' | 'done' }>;
-  /** Short workspace name (3-5 words). Used with completed. */
-  workspace_name?: string;
-  /** Target outcome. Used with outcome signal. */
-  outcome?: string;
-}

@@ -301,7 +301,7 @@ export class WorkspaceLifecycleManager {
 
   /**
    * Transition outcome via the system state machine (merge detection, sync, unarchive).
-   * Agent-driven outcomes are handled via FLUX_SIGNAL in task-handlers.
+   * Agent-driven outcomes are handled via `.context/state.json` in task-handlers.
    */
   async transitionOutcome(workspace: Workspace, trigger: WorkspaceOutcomeTrigger): Promise<void> {
     const gitState = await resolveGitState(workspace);

@@ -22,8 +22,8 @@ describe('fluxWorkspaceSkill', () => {
     expect(workspaceNamingIdx).toBeGreaterThan(-1);
     expect(workspaceContextIdx).toBeGreaterThan(-1);
     expect(workspaceNamingIdx).toBeLessThan(workspaceContextIdx);
-    expect(prompt).toContain('FLUX_SIGNAL: {"type":"rename","workspace_name":"<Your Workspace Name>"}');
-    expect(prompt).toContain('FIRST LINE of your response');
+    expect(prompt).toContain('.context/state.json');
+    expect(prompt).toContain('workspace_name');
   });
 
   it('skips workspace naming for resumed sessions', () => {

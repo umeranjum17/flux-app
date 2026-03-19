@@ -10,8 +10,6 @@ import { fluxArchitectSkill } from './flux-architect';
 import { fluxTodoSkill } from './flux-todo';
 
 export type { FluxSkill, SkillContext } from './types';
-export type { FluxSignal, FluxSignalType } from './types';
-
 // ---------------------------------------------------------------------------
 // Skill registry — add new skills here
 // ---------------------------------------------------------------------------
@@ -62,9 +60,8 @@ export interface ComposeSkillsOptions {
  * Returns null if no skills are relevant.
  *
  * Skills are wrapped in <flux-skill> tags for clear boundary markers.
- * The workspace state protocol (FLUX_WORKSPACE) is injected for lifecycle
- * transitions. The FLUX_SIGNAL protocol in the todo skill handles progress
- * tracking for agents without native tools.
+ * Workspace/todo lifecycle signaling is file-based via `.context/state.json`
+ * (see fluxWorkspaceSkill and fluxTodoSkill).
  */
 export function composeSkillPrompts(options: ComposeSkillsOptions): string | null {
   const ctx: SkillContext = {
@@ -86,10 +83,6 @@ export function composeSkillPrompts(options: ComposeSkillsOptions): string | nul
       sections.push(skill.buildPrompt(ctx));
     }
   }
-
-  // Note: the fluxWorkspaceSkill already handles completion signals via FLUX_SIGNAL.
-  // The legacy FLUX_WORKSPACE_LIFECYCLE protocol is no longer injected to avoid
-  // duplicate lifecycle messages in the UI.
 
   if (sections.length === 0) return null;
   return sections.join('\n\n');

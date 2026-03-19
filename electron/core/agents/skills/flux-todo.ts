@@ -4,18 +4,8 @@ import type { FluxSkill, SkillContext } from './types';
  * Flux Todo skill — loaded for agents that lack a native todo/task tracking
  * tool (Codex, Copilot, Gemini, OpenAI, Ollama).
  *
- * Instructs the agent to emit structured JSON signals for progress tracking.
- * The Flux UI parses these in real-time to show a progress panel with
- * step-by-step status (pending → in_progress → done).
- *
- * Protocol:
- *   FLUX_SIGNAL: {"type":"step_start","step":1,"label":"Set up DB schema"}
- *   FLUX_SIGNAL: {"type":"step_done","step":1}
- *   FLUX_SIGNAL: {"type":"todo_update","todos":[...]}
- *
- * Both granular (step_start/step_done) and snapshot (todo_update) signals
- * are supported. The snapshot form is easier for agents that prefer to emit
- * full state each time.
+ * Instructs the agent to write progress to `.context/state.json` using its
+ * native file-writing tool. Flux polls this file and updates the UI.
  */
 export const fluxTodoSkill: FluxSkill = {
   id: 'flux-todo',
@@ -25,61 +15,36 @@ export const fluxTodoSkill: FluxSkill = {
     return ctx.mode === 'act' && !ctx.hasNativeTodoTool;
   },
 
-  buildPrompt(ctx: SkillContext): string {
+  buildPrompt(_ctx: SkillContext): string {
     const lines = [
       '<flux-skill name="todo">',
       '',
-      '## Progress Tracking Protocol',
+      '## Progress Tracking',
       '',
-      'You MUST track your progress by emitting FLUX_SIGNAL JSON lines.',
-      'Each signal must be on its own line, outside of any markdown code block.',
+      'Track your progress by writing to `.context/state.json` using your Write tool.',
+      'Create the directory first (`mkdir -p .context`) if it does not exist.',
       '',
-      'There are two signal formats. Pick one and use it consistently.',
+      'Update the `todos` array as you work. Flux polls this file and shows a live progress panel.',
       '',
-      '### Format A: Granular signals (preferred)',
+      '```json',
+      '{',
+      '  "todos": [',
+      '    { "label": "Set up database schema", "status": "done" },',
+      '    { "label": "Add API endpoints", "status": "in_progress" },',
+      '    { "label": "Write tests", "status": "pending" }',
+      '  ]',
+      '}',
+      '```',
       '',
-      'Emit step_start when you begin a step, and step_done when you finish it.',
+      '### Rules',
       '',
-      'Example — starting step 1:',
-      '',
-      'FLUX_SIGNAL: {"type":"step_start","step":1,"label":"Set up database schema"}',
-      '',
-      'Example — finishing step 1 and starting step 2:',
-      '',
-      'FLUX_SIGNAL: {"type":"step_done","step":1}',
-      'FLUX_SIGNAL: {"type":"step_start","step":2,"label":"Add API endpoints"}',
-      '',
-      '### Format B: Full snapshot',
-      '',
-      'Emit the complete todo list with statuses each time something changes.',
-      '',
-      'Example:',
-      '',
-      'FLUX_SIGNAL: {"type":"todo_update","todos":[{"label":"Set up database schema","status":"done"},{"label":"Add API endpoints","status":"in_progress"},{"label":"Write tests","status":"pending"}]}',
-      '',
-      '### Signal rules',
-      '',
-      '- Step numbers start at 1 and increment sequentially.',
       '- Labels must be under 50 characters and action-oriented.',
-      '- Each FLUX_SIGNAL line must be on its own line, NOT inside a ``` code block.',
-      '- Valid statuses are: "pending", "in_progress", "done".',
-      '- For snapshot mode, always emit the full list, not just the changed item.',
+      '- Valid statuses: `"pending"`, `"in_progress"`, `"done"`.',
+      '- Always write the full list (not just the changed item).',
+      '- Write the file before your first step with all planned steps, then update as you go.',
+      '',
+      '</flux-skill>',
     ];
-
-    if (ctx.agentId === 'codex' || ctx.agentId === 'copilot') {
-      lines.push(
-        '',
-        '### Quick start',
-        '',
-        'Before your first step, emit all planned steps at once:',
-        '',
-        'FLUX_SIGNAL: {"type":"todo_update","todos":[{"label":"Step one","status":"in_progress"},{"label":"Step two","status":"pending"},{"label":"Step three","status":"pending"}]}',
-        '',
-        'Then emit updates as you complete each step.',
-      );
-    }
-
-    lines.push('', '</flux-skill>');
     return lines.join('\n');
   },
 };
