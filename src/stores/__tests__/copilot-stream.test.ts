@@ -333,3 +333,25 @@ describe('Copilot stream: restoreMessages merges text chunks', () => {
     expect(msgs()[3].content).toBe('I\'ve made the changes.');
   });
 });
+
+describe('Copilot stream: authoritative empty replacements', () => {
+  it('clears a garbled Copilot delta bubble when the final content is intentionally empty', () => {
+    makeTask();
+    const store = useChatStore.getState();
+
+    store.ingestStreamBatch([
+      { taskId: 'cop-1', message: text('Dependenciesaremissing') },
+      {
+        taskId: 'cop-1',
+        message: {
+          ...text('', Date.now() + 1),
+          replaceLastContent: true,
+        },
+      },
+    ]);
+
+    expect(msgs()).toHaveLength(1);
+    expect(msgs()[0].type).toBe('text');
+    expect(msgs()[0].content).toBe('');
+  });
+});

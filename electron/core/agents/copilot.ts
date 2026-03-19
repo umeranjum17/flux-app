@@ -4,6 +4,10 @@ import { createCliAgentHandle } from './cli-agent';
 export const COPILOT_STARTUP_TIMEOUT_MS = 30_000;
 const COPILOT_DELTA_FLUSH_MS = 32;
 
+function readCopilotContent(data: Record<string, any> | undefined): string | undefined {
+  return typeof data?.content === 'string' ? data.content : undefined;
+}
+
 function classifyCopilotExit(code: number | null, stderr: string): string {
   const normalized = stderr.toLowerCase();
   if (normalized.includes('not authenticated') || normalized.includes('login') || normalized.includes('copilot requests')) {
@@ -152,15 +156,19 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
 
         // When deltas already delivered content, the full event carries the
         // authoritative text with correct spacing. Emit it as a replacement
-        // so the renderer overwrites the (potentially garbled) delta accumulation.
+        // so the renderer overwrites the delta accumulation. Some Copilot
+        // models intentionally send an empty visible `content` field on the
+        // authoritative event (for encrypted / tool-only turns); replacing with
+        // that empty payload clears the garbled delta bubble instead of leaving
+        // no-space word fragments on screen.
         if (event.type === 'assistant.message' && hasReceivedTextDelta) {
           hasReceivedTextDelta = false;
-          const content = (event.data?.content ?? '') as string;
-          if (content) {
+          const content = readCopilotContent(event.data);
+          if (content !== undefined) {
             ctx.emitMessage({
               type: 'text',
               role: 'assistant',
-              content,
+              content: content ?? '',
               timestamp: Date.now(),
               replaceLastContent: true,
             });
@@ -169,12 +177,12 @@ export function spawnCopilot(options: SpawnOptions): AgentHandle {
         }
         if (event.type === 'assistant.reasoning' && hasReceivedReasoningDelta) {
           hasReceivedReasoningDelta = false;
-          const content = (event.data?.content ?? '') as string;
-          if (content) {
+          const content = readCopilotContent(event.data);
+          if (content !== undefined) {
             ctx.emitMessage({
               type: 'thinking',
               role: 'assistant',
-              content,
+              content: content ?? '',
               timestamp: Date.now(),
               replaceLastContent: true,
             });
@@ -269,7 +277,7 @@ function mapCopilotEvent(event: Record<string, any>): AgentMessage | null {
     return {
       type: 'text',
       role: 'assistant',
-      content: event.data?.content ?? '',
+      content: readCopilotContent(event.data) ?? '',
       timestamp: now,
       outputTokens: event.data?.outputTokens,
     };
@@ -279,7 +287,7 @@ function mapCopilotEvent(event: Record<string, any>): AgentMessage | null {
     return {
       type: 'thinking',
       role: 'assistant',
-      content: event.data?.content ?? '',
+      content: readCopilotContent(event.data) ?? '',
       timestamp: now,
     };
   }

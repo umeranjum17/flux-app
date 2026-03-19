@@ -172,21 +172,29 @@ describe('spawnCopilot — delta buffering integration', () => {
     }
     console.log(`  TOTAL: ${messages.length} messages\n`);
 
-    // Verify the sequence
+    // Verify the sequence. Raw agent emissions now include authoritative
+    // replacement messages for completed thinking/text chunks; the renderer
+    // collapses those back down to one visible bubble per segment.
     const types = messages.map((m) => m.type);
     expect(types).toEqual([
       'thinking',    // "Let me analyze..."     (coalesced)
+      'thinking',    // authoritative replacement
       'text',        // "I'll fix the bug."      (coalesced)
+      'text',        // authoritative replacement
       'tool_call',   // edit_file
       'tool_result', // "File edited"
       'text',        // "Done! Changes applied." (coalesced)
+      'text',        // authoritative replacement
       'result',      // completion
     ]);
 
     // Verify content was coalesced, not token-by-token
     expect(messages[0].content).toBe('Let me analyze...');
-    expect(messages[1].content).toBe('I\'ll fix the bug.');
-    expect(messages[4].content).toBe('Done! Changes applied.');
+    expect(messages[1]).toMatchObject({ content: 'Let me analyze...', replaceLastContent: true });
+    expect(messages[2].content).toBe('I\'ll fix the bug.');
+    expect(messages[3]).toMatchObject({ content: 'I\'ll fix the bug.', replaceLastContent: true });
+    expect(messages[6].content).toBe('Done! Changes applied.');
+    expect(messages[7]).toMatchObject({ content: 'Done! Changes applied.', replaceLastContent: true });
   });
 
   // -------------------------------------------------------------------------
@@ -228,19 +236,53 @@ describe('spawnCopilot — delta buffering integration', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 5. Suppression: full assistant.message after deltas should NOT emit
+  // 5. Replacement: authoritative assistant.message after deltas should
+  //    emit a replacement chunk so the renderer can overwrite the delta text.
   // -------------------------------------------------------------------------
-  it('suppresses redundant assistant.message when deltas already delivered content', () => {
+  it('emits an authoritative replacement assistant.message after deltas', () => {
     spawn();
 
     emitLine(proc, { type: 'assistant.message_delta', data: { deltaContent: 'Hello' } });
     vi.advanceTimersByTime(50); // flush
 
-    // Full message arrives — should be suppressed
+    // Full message arrives — it should replace the prior delta chunk.
     emitLine(proc, { type: 'assistant.message', data: { content: 'Hello', outputTokens: 10 } });
 
-    expect(messages).toHaveLength(1);
+    expect(messages).toHaveLength(2);
     expect(messages[0].content).toBe('Hello');
+    expect(messages[1]).toMatchObject({
+      type: 'text',
+      role: 'assistant',
+      content: 'Hello',
+      replaceLastContent: true,
+    });
+  });
+
+  it('emits an empty replacement when Copilot hides the authoritative text payload', () => {
+    spawn();
+
+    emitLine(proc, { type: 'assistant.message_delta', data: { deltaContent: 'Dependencies' } });
+    emitLine(proc, { type: 'assistant.message_delta', data: { deltaContent: 'are' } });
+    emitLine(proc, { type: 'assistant.message_delta', data: { deltaContent: 'missing' } });
+    vi.advanceTimersByTime(50);
+
+    emitLine(proc, {
+      type: 'assistant.message',
+      data: {
+        content: '',
+        encryptedContent: 'opaque',
+        outputTokens: 10,
+      },
+    });
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).toBe('Dependenciesaremissing');
+    expect(messages[1]).toMatchObject({
+      type: 'text',
+      role: 'assistant',
+      content: '',
+      replaceLastContent: true,
+    });
   });
 
   // -------------------------------------------------------------------------
