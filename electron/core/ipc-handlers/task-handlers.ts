@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron';
 import crypto from 'crypto';
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
 
 import { agentManager } from '../agents/manager';
 import { findLatestCodexSession } from '../agents/codex-utils';
@@ -66,6 +68,10 @@ const MAX_RECOVERY_DELAY_MS = 5000;
 
 function recoveryDelay(retryCount: number): number {
   return Math.min(RECOVERY_DELAY_MS * Math.pow(2, retryCount), MAX_RECOVERY_DELAY_MS);
+}
+
+async function ensureWorkspaceContextDir(cwd: string): Promise<void> {
+  await fs.promises.mkdir(path.join(cwd, '.context'), { recursive: true });
 }
 
 export function registerTaskHandlers(ctx: BaseIpcContext): {
@@ -354,6 +360,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const previousAttachmentContext = existingSession
       ? extractLatestSessionAttachmentContext(sessionStore, session.id)
       : null;
+    await ensureWorkspaceContextDir(options.cwd);
     const attachmentContext = await writeAttachmentContextFile(options.cwd, {
       images: options.images?.length ? options.images : previousAttachmentContext?.images,
       attachments: options.attachments?.length ? options.attachments : previousAttachmentContext?.attachments,

@@ -154,6 +154,10 @@ function ensureBaseDir(baseDir: string): string {
   }
 }
 
+function ensureContextDir(worktreePath: string): void {
+  fs.mkdirSync(path.join(worktreePath, '.context'), { recursive: true });
+}
+
 export async function createWorktree(
   parentRepo: string,
   branchName: string,
@@ -198,6 +202,8 @@ export async function createWorktree(
     cwd: parentRepo,
     timeout: 30000,
   });
+
+  ensureContextDir(worktreePath);
 
   const { stdout: head } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
     cwd: worktreePath,
