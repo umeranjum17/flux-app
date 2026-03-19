@@ -5,7 +5,7 @@ import type { FluxSkill, SkillContext } from './types';
  * processes through the `.context/requests/` file protocol.
  *
  * Useful for:
- * - Agents without a native Bash tool (Gemini, OpenAI, Ollama)
+ * - Commands that should run in a real Flux terminal
  * - Running persistent processes (dev servers, watchers) from any agent
  * - Making terminal output visible in the Flux UI
  */
@@ -25,6 +25,7 @@ export const fluxTerminalSkill: FluxSkill = {
       '',
       'Run shell commands through Flux\'s integrated terminal by writing request files.',
       'Commands execute in the workspace directory.',
+      'Use Flux Terminal for commands that should run in a real workspace terminal, especially long-running, background, or user-visible tasks.',
       '',
       '### Run a short command and capture its output',
       '',
@@ -90,8 +91,10 @@ export const fluxTerminalSkill: FluxSkill = {
       '- `terminal:exec` times out after 30s by default (set `timeout` in ms, max 5 min).',
       '- Output is truncated to 100KB per stream.',
       '- Response files appear within ~1s after the request is processed.',
-      '- If you have a native shell/Bash tool, prefer it for simple one-off commands.',
-      '- Use `terminal:spawn` whenever terminal visibility matters, especially for project servers, tests, typechecks, and final checks.',
+      '- If you have a native shell/Bash tool, you may use it for quick one-off inspection or file-system queries.',
+      '- Prefer Flux Terminal when the command needs a real terminal, should keep running, or the user should see the live output.',
+      '- Use `terminal:exec` for bounded commands when you want captured output back in a response file.',
+      '- Use `terminal:spawn` for long-running or visible commands such as dev servers, watch tasks, builds with live logs, and similar background work.',
       '- Use `terminal:spawn` for long-running processes that should persist.',
       '- Treat `terminal:spawn` commands as non-interactive, self-contained shell lines; do not rely on follow-up keystrokes to finish setup.',
       '- Wait for the `.context/responses/<id>.json` file before issuing follow-up actions that depend on the spawned terminal ID.',

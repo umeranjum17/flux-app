@@ -27,11 +27,15 @@ describe('fluxTerminalSkill', () => {
   it('distinguishes captured exec output from visible terminal spawns', () => {
     const prompt = fluxTerminalSkill.buildPrompt(baseCtx);
 
+    expect(prompt).toContain('Use Flux Terminal for commands that should run in a real workspace terminal');
     expect(prompt).toContain('it does not create a live visible terminal tab');
-    expect(prompt).toContain('Use `terminal:spawn` whenever terminal visibility matters');
-    expect(prompt).toContain('tests, typechecks, and final checks');
-    expect(prompt).toContain('"command": "npm test"');
+    expect(prompt).toContain('you may use it for quick one-off inspection or file-system queries');
+    expect(prompt).toContain('Prefer Flux Terminal when the command needs a real terminal');
+    expect(prompt).toContain('Use `terminal:spawn` for long-running or visible commands');
+    expect(prompt).toContain('builds with live logs');
     expect(prompt).toContain('non-interactive, self-contained shell lines');
     expect(prompt).toContain('.context/responses/<id>.json');
+    expect(prompt).toContain('"command": "npm test"');
+    expect(prompt).not.toContain('Do not use native shell/Bash/command-execution tools');
   });
 });
