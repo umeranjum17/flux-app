@@ -51,7 +51,9 @@ export function CreateFolderDialog() {
       }
 
       if (result.path) {
-        useUiStore.getState().setCwd(result.path);
+        const uiState = useUiStore.getState();
+        uiState.addOpenProject(result.path);
+        uiState.setCwd(result.path);
         const project = createRecentProject(result.path);
         await rememberRecentProject(project);
         setOverlay(null);
