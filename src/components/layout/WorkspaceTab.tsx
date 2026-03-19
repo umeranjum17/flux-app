@@ -208,10 +208,9 @@ export function WorkspaceTab() {
             </button>
           )}
           <button
-            onClick={() => handleCreateWorkspace(cwd)}
-            disabled={creating || !isGitRepo}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary disabled:opacity-50"
-            title={isGitRepo ? 'New workspace' : 'Not a git repository — run "git init" first'}
+            onClick={handleAddProject}
+            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+            title="Add project"
           >
             <Plus size={14} />
           </button>
