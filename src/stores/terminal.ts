@@ -52,6 +52,10 @@ interface TerminalState {
     workspaceName?: string;
     workspaceBranch?: string;
     shell?: string;
+    /** If provided, the command is written to the PTY after shell init. */
+    command?: string;
+    /** Use a specific terminal ID instead of auto-generating one. */
+    id?: string;
   }): Promise<string | null>;
   closeTerminal(id: string): void;
   setActiveTab(id: string): void;
@@ -80,7 +84,7 @@ export const useTerminalStore = create<TerminalState>()(
 
     async createTerminal(opts) {
       const counter = get().counter + 1;
-      const id = `term-${counter}`;
+      const id = opts?.id ?? `term-${counter}`;
       const placeholderTitle = opts?.workspaceName ?? `Terminal ${counter}`;
 
       set((s) => {
@@ -97,6 +101,7 @@ export const useTerminalStore = create<TerminalState>()(
           cwd,
           workspaceId: opts?.workspaceId,
           shell: opts?.shell,
+          command: opts?.command,
         }) as { id: string; shellName: string };
 
         set((s) => {
@@ -304,10 +309,33 @@ export function setupTerminalIpc(): () => void {
     }
   });
 
+  // Agent-spawned visible terminals: open a terminal tab with the command
+  const cleanupAgentCreate = window.api.on('terminal:agent-create', (...args: unknown[]) => {
+    const { id, command, workspaceId, workspaceName } = args[0] as {
+      id: string; command: string; cwd: string; workspaceId?: string; workspaceName?: string;
+    };
+    useUiStore.getState().setBottomPanelOpen(true);
+    useTerminalStore.getState().createTerminal({
+      id,
+      command,
+      workspaceId,
+      workspaceName: workspaceName ? `${workspaceName}: ${command.slice(0, 30)}` : command.slice(0, 40),
+    }).catch((err) => {
+      console.error('[terminal-store] Failed to create agent terminal:', err);
+    });
+  });
+
+  const cleanupAgentKill = window.api.on('terminal:agent-kill', (...args: unknown[]) => {
+    const { id } = args[0] as { id: string };
+    useTerminalStore.getState().closeTerminal(id);
+  });
+
   return () => {
     cleanupData();
     cleanupExit();
     cleanupIntegration();
+    cleanupAgentCreate();
+    cleanupAgentKill();
     ipcSetup = false;
   };
 }

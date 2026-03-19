@@ -285,6 +285,8 @@ export interface IpcEvents {
   'terminal:data': { id: string; data: string };
   'terminal:exit': { id: string; exitCode?: number };
   'terminal:integration': { id: string; event: TerminalIntegrationEvent };
+  'terminal:agent-create': { id: string; command: string; cwd: string; workspaceId?: string; workspaceName?: string };
+  'terminal:agent-kill': { id: string };
   'config:changed': { config: FluxConfig };
   'window:fullscreen-changed': { isFullscreen: boolean };
   'repomap:status': RepoMapIpcStatus;

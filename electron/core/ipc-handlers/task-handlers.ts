@@ -698,7 +698,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (workspace) {
       // Create dispatcher before the watcher — the onRequest closure captures it,
       // and start() triggers the first poll synchronously.
-      const dispatcher = new ContextRequestDispatcher({ cwd: options.cwd });
+      const dispatcher = new ContextRequestDispatcher({
+        cwd: options.cwd,
+        onSpawnVisibleTerminal: (req) => {
+          sendToRenderer('terminal:agent-create', {
+            id: req.id,
+            command: req.command,
+            cwd: req.cwd,
+            workspaceId: workspace.id,
+            workspaceName: workspace.name,
+          });
+        },
+        onKillVisibleTerminal: (terminalId) => {
+          sendToRenderer('terminal:agent-kill', { id: terminalId });
+        },
+      });
       taskRequestDispatchers.set(options.taskId, dispatcher);
 
       const contextWatcher = new ContextWatcher({

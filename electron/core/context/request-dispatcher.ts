@@ -7,6 +7,7 @@ import type {
   TerminalKillPayload,
 } from './protocol';
 
+
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 const MAX_EXEC_TIMEOUT_MS = 300_000; // 5 min
 const MAX_OUTPUT_BYTES = 100_000; // 100KB per stream
@@ -32,15 +33,32 @@ export interface DispatchResult {
  * Currently supports terminal actions (exec, spawn, kill).
  * New action families can be added by extending the switch in `dispatch()`.
  */
+export interface VisibleTerminalRequest {
+  id: string;
+  command: string;
+  cwd: string;
+}
+
 export class ContextRequestDispatcher {
   private readonly cwd: string;
   private readonly onActivity?: (activity: TerminalActivity) => void;
+  private readonly onSpawnVisibleTerminal?: (request: VisibleTerminalRequest) => void;
+  private readonly onKillVisibleTerminal?: (terminalId: string) => void;
   private readonly spawnedProcesses = new Map<string, { proc: ChildProcess; command: string }>();
   private readonly forceKillTimers = new Map<ChildProcess, ReturnType<typeof setTimeout>>();
+  /** Terminal IDs spawned via visible terminals (PTY) rather than headless child_process. */
+  private readonly visibleTerminals = new Set<string>();
 
-  constructor(options: { cwd: string; onActivity?: (activity: TerminalActivity) => void }) {
+  constructor(options: {
+    cwd: string;
+    onActivity?: (activity: TerminalActivity) => void;
+    onSpawnVisibleTerminal?: (request: VisibleTerminalRequest) => void;
+    onKillVisibleTerminal?: (terminalId: string) => void;
+  }) {
     this.cwd = options.cwd;
     this.onActivity = options.onActivity;
+    this.onSpawnVisibleTerminal = options.onSpawnVisibleTerminal;
+    this.onKillVisibleTerminal = options.onKillVisibleTerminal;
   }
 
   async dispatch(request: ContextRequest): Promise<DispatchResult> {
@@ -62,6 +80,10 @@ export class ContextRequestDispatcher {
       this.terminateProcess(entry.proc);
     }
     this.spawnedProcesses.clear();
+    for (const id of this.visibleTerminals) {
+      this.onKillVisibleTerminal?.(id);
+    }
+    this.visibleTerminals.clear();
   }
 
   // ── terminal:exec ──────────────────────────────────────────────────────
@@ -160,6 +182,15 @@ export class ContextRequestDispatcher {
     const terminalId = crypto.randomUUID().slice(0, 8);
     const cwd = payload.cwd ?? this.cwd;
 
+    // If a visible terminal callback is available, create a PTY terminal in the
+    // terminal panel so the user can see the running process.
+    if (this.onSpawnVisibleTerminal) {
+      this.onSpawnVisibleTerminal({ id: terminalId, command: payload.command, cwd });
+      this.visibleTerminals.add(terminalId);
+      this.onActivity?.({ action: 'terminal:spawn', command: payload.command, terminalId });
+      return { ok: true, data: { terminalId } };
+    }
+
     let proc: ChildProcess;
     try {
       proc = spawn(payload.command, [], {
@@ -197,6 +228,18 @@ export class ContextRequestDispatcher {
     const payload = request.payload as Partial<TerminalKillPayload> | undefined;
     if (!payload?.terminalId) {
       return { ok: false, error: 'Missing required field: terminalId' };
+    }
+
+    // Visible terminals are managed by the PTY terminal system
+    if (this.visibleTerminals.has(payload.terminalId)) {
+      this.visibleTerminals.delete(payload.terminalId);
+      this.onKillVisibleTerminal?.(payload.terminalId);
+      this.onActivity?.({
+        action: 'terminal:kill',
+        command: '',
+        terminalId: payload.terminalId,
+      });
+      return { ok: true };
     }
 
     const entry = this.spawnedProcesses.get(payload.terminalId);
