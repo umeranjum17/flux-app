@@ -72,19 +72,22 @@ export function buildMergedToolResultLookup(messages: AgentMessage[]): {
 } {
   const mergedResultIndices = new Set<number>();
   const mergedResultForCall = new Map<number, AgentMessage>();
+  const latestCallIndexById = new Map<string, number>();
 
-  for (let i = 0; i < messages.length - 1; i++) {
+  for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
-    if (message.type !== 'tool_call' || !message.toolCallId) continue;
+    if (!message.toolCallId) continue;
 
-    for (let j = i + 1; j < messages.length; j++) {
-      const candidate = messages[j];
-      if (candidate.type === 'status' && candidate.toolCallId === message.toolCallId) continue;
-      if (candidate.type === 'tool_result' && candidate.toolCallId === message.toolCallId) {
-        mergedResultIndices.add(j);
-        mergedResultForCall.set(i, candidate);
-      }
-      break;
+    if (message.type === 'tool_call') {
+      latestCallIndexById.set(message.toolCallId, i);
+      continue;
+    }
+
+    if (message.type === 'tool_result') {
+      const callIndex = latestCallIndexById.get(message.toolCallId);
+      if (callIndex == null) continue;
+      mergedResultIndices.add(i);
+      mergedResultForCall.set(callIndex, message);
     }
   }
 
