@@ -208,9 +208,10 @@ export function WorkspaceTab() {
             </button>
           )}
           <button
-            onClick={handleAddProject}
+            onClick={() => handleCreateWorkspace(cwd)}
+            disabled={creating}
             className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-            title="Add project"
+            title="New workspace"
           >
             <Plus size={14} />
           </button>
