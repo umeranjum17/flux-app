@@ -596,4 +596,61 @@ describe('ChatInput', () => {
       );
     });
   });
+
+  it('runs terminal mode commands in the Flux terminal instead of shell:exec', async () => {
+    const user = userEvent.setup();
+    useUiStore.setState({
+      inputMode: 'terminal',
+    });
+    useWorkspaceStore.setState({
+      workspaces: new Map([
+        ['ws-1', {
+          id: 'ws-1',
+          name: 'Terminal Workspace',
+          parentRepo: '/workspace',
+          branch: 'flux/terminal-workspace',
+          status: 'idle',
+          outcome: 'in_progress',
+          createdAt: 1,
+          updatedAt: 1,
+          agentId: 'codex',
+          model: 'o4-mini',
+          mode: 'act',
+          worktreePath: '/workspace/.flux-worktrees/ws-1',
+        }],
+      ]),
+      activeWorkspaceId: 'ws-1',
+    });
+
+    mockApi.invoke.mockImplementation((channel: string, payload?: any) => {
+      if (channel === 'completion:providers') {
+        return Promise.resolve({ providers: [] });
+      }
+      if (channel === 'terminal:create') {
+        return Promise.resolve({ id: payload?.id ?? 'term-1', shellName: 'zsh' });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(<ChatInput />);
+
+    const input = screen.getByPlaceholderText('Run a command...');
+    await waitFor(() => {
+      expect(input).toHaveValue('$ ');
+    });
+    await user.type(input, 'npm test');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'terminal:create',
+        expect.objectContaining({
+          command: 'npm test',
+          workspaceId: 'ws-1',
+        }),
+      );
+    });
+
+    expect(mockApi.invoke).not.toHaveBeenCalledWith('shell:exec', expect.anything());
+  });
 });

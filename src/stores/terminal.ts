@@ -51,11 +51,19 @@ interface TerminalState {
     workspaceId?: string;
     workspaceName?: string;
     workspaceBranch?: string;
+    cwd?: string;
     shell?: string;
     /** If provided, the command is written to the PTY after shell init. */
     command?: string;
     /** Use a specific terminal ID instead of auto-generating one. */
     id?: string;
+  }): Promise<string | null>;
+  runCommand(opts: {
+    command: string;
+    workspaceId?: string;
+    workspaceName?: string;
+    workspaceBranch?: string;
+    cwd?: string;
   }): Promise<string | null>;
   closeTerminal(id: string): void;
   setActiveTab(id: string): void;
@@ -89,13 +97,19 @@ export const useTerminalStore = create<TerminalState>()(
 
       set((s) => {
         s.counter = counter;
-        s.tabs.push({ id, title: placeholderTitle, workspaceId: opts?.workspaceId, workspaceBranch: opts?.workspaceBranch });
+        s.tabs.push({
+          id,
+          title: placeholderTitle,
+          workspaceId: opts?.workspaceId,
+          workspaceBranch: opts?.workspaceBranch,
+          cwd: opts?.cwd,
+        });
         s.activeId = id;
       });
       useUiStore.getState().setActiveTerminalId(id);
 
       try {
-        const cwd = opts?.workspaceId ? undefined : useUiStore.getState().cwd;
+        const cwd = opts?.workspaceId ? undefined : (opts?.cwd ?? useUiStore.getState().cwd);
         const result = await window.api.invoke('terminal:create', {
           id,
           cwd,
@@ -125,6 +139,34 @@ export const useTerminalStore = create<TerminalState>()(
         });
         return null;
       }
+    },
+
+    async runCommand(opts) {
+      useUiStore.getState().setBottomPanelMode('terminal');
+      useUiStore.getState().setBottomPanelOpen(true);
+
+      const existingId = opts.workspaceId
+        ? get().tabs.find((tab) => tab.workspaceId === opts.workspaceId)?.id
+        : (() => {
+            const activeId = get().activeId;
+            if (!activeId) return null;
+            const activeTab = get().tabs.find((tab) => tab.id === activeId || tab.splits?.some((split) => split.terminalId === activeId));
+            return activeTab?.workspaceId ? null : activeId;
+          })();
+
+      if (existingId) {
+        get().setActiveTab(existingId);
+        await window.api.invoke('terminal:write', { id: existingId, data: `${opts.command}\n` });
+        return existingId;
+      }
+
+      return get().createTerminal({
+        workspaceId: opts.workspaceId,
+        workspaceName: opts.workspaceName,
+        workspaceBranch: opts.workspaceBranch,
+        cwd: opts.cwd,
+        command: opts.command,
+      });
     },
 
     closeTerminal(id) {

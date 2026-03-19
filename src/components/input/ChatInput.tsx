@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useSessionStore } from '../../stores/session';
+import { useTerminalStore } from '../../stores/terminal';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
@@ -245,22 +246,20 @@ export function ChatInput({ focused }: ChatInputProps) {
       setGhostText('');
 
       try {
-        const result = await window.api.invoke('shell:exec', {
+        const workspaceId = task.workspaceId ?? activeWorkspaceId ?? undefined;
+        const workspace = workspaceId
+          ? useWorkspaceStore.getState().workspaces.get(workspaceId)
+          : undefined;
+        const terminalId = await useTerminalStore.getState().runCommand({
           command,
+          workspaceId,
+          workspaceName: workspace?.name,
+          workspaceBranch: workspace?.branch,
           cwd: task.cwd || cwd || '.',
-        }) as { stdout: string; stderr: string; exitCode: number; durationMs: number };
-
-        useChatStore.getState().addMessage(task.id, {
-          type: 'shell_result',
-          role: 'assistant',
-          content: '',
-          command,
-          exitCode: result.exitCode,
-          stdout: result.stdout,
-          stderr: result.stderr,
-          durationMs: result.durationMs,
-          timestamp: Date.now(),
         });
+        if (!terminalId) {
+          throw new Error('Failed to open Flux terminal');
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Shell command failed';
         toast.error(message);
