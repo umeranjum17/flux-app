@@ -51,15 +51,15 @@ export function registerProjectGroupHandlers(opts: {
   ipcMain.handle(
     'workspace:list-multi',
     async (_event, { parentRepos }: { parentRepos: string[] }) => {
-      if (parentRepos.length === 0) {
+      const normalizedRepos = [...new Set(parentRepos.map((r) => r.trim()).filter(Boolean))];
+      if (normalizedRepos.length === 0) {
         return workspaceStore.list();
       }
       const results = [];
-      for (const repo of parentRepos) {
-        const workspaces = workspaceStore.list(repo);
-        results.push(...workspaces);
+      for (const repo of normalizedRepos) {
+        results.push(...workspaceStore.list(repo));
       }
-      return results;
+      return results.length > 0 ? results : workspaceStore.list();
     },
   );
 }
