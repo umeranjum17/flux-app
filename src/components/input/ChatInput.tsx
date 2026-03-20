@@ -73,7 +73,11 @@ export function ChatInput({ focused }: ChatInputProps) {
   });
   const activeTaskId = useChatStore((s) => s.activeTaskId);
   const upsertSession = useSessionStore((s) => s.upsertSession);
-  const { selectedAgentId, selectedModel, selectedThinking, agents, dynamicModels } = useAgentStore();
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectedModel = useAgentStore((s) => s.selectedModel);
+  const selectedThinking = useAgentStore((s) => s.selectedThinking);
+  const agents = useAgentStore((s) => s.agents);
+  const dynamicModels = useAgentStore((s) => s.dynamicModels);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const activeWorkspaceOutcome = useWorkspaceStore((s) => {
     const id = s.activeWorkspaceId;

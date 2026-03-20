@@ -231,6 +231,7 @@ export const useUiStore = create<UiState>()(
     },
 
     setMode(mode) {
+      if (get().mode === mode) return;
       set((state) => {
         state.mode = mode;
       });
