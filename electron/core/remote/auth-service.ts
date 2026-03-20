@@ -37,6 +37,7 @@ export interface PairingResult {
 
 export class RemoteAuthService {
   private readonly attemptWindow = new Map<string, number[]>();
+  private activePairingCode: RemotePairingCode | null = null;
 
   createPairingCode(ttlMs: number = DEFAULT_PAIRING_TTL_MS): RemotePairingCode {
     const now = Date.now();
@@ -55,7 +56,19 @@ export class RemoteAuthService {
       expiresAt,
     });
 
-    return { code, expiresAt };
+    this.activePairingCode = { code, expiresAt };
+    return this.activePairingCode;
+  }
+
+  getActivePairingCode(): RemotePairingCode | null {
+    if (!this.activePairingCode) {
+      return null;
+    }
+    if (this.activePairingCode.expiresAt <= Date.now()) {
+      this.activePairingCode = null;
+      return null;
+    }
+    return this.activePairingCode;
   }
 
   listClients(): RemoteClientInfo[] {
@@ -175,6 +188,10 @@ export class RemoteAuthService {
         pairingId: pairing.id,
         clientId: result.client.id,
       });
+
+      if (this.activePairingCode?.code === trimmed) {
+        this.activePairingCode = null;
+      }
 
       return {
         ...result,

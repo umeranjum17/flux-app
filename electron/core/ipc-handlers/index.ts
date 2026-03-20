@@ -310,6 +310,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:prune-stale',
     'remote:status',
     'remote:create-pairing-code',
+    'remote:active-pairing-code',
     'remote:list-clients',
     'remote:revoke-client',
   ];
@@ -441,6 +442,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       throw new Error('Remote auth service is not available');
     }
     return remoteAuthService.createPairingCode();
+  });
+
+  ipcMain.handle('remote:active-pairing-code', async () => {
+    return remoteAuthService?.getActivePairingCode() ?? null;
   });
 
   ipcMain.handle('remote:list-clients', async () => {

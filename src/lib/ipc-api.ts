@@ -263,6 +263,7 @@ export interface IpcChannels {
 
   'remote:status': { args: []; result: RemoteServerStatus };
   'remote:create-pairing-code': { args: []; result: RemotePairingCode };
+  'remote:active-pairing-code': { args: []; result: RemotePairingCode | null };
   'remote:list-clients': { args: []; result: RemoteClientInfo[] };
   'remote:revoke-client': { args: [{ clientId: string }]; result: void };
 

@@ -3,6 +3,7 @@ import {
   buildJsonRpcError,
   buildJsonRpcNotification,
   buildJsonRpcResult,
+  isRemoteEventChannel,
   isRemoteRpcMethod,
   parseJsonRpcMessage,
   RemoteRpcError,
@@ -56,5 +57,44 @@ describe('remote protocol', () => {
     expect(isRemoteRpcMethod('task:answer-question')).toBe(true);
     expect(isRemoteRpcMethod('sessions:messages')).toBe(true);
     expect(isRemoteRpcMethod('workspace:list-chats')).toBe(true);
+  });
+
+  it('keeps the Flux Mobile RPC surface available', () => {
+    const mobileMethods = [
+      'auth:pair',
+      'agents:detect',
+      'agents:active-tasks',
+      'task:approve',
+      'task:deny',
+      'task:steer',
+      'workspace:list-multi',
+      'workspace:active-task',
+      'workspace:spawn-chat',
+      'workspace:stop',
+      'workspace:diff-files',
+      'workspace:file-diff',
+    ];
+
+    for (const method of mobileMethods) {
+      expect(isRemoteRpcMethod(method)).toBe(true);
+    }
+  });
+
+  it('keeps the Flux Mobile event stream available', () => {
+    const mobileEvents = [
+      'agent:message',
+      'agent:done',
+      'agent:todo',
+      'agent:todo-update',
+      'workspace:status',
+      'workspace:outcome',
+      'workspace:updated',
+      'workspace:created',
+      'workspace:deleted',
+    ];
+
+    for (const channel of mobileEvents) {
+      expect(isRemoteEventChannel(channel)).toBe(true);
+    }
   });
 });

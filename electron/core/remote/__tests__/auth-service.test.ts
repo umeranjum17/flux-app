@@ -45,6 +45,7 @@ describe('RemoteAuthService', () => {
 
     expect(pairing.code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
     expect(pairing.expiresAt).toBeGreaterThan(Date.now());
+    expect(service.getActivePairingCode()).toEqual(pairing);
 
     const auth = service.authenticateToken(pairing.code, 'Flux Mobile', '192.168.0.10');
 
@@ -53,6 +54,7 @@ describe('RemoteAuthService', () => {
     expect(auth.upgradedFromPairingCode).toBe(true);
     expect(auth.token).not.toBe(pairing.code);
     expect(service.listClients()).toHaveLength(1);
+    expect(service.getActivePairingCode()).toBeNull();
   });
 
   it('authenticates an existing durable token and updates last seen metadata', () => {

@@ -54,22 +54,27 @@ export function SettingsPanel() {
   const [remoteStatus, setRemoteStatus] = useState<RemoteServerStatus | null>(null);
   const [remoteClients, setRemoteClients] = useState<RemoteClientInfo[]>([]);
   const [pairingCode, setPairingCode] = useState<RemotePairingCode | null>(null);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   const open = activeOverlay === 'settings';
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
+    setRemoteError(null);
     Promise.all([
       window.api.invoke('config:get') as Promise<FluxConfig>,
       window.api.invoke('remote:status') as Promise<RemoteServerStatus>,
+      window.api.invoke('remote:active-pairing-code') as Promise<RemotePairingCode | null>,
       window.api.invoke('remote:list-clients') as Promise<RemoteClientInfo[]>,
-    ]).then(([cfg, status, clients]) => {
+    ]).then(([cfg, status, activePairingCode, clients]) => {
       setConfig(cfg);
       setRemoteStatus(status);
+      setPairingCode(activePairingCode);
       setRemoteClients(clients);
       setLoading(false);
-    }).catch(() => {
+    }).catch((error) => {
+      setRemoteError(error instanceof Error ? error.message : 'Failed to load Flux Mobile settings');
       setLoading(false);
     });
   }, [open]);
@@ -111,23 +116,40 @@ export function SettingsPanel() {
   };
 
   const refreshRemoteStatus = async () => {
-    const [status, clients] = await Promise.all([
-      window.api.invoke('remote:status') as Promise<RemoteServerStatus>,
-      window.api.invoke('remote:list-clients') as Promise<RemoteClientInfo[]>,
-    ]);
-    setRemoteStatus(status);
-    setRemoteClients(clients);
+    try {
+      setRemoteError(null);
+      const [status, activePairingCode, clients] = await Promise.all([
+        window.api.invoke('remote:status') as Promise<RemoteServerStatus>,
+        window.api.invoke('remote:active-pairing-code') as Promise<RemotePairingCode | null>,
+        window.api.invoke('remote:list-clients') as Promise<RemoteClientInfo[]>,
+      ]);
+      setRemoteStatus(status);
+      setPairingCode(activePairingCode);
+      setRemoteClients(clients);
+    } catch (error) {
+      setRemoteError(error instanceof Error ? error.message : 'Failed to refresh Flux Mobile status');
+    }
   };
 
   const generatePairingCode = async () => {
-    const next = await window.api.invoke('remote:create-pairing-code') as RemotePairingCode;
-    setPairingCode(next);
-    await refreshRemoteStatus();
+    try {
+      setRemoteError(null);
+      const next = await window.api.invoke('remote:create-pairing-code') as RemotePairingCode;
+      setPairingCode(next);
+      await refreshRemoteStatus();
+    } catch (error) {
+      setRemoteError(error instanceof Error ? error.message : 'Failed to generate pairing code');
+    }
   };
 
   const revokeRemoteClient = async (clientId: string) => {
-    await window.api.invoke('remote:revoke-client', { clientId });
-    await refreshRemoteStatus();
+    try {
+      setRemoteError(null);
+      await window.api.invoke('remote:revoke-client', { clientId });
+      await refreshRemoteStatus();
+    } catch (error) {
+      setRemoteError(error instanceof Error ? error.message : 'Failed to revoke paired client');
+    }
   };
 
   const copyPairingCode = async () => {
@@ -369,6 +391,9 @@ export function SettingsPanel() {
                               {remoteStatus.advertised ? 'mDNS advertised' : 'mDNS unavailable'} · {remoteStatus.connectionCount} active connection{remoteStatus.connectionCount === 1 ? '' : 's'}
                             </p>
                           )}
+                          <p className="text-[11px] text-text-tertiary mt-2 max-w-sm">
+                            Generate a code here, then enter it on Flux Mobile. Tapping Pair on mobile does not trigger a desktop prompt.
+                          </p>
                         </div>
                         <button
                           type="button"
@@ -388,6 +413,12 @@ export function SettingsPanel() {
                         </div>
                       )}
                     </div>
+
+                    {remoteError && (
+                      <div className="rounded-xl border border-error/30 bg-error/10 px-3 py-2">
+                        <p className="text-xs text-error">{remoteError}</p>
+                      </div>
+                    )}
 
                     {pairingCode && (
                       <div className="rounded-xl border border-success/30 bg-success/10 p-3">
