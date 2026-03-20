@@ -14,6 +14,7 @@ import {
   CREATE_WORKSPACE_GROUP_MEMBERS_TABLE,
   CREATE_REMOTE_CLIENTS_TABLE,
   CREATE_REMOTE_PAIRING_SESSIONS_TABLE,
+  RENAME_REMOTE_AUTH_COLUMNS,
   CREATE_MIGRATIONS_TABLE,
 } from './schema';
 
@@ -91,6 +92,10 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     name: '022_create_workspace_group_members',
     sql: CREATE_WORKSPACE_GROUP_MEMBERS_TABLE,
   },
+  {
+    name: '023_rename_remote_auth_columns',
+    sql: RENAME_REMOTE_AUTH_COLUMNS,
+  },
 ];
 
 export function runMigrations(): void {
@@ -142,6 +147,15 @@ export function runMigrations(): void {
     }
 
     if (migration.name === '018_add_workspace_mode_selections' && hasColumn(db, 'workspaces', 'plan_agent_id')) {
+      db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
+        migration.name,
+        Date.now()
+      );
+      continue;
+    }
+
+    // Skip column rename if already using new schema (fresh install)
+    if (migration.name === '023_rename_remote_auth_columns' && hasColumn(db, 'remote_clients', 'token')) {
       db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
         migration.name,
         Date.now()

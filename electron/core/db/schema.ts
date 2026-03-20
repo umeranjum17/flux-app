@@ -150,7 +150,7 @@ export const CREATE_REMOTE_CLIENTS_TABLE = `
 CREATE TABLE IF NOT EXISTS remote_clients (
   id TEXT PRIMARY KEY,
   client_name TEXT NOT NULL,
-  token_hash TEXT NOT NULL UNIQUE,
+  token TEXT NOT NULL UNIQUE,
   token_preview TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -163,12 +163,16 @@ CREATE INDEX IF NOT EXISTS idx_remote_clients_revoked ON remote_clients(revoked_
 export const CREATE_REMOTE_PAIRING_SESSIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS remote_pairing_sessions (
   id TEXT PRIMARY KEY,
-  code_hash TEXT NOT NULL UNIQUE,
+  code TEXT NOT NULL UNIQUE,
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   consumed_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_remote_pairing_expires ON remote_pairing_sessions(expires_at, consumed_at)`;
+
+export const RENAME_REMOTE_AUTH_COLUMNS = `
+ALTER TABLE remote_clients RENAME COLUMN token_hash TO token;
+ALTER TABLE remote_pairing_sessions RENAME COLUMN code_hash TO code`;
 
 export const CREATE_MIGRATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS migrations (
