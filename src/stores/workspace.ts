@@ -142,10 +142,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     },
 
     updateWorkspace(id, updates) {
+      const ws = get().workspaces.get(id);
+      if (!ws) return;
+      // Skip no-op updates to avoid unnecessary state changes and cascading
+      // re-renders (prevents "Maximum update depth exceeded" during mode switches).
+      const keys = Object.keys(updates) as (keyof typeof updates)[];
+      if (keys.every((k) => (ws as any)[k] === (updates as any)[k])) return;
       set((state) => {
-        const ws = state.workspaces.get(id);
-        if (ws) {
-          Object.assign(ws, updates);
+        const draft = state.workspaces.get(id);
+        if (draft) {
+          Object.assign(draft, updates);
         }
       });
     },

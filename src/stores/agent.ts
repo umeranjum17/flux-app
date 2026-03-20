@@ -133,12 +133,21 @@ export const useAgentStore = create<AgentState>()(
 
     syncToWorkspace(agentId, model, thinking?) {
       const normalizedModel = normalizeClaudeCodeModel(model, agentId);
+      const resolvedThinking = thinking ?? 'medium';
       const current = get();
       const agentChanged = current.selectedAgentId !== agentId;
+      // Skip no-op updates to avoid cascading re-renders.
+      if (
+        !agentChanged &&
+        current.selectedModel === normalizedModel &&
+        current.selectedThinking === resolvedThinking
+      ) {
+        return;
+      }
       set((state) => {
         state.selectedAgentId = agentId;
         state.selectedModel = normalizedModel;
-        state.selectedThinking = thinking ?? 'medium';
+        state.selectedThinking = resolvedThinking;
         if (agentChanged) {
           state.dynamicModels = [];
         }

@@ -760,8 +760,9 @@ export function AppShell() {
     return () => { clearTimeout(timeout); unsub(); };
   }, []);
 
-  // Auto-persist mode and autoApprove changes.
-  // Mode changes are scoped to the workspace when one is active (like agent/model).
+  // Auto-persist mode (global config only) and autoApprove changes.
+  // Workspace-scoped mode persistence is handled by the mode subscription above
+  // (lines that call updateWorkspace + workspace:update on mode change).
   useEffect(() => {
     let prevMode = useUiStore.getState().mode;
     let prevAutoApprove = useUiStore.getState().autoApprove;
@@ -769,10 +770,7 @@ export function AppShell() {
       if (state.mode !== prevMode) {
         prevMode = state.mode;
         const wsId = useWorkspaceStore.getState().activeWorkspaceId;
-        if (wsId) {
-          window.api.invoke('workspace:update', { workspaceId: wsId, mode: state.mode }).catch(() => {});
-          useWorkspaceStore.getState().updateWorkspace(wsId, { mode: state.mode });
-        } else {
+        if (!wsId) {
           window.api.invoke('config:set', { defaultMode: state.mode }).catch(() => {});
         }
       }

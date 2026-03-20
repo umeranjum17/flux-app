@@ -1173,7 +1173,13 @@ export function ChatInput({ focused }: ChatInputProps) {
                   {/* Mode dropdown */}
                   <ModeDropdown
                     mode={mode}
-                    onModeChange={(m) => useUiStore.getState().setMode(m)}
+                    onModeChange={(m) => {
+                      useUiStore.getState().setMode(m);
+                      const task = getActiveTask();
+                      if (task && task.mode !== m) {
+                        setTaskMode(task.id, m);
+                      }
+                    }}
                   />
 
                 </>
