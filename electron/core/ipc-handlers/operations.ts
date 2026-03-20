@@ -252,6 +252,9 @@ export function activeWorkspaceTaskIds(ctx: IpcContext, workspaceId: string) {
 
 export function listMulti(ctx: IpcContext, parentRepos: string[]) {
   requireFields({ parentRepos }, 'parentRepos');
+  if (parentRepos.length === 0) {
+    return ctx.workspaceStore.list();
+  }
   const results = [];
   for (const repo of parentRepos) {
     results.push(...ctx.workspaceStore.list(repo));
