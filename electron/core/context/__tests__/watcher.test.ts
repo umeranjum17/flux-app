@@ -121,4 +121,37 @@ describe('ContextWatcher', () => {
 
     expect(callCount).toBe(1);
   });
+
+  it('does not reprocess requests that already have responses', () => {
+    const cwd = makeTempDir();
+    const contextDir = path.join(cwd, '.context');
+    const requestsDir = path.join(contextDir, 'requests');
+    const responsesDir = path.join(contextDir, 'responses');
+    fs.mkdirSync(requestsDir, { recursive: true });
+    fs.mkdirSync(responsesDir, { recursive: true });
+    fs.writeFileSync(path.join(requestsDir, 'r1.json'), JSON.stringify({
+      id: 'r1',
+      action: 'terminal:spawn',
+      payload: { command: 'npm run dev' },
+    }));
+    fs.writeFileSync(path.join(responsesDir, 'r1.json'), JSON.stringify({
+      id: 'r1',
+      ok: true,
+      data: { terminalId: 'terminal-1' },
+    }));
+
+    let callCount = 0;
+    const watcher = new ContextWatcher({
+      cwd,
+      onStateChange: () => {},
+      onRequest: () => {
+        callCount += 1;
+      },
+    });
+
+    watcher.start();
+    watcher.stop();
+
+    expect(callCount).toBe(0);
+  });
 });

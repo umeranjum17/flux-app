@@ -128,6 +128,10 @@ export class ContextWatcher {
       if (!entry.endsWith('.json')) continue;
       const id = entry.replace('.json', '');
       if (this.processedRequestIds.has(id)) continue;
+      if (fs.existsSync(path.join(this.responsesDir, `${id}.json`))) {
+        this.processedRequestIds.add(id);
+        continue;
+      }
 
       let content: string;
       try {
