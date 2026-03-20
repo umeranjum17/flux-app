@@ -92,6 +92,7 @@ export class WorkspaceGroupStore {
           parentRepo: member.parentRepo,
           branch: member.branch,
           label: member.workspaceName,
+          outcome: member.outcome,
         })),
     };
   }
@@ -107,7 +108,8 @@ export class WorkspaceGroupStore {
         w.name AS workspace_name,
         w.branch,
         w.parent_repo,
-        w.worktree_path
+        w.worktree_path,
+        w.outcome
       FROM workspace_group_members m
       INNER JOIN workspaces w ON w.id = m.workspace_id
       WHERE m.group_id = ?
@@ -123,6 +125,7 @@ export class WorkspaceGroupStore {
       branch: row.branch,
       parentRepo: row.parent_repo,
       worktreePath: row.worktree_path,
+      outcome: row.outcome ?? 'in_progress',
     }));
   }
 

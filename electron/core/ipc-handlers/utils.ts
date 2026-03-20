@@ -10,7 +10,7 @@ import { composeSkillPrompts } from '../agents/skills';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv, resolveSshCommand } from '../process-utils';
 import type { SessionStore } from '../session/store';
-import type { Workspace } from '../worktree/types';
+import type { Workspace, WorkspaceOutcome } from '../worktree/types';
 
 const execFileAsync = promisify(execFile);
 
@@ -1185,6 +1185,7 @@ export function buildWorkspaceSystemContext(
       branch: string;
       label: string;
       role: 'primary' | 'sibling';
+      outcome: WorkspaceOutcome;
     }>;
   } = {},
 ): string | null {

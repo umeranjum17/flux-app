@@ -1,4 +1,5 @@
 import type { AgentId, TaskMode } from '../types';
+import type { WorkspaceOutcome } from '../../worktree/types';
 
 /**
  * Context passed to each skill to determine relevance and build prompt content.
@@ -24,7 +25,7 @@ export interface SkillContext {
     branch: string;
     worktreePath: string;
     parentRepo: string;
-    outcome: string;
+    outcome: WorkspaceOutcome;
   };
   /** Persisted attachment context, if attachments were written to `.context/`. */
   attachments?: {
@@ -38,6 +39,7 @@ export interface SkillContext {
     branch: string;
     label: string;
     role: 'primary' | 'sibling';
+    outcome: WorkspaceOutcome;
   }>;
 }
 

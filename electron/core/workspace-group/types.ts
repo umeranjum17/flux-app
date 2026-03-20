@@ -1,3 +1,5 @@
+import type { WorkspaceOutcome } from '../worktree/types';
+
 export type WorkspaceGroupRole = 'primary' | 'sibling';
 
 export interface WorkspaceGroupMember {
@@ -9,6 +11,7 @@ export interface WorkspaceGroupMember {
   branch: string;
   parentRepo: string;
   worktreePath: string;
+  outcome: WorkspaceOutcome;
 }
 
 export interface WorkspaceGroup {
@@ -26,4 +29,5 @@ export interface SiblingWorkspaceContext {
   parentRepo: string;
   branch: string;
   label: string;
+  outcome: WorkspaceOutcome;
 }

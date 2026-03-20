@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceGroupLookupResult } from '../../lib/ipc-api';
+import type { WorkspaceGroupLookupResult, WorkspaceOutcome } from '../../lib/ipc-api';
 import { useWorkspaceGroupStore } from '../workspace-group';
 
 function makeLookupResult(groupId: string, workspaceIds: string[]): WorkspaceGroupLookupResult {
@@ -12,7 +12,8 @@ function makeLookupResult(groupId: string, workspaceIds: string[]): WorkspaceGro
     branch: `flux/${workspaceId}`,
     parentRepo: `/repo/${workspaceId}`,
     worktreePath: `/repo/${workspaceId}/.flux/${workspaceId}`,
-  }));
+    outcome: 'in_progress' as WorkspaceOutcome,
+  })) satisfies WorkspaceGroupLookupResult['group']['members'];
 
   return {
     group: {
@@ -28,12 +29,23 @@ function makeLookupResult(groupId: string, workspaceIds: string[]): WorkspaceGro
       parentRepo: member.parentRepo,
       branch: member.branch,
       label: member.workspaceName,
+      outcome: member.outcome,
     })),
   };
 }
 
 describe('useWorkspaceGroupStore', () => {
   beforeEach(() => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        api: {
+          invoke: vi.fn(),
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
     (window as any).api = {
       invoke: vi.fn(),
     };

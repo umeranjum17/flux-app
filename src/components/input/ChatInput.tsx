@@ -608,9 +608,9 @@ export function ChatInput({ focused }: ChatInputProps) {
         && (!!task.planData || getLatestPlanText(task.messages).length > 0);
       if (shouldStartPlanImplementation && task) {
         const selection = {
-          agentId: currentSelectedAgentId,
-          model: currentSelectedModel,
-          thinking: currentSelectedThinking,
+          agentId: selectedAgentId,
+          model: selectedModel,
+          thinking: selectedThinking,
         };
         syncSelectionToTask({
           task,

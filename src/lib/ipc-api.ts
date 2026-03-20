@@ -526,6 +526,7 @@ export interface WorkspaceGroupMember {
   branch: string;
   parentRepo: string;
   worktreePath: string;
+  outcome: WorkspaceOutcome;
 }
 
 export interface WorkspaceGroup {
@@ -545,6 +546,7 @@ export interface WorkspaceGroupLookupResult {
     parentRepo: string;
     branch: string;
     label: string;
+    outcome: WorkspaceOutcome;
   }>;
 }
 
