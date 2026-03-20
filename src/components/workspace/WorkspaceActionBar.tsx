@@ -166,6 +166,8 @@ export function WorkspaceActionBar() {
                               .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
                             if (wsTask) {
                               chatStore.setActiveTask(wsTask.id);
+                            } else {
+                              chatStore.setActiveTask(null);
                             }
                             useUiStore.getState().setBottomPanelMode('agent');
                             setGroupPopoverOpen(false);
