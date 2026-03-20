@@ -148,7 +148,7 @@ function basename(p: string): string {
 }
 
 export const useUiStore = create<UiState>()(
-  immer((set) => ({
+  immer((set, get) => ({
     sidebarOpen: true,
     sidebarTab: 'workspaces',
     theme: 'dark',
@@ -256,10 +256,6 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
-        // Only auto-add when no projects are open yet (first-time setup)
-        if (cwd && state.openProjects.length === 0) {
-          state.openProjects = [cwd];
-        }
       });
     },
 

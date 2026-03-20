@@ -104,11 +104,9 @@ export function PlanCard({ task }: PlanCardProps) {
   const setTaskMode = useChatStore((s) => s.setTaskMode);
   const setTaskThinking = useChatStore((s) => s.setTaskThinking);
   const switchTaskAgent = useChatStore((s) => s.switchTaskAgent);
-  const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore((s) => ({
-    selectedAgentId: s.selectedAgentId,
-    selectedModel: s.selectedModel,
-    selectedThinking: s.selectedThinking,
-  }));
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectedModel = useAgentStore((s) => s.selectedModel);
+  const selectedThinking = useAgentStore((s) => s.selectedThinking);
 
   const planText = useMemo(() => getLatestPlanText(task.messages), [task.messages]);
 
