@@ -127,6 +127,30 @@ CREATE TABLE IF NOT EXISTS project_group_items (
   PRIMARY KEY (group_id, project_path)
 )`;
 
+export const CREATE_REMOTE_CLIENTS_TABLE = `
+CREATE TABLE IF NOT EXISTS remote_clients (
+  id TEXT PRIMARY KEY,
+  client_name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  token_preview TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  last_seen_at INTEGER,
+  revoked_at INTEGER,
+  last_address TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_remote_clients_revoked ON remote_clients(revoked_at)`;
+
+export const CREATE_REMOTE_PAIRING_SESSIONS_TABLE = `
+CREATE TABLE IF NOT EXISTS remote_pairing_sessions (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  consumed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_remote_pairing_expires ON remote_pairing_sessions(expires_at, consumed_at)`;
+
 export const CREATE_MIGRATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS migrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

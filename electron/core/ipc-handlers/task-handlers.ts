@@ -53,6 +53,8 @@ import {
   stripFluxTokens,
 } from './utils';
 
+import * as ops from './operations';
+import type { IpcContext } from './types';
 import { trackAgentPid, untrackAgentPid } from '../agents/pid-tracker';
 import { classifyErrorContent } from '../agents/spawn-utils';
 import { getActiveSkillIds } from '../agents/skills';
@@ -1681,6 +1683,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     return { taskId: options.taskId, session: sessionStore.get(session.id) ?? session };
   };
 
+  // Build full context for shared operations
+  const fullCtx: IpcContext = { ...ctx, spawnTaskRun, releaseTask };
+
   // --- Task IPC handlers ---
 
   ipcMain.handle(
@@ -1938,15 +1943,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   });
 
   ipcMain.handle('task:approve', async (_event, { taskId, requestId }: { taskId: string; requestId: string }) => {
-    const handle = activeTasks.get(taskId);
-    if (handle) handle.approve(requestId);
-    taskStallMonitors.get(taskId)?.resume();
+    ops.approveTask(fullCtx, taskId, requestId);
   });
 
   ipcMain.handle('task:deny', async (_event, { taskId, requestId }: { taskId: string; requestId: string }) => {
-    const handle = activeTasks.get(taskId);
-    if (handle) handle.deny(requestId);
-    taskStallMonitors.get(taskId)?.resume();
+    ops.denyTask(fullCtx, taskId, requestId);
   });
 
   ipcMain.handle('task:answer-question', async (_event, { taskId, requestId, response }: {
@@ -1954,90 +1955,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     requestId: string;
     response: string;
   }) => {
-    requireFields({ taskId, requestId, response }, 'taskId', 'requestId', 'response');
-    const handle = activeTasks.get(taskId);
-    if (!handle) {
-      throw new Error(`Task ${taskId} does not have an active run`);
-    }
-
-    if (!handle.isAlive()) {
-      throw new Error('Agent process has exited — answer cannot be delivered');
-    }
-
-    // Deliver the answer first — this may throw if stdin is not writable.
-    // We must not change status or emit the user message if delivery fails,
-    // so the UI can restore the question prompt and let the user retry.
-    handle.answerQuestion(requestId, response);
-
-    const sessionId = taskSessions.get(taskId);
-    if (sessionId) {
-      emitTaskMessage(taskId, sessionId, buildUserMessagePayload(response));
-    }
-
-    const workspaceId = lifecycleManager.getWorkspaceForTask(taskId);
-    if (workspaceId) {
-      lifecycleManager.taskStatusChanged(taskId, 'running', sessionId ? { sessionId } : undefined);
-    }
-
-    taskStallMonitors.get(taskId)?.resume();
+    ops.answerTaskQuestion(fullCtx, taskId, requestId, response);
   });
 
   ipcMain.handle('task:steer', async (_event, { taskId, prompt, images, attachments }: { taskId: string; prompt: string; images?: string[]; attachments?: FileAttachment[] }) => {
-    const handle = activeTasks.get(taskId);
-    if (!handle) {
-      return { steerFailed: true, reason: 'task_finished' };
-    }
-
-    if (!handle.isAlive()) {
-      return { steerFailed: true, reason: 'process_exited' };
-    }
-
-    const sessionId = taskSessions.get(taskId);
-    const activeSession = sessionId ? sessionStore.get(sessionId) : null;
-    const previousAttachmentContext = sessionId
-      ? extractLatestSessionAttachmentContext(sessionStore, sessionId)
-      : null;
-    const attachmentContext = await writeAttachmentContextFile(activeSession?.cwd ?? getCurrentCwd(), {
-      images: images?.length ? images : previousAttachmentContext?.images,
-      attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
-      sshHost: getSshHost(),
-    });
-    let effectivePrompt = await buildPromptWithAttachments(prompt, attachments, getSshHost());
-
-    // Inject workspace skills on follow-up messages so the agent retains
-    // lifecycle protocol context across the full conversation.
-    const workspaceId = lifecycleManager.getWorkspaceForTask(taskId);
-    if (workspaceId) {
-      const workspace = workspaceStore.get(workspaceId);
-      if (workspace) {
-        const attachmentsForSkills = attachmentContext
-          ? {
-              manifestPath: attachmentContext.manifestPath,
-              imageCount: attachmentContext.imageCount,
-              fileCount: attachmentContext.attachmentCount,
-            }
-          : undefined;
-        const wsContext = buildWorkspaceSystemContext(workspace, workspace.mode, {
-          agentId: workspace.agentId,
-          isExistingSession: true,
-          attachments: attachmentsForSkills,
-        });
-        if (wsContext) {
-          effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
-        }
-      }
-    }
-
-    handle.steer(effectivePrompt, images);
-    taskStallMonitors.get(taskId)?.resume();
-
-    if (sessionId) {
-      sessionStore.addMessage(
-        sessionId,
-        buildStoredUserMessage(prompt, images, attachments),
-      );
-    }
-    return { steerFailed: false };
+    return ops.steerTask(fullCtx, taskId, prompt, images, attachments);
   });
 
   return { spawnTaskRun, releaseTask };

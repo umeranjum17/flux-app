@@ -261,6 +261,11 @@ export interface IpcChannels {
     result: { pruned: string[] };
   };
 
+  'remote:status': { args: []; result: RemoteServerStatus };
+  'remote:create-pairing-code': { args: []; result: RemotePairingCode };
+  'remote:list-clients': { args: []; result: RemoteClientInfo[] };
+  'remote:revoke-client': { args: [{ clientId: string }]; result: void };
+
   // Project groups
   'project-group:create': { args: [{ name: string; projects?: string[] }]; result: ProjectGroup };
   'project-group:list': { args: []; result: ProjectGroup[] };
@@ -407,6 +412,33 @@ export interface FluxConfig {
   lastActiveGroupId?: string;
   openProjects?: string[];
   activeProjectPath?: string;
+}
+
+export interface RemotePairingCode {
+  code: string;
+  expiresAt: number;
+}
+
+export interface RemoteClientInfo {
+  id: string;
+  clientName: string;
+  tokenPreview: string;
+  createdAt: number;
+  updatedAt: number;
+  lastSeenAt: number | null;
+  revokedAt: number | null;
+  lastAddress?: string | null;
+}
+
+export interface RemoteServerStatus {
+  enabled: boolean;
+  version: string;
+  port: number;
+  hostname: string;
+  advertised: boolean;
+  connectionCount: number;
+  pairedClientCount: number;
+  networkAddresses: string[];
 }
 
 export interface Checkpoint {

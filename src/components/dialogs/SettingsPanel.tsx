@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Brain } from 'lucide-react';
+import { X, Plus, Trash2, Brain, RefreshCw, Copy, Smartphone, Shield } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
-import type { FluxConfig } from '../../lib/ipc-api';
+import type { FluxConfig, RemoteClientInfo, RemotePairingCode, RemoteServerStatus } from '../../lib/ipc-api';
 import type { AgentId, ThinkingLevel } from '../../lib/types';
 
 const defaultConfig: FluxConfig = {
@@ -51,14 +51,25 @@ export function SettingsPanel() {
   const [config, setConfig] = useState<FluxConfig>(defaultConfig);
   const [newCommand, setNewCommand] = useState('');
   const [loading, setLoading] = useState(true);
+  const [remoteStatus, setRemoteStatus] = useState<RemoteServerStatus | null>(null);
+  const [remoteClients, setRemoteClients] = useState<RemoteClientInfo[]>([]);
+  const [pairingCode, setPairingCode] = useState<RemotePairingCode | null>(null);
 
   const open = activeOverlay === 'settings';
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    window.api.invoke('config:get').then((cfg) => {
-      setConfig(cfg as FluxConfig);
+    Promise.all([
+      window.api.invoke('config:get') as Promise<FluxConfig>,
+      window.api.invoke('remote:status') as Promise<RemoteServerStatus>,
+      window.api.invoke('remote:list-clients') as Promise<RemoteClientInfo[]>,
+    ]).then(([cfg, status, clients]) => {
+      setConfig(cfg);
+      setRemoteStatus(status);
+      setRemoteClients(clients);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
   }, [open]);
@@ -97,6 +108,35 @@ export function SettingsPanel() {
     updateConfig({
       qualityGateCommands: config.qualityGateCommands.filter((_, i) => i !== index),
     });
+  };
+
+  const refreshRemoteStatus = async () => {
+    const [status, clients] = await Promise.all([
+      window.api.invoke('remote:status') as Promise<RemoteServerStatus>,
+      window.api.invoke('remote:list-clients') as Promise<RemoteClientInfo[]>,
+    ]);
+    setRemoteStatus(status);
+    setRemoteClients(clients);
+  };
+
+  const generatePairingCode = async () => {
+    const next = await window.api.invoke('remote:create-pairing-code') as RemotePairingCode;
+    setPairingCode(next);
+    await refreshRemoteStatus();
+  };
+
+  const revokeRemoteClient = async (clientId: string) => {
+    await window.api.invoke('remote:revoke-client', { clientId });
+    await refreshRemoteStatus();
+  };
+
+  const copyPairingCode = async () => {
+    if (!pairingCode) return;
+    try {
+      await navigator.clipboard.writeText(pairingCode.code);
+    } catch {
+      // best effort
+    }
   };
 
   if (!open) return null;
@@ -294,6 +334,120 @@ export function SettingsPanel() {
                           </button>
                         ))}
                       </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-text-secondary">Flux Mobile</h3>
+                    <button
+                      type="button"
+                      onClick={() => void refreshRemoteStatus()}
+                      className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                      title="Refresh mobile server status"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-border bg-bg-primary/70 p-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm text-text-primary">
+                            <Smartphone size={14} />
+                            <span>Remote server</span>
+                          </div>
+                          <p className="text-xs text-text-tertiary mt-1">
+                            {remoteStatus
+                              ? `${remoteStatus.hostname}:${remoteStatus.port} · v${remoteStatus.version}`
+                              : 'Loading remote status...'}
+                          </p>
+                          {remoteStatus && (
+                            <p className="text-[11px] text-text-tertiary mt-1">
+                              {remoteStatus.advertised ? 'mDNS advertised' : 'mDNS unavailable'} · {remoteStatus.connectionCount} active connection{remoteStatus.connectionCount === 1 ? '' : 's'}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void generatePairingCode()}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-success text-white hover:opacity-90 transition-opacity"
+                        >
+                          Generate Pairing Code
+                        </button>
+                      </div>
+
+                      {remoteStatus && remoteStatus.networkAddresses.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-[11px] uppercase tracking-wide text-text-tertiary mb-1">LAN addresses</p>
+                          <p className="text-xs text-text-secondary font-mono break-all">
+                            {remoteStatus.networkAddresses.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {pairingCode && (
+                      <div className="rounded-xl border border-success/30 bg-success/10 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 text-sm text-text-primary">
+                              <Shield size={14} />
+                              <span>Active pairing code</span>
+                            </div>
+                            <p className="mt-2 text-lg font-semibold tracking-[0.2em] text-text-primary font-mono">
+                              {pairingCode.code}
+                            </p>
+                            <p className="text-xs text-text-tertiary mt-2">
+                              Expires at {new Date(pairingCode.expiresAt).toLocaleTimeString()}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyPairingCode()}
+                            className="p-2 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                            title="Copy pairing code"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-text-tertiary mt-3">
+                          Flux Mobile should store the durable token returned by `auth:pair`. The short-lived pairing code itself is not reusable after pairing.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="rounded-xl border border-border bg-bg-primary/70 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-medium text-text-secondary">Paired clients</h4>
+                        <span className="text-[11px] text-text-tertiary">{remoteClients.length}</span>
+                      </div>
+
+                      {remoteClients.length === 0 ? (
+                        <p className="text-xs text-text-tertiary">No paired mobile clients yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {remoteClients.map((client) => (
+                            <div key={client.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-bg-elevated px-3 py-2">
+                              <div className="min-w-0">
+                                <p className="text-sm text-text-primary truncate">{client.clientName}</p>
+                                <p className="text-[11px] text-text-tertiary font-mono">
+                                  {client.tokenPreview}{client.lastAddress ? ` · ${client.lastAddress}` : ''}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void revokeRemoteClient(client.id)}
+                                className="text-[11px] text-red-400 hover:opacity-80 transition-opacity"
+                              >
+                                Revoke
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>

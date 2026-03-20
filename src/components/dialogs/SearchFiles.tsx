@@ -45,7 +45,7 @@ export function SearchFiles() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [searching, setSearching] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const open = activeOverlay === 'search-files';
 

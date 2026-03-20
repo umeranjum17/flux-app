@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { ipcMain, BrowserWindow, app } from 'electron';
 import type { ChildProcess } from 'child_process';
@@ -32,6 +33,11 @@ import { registerProjectGroupHandlers } from './project-group-handlers';
 import { ProjectGroupStore } from '../project-group/store';
 import { ContextWatcher } from '../context/watcher';
 import { ContextRequestDispatcher } from '../context/request-dispatcher';
+import { RemoteEventBus } from '../remote/event-bus';
+import { RemoteAuthService } from '../remote/auth-service';
+import { RemoteControlService } from '../remote/control-service';
+import { MdnsAdvertiser } from '../remote/mdns';
+import { PROTOCOL_VERSION, REMOTE_SERVER_PORT, RemoteControlServer } from '../remote/server';
 
 console.log('[ipc-handlers] module loaded');
 
@@ -50,6 +56,9 @@ const USAGE_POLL_MAX_INTERVAL_MS = 60 * 60 * 1000; // 1 hour max backoff
 const USAGE_POLL_INITIAL_DELAY_MS = 15 * 1000;  // 15s after startup
 let usagePollTimer: NodeJS.Timeout | null = null;
 let usagePollCurrentInterval = USAGE_POLL_INTERVAL_MS;
+let remoteServer: RemoteControlServer | null = null;
+let remoteMdns: MdnsAdvertiser | null = null;
+let remoteAuthService: RemoteAuthService | null = null;
 
 const TRACKED_RENDERER_EVENT_CHANNELS = new Set([
   'workspace:created',
@@ -141,8 +150,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const usageTracker = new UsageTracker();
   const liveUsageService = new LiveUsageService();
   const workspaceStore = new WorkspaceStore();
+  const remoteEventBus = new RemoteEventBus();
 
   const sendToRenderer = (channel: string, payload: unknown): boolean => {
+    remoteEventBus.publish(channel, payload);
     const windowClosed = typeof (mainWindow as BrowserWindow & { isDestroyed?: () => boolean }).isDestroyed === 'function'
       && (mainWindow as BrowserWindow & { isDestroyed: () => boolean }).isDestroyed();
     const webContentsClosed = typeof (mainWindow.webContents as typeof mainWindow.webContents & { isDestroyed?: () => boolean }).isDestroyed === 'function'
@@ -288,6 +299,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:create-pr',
     'workspace:disk-usage',
     'workspace:prune-stale',
+    'remote:status',
+    'remote:create-pairing-code',
+    'remote:list-clients',
+    'remote:revoke-client',
   ];
   for (const channel of registeredChannels) {
     ipcMain.removeHandler(channel);
@@ -352,6 +367,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // Build the full context (with spawnTaskRun + releaseTask) for modules that need it
   const fullCtx = { ...baseCtx, spawnTaskRun, releaseTask };
+  const remoteControlService = new RemoteControlService(fullCtx);
+  remoteAuthService = new RemoteAuthService();
 
   registerAuxiliaryIpcHandlers({
     mainWindow,
@@ -379,6 +396,52 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   registerWorkspaceHandlers(fullCtx);
+
+  remoteServer?.stop();
+  remoteMdns?.stop();
+  remoteServer = new RemoteControlServer({
+    authService: remoteAuthService,
+    controlService: remoteControlService,
+    eventBus: remoteEventBus,
+  });
+  remoteMdns = new MdnsAdvertiser();
+  try {
+    remoteServer.start();
+    remoteMdns.start(REMOTE_SERVER_PORT, PROTOCOL_VERSION);
+  } catch (error) {
+    logDiagnostic('remote-server', 'startup failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  ipcMain.handle('remote:status', async () => {
+    return remoteServer?.getStatus(remoteMdns?.isAdvertised() ?? false) ?? {
+      enabled: false,
+      version: PROTOCOL_VERSION,
+      port: REMOTE_SERVER_PORT,
+      hostname: os.hostname(),
+      advertised: false,
+      connectionCount: 0,
+      pairedClientCount: remoteAuthService?.countActiveClients() ?? 0,
+      networkAddresses: [],
+    };
+  });
+
+  ipcMain.handle('remote:create-pairing-code', async () => {
+    if (!remoteAuthService) {
+      throw new Error('Remote auth service is not available');
+    }
+    return remoteAuthService.createPairingCode();
+  });
+
+  ipcMain.handle('remote:list-clients', async () => {
+    return remoteAuthService?.listClients() ?? [];
+  });
+
+  ipcMain.handle('remote:revoke-client', async (_event, { clientId }: { clientId: string }) => {
+    requireFields({ clientId }, 'clientId');
+    remoteAuthService?.revokeClient(clientId);
+  });
 
   // Support `.context/requests/*.json` terminal actions even when no agent task
   // is active, so external agents can open visible terminals in the Flux UI.
@@ -479,6 +542,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 }
 
 export function cleanupProcesses(): void {
+  remoteServer?.stop();
+  remoteServer = null;
+  remoteMdns?.stop();
+  remoteMdns = null;
+
   // Stop background usage poller
   if (usagePollTimer) {
     clearTimeout(usagePollTimer);

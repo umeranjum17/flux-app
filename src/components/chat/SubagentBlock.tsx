@@ -17,7 +17,7 @@ interface SubagentBlockProps {
     state: SubagentState;
   }>;
   stage: 'running' | 'finished';
-  taskMode?: 'plan' | 'act';
+  taskMode?: string;
 }
 
 function formatTokens(total: number): string {
@@ -52,7 +52,7 @@ function SubagentRow({
 }: {
   id: string;
   state: SubagentState;
-  taskMode?: 'plan' | 'act';
+  taskMode?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasMessages = state.messages.length > 0;
@@ -104,7 +104,7 @@ function SubagentMessageList({
   taskMode,
 }: {
   messages: AgentMessage[];
-  taskMode?: 'plan' | 'act';
+  taskMode?: string;
 }) {
   const { mergedResultIndices, mergedResultForCall } = useMemo(
     () => buildMergedToolResultLookup(messages),
@@ -183,7 +183,7 @@ function SubagentMessageList({
 function renderSubagentMessage(
   message: AgentMessage,
   mergedResult?: AgentMessage | null,
-  taskMode?: 'plan' | 'act',
+  taskMode?: string,
   toolCallDisplayTier?: ToolCallDisplayTier,
 ) {
   switch (message.type) {

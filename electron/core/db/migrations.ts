@@ -10,6 +10,8 @@ import {
   CREATE_WORKSPACE_SESSIONS_TABLE,
   CREATE_PROJECT_GROUPS_TABLE,
   CREATE_PROJECT_GROUP_ITEMS_TABLE,
+  CREATE_REMOTE_CLIENTS_TABLE,
+  CREATE_REMOTE_PAIRING_SESSIONS_TABLE,
   CREATE_MIGRATIONS_TABLE,
 } from './schema';
 
@@ -70,6 +72,14 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
       ALTER TABLE workspaces ADD COLUMN act_model TEXT;
       ALTER TABLE workspaces ADD COLUMN act_thinking TEXT;
     `,
+  },
+  {
+    name: '019_create_remote_clients',
+    sql: CREATE_REMOTE_CLIENTS_TABLE,
+  },
+  {
+    name: '020_create_remote_pairing_sessions',
+    sql: CREATE_REMOTE_PAIRING_SESSIONS_TABLE,
   },
 ];
 

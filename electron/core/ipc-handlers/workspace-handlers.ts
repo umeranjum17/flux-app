@@ -15,6 +15,7 @@ import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
 import { requireFields, commandExists } from './utils';
+import * as ops from './operations';
 
 const execFileAsync = promisify(execFile);
 
@@ -309,7 +310,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:spawn-chat',
-    async (_event, { taskId: providedTaskId, workspaceId, prompt, mode, agentId: overrideAgentId, model: overrideModel, images, attachments }: {
+    async (_event, { taskId, workspaceId, prompt, mode, agentId, model, images, attachments }: {
       taskId?: string;
       workspaceId: string;
       prompt: string;
@@ -319,52 +320,19 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       images?: string[];
       attachments?: FileAttachment[];
     }) => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) {
-        throw new Error(`Workspace ${workspaceId} not found`);
-      }
-
-      if (!fs.existsSync(workspace.worktreePath)) {
-        throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
-      }
-
-      const taskId = providedTaskId ?? crypto.randomUUID();
-      const result = await spawnTaskRun({
-        taskId,
-        workspaceId: workspace.id,
-        prompt,
-        agentId: (overrideAgentId ?? workspace.agentId) as any,
-        model: overrideModel ?? workspace.model,
-        mode: mode ?? workspace.mode,
-        cwd: workspace.worktreePath,
-        images,
-        attachments,
-      });
-      return { taskId, session: result.session };
+      return ops.spawnWorkspaceChat(ctx, { taskId, workspaceId, prompt, mode, agentId, model, images, attachments });
     },
   );
 
   ipcMain.handle(
     'workspace:list-chats',
     async (_event, { workspaceId }: { workspaceId: string }) => {
-      return workspaceStore.listSessions(workspaceId);
+      return ops.listWorkspaceChats(ctx, workspaceId);
     },
   );
 
   ipcMain.handle('workspace:stop', async (_event, { workspaceId }: { workspaceId: string }) => {
-    await lifecycleManager.serialized(workspaceId, async () => {
-      const taskIds = lifecycleManager.getActiveTaskIds(workspaceId);
-
-      for (const taskId of taskIds) {
-        releaseTask(taskId);
-        lifecycleManager.clearTask(taskId);
-        sendToRenderer('agent:done', { taskId, error: undefined });
-      }
-
-      // Outcome stays as-is when agent is stopped — the agent is the authority
-      // on outcome transitions via `.context/state.json`. No guessing from git state.
-      lifecycleManager.setStatus(workspaceId, 'idle');
-    });
+    return ops.stopWorkspace(ctx, workspaceId);
   });
 
   ipcMain.handle('workspace:delete', async (_event, { workspaceId }: { workspaceId: string }) => {
@@ -529,12 +497,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle('workspace:diff-files', async (_event, { workspaceId }: { workspaceId: string }) => {
-    const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
-    const files = await getChangedFiles(workspace.worktreePath, workspace.parentRepo);
-    return files;
+    return ops.diffFiles(ctx, workspaceId);
   });
 
   ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
@@ -548,11 +511,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle(
     'workspace:file-diff',
     async (_event, { workspaceId, filePath, scope }: { workspaceId: string; filePath: string; scope?: DiffScope }) => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) {
-        throw new Error(`Workspace ${workspaceId} not found`);
-      }
-      return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
+      return ops.fileDiff(ctx, workspaceId, filePath, scope);
     },
   );
 
@@ -876,7 +835,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   });
 
   ipcMain.handle('workspace:active-task', async (_event, { workspaceId }: { workspaceId: string }) => {
-    return lifecycleManager.getActiveTaskIds(workspaceId);
+    return ops.activeWorkspaceTaskIds(ctx, workspaceId);
   });
 }
 

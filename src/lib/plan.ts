@@ -56,7 +56,7 @@ export function getLatestPlanText(messages: AgentMessage[]): string {
   return '';
 }
 
-export function isPlanMessage(message: AgentMessage, taskMode?: 'plan' | 'act'): boolean {
+export function isPlanMessage(message: AgentMessage, taskMode?: string): boolean {
   return taskMode === 'plan'
     && message.role === 'assistant'
     && message.type === 'text'

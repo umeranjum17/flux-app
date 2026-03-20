@@ -48,7 +48,7 @@ export function ReviewDiffViewer({ oldContent, newContent, fileName, onDiscard }
     const highlight = (source: string): string => {
       const cached = cache.get(source);
       if (cached !== undefined) return cached;
-      const tokens = highlighter.codeToTokens(source, { lang, theme: 'github-dark' });
+      const tokens = highlighter.codeToTokens(source, { lang: lang as import('shiki').BundledLanguage, theme: 'github-dark' });
       const html = tokens.tokens
         .flat()
         .map((t) => {
