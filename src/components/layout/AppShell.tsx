@@ -85,16 +85,17 @@ export function AppShell() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const linkingWorkspaceId = useUiStore((s) => s.linkingWorkspaceId);
   // Terminal actions are now exposed via useTerminalStore (no ref needed)
 
   const hasTasks = tasks.size > 0;
-  const mergingWorkspace = useMemo(() => {
+  // Only subscribe to the specific workspace being merged — avoids re-rendering
+  // AppShell on every workspace update.
+  const mergingWorkspace = useWorkspaceStore((s) => {
     if (!mergingWorkspaceId) return null;
-    const workspace = workspaces.get(mergingWorkspaceId);
-    return workspace ? { ...workspace } : null;
-  }, [mergingWorkspaceId, workspaces]);
+    const workspace = s.workspaces.get(mergingWorkspaceId);
+    return workspace ?? null;
+  });
 
   useAgentStream();
 

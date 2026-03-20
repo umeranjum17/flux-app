@@ -36,6 +36,7 @@ interface AgentState {
 }
 
 let modelsRequestSequence = 0;
+let syncInProgress = false;
 
 export const useAgentStore = create<AgentState>()(
   immer((set, get) => ({
@@ -81,9 +82,18 @@ export const useAgentStore = create<AgentState>()(
           state.dynamicModels = models;
           state.modelsLoading = false;
           if (models.length > 0) {
-            state.selectedModel = models.some((model) => model.id === state.selectedModel)
-              ? state.selectedModel
-              : models[0].id;
+            // Check both the raw model ID and the normalized alias so that
+            // 'sonnet' matches 'claude-sonnet-4-6' and vice-versa, preventing
+            // a ping-pong between syncToWorkspace (which normalizes) and
+            // fetchModels (which sees full IDs).
+            const normalizedSelected = normalizeClaudeCodeModel(state.selectedModel, agentId);
+            const matchesExact = models.some((model) => model.id === state.selectedModel);
+            const matchesNormalized = models.some(
+              (model) => normalizeClaudeCodeModel(model.id, agentId) === normalizedSelected,
+            );
+            if (!matchesExact && !matchesNormalized) {
+              state.selectedModel = models[0].id;
+            }
           } else {
             state.selectedModel = fallbackModel;
           }
@@ -132,6 +142,8 @@ export const useAgentStore = create<AgentState>()(
     },
 
     syncToWorkspace(agentId, model, thinking?) {
+      // Guard against re-entrant calls from cascading subscriptions.
+      if (syncInProgress) return;
       const normalizedModel = normalizeClaudeCodeModel(model, agentId);
       const resolvedThinking = thinking ?? 'medium';
       const current = get();
@@ -144,14 +156,19 @@ export const useAgentStore = create<AgentState>()(
       ) {
         return;
       }
-      set((state) => {
-        state.selectedAgentId = agentId;
-        state.selectedModel = normalizedModel;
-        state.selectedThinking = resolvedThinking;
-        if (agentChanged) {
-          state.dynamicModels = [];
-        }
-      });
+      syncInProgress = true;
+      try {
+        set((state) => {
+          state.selectedAgentId = agentId;
+          state.selectedModel = normalizedModel;
+          state.selectedThinking = resolvedThinking;
+          if (agentChanged) {
+            state.dynamicModels = [];
+          }
+        });
+      } finally {
+        syncInProgress = false;
+      }
       // Always fetch models so the selector stays correct after a workspace switch,
       // even when the agent hasn't changed (the user may have manually picked a
       // different model in the previous workspace).
