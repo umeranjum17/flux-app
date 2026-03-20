@@ -254,23 +254,13 @@ export function listMulti(ctx: IpcContext, parentRepos: string[]) {
   requireFields({ parentRepos }, 'parentRepos');
   const normalizedRepos = [...new Set(parentRepos.map((r) => r.trim()).filter(Boolean))];
   if (normalizedRepos.length === 0) {
-    const all = ctx.workspaceStore.list();
-    console.log(`[listMulti] empty parentRepos → returning all ${all.length} workspaces`);
-    return all;
+    return ctx.workspaceStore.list();
   }
   const results = [];
   for (const repo of normalizedRepos) {
-    const matched = ctx.workspaceStore.list(repo);
-    console.log(`[listMulti] repo="${repo}" matched ${matched.length} workspaces`);
-    results.push(...matched);
+    results.push(...ctx.workspaceStore.list(repo));
   }
-  if (results.length === 0) {
-    const all = ctx.workspaceStore.list();
-    console.log(`[listMulti] no repos matched → falling back to all ${all.length} workspaces`);
-    return all;
-  }
-  console.log(`[listMulti] returning ${results.length} matched workspaces`);
-  return results;
+  return results.length > 0 ? results : ctx.workspaceStore.list();
 }
 
 export async function diffFiles(ctx: IpcContext, workspaceId: string) {

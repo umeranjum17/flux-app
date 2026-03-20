@@ -287,12 +287,7 @@ export class RemoteControlServer {
         if (!Array.isArray(p.parentRepos)) {
           throw new RemoteRpcError(-32602, 'parentRepos must be an array');
         }
-        const result = await this.options.controlService.listMulti(p.parentRepos);
-        logDiagnostic('remote-server', 'workspace:list-multi', {
-          parentRepos: p.parentRepos,
-          resultCount: Array.isArray(result) ? result.length : 'not-array',
-        });
-        return result;
+        return this.options.controlService.listMulti(p.parentRepos);
       }
       case 'workspace:active-task': {
         const p = this.requireParam<{ workspaceId: string }>(params, 'workspaceId');
