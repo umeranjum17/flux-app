@@ -152,7 +152,22 @@ export function WorkspaceActionBar() {
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           onClick={() => {
-                            useWorkspaceStore.getState().setActiveWorkspace(sibling.workspaceId);
+                            const wsStore = useWorkspaceStore.getState();
+                            const chatStore = useChatStore.getState();
+                            wsStore.setActiveWorkspace(sibling.workspaceId);
+
+                            const workspace = wsStore.workspaces.get(sibling.workspaceId);
+                            if (workspace) {
+                              useUiStore.getState().setActiveProject(workspace.parentRepo);
+                            }
+
+                            const wsTask = Array.from(chatStore.tasks.values())
+                              .filter((t) => t.workspaceId === sibling.workspaceId)
+                              .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
+                            if (wsTask) {
+                              chatStore.setActiveTask(wsTask.id);
+                            }
+                            useUiStore.getState().setBottomPanelMode('agent');
                             setGroupPopoverOpen(false);
                           }}
                           className="rounded bg-bg-secondary px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
