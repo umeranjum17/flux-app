@@ -10,6 +10,8 @@ import {
   CREATE_WORKSPACE_SESSIONS_TABLE,
   CREATE_PROJECT_GROUPS_TABLE,
   CREATE_PROJECT_GROUP_ITEMS_TABLE,
+  CREATE_WORKSPACE_GROUPS_TABLE,
+  CREATE_WORKSPACE_GROUP_MEMBERS_TABLE,
   CREATE_REMOTE_CLIENTS_TABLE,
   CREATE_REMOTE_PAIRING_SESSIONS_TABLE,
   CREATE_MIGRATIONS_TABLE,
@@ -80,6 +82,14 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
   {
     name: '020_create_remote_pairing_sessions',
     sql: CREATE_REMOTE_PAIRING_SESSIONS_TABLE,
+  },
+  {
+    name: '021_create_workspace_groups',
+    sql: CREATE_WORKSPACE_GROUPS_TABLE,
+  },
+  {
+    name: '022_create_workspace_group_members',
+    sql: CREATE_WORKSPACE_GROUP_MEMBERS_TABLE,
   },
 ];
 

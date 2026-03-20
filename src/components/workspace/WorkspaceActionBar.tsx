@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare, LoaderCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare, LoaderCircle, Link2 } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 import { toast } from 'sonner';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -8,12 +8,20 @@ import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { useChatStore } from '../../stores/chat';
 import { getWorkspaceLifecycleState, isTerminalOutcome, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
+import type { WorkspaceGroupMember } from '../../lib/ipc-api';
+import { useWorkspaceGroupStore } from '../../stores/workspace-group';
+
+const EMPTY_SIBLINGS: WorkspaceGroupMember[] = [];
 
 export function WorkspaceActionBar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const operation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
   const workspace = activeWorkspaceId ? workspaces.get(activeWorkspaceId) : null;
+  const siblings = useWorkspaceGroupStore((s) => (activeWorkspaceId ? s.getSiblingsOf(activeWorkspaceId) : EMPTY_SIBLINGS));
+  const dissolveGroup = useWorkspaceGroupStore((s) => s.dissolveGroup);
+  const unlinkWorkspace = useWorkspaceGroupStore((s) => s.unlinkWorkspace);
+  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
 
   const isRunning = workspace?.status === 'running' || workspace?.status === 'waiting_approval' || workspace?.status === 'waiting_input';
   const isMerged = isTerminalOutcome(workspace?.outcome);
@@ -47,6 +55,16 @@ export function WorkspaceActionBar() {
       hasChanges,
     };
   }, [hasChanges, isMerged, workspaceId]);
+
+  useEffect(() => {
+    setGroupPopoverOpen(false);
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (siblings.length === 0) {
+      setGroupPopoverOpen(false);
+    }
+  }, [siblings.length]);
 
   if (!workspace) return null;
 
@@ -101,6 +119,8 @@ export function WorkspaceActionBar() {
     }));
   };
 
+  const activeGroupId = siblings[0]?.groupId ?? null;
+
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-border/70 bg-bg-secondary/35 px-3 py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -112,6 +132,61 @@ export function WorkspaceActionBar() {
         </span>
       </div>
       <div className="flex items-center gap-1">
+        <ActionBtn icon={<Link2 size={12} />} label="Link" onClick={() => useUiStore.getState().setLinkingWorkspaceId(workspace.id)} />
+        {siblings.length > 0 && (
+          <div className="relative">
+            <button
+              onClick={() => setGroupPopoverOpen((open) => !open)}
+              className="rounded-full border border-border/80 px-2 py-1 text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+            >
+              Linked ({siblings.length})
+            </button>
+            {groupPopoverOpen && (
+              <div className="absolute right-0 top-8 z-20 w-72 rounded-xl border border-border bg-bg-primary p-2 shadow-xl">
+                <div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">Linked Workspaces</div>
+                <div className="space-y-1">
+                  {siblings.map((sibling) => (
+                    <div key={sibling.workspaceId} className="rounded-lg border border-border/60 px-2 py-2">
+                      <div className="truncate text-[12px] font-medium text-text-primary">{sibling.workspaceName}</div>
+                      <div className="mt-0.5 text-[11px] text-text-tertiary">{sibling.parentRepo.split('/').pop()} · {sibling.branch}</div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            useWorkspaceStore.getState().setActiveWorkspace(sibling.workspaceId);
+                            setGroupPopoverOpen(false);
+                          }}
+                          className="rounded bg-bg-secondary px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                        >
+                          Navigate
+                        </button>
+                        <button
+                          onClick={() => {
+                            void unlinkWorkspace(sibling.workspaceId);
+                            setGroupPopoverOpen(false);
+                          }}
+                          className="rounded bg-error/10 px-2 py-1 text-[11px] text-error hover:bg-error/20"
+                        >
+                          Unlink
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {activeGroupId && (
+                  <button
+                    onClick={() => {
+                      void dissolveGroup(activeGroupId);
+                      setGroupPopoverOpen(false);
+                    }}
+                    className="mt-2 w-full rounded-lg border border-border/60 px-2 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                  >
+                    Dissolve Group
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <ActionBtn icon={<Files size={12} />} label="Files" onClick={() => useUiStore.getState().openWorkspacePanelTab('files')} />
         <ActionBtn icon={<Search size={12} />} label="Search" onClick={() => useUiStore.getState().openWorkspacePanelTab('search')} />
         {isRunning && (

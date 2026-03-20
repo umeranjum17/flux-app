@@ -28,10 +28,12 @@ import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
+import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
 import { QuickOpen } from '../dialogs/QuickOpen';
 import { SearchFiles } from '../dialogs/SearchFiles';
 import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
+import { useWorkspaceGroupStore } from '../../stores/workspace-group';
 
 
 type ModeSelection = {
@@ -84,6 +86,7 @@ export function AppShell() {
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const linkingWorkspaceId = useUiStore((s) => s.linkingWorkspaceId);
   // Terminal actions are now exposed via useTerminalStore (no ref needed)
 
   const hasTasks = tasks.size > 0;
@@ -274,6 +277,9 @@ export function AppShell() {
         }
         useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
         await useWorkspaceStore.getState().loadWorkspaceOperations();
+        await Promise.all(
+          freshWorkspaces.map((workspace) => useWorkspaceGroupStore.getState().loadGroupForWorkspace(workspace.id)),
+        );
 
         for (const workspace of freshWorkspaces) {
           const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
@@ -324,9 +330,11 @@ export function AppShell() {
     const unsubCreated = window.api.on('workspace:created', (data: unknown) => {
       const { workspace } = data as { workspace: Workspace };
       useWorkspaceStore.getState().addWorkspace(workspace);
+      void useWorkspaceGroupStore.getState().loadGroupForWorkspace(workspace.id);
     });
     const unsubDeleted = window.api.on('workspace:deleted', (data: unknown) => {
       const { workspaceId } = data as { workspaceId: string };
+      useWorkspaceGroupStore.getState().removeWorkspace(workspaceId);
       applyWorkspaceDeleted(workspaceId);
     });
     const lastOperationState = new Map<string, string>();
@@ -1055,6 +1063,7 @@ export function AppShell() {
       )}
       <QuickOpen />
       <SearchFiles />
+      {linkingWorkspaceId && <LinkWorkspaceDialog />}
     </div>
   );
 }

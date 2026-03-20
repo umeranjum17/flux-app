@@ -2,6 +2,7 @@ import fs from 'fs';
 import { getDb } from '../db/connection';
 import type { Workspace, WorkspaceOutcome, WorkspaceSession, WorkspaceStatus } from './types';
 import type { TaskMode, ThinkingLevel } from '../agents/types';
+import { WorkspaceGroupStore } from '../workspace-group/store';
 
 interface CreateWorkspaceInput {
   id: string;
@@ -154,8 +155,10 @@ export class WorkspaceStore {
 
   delete(id: string): void {
     const db = getDb();
+    const workspaceGroupStore = new WorkspaceGroupStore();
     db.exec('BEGIN');
     try {
+      workspaceGroupStore.cleanupWorkspaceMembership(id);
       db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
       db.prepare('DELETE FROM checkpoints WHERE workspace_id = ?').run(id);
       db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);

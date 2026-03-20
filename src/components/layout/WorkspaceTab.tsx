@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2 } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
+import { useWorkspaceGroupStore } from '../../stores/workspace-group';
 
 function basename(p: string): string {
   return p.split('/').pop() || p.split('\\').pop() || p;
@@ -118,6 +119,12 @@ export function WorkspaceTab() {
         window.api.invoke('workspace:stop', { workspaceId: ws.id }).then(() => {
           useWorkspaceStore.getState().updateWorkspace(ws.id, { status: 'done' });
         });
+        break;
+      case 'link':
+        useUiStore.getState().setLinkingWorkspaceId(ws.id);
+        break;
+      case 'unlink':
+        void useWorkspaceGroupStore.getState().unlinkWorkspace(ws.id);
         break;
       case 'archive':
         void handleArchive(ws.id);
@@ -324,6 +331,10 @@ export function WorkspaceTab() {
             <ContextItem icon={<Eye size={12} />} label="Review Changes" onClick={() => handleContextAction('review', contextMenu.ws)} />
             <ContextItem icon={<GitMerge size={12} />} label="Merge" onClick={() => handleContextAction('merge', contextMenu.ws)} />
             <ContextItem icon={<MessageSquare size={12} />} label="New Chat" onClick={() => handleContextAction('new-chat', contextMenu.ws)} />
+            <ContextItem icon={<Link2 size={12} />} label="Link Workspace..." onClick={() => handleContextAction('link', contextMenu.ws)} />
+            {useWorkspaceGroupStore.getState().getSiblingsOf(contextMenu.ws.id).length > 0 && (
+              <ContextItem icon={<Link2 size={12} />} label="Unlink from Group" onClick={() => handleContextAction('unlink', contextMenu.ws)} />
+            )}
             {isRunning(contextMenu.ws) && (
               <ContextItem icon={<Square size={12} />} label="Stop" onClick={() => handleContextAction('stop', contextMenu.ws)} />
             )}
@@ -414,6 +425,10 @@ function WorkspaceListItem({
   const signal = getWorkspaceListSignal(workspace, operation, { hasChanges });
   const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
   const actionNeeded = isActionNeededState(signal.state);
+  const siblings = useWorkspaceGroupStore((s) => s.getSiblingsOf(workspace.id));
+  const linkedTooltip = siblings.length > 0
+    ? `Linked with ${siblings.map((member) => `${member.workspaceName} (${member.branch})`).join(', ')}`
+    : undefined;
 
   return (
     <button
@@ -427,6 +442,11 @@ function WorkspaceListItem({
       <div className="relative shrink-0" aria-hidden="true">
         <WorkspaceLifecycleIcon state={signal.state} size={8} className={signal.iconColor} />
       </div>
+      {siblings.length > 0 && (
+        <span className="shrink-0 text-accent" title={linkedTooltip}>
+          <Link2 size={12} />
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium text-text-primary">
           <AnimatedWorkspaceName name={workspace.name} />

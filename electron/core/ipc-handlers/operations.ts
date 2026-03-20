@@ -13,6 +13,7 @@ import type { DiffScope } from '../worktree/types';
 import { getChangedFiles, getFileDiff } from '../worktree/diff';
 import { agentManager } from '../agents/manager';
 import type { IpcContext, SpawnTaskRunOptions } from './types';
+import { WorkspaceGroupStore } from '../workspace-group/store';
 import {
   requireFields,
   toStoredMessage,
@@ -120,6 +121,7 @@ export async function steerTask(
   attachments?: FileAttachment[],
 ): Promise<{ steerFailed: boolean; reason?: string }> {
   requireFields({ taskId, prompt }, 'taskId', 'prompt');
+  const workspaceGroupStore = new WorkspaceGroupStore();
 
   const handle = ctx.activeTasks.get(taskId);
   if (!handle) {
@@ -150,6 +152,7 @@ export async function steerTask(
   if (workspaceId) {
     const workspace = ctx.workspaceStore.get(workspaceId);
     if (workspace) {
+      const siblingContext = workspaceGroupStore.getGroupForWorkspace(workspace.id)?.siblings;
       const attachmentsForSkills = attachmentContext
         ? {
             manifestPath: attachmentContext.manifestPath,
@@ -161,6 +164,7 @@ export async function steerTask(
         agentId: workspace.agentId,
         isExistingSession: true,
         attachments: attachmentsForSkills,
+        siblingWorkspaces: siblingContext,
       });
       if (wsContext) {
         effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;

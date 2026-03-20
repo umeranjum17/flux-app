@@ -30,7 +30,9 @@ import { registerAuxiliaryIpcHandlers } from './auxiliary';
 import { registerTaskHandlers } from './task-handlers';
 import { registerWorkspaceHandlers } from './workspace-handlers';
 import { registerProjectGroupHandlers } from './project-group-handlers';
+import { registerWorkspaceGroupHandlers } from './workspace-group-handlers';
 import { ProjectGroupStore } from '../project-group/store';
+import { WorkspaceGroupStore } from '../workspace-group/store';
 import { ContextWatcher } from '../context/watcher';
 import { ContextRequestDispatcher } from '../context/request-dispatcher';
 import { RemoteEventBus } from '../remote/event-bus';
@@ -150,6 +152,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const usageTracker = new UsageTracker();
   const liveUsageService = new LiveUsageService();
   const workspaceStore = new WorkspaceStore();
+  const workspaceGroupStore = new WorkspaceGroupStore();
   const remoteEventBus = new RemoteEventBus();
 
   const sendToRenderer = (channel: string, payload: unknown): boolean => {
@@ -266,6 +269,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'workspace:active-task',
     'workspace:list-operations',
     'workspace:cancel-operation',
+    'workspace-group:create',
+    'workspace-group:get',
+    'workspace-group:list-members',
+    'workspace-group:add-member',
+    'workspace-group:remove-member',
+    'workspace-group:delete',
     'checkpoint:list',
     'checkpoint:diff',
     'checkpoint:revert',
@@ -484,6 +493,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   const projectGroupStore = new ProjectGroupStore();
   registerProjectGroupHandlers({ projectGroupStore, workspaceStore });
+  registerWorkspaceGroupHandlers({ workspaceGroupStore });
 
   app.once('before-quit', () => {
     globalContextWatcher?.stop();

@@ -74,6 +74,7 @@ interface UiState {
   // Workspace side panel (right side: files, search, activity/review)
   workspacePanelOpen: boolean;
   workspacePanelTab: 'files' | 'search' | 'activity';
+  linkingWorkspaceId: string | null;
 
   // Live usage overview (shared across StatusLine / UsagePanel)
   liveOverview: LiveUsageOverview | null;
@@ -129,6 +130,7 @@ interface UiState {
   setWorkspacePanelTab(tab: 'files' | 'search' | 'activity'): void;
   toggleWorkspacePanel(): void;
   openWorkspacePanelTab(tab: 'files' | 'search' | 'activity'): void;
+  setLinkingWorkspaceId(workspaceId: string | null): void;
   setInputMode(mode: 'chat' | 'terminal'): void;
   toggleInputMode(): void;
   addShellCommand(cmd: string): void;
@@ -180,6 +182,7 @@ export const useUiStore = create<UiState>()(
     fileActivityPanelOpenContexts: new Set(),
     workspacePanelOpen: false,
     workspacePanelTab: 'activity' as const,
+    linkingWorkspaceId: null,
     liveOverview: null,
     inputMode: 'chat',
     shellHistory: [],
@@ -527,6 +530,12 @@ export const useUiStore = create<UiState>()(
       set((state) => {
         state.workspacePanelTab = tab;
         state.workspacePanelOpen = true;
+      });
+    },
+
+    setLinkingWorkspaceId(workspaceId) {
+      set((state) => {
+        state.linkingWorkspaceId = workspaceId;
       });
     },
 

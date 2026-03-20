@@ -127,6 +127,25 @@ CREATE TABLE IF NOT EXISTS project_group_items (
   PRIMARY KEY (group_id, project_path)
 )`;
 
+export const CREATE_WORKSPACE_GROUPS_TABLE = `
+CREATE TABLE IF NOT EXISTS workspace_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  project_group_id TEXT,
+  created_at INTEGER NOT NULL
+)`;
+
+export const CREATE_WORKSPACE_GROUP_MEMBERS_TABLE = `
+CREATE TABLE IF NOT EXISTS workspace_group_members (
+  group_id TEXT NOT NULL REFERENCES workspace_groups(id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK(role IN ('primary', 'sibling')),
+  position INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (group_id, workspace_id)
+);
+CREATE INDEX IF NOT EXISTS idx_workspace_group_members_workspace
+  ON workspace_group_members(workspace_id)`;
+
 export const CREATE_REMOTE_CLIENTS_TABLE = `
 CREATE TABLE IF NOT EXISTS remote_clients (
   id TEXT PRIMARY KEY,

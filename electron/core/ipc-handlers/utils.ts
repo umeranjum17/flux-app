@@ -1179,6 +1179,13 @@ export function buildWorkspaceSystemContext(
       imageCount: number;
       fileCount: number;
     };
+    siblingWorkspaces?: Array<{
+      worktreePath: string;
+      parentRepo: string;
+      branch: string;
+      label: string;
+      role: 'primary' | 'sibling';
+    }>;
   } = {},
 ): string | null {
   if (options.workspaceAction === 'merge' && !options.merge) {
@@ -1199,6 +1206,7 @@ export function buildWorkspaceSystemContext(
       outcome: workspace.outcome,
     },
     attachments: options.attachments,
+    siblingWorkspaces: options.siblingWorkspaces,
   });
 }
 

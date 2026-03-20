@@ -156,7 +156,7 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Has changes. Workspace has unreviewed changes.')).not.toBeNull();
     expect(scoped.queryByText('Has changes')).toBeNull();
-    expect(view.container.querySelector('[data-state="has_changes"][data-indicator-variant="split"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="has_changes"][data-indicator-variant="quarter"]')).not.toBeNull();
   });
 
   it('renders ready-for-review icon', () => {
@@ -220,6 +220,6 @@ describe('WorkspaceTab', () => {
     })).not.toBeNull();
     expect(scoped.getByTitle('Archiving. Workspace archive is in progress. Removing git worktree.')).not.toBeNull();
     expect(scoped.queryByText('Archiving')).toBeNull();
-    expect(view.container.querySelector('[data-state="archiving"][data-indicator-variant="filled"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-state="archiving"][data-indicator-variant="solid"]')).not.toBeNull();
   });
 });

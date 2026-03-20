@@ -61,6 +61,7 @@ import { getActiveSkillIds } from '../agents/skills';
 import { ContextWatcher } from '../context/watcher';
 import { ContextRequestDispatcher } from '../context/request-dispatcher';
 import type { ContextState } from '../context/protocol';
+import { WorkspaceGroupStore } from '../workspace-group/store';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -107,6 +108,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   const taskContextWatchers = new Map<string, ContextWatcher>();
   // Context request dispatchers: handle .context/requests/ actions (terminal, etc.)
   const taskRequestDispatchers = new Map<string, ContextRequestDispatcher>();
+  const workspaceGroupStore = new WorkspaceGroupStore();
 
   // Circuit breaker: track crash timestamps per workspace to prevent
   // infinite crash loops from workspace-specific issues (corrupt git, disk full)
@@ -404,6 +406,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       : undefined;
 
     if (workspace) {
+      const siblingContext = workspaceGroupStore.getGroupForWorkspace(workspace.id)?.siblings;
       // Build skill-context attachment info from the written context file
       const attachmentsForSkills = attachmentContext
         ? {
@@ -419,6 +422,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         agentId,
         isExistingSession: !!existingSession,
         attachments: attachmentsForSkills,
+        siblingWorkspaces: siblingContext,
       });
       if (wsContext) {
         effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
@@ -439,6 +443,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           outcome: workspace.outcome,
         },
         attachments: attachmentsForSkills,
+        siblingWorkspaces: siblingContext,
       });
       if (skillIds.length > 0) {
         const SKILL_META: Record<string, { name: string; description: string }> = {
@@ -447,6 +452,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           'flux-plan': { name: 'Flux Plan', description: 'Structured planning with progress tracking' },
           'flux-todo': { name: 'Flux Todo', description: 'Step-by-step task tracking and progress signals' },
           'flux-terminal': { name: 'Flux Terminal', description: 'Run commands and manage processes via context requests' },
+          'flux-multi-workspace': { name: 'Flux Multi Workspace', description: 'Cross-repo context for linked workspaces' },
           'flux-attachments': { name: 'Flux Attachments', description: 'Structured attachment manifest for downstream agents' },
         };
         sendToRenderer('agent:skills', {

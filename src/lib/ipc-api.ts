@@ -277,6 +277,15 @@ export interface IpcChannels {
 
   // Multi-project workspace listing
   'workspace:list-multi': { args: [{ parentRepos: string[] }]; result: Workspace[] };
+  'workspace-group:create': { args: [{ name: string; workspaceIds?: string[] }]; result: WorkspaceGroup };
+  'workspace-group:get': { args: [{ workspaceId: string }]; result: WorkspaceGroupLookupResult | null };
+  'workspace-group:list-members': { args: [{ groupId: string }]; result: WorkspaceGroupMember[] };
+  'workspace-group:add-member': {
+    args: [{ groupId: string; workspaceId: string; role?: 'primary' | 'sibling' }];
+    result: WorkspaceGroup | null;
+  };
+  'workspace-group:remove-member': { args: [{ groupId: string; workspaceId: string }]; result: WorkspaceGroup | null };
+  'workspace-group:delete': { args: [{ groupId: string }]; result: void };
 }
 
 // Events main sends to renderer
@@ -505,6 +514,37 @@ export interface WorkspaceSession {
   label?: string;
   position: number;
   createdAt: number;
+}
+
+export interface WorkspaceGroupMember {
+  groupId: string;
+  workspaceId: string;
+  role: 'primary' | 'sibling';
+  position: number;
+  workspaceName: string;
+  branch: string;
+  parentRepo: string;
+  worktreePath: string;
+}
+
+export interface WorkspaceGroup {
+  id: string;
+  name: string;
+  projectGroupId?: string;
+  createdAt: number;
+  members: WorkspaceGroupMember[];
+}
+
+export interface WorkspaceGroupLookupResult {
+  group: WorkspaceGroup;
+  siblings: Array<{
+    workspaceId: string;
+    role: 'primary' | 'sibling';
+    worktreePath: string;
+    parentRepo: string;
+    branch: string;
+    label: string;
+  }>;
 }
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';

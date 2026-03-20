@@ -32,6 +32,13 @@ export interface SkillContext {
     imageCount: number;
     fileCount: number;
   };
+  siblingWorkspaces?: Array<{
+    worktreePath: string;
+    parentRepo: string;
+    branch: string;
+    label: string;
+    role: 'primary' | 'sibling';
+  }>;
 }
 
 /**
