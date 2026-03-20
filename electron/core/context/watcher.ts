@@ -149,10 +149,22 @@ export class ContextWatcher {
 
       const request = parseContextRequest(parsed);
       if (!request) continue;
+      if (this.hasResponseForRequest(request.id)) {
+        this.processedRequestIds.add(id);
+        continue;
+      }
       if (this.shouldProcessRequest && !this.shouldProcessRequest(request)) continue;
 
       this.processedRequestIds.add(id);
       this.onRequest!(request);
+    }
+  }
+
+  private hasResponseForRequest(id: string): boolean {
+    try {
+      return fs.existsSync(path.join(this.responsesDir, `${id}.json`));
+    } catch {
+      return false;
     }
   }
 }

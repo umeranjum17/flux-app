@@ -122,7 +122,7 @@ describe('ContextWatcher', () => {
     expect(callCount).toBe(1);
   });
 
-  it('does not reprocess requests that already have responses', () => {
+  it('does not replay fulfilled requests after watcher restart', () => {
     const cwd = makeTempDir();
     const contextDir = path.join(cwd, '.context');
     const requestsDir = path.join(contextDir, 'requests');
@@ -137,7 +137,7 @@ describe('ContextWatcher', () => {
     fs.writeFileSync(path.join(responsesDir, 'r1.json'), JSON.stringify({
       id: 'r1',
       ok: true,
-      data: { terminalId: 'terminal-1' },
+      data: { terminalId: 'term-1' },
     }));
 
     let callCount = 0;
@@ -152,6 +152,16 @@ describe('ContextWatcher', () => {
     watcher.start();
     watcher.stop();
 
+    const secondWatcher = new ContextWatcher({
+      cwd,
+      onStateChange: () => {},
+      onRequest: () => {
+        callCount += 1;
+      },
+    });
+
+    secondWatcher.start();
+    secondWatcher.stop();
     expect(callCount).toBe(0);
   });
 });
