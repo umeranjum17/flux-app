@@ -252,17 +252,14 @@ export function activeWorkspaceTaskIds(ctx: IpcContext, workspaceId: string) {
 
 export function listMulti(ctx: IpcContext, parentRepos: string[]) {
   requireFields({ parentRepos }, 'parentRepos');
-  const normalizedRepos = [...new Set(parentRepos.map((repo) => repo.trim()).filter(Boolean))];
-  if (normalizedRepos.length === 0) {
+  if (parentRepos.length === 0) {
     return ctx.workspaceStore.list();
   }
-
   const results = [];
-  for (const repo of normalizedRepos) {
+  for (const repo of parentRepos) {
     results.push(...ctx.workspaceStore.list(repo));
   }
-
-  return results.length > 0 ? results : ctx.workspaceStore.list();
+  return results;
 }
 
 export async function diffFiles(ctx: IpcContext, workspaceId: string) {
