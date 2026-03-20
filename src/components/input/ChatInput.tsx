@@ -16,7 +16,7 @@ import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
 import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
-import { getLatestPlanText, startPlanImplementation } from '../../lib/plan';
+import { getLatestPlanText, startPlanImplementation, syncSelectionToTask } from '../../lib/plan';
 import { ModeDropdown, nextTaskMode } from './ModeDropdown';
 
 const THINKING_LABELS: Record<ThinkingLevel, string> = {
@@ -598,7 +598,6 @@ export function ChatInput({ focused }: ChatInputProps) {
       e.preventDefault();
       const currentMode = useUiStore.getState().mode;
       const nextMode = nextTaskMode(currentMode);
-      useUiStore.getState().setMode(nextMode);
       const task = getActiveTask();
       const shouldStartPlanImplementation = currentMode === 'plan'
         && nextMode === 'act'
@@ -608,13 +607,32 @@ export function ChatInput({ focused }: ChatInputProps) {
         && value.trim().length === 0
         && (!!task.planData || getLatestPlanText(task.messages).length > 0);
       if (shouldStartPlanImplementation && task) {
+        const selection = {
+          agentId: currentSelectedAgentId,
+          model: currentSelectedModel,
+          thinking: currentSelectedThinking,
+        };
+        syncSelectionToTask({
+          task,
+          selection,
+          setTaskThinking,
+          switchTaskAgent: (tid, aid, mod, opts) => {
+            useChatStore.getState().switchTaskAgent(tid, aid, mod, opts);
+          },
+          updateWorkspace: (wId, patch) => {
+            useWorkspaceStore.getState().updateWorkspace(wId, patch);
+          },
+        });
+        useUiStore.getState().setMode(nextMode);
         void startPlanImplementation({
           task,
           setTaskMode,
           setTaskStatus,
+          ...selection,
         });
         return;
       }
+      useUiStore.getState().setMode(nextMode);
       if (task && task.mode !== nextMode) {
         setTaskMode(task.id, nextMode);
       }

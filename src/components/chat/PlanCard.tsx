@@ -12,10 +12,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChatStore } from '../../stores/chat';
+import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
+import { useWorkspaceStore } from '../../stores/workspace';
 import { markdownComponents } from './MarkdownComponents';
 import type { Task, PlanSection, PlanStep } from '../../lib/types';
-import { getLatestPlanText, startPlanImplementation } from '../../lib/plan';
+import { getLatestPlanText, startPlanImplementation, syncSelectionToTask } from '../../lib/plan';
 
 /** Fallback: parse markdown headings into sections when no FLUX_PLAN data is available */
 function parsePlanSections(text: string): PlanSection[] {
@@ -100,6 +102,13 @@ export function PlanCard({ task }: PlanCardProps) {
 
   const setTaskStatus = useChatStore((s) => s.setTaskStatus);
   const setTaskMode = useChatStore((s) => s.setTaskMode);
+  const setTaskThinking = useChatStore((s) => s.setTaskThinking);
+  const switchTaskAgent = useChatStore((s) => s.switchTaskAgent);
+  const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore((s) => ({
+    selectedAgentId: s.selectedAgentId,
+    selectedModel: s.selectedModel,
+    selectedThinking: s.selectedThinking,
+  }));
 
   const planText = useMemo(() => getLatestPlanText(task.messages), [task.messages]);
 
@@ -168,13 +177,38 @@ export function PlanCard({ task }: PlanCardProps) {
   }, [planText]);
 
   const handleImplement = useCallback(async () => {
+    const selection = {
+      agentId: selectedAgentId,
+      model: selectedModel,
+      thinking: selectedThinking,
+    };
+
+    syncSelectionToTask({
+      task,
+      selection,
+      setTaskThinking,
+      switchTaskAgent,
+      updateWorkspace: (wId, patch) => {
+        useWorkspaceStore.getState().updateWorkspace(wId, patch);
+      },
+    });
     useUiStore.getState().setMode('act');
     await startPlanImplementation({
       task,
       setTaskMode,
       setTaskStatus,
+      ...selection,
     });
-  }, [task, setTaskMode, setTaskStatus]);
+  }, [
+    selectedAgentId,
+    selectedModel,
+    selectedThinking,
+    setTaskMode,
+    setTaskStatus,
+    setTaskThinking,
+    switchTaskAgent,
+    task,
+  ]);
 
   const canAct = planText.length > 0;
 

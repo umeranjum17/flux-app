@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { getLatestPlanText, isLikelyPlanText, stripFluxTokens } from '../plan';
-import type { AgentMessage } from '../types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getLatestPlanText, isLikelyPlanText, startPlanImplementation, stripFluxTokens } from '../plan';
+import type { AgentMessage, Task } from '../types';
 
 describe('plan helpers', () => {
+  beforeEach(() => {
+    vi.mocked(window.api.invoke).mockReset();
+    vi.mocked(window.api.invoke).mockResolvedValue(undefined);
+  });
+
   it('rejects exploratory commentary', () => {
     expect(isLikelyPlanText(
       "I'll inspect the project structure and current breakpoints so I can map fixes to exact files.",
@@ -190,5 +195,56 @@ Simple implementation without mobile support.`,
       expect(result).not.toContain('FLUX_SIGNAL');
       expect(result).not.toContain('\n}\n');
     });
+  });
+
+  it('spawns plan implementation with the live selection when provided', async () => {
+    const task = {
+      id: 'task-1',
+      title: 'Plan task',
+      agentId: 'claude-code',
+      model: 'sonnet',
+      mode: 'plan',
+      thinking: 'medium',
+      status: 'done',
+      messages: [],
+      costUsd: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cwd: '/workspace',
+      workspaceId: 'workspace-1',
+      sessionId: 'session-1',
+      subagents: new Map(),
+      agentHistory: [],
+      diffs: new Map(),
+      editedFiles: new Map(),
+      expandedToolCallIds: new Set(),
+      scrollToToolCallId: null,
+      todoItems: [],
+      systemActivities: [],
+    } satisfies Task;
+
+    const setTaskMode = vi.fn();
+    const setTaskStatus = vi.fn();
+
+    await startPlanImplementation({
+      task,
+      setTaskMode,
+      setTaskStatus,
+      agentId: 'codex',
+      model: 'gpt-5.4',
+      thinking: 'high',
+    });
+
+    expect(setTaskMode).toHaveBeenCalledWith('task-1', 'act');
+    expect(setTaskStatus).toHaveBeenCalledWith('task-1', 'running');
+    expect(window.api.invoke).toHaveBeenCalledWith('task:spawn', expect.objectContaining({
+      taskId: 'task-1',
+      prompt: 'Implement the plan above.',
+      agentId: 'codex',
+      model: 'gpt-5.4',
+      mode: 'act',
+      thinking: 'high',
+      sessionId: 'session-1',
+    }));
   });
 });

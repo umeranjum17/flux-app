@@ -1,4 +1,5 @@
 import type { AgentMessage, Task, TaskMode, TaskStatus, TodoItem } from './types';
+import type { AgentId, ThinkingLevel } from './types';
 
 // Match entire FLUX signal lines, including nested JSON payloads.
 const FLUX_LINE_PATTERN = /^\s*FLUX_(?:WORKSPACE_LIFECYCLE|WORKSPACE|LIFECYCLE|SIGNAL):\s*\{.*$/gm;
@@ -63,27 +64,83 @@ export function isPlanMessage(message: AgentMessage, taskMode?: string): boolean
     && isLikelyPlanText(message.content);
 }
 
+interface AgentSelection {
+  agentId: AgentId;
+  model: string;
+  thinking: ThinkingLevel;
+}
+
+interface SyncSelectionOptions {
+  task: Task;
+  selection: AgentSelection;
+  setTaskThinking: (taskId: string, thinking: ThinkingLevel) => void;
+  switchTaskAgent: (taskId: string, agentId: AgentId, model: string, opts: { stopActiveRun: boolean }) => void;
+  updateWorkspace: (workspaceId: string, patch: Record<string, unknown>) => void;
+}
+
+/** Sync the current agent/model/thinking selection to the task and workspace. */
+export function syncSelectionToTask({
+  task,
+  selection,
+  setTaskThinking,
+  switchTaskAgent,
+  updateWorkspace,
+}: SyncSelectionOptions): void {
+  if (task.thinking !== selection.thinking) {
+    setTaskThinking(task.id, selection.thinking);
+  }
+  if (task.agentId !== selection.agentId || task.model !== selection.model) {
+    switchTaskAgent(task.id, selection.agentId, selection.model, { stopActiveRun: false });
+  }
+  if (task.workspaceId) {
+    const workspacePatch = {
+      agentId: selection.agentId,
+      model: selection.model,
+      thinking: selection.thinking,
+      actAgentId: selection.agentId,
+      actModel: selection.model,
+      actThinking: selection.thinking,
+      mode: 'act' as const,
+    };
+    updateWorkspace(task.workspaceId, workspacePatch);
+    window.api.invoke('workspace:update', {
+      workspaceId: task.workspaceId,
+      ...workspacePatch,
+    }).catch(() => { /* workspace sync is best-effort */ });
+  }
+}
+
 interface StartPlanImplementationOptions {
   task: Task;
   setTaskMode: (taskId: string, mode: TaskMode) => void;
   setTaskStatus: (taskId: string, status: TaskStatus) => void;
+  agentId?: AgentId;
+  model?: string;
+  thinking?: ThinkingLevel;
 }
 
 export async function startPlanImplementation({
   task,
   setTaskMode,
   setTaskStatus,
+  agentId,
+  model,
+  thinking,
 }: StartPlanImplementationOptions): Promise<void> {
+  const nextAgentId = agentId ?? task.agentId;
+  const nextModel = model ?? task.model;
+  const nextThinking = thinking ?? task.thinking;
+
   setTaskMode(task.id, 'act');
   setTaskStatus(task.id, 'running');
   await window.api.invoke('task:spawn', {
     taskId: task.id,
     workspaceId: task.workspaceId,
     prompt: 'Implement the plan above.',
-    agentId: task.agentId,
-    model: task.model,
+    agentId: nextAgentId,
+    model: nextModel,
     mode: 'act',
-    thinking: task.thinking,
+    thinking: nextThinking,
     cwd: task.cwd,
     sessionId: task.sessionId,
   });
