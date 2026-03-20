@@ -839,18 +839,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             if (request.action.startsWith('terminal:')) {
               const data = result.data as Record<string, unknown> | undefined;
               let content = '';
-              if (request.action === 'terminal:exec') {
-                const stdout = (data?.stdout as string) ?? '';
-                const stderr = (data?.stderr as string) ?? '';
-                const exitCode = data?.exitCode as number | undefined;
-                content = stdout || stderr || '(no output)';
-                if (exitCode !== undefined && exitCode !== 0) {
-                  content = `Exit code: ${exitCode}\n${content}`;
-                }
-              } else if (request.action === 'terminal:spawn') {
+              if (request.action === 'terminal:spawn') {
                 content = `Spawned background process (id: ${data?.terminalId ?? '?'})`;
               } else if (request.action === 'terminal:kill') {
                 content = result.ok ? 'Process stopped' : (result.error ?? 'Failed to stop');
+              } else {
+                content = result.error ?? 'Unsupported terminal action';
               }
 
               emitTaskMessage(options.taskId, session.id, {

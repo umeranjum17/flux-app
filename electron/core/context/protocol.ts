@@ -106,21 +106,6 @@ function normalizeTodoStatus(value: unknown): ContextTodoStatus {
 // Terminal action payload/response types (used by request dispatcher)
 // ---------------------------------------------------------------------------
 
-export interface TerminalExecPayload {
-  /** Shell command to execute. */
-  command: string;
-  /** Working directory (defaults to workspace root). */
-  cwd?: string;
-  /** Timeout in ms (default 30s, max 5min). */
-  timeout?: number;
-}
-
-export interface TerminalExecResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
 export interface TerminalSpawnPayload {
   /** Shell command to run as a background process. */
   command: string;

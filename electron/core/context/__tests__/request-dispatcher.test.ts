@@ -93,28 +93,16 @@ describe('ContextRequestDispatcher', () => {
     expect(proc.kill).not.toHaveBeenCalledWith('SIGKILL');
   });
 
-  it('times out terminal:exec with exit code 124 when process is terminated', async () => {
-    const proc = new FakeChildProcess();
-    spawnMock.mockReturnValue(proc as never);
-
+  it('rejects terminal:exec requests', async () => {
     const dispatcher = new ContextRequestDispatcher({ cwd: '/tmp/workspace' });
-    const pending = dispatcher.dispatch({
+    const result = await dispatcher.dispatch({
       id: '1',
       action: 'terminal:exec',
-      payload: { command: 'sleep 60', timeout: 1_000 },
+      payload: { command: 'npm test' },
     });
 
-    vi.advanceTimersByTime(1_000);
-    expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
-
-    proc.emit('close', null);
-    const result = await pending;
-
     expect(result.ok).toBe(false);
-    expect(result.error).toContain('timed out');
-    expect(result.data).toEqual(expect.objectContaining({ exitCode: 124 }));
-
-    vi.advanceTimersByTime(3_000);
-    expect(proc.kill).not.toHaveBeenCalledWith('SIGKILL');
+    expect(result.error).toContain('Unknown action');
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 });

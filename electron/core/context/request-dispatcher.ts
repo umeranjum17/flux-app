@@ -2,15 +2,9 @@ import { spawn, ChildProcess } from 'child_process';
 import crypto from 'crypto';
 import type {
   ContextRequest,
-  TerminalExecPayload,
   TerminalSpawnPayload,
   TerminalKillPayload,
 } from './protocol';
-
-
-const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
-const MAX_EXEC_TIMEOUT_MS = 300_000; // 5 min
-const MAX_OUTPUT_BYTES = 100_000; // 100KB per stream
 const FORCE_KILL_DELAY_MS = 3_000;
 
 export interface TerminalActivity {
@@ -30,7 +24,7 @@ export interface DispatchResult {
 /**
  * Dispatches `.context/requests/` actions to concrete handlers.
  *
- * Currently supports terminal actions (exec, spawn, kill).
+ * Currently supports terminal actions (spawn, kill).
  * New action families can be added by extending the switch in `dispatch()`.
  */
 export interface VisibleTerminalRequest {
@@ -63,8 +57,6 @@ export class ContextRequestDispatcher {
 
   async dispatch(request: ContextRequest): Promise<DispatchResult> {
     switch (request.action) {
-      case 'terminal:exec':
-        return this.handleExec(request);
       case 'terminal:spawn':
         return this.handleSpawn(request);
       case 'terminal:kill':
@@ -84,91 +76,6 @@ export class ContextRequestDispatcher {
       this.onKillVisibleTerminal?.(id);
     }
     this.visibleTerminals.clear();
-  }
-
-  // ── terminal:exec ──────────────────────────────────────────────────────
-
-  private async handleExec(request: ContextRequest): Promise<DispatchResult> {
-    const payload = request.payload as Partial<TerminalExecPayload> | undefined;
-    if (!payload?.command) {
-      return { ok: false, error: 'Missing required field: command' };
-    }
-
-    const timeout = Math.min(
-      Math.max(payload.timeout ?? DEFAULT_EXEC_TIMEOUT_MS, 1000),
-      MAX_EXEC_TIMEOUT_MS,
-    );
-    const cwd = payload.cwd ?? this.cwd;
-
-    this.onActivity?.({ action: 'terminal:exec', command: payload.command });
-
-    return new Promise<DispatchResult>((resolve) => {
-      let stdout = '';
-      let stderr = '';
-      let killed = false;
-      let settled = false;
-
-      const proc = spawn(payload.command!, [], {
-        shell: true,
-        cwd,
-        env: { ...process.env, TERM: 'dumb', NO_COLOR: '1' },
-      });
-
-      const timer = setTimeout(() => {
-        killed = true;
-        this.terminateProcess(proc);
-      }, timeout);
-
-      const finish = (result: DispatchResult): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        this.clearForceKillTimer(proc);
-        resolve(result);
-      };
-
-      proc.stdout?.on('data', (chunk: Buffer) => {
-        if (stdout.length < MAX_OUTPUT_BYTES) stdout += chunk.toString();
-      });
-
-      proc.stderr?.on('data', (chunk: Buffer) => {
-        if (stderr.length < MAX_OUTPUT_BYTES) stderr += chunk.toString();
-      });
-
-      proc.on('close', (code) => {
-        stdout = stdout.slice(0, MAX_OUTPUT_BYTES);
-        stderr = stderr.slice(0, MAX_OUTPUT_BYTES);
-        const exitCode = code ?? (killed ? 124 : 1);
-
-        this.onActivity?.({
-          action: 'terminal:exec',
-          command: payload.command!,
-          exitCode,
-        });
-
-        if (killed) {
-          finish({
-            ok: false,
-            data: { stdout, stderr, exitCode: exitCode || 124 },
-            error: `Command timed out after ${timeout}ms`,
-          });
-        } else {
-          finish({
-            ok: exitCode === 0,
-            data: { stdout, stderr, exitCode },
-          });
-        }
-      });
-
-      proc.on('error', (err) => {
-        this.onActivity?.({
-          action: 'terminal:exec',
-          command: payload.command!,
-          error: err.message,
-        });
-        finish({ ok: false, error: `Failed to execute: ${err.message}` });
-      });
-    });
   }
 
   // ── terminal:spawn ─────────────────────────────────────────────────────
