@@ -51,6 +51,9 @@ export function registerProjectGroupHandlers(opts: {
   ipcMain.handle(
     'workspace:list-multi',
     async (_event, { parentRepos }: { parentRepos: string[] }) => {
+      if (parentRepos.length === 0) {
+        return workspaceStore.list();
+      }
       const results = [];
       for (const repo of parentRepos) {
         const workspaces = workspaceStore.list(repo);
