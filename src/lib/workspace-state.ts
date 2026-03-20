@@ -395,7 +395,7 @@ export async function startWorkspaceMerge(
       model: workspace.model,
       mode: 'act',
       thinking: 'medium',
-      cwd: workspace.parentRepo,
+      cwd: workspace.worktreePath,
       autoApprovePermissions: true,
       workspaceAction: 'merge',
       mergeContext: {

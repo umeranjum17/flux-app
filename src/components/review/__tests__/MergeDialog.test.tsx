@@ -65,7 +65,7 @@ describe('MergeDialog', () => {
     expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('master');
   });
 
-  it('starts a merge task in the parent repo with agent git access', async () => {
+  it('starts a merge task in the workspace worktree with agent git access', async () => {
     const onClose = vi.fn();
     let spawnedTaskId: string | undefined;
     mockApi.invoke.mockImplementation(async (channel: string, args?: any) => {
@@ -79,7 +79,7 @@ describe('MergeDialog', () => {
             agentId: 'codex',
             model: 'gpt-5-codex',
             mode: 'act',
-            cwd: '/repo',
+            cwd: '/repo/.flux-worktrees/ws-1',
             createdAt: 1,
             updatedAt: 1,
             metadata: { workspaceId: workspace.id },
@@ -103,7 +103,7 @@ describe('MergeDialog', () => {
           model: workspace.model,
           mode: 'act',
           thinking: 'medium',
-          cwd: workspace.parentRepo,
+          cwd: workspace.worktreePath,
           autoApprovePermissions: true,
           workspaceAction: 'merge',
           mergeContext: {
