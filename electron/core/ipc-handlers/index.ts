@@ -455,6 +455,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('remote:revoke-client', async (_event, { clientId }: { clientId: string }) => {
     requireFields({ clientId }, 'clientId');
     remoteAuthService?.revokeClient(clientId);
+    remoteServer?.disconnectClient(clientId);
   });
 
   // Support `.context/requests/*.json` terminal actions even when no agent task

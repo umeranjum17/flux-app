@@ -114,6 +114,14 @@ export class RemoteControlServer {
     this.wss = null;
   }
 
+  disconnectClient(clientId: string): void {
+    for (const [socket, state] of this.sockets.entries()) {
+      if (state.client?.id === clientId) {
+        socket.close(4003, 'Client revoked');
+      }
+    }
+  }
+
   getStatus(advertised: boolean): RemoteServerStatus {
     return {
       enabled: !!this.wss,

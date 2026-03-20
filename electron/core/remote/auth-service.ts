@@ -73,6 +73,7 @@ export class RemoteAuthService {
       .prepare(
         `SELECT id, client_name, token_preview, created_at, updated_at, last_seen_at, revoked_at, last_address
          FROM remote_clients
+         WHERE revoked_at IS NULL
          ORDER BY updated_at DESC`,
       )
       .all() as Array<Omit<ClientRow, 'token'>>;
@@ -151,6 +152,18 @@ export class RemoteAuthService {
       };
     }
 
+    // Check if the token belongs to a revoked client
+    const revokedClients = db
+      .prepare(
+        `SELECT id, token_hash FROM remote_clients WHERE revoked_at IS NOT NULL`,
+      )
+      .all() as unknown as Pick<ClientRow, 'id' | 'token_hash'>[];
+
+    for (const row of revokedClients) {
+      if (!secretEquals(trimmed, row.token_hash)) continue;
+      throw new Error('Client has been revoked');
+    }
+
     // Check pairing codes
     const pairing = db
       .prepare(
@@ -185,7 +198,7 @@ export class RemoteAuthService {
       };
     }
 
-    throw new Error('Invalid or expired remote token');
+    throw new Error('Invalid token');
   }
 
   private createClient(
