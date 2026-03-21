@@ -4,14 +4,14 @@ set -euo pipefail
 # Build Flux on macOS from remote source.
 #
 # Quick start (from your Mac):
-#   scp umera@extreme:/home/umera/github/flux-app/build-flux-macos.sh ~/build-flux-macos.sh
-#   bash ~/build-flux-macos.sh            # package (default)
-#   bash ~/build-flux-macos.sh make       # create DMG
-#   bash ~/build-flux-macos.sh test       # typecheck + test only
+#   REMOTE_HOST=user@myserver REMOTE_REPO=/path/to/flux-app bash build-flux-macos.sh
+#   bash build-flux-macos.sh            # package (default)
+#   bash build-flux-macos.sh make       # create DMG
+#   bash build-flux-macos.sh test       # typecheck + test only
 #
 # Environment overrides:
-#   REMOTE_HOST   SSH host (default: umera@extreme)
-#   REMOTE_REPO   Repo path on remote (default: /home/umera/github/flux-app)
+#   REMOTE_HOST   SSH host (required, e.g. user@myserver)
+#   REMOTE_REPO   Repo path on remote (required, e.g. /home/user/flux-app)
 #   LOCAL_ROOT    Local build directory (default: ~/flux-build/flux-app)
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -19,8 +19,16 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 1
 fi
 
-REMOTE_HOST="${REMOTE_HOST:-umera@extreme}"
-REMOTE_REPO="${REMOTE_REPO:-/home/umera/github/flux-app}"
+if [[ -z "${REMOTE_HOST:-}" ]]; then
+  echo "Error: REMOTE_HOST is not set. Example: REMOTE_HOST=user@myserver" >&2
+  exit 1
+fi
+if [[ -z "${REMOTE_REPO:-}" ]]; then
+  echo "Error: REMOTE_REPO is not set. Example: REMOTE_REPO=/home/user/flux-app" >&2
+  exit 1
+fi
+REMOTE_HOST="${REMOTE_HOST}"
+REMOTE_REPO="${REMOTE_REPO}"
 LOCAL_ROOT="${LOCAL_ROOT:-$HOME/flux-build/flux-app}"
 TARGET="${1:-package}"
 
