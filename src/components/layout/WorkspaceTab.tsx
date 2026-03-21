@@ -6,7 +6,7 @@ import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
-import { createEmptyWorkspace } from '../../lib/workspace-state';
+import { createEmptyWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
@@ -185,6 +185,15 @@ export function WorkspaceTab() {
     useUiStore.getState().setOverlay('create-folder');
   }, []);
 
+  const handleOpenProject = useCallback(async () => {
+    const picked = await window.api.invoke('cwd:pick') as string | null;
+    if (!picked) return;
+    useUiStore.getState().addOpenProject(picked);
+    useUiStore.getState().setCwd(picked);
+    const project = createRecentProject(picked);
+    await rememberRecentProject(project);
+  }, []);
+
   const isRunning = (ws: Workspace) =>
     ws.status === 'running' || ws.status === 'waiting_approval' || ws.status === 'waiting_input';
 
@@ -198,9 +207,16 @@ export function WorkspaceTab() {
         <span className="classic-section-label">Workspaces</span>
         <div className="flex items-center gap-0.5">
           <button
+            onClick={handleOpenProject}
+            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+            title="Open project"
+          >
+            <FolderOpen size={14} />
+          </button>
+          <button
             onClick={handleAddProject}
             className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-            title="Add project"
+            title="New project"
           >
             <Plus size={14} />
           </button>

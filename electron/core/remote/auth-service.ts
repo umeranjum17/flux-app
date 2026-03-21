@@ -5,6 +5,9 @@ import { logDiagnostic } from '../diagnostics/logger';
 import type { RemoteClientInfo, RemotePairingCode } from './protocol';
 import { generateOpaqueSecret, maskSecret } from './secure-store';
 
+// ── DEV MODE: set to true to auto-accept any mobile connection ──
+const DEV_SKIP_AUTH = true;
+
 const DEFAULT_PAIRING_TTL_MS = 10 * 60 * 1000;
 
 interface PairingRow {
@@ -111,6 +114,16 @@ export class RemoteAuthService {
   }
 
   authenticateToken(token: string, clientName?: string, remoteAddress?: string | null): PairingResult {
+    // DEV MODE: bypass all token/pairing validation
+    if (DEV_SKIP_AUTH) {
+      logDiagnostic('remote-auth', 'DEV_SKIP_AUTH: auto-accepting connection', { clientName });
+      return this.createClient(
+        clientName?.trim() || 'Dev Mobile',
+        undefined,
+        remoteAddress,
+      );
+    }
+
     const trimmed = token.trim();
     if (!trimmed) {
       throw new Error('Token is required');
