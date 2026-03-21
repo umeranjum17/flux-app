@@ -57,6 +57,12 @@ Flux exposes a local-network JSON-RPC server for mobile companion apps. See [doc
 ## License
 MIT
 
+<img width="1640" height="963" alt="image" src="https://github.com/user-attachments/assets/a1547126-00f9-4734-98a7-9eba6af7810f" />
+
+
+<img width="1617" height="939" alt="image" src="https://github.com/user-attachments/assets/265db00b-a6f4-4294-8843-e326e71f0f97" />
+
+
 https://github.com/user-attachments/assets/05486b31-9be4-46c3-9483-2c76ce3ea6ab
 
 
