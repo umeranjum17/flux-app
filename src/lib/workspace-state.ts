@@ -84,6 +84,9 @@ export interface StartWorkspaceMergeOptions {
   workspace: Workspace;
   targetBranch: string;
   squash: boolean;
+  agentId?: AgentId;
+  model?: string;
+  thinking?: ThinkingLevel;
 }
 
 function buildWorkspaceMergeTaskPrompt(
@@ -373,15 +376,18 @@ export async function startWorkspaceMerge(
   }
 
   const taskId = crypto.randomUUID();
+  const agentId = opts.agentId ?? workspace.actAgentId ?? workspace.agentId as AgentId;
+  const model = opts.model ?? workspace.actModel ?? workspace.model;
+  const thinking = opts.thinking ?? workspace.actThinking ?? workspace.thinking ?? 'medium';
   const prompt = buildWorkspaceMergeTaskPrompt(workspace, opts.targetBranch, opts.squash);
   primeWorkspaceTask({
     taskId,
     title: `Merge ${workspace.name} -> ${opts.targetBranch}`.slice(0, 80),
     workspace,
-    agentId: workspace.agentId as AgentId,
-    model: workspace.model,
+    agentId,
+    model,
     mode: 'act',
-    thinking: 'medium',
+    thinking,
     prompt,
     initialStatus: 'merging',
   });
@@ -391,10 +397,10 @@ export async function startWorkspaceMerge(
       taskId,
       workspaceId: workspace.id,
       prompt,
-      agentId: workspace.agentId,
-      model: workspace.model,
+      agentId,
+      model,
       mode: 'act',
-      thinking: 'medium',
+      thinking,
       cwd: workspace.worktreePath,
       autoApprovePermissions: true,
       workspaceAction: 'merge',

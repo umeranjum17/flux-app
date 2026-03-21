@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMockApi, type MockApi } from '../../../../test/mocks/window-api';
 import { MergeDialog } from '../MergeDialog';
+import { useAgentStore } from '../../../stores/agent';
 import { useChatStore } from '../../../stores/chat';
 import { useSessionStore } from '../../../stores/session';
 import { useUiStore } from '../../../stores/ui';
@@ -32,6 +34,50 @@ beforeEach(() => {
   useUiStore.setState({
     gitBranch: 'master',
   } as any);
+
+  useAgentStore.setState({
+    agents: [
+      {
+        id: 'claude-code',
+        name: 'Claude Code',
+        path: '/usr/bin/claude',
+        version: '1.0.0',
+        available: true,
+        models: ['sonnet', 'haiku'],
+        supportsThinking: true,
+        authStatus: 'authenticated',
+        envKeys: [],
+      },
+      {
+        id: 'copilot',
+        name: 'GitHub Copilot',
+        path: '/usr/bin/copilot',
+        version: '1.0.0',
+        available: true,
+        models: ['gpt-5.4', 'gpt-5.4-mini'],
+        supportsThinking: true,
+        authStatus: 'authenticated',
+        envKeys: [],
+      },
+      {
+        id: 'codex',
+        name: 'Codex',
+        path: '/usr/bin/codex',
+        version: '1.0.0',
+        available: true,
+        models: ['gpt-5-codex'],
+        supportsThinking: false,
+        authStatus: 'authenticated',
+        envKeys: [],
+      },
+    ],
+    selectedAgentId: 'codex',
+    selectedModel: 'gpt-5-codex',
+    selectedThinking: 'medium',
+    dynamicModels: [],
+    modelsLoading: false,
+    detecting: false,
+  });
 
   useChatStore.setState({
     tasks: new Map(),
@@ -161,5 +207,59 @@ describe('MergeDialog', () => {
 
     expect(screen.queryByRole('button', { name: /Direct Merge/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start Agent Merge' })).toBeEnabled();
+  });
+
+  it('lets the user pick a cheaper merge model before spawning', async () => {
+    const user = userEvent.setup();
+    mockApi.invoke.mockImplementation(async (channel: string, args?: any) => {
+      if (channel === 'agents:list-models') {
+        if (args?.agentId === 'claude-code') {
+          return [
+            { id: 'haiku', name: 'haiku' },
+            { id: 'sonnet', name: 'sonnet' },
+          ];
+        }
+        return [];
+      }
+      if (channel === 'task:spawn') {
+        return {
+          taskId: args?.taskId,
+          session: {
+            id: 'session-1',
+            title: '[WS] Hardening pass',
+            agentId: args?.agentId,
+            model: args?.model,
+            mode: 'act',
+            cwd: '/repo/.flux-worktrees/ws-1',
+            createdAt: 1,
+            updatedAt: 1,
+            metadata: { workspaceId: workspace.id },
+          },
+        };
+      }
+      return undefined;
+    });
+
+    render(<MergeDialog workspace={workspace} onClose={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: /Merge Agent/i }));
+    await user.click(screen.getByRole('button', { name: /Claude Code/i }));
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith('agents:list-models', { agentId: 'claude-code' });
+    });
+
+    await user.selectOptions(screen.getByRole('combobox'), 'haiku');
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'Start Agent Merge' }));
+
+    await waitFor(() => {
+      expect(mockApi.invoke).toHaveBeenCalledWith(
+        'task:spawn',
+        expect.objectContaining({
+          agentId: 'claude-code',
+          model: 'haiku',
+        }),
+      );
+    });
   });
 });
