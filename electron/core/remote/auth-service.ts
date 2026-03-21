@@ -114,6 +114,17 @@ export class RemoteAuthService {
   }
 
   authenticateToken(token: string, clientName?: string, remoteAddress?: string | null): PairingResult {
+    // DEV MODE: bypass all token/pairing validation
+    const DEV_SKIP_AUTH = true;
+    if (DEV_SKIP_AUTH) {
+      logDiagnostic('remote-auth', 'DEV_SKIP_AUTH: auto-accepting connection', { clientName });
+      return this.createClient(
+        clientName?.trim() || 'Dev Mobile',
+        undefined,
+        remoteAddress,
+      );
+    }
+
     const trimmed = token.trim();
     if (!trimmed) {
       throw new Error('Token is required');
