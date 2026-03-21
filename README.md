@@ -55,5 +55,12 @@ npm run typecheck
 Flux exposes a local-network JSON-RPC server for mobile companion apps. See [docs/remote-control.md](docs/remote-control.md) for details. The server binds to LAN interfaces and uses token-based authentication — do not expose it to untrusted networks.
 
 ## License
-
 MIT
+
+https://github.com/user-attachments/assets/05486b31-9be4-46c3-9483-2c76ce3ea6ab
+
+
+
+
+
+
