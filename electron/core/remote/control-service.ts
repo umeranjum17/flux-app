@@ -103,6 +103,44 @@ export class RemoteControlService {
     answerTaskQuestion(this.ctx, taskId, requestId, response);
   }
 
+  async spawnTask(input: {
+    taskId?: string;
+    workspaceId: string;
+    prompt: string;
+    agentId?: string;
+    model?: string;
+    mode?: SpawnOptions['mode'];
+    thinking?: string;
+    cwd?: string;
+    autoApprovePermissions?: boolean;
+    workspaceAction?: 'merge';
+    mergeContext?: { targetBranch: string; squash: boolean };
+    images?: string[];
+    attachments?: Array<{ path: string; name: string }>;
+  }) {
+    const workspace = this.ctx.workspaceStore.get(input.workspaceId);
+    if (!workspace) throw new Error(`Workspace ${input.workspaceId} not found`);
+
+    const taskId = input.taskId ?? require('crypto').randomUUID();
+    const result = await this.ctx.spawnTaskRun({
+      taskId,
+      workspaceId: workspace.id,
+      prompt: input.prompt,
+      agentId: (input.agentId ?? workspace.agentId) as any,
+      model: input.model ?? workspace.model,
+      mode: input.mode ?? workspace.mode,
+      thinking: input.thinking as any,
+      cwd: input.cwd ?? workspace.worktreePath,
+      autoApprovePermissions: input.autoApprovePermissions,
+      workspaceAction: input.workspaceAction,
+      mergeContext: input.mergeContext,
+      images: input.images,
+      attachments: input.attachments,
+    });
+
+    return { taskId, session: result.session };
+  }
+
   async steerTask(taskId: string, prompt: string, images?: string[], attachments?: Array<{ path: string; name: string }>) {
     return steerTask(this.ctx, taskId, prompt, images, attachments);
   }

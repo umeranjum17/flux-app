@@ -273,6 +273,24 @@ export class RemoteControlServer {
         const p = this.requireParam<{ taskId: string; requestId: string; response: string }>(params, 'taskId', 'requestId', 'response');
         return this.options.controlService.answerTaskQuestion(p.taskId, p.requestId, p.response);
       }
+      case 'task:spawn': {
+        const p = this.requireParam<{
+          taskId?: string;
+          workspaceId: string;
+          prompt: string;
+          agentId?: string;
+          model?: string;
+          mode?: string;
+          thinking?: string;
+          cwd?: string;
+          autoApprovePermissions?: boolean;
+          workspaceAction?: 'merge';
+          mergeContext?: { targetBranch: string; squash: boolean };
+          images?: string[];
+          attachments?: Array<{ path: string; name: string }>;
+        }>(params, 'workspaceId', 'prompt');
+        return this.options.controlService.spawnTask(p);
+      }
       case 'task:steer': {
         const p = this.requireParam<{
           taskId: string;

@@ -5,6 +5,7 @@ export const REMOTE_RPC_METHODS = [
   'task:approve',
   'task:deny',
   'task:answer-question',
+  'task:spawn',
   'task:steer',
   'sessions:get',
   'sessions:messages',
