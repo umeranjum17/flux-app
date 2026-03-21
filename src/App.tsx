@@ -4,8 +4,7 @@ import { AgentSelector } from './components/dialogs/AgentSelector';
 import { CommandPalette } from './components/dialogs/CommandPalette';
 import { SettingsPanel } from './components/dialogs/SettingsPanel';
 import { SessionPicker } from './components/dialogs/SessionPicker';
-import { SshConnectDialog } from './components/dialogs/SshConnectDialog';
-import { RemoteFolderPicker } from './components/dialogs/RemoteFolderPicker';
+import { ConnectRemoteDialog } from './components/dialogs/ConnectRemoteDialog';
 import { ContextSettings } from './components/dialogs/ContextSettings';
 import { CreateFolderDialog } from './components/dialogs/CreateFolderDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -18,8 +17,7 @@ export function App() {
       <CommandPalette />
       <SettingsPanel />
       <SessionPicker />
-      <SshConnectDialog />
-      <RemoteFolderPicker />
+      <ConnectRemoteDialog />
       <CreateFolderDialog />
       <ContextSettings />
       <Toaster position="top-right" theme="dark" />

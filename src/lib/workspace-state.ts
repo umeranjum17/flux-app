@@ -39,21 +39,13 @@ export async function connectToSshWorkspace(
 
   const resolvedHost = result.host ?? host;
   const resolvedCwd = result.cwd ?? remoteCwd ?? '';
-  const ui = useUiStore.getState();
-  ui.setSshHost(resolvedHost);
-  ui.setSshConnected(true);
-  ui.setCwd(resolvedCwd);
+  useUiStore.getState().connectSsh(resolvedHost, resolvedCwd);
   return { host: resolvedHost, cwd: resolvedCwd };
 }
 
 export async function disconnectFromSshWorkspace(): Promise<{ cwd?: string }> {
   const result = await window.api.invoke('ssh:disconnect') as { cwd?: string };
-  const ui = useUiStore.getState();
-  ui.setSshHost(null);
-  ui.setSshConnected(false);
-  if (result?.cwd) {
-    ui.setCwd(result.cwd);
-  }
+  useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
   return result;
 }
 

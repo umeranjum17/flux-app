@@ -141,10 +141,10 @@ export async function steerTask(
     {
       images: images?.length ? images : previousAttachmentContext?.images,
       attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
-      sshHost: ctx.getSshHost(),
+      sshHost: ctx.remoteConnection.host,
     },
   );
-  let effectivePrompt = await buildPromptWithAttachments(prompt, attachments, ctx.getSshHost());
+  let effectivePrompt = await buildPromptWithAttachments(prompt, attachments, ctx.remoteConnection.host);
 
   // Inject workspace skills on follow-up messages so the agent retains
   // lifecycle protocol context across the full conversation.

@@ -4,7 +4,7 @@ import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { GitBranch, Wifi, WifiOff, Brain, Monitor, Terminal, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
+import { GitBranch, Wifi, Brain, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
 import type { LiveUsageOverview, RateLimitInfo } from '../../lib/ipc-api';
 import { isWorkspaceArchiving } from '../../lib/workspace-operations';
 import {
@@ -30,7 +30,6 @@ export function StatusLine() {
   const gitDirty = useUiStore((s) => s.gitDirty);
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
-  const environment = useUiStore((s) => s.environment);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceOperation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
   const activeWorkspaceOperation = isWorkspaceArchiving(workspaceOperation) ? workspaceOperation : null;
@@ -115,42 +114,29 @@ export function StatusLine() {
   const qualityGate = activeTask?.lastQualityGate;
 
   const handleSshClick = useCallback(() => {
-    useUiStore.getState().setOverlay('ssh-connect');
-  }, []);
+    if (sshConnected) {
+      // One-click disconnect
+      window.api.invoke('ssh:disconnect').then((result: any) => {
+        useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
+      });
+    } else {
+      useUiStore.getState().setOverlay('connect-remote');
+    }
+  }, [sshConnected]);
 
   return (
     <div className="relative flex h-[30px] min-h-[30px] select-none items-center border-t border-border bg-bg-secondary">
       <div className="flex items-center shrink-0">
-        {environment === 'wsl' && (
-          <span
-            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/12 px-2.5 text-[13px] font-medium text-warning"
-            title="Running inside WSL"
+        {sshConnected && (
+          <button
+            onClick={handleSshClick}
+            className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-success/20 bg-success/8 px-2.5 text-[13px] font-medium text-success"
+            title={`Remote: ${sshHost} (click to disconnect)`}
           >
-            <Terminal size={12} />
-            WSL
-          </span>
+            <Wifi size={12} />
+            Remote: {sshHost}
+          </button>
         )}
-        {environment === 'ssh' && !sshConnected && (
-          <span
-            className="flex h-[30px] items-center gap-1.5 border-r border-border bg-info/12 px-2.5 text-[13px] font-medium text-info"
-            title="Running inside an SSH session"
-          >
-            <Monitor size={12} />
-            SSH Session
-          </span>
-        )}
-        <button
-          onClick={handleSshClick}
-          className={`premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 px-2.5 text-[13px] font-medium ${
-            sshConnected
-              ? 'border-r border-success/20 bg-success/8 text-success'
-              : 'border-r border-border text-text-tertiary'
-          }`}
-          title={sshConnected ? `SSH: ${sshHost} (click to manage)` : 'Connect to SSH remote'}
-        >
-          {sshConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-          {sshConnected ? `SSH: ${sshHost}` : 'SSH'}
-        </button>
 
         {gitBranch && (
           <span className="flex h-[30px] items-center gap-1.5 border-r border-border px-2.5 text-[13px] text-text-tertiary">

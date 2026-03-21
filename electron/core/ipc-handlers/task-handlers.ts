@@ -100,8 +100,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     activeSubagents,
     cachedRateLimits,
     getCurrentCwd,
-    getLocalCwd,
-    getSshHost,
+    remoteConnection,
   } = ctx;
 
   // Context watchers: poll .context/state.json for file-based protocol
@@ -333,8 +332,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   ): Promise<{ taskId: string; session: any }> => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
-    const sshHost = getSshHost();
-    const localCwd = getLocalCwd();
+    const sshHost = remoteConnection.host;
+    const localCwd = remoteConnection.localCwd;
     const workspace = options.workspaceId
       ? workspaceStore.get(options.workspaceId)
       : workspaceStore.get(options.taskId);

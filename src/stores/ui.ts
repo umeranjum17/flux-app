@@ -4,7 +4,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
 import type { LiveUsageOverview } from '../lib/ipc-api';
 
-type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'ssh-connect' | 'remote-folder-picker' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | 'quick-open' | 'search-files' | null;
+type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'connect-remote' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | 'quick-open' | 'search-files' | null;
 
 export interface RecentProject {
   path: string;
@@ -12,6 +12,12 @@ export interface RecentProject {
   lastOpened: number;
   isSSH?: boolean;
   sshHost?: string;
+}
+
+export function getRecentProjectKey(project: RecentProject): string {
+  return project.isSSH
+    ? `ssh:${project.sshHost ?? ''}:${project.path}`
+    : `local:${project.path}`;
 }
 
 interface UiState {
@@ -110,9 +116,6 @@ interface UiState {
   toggleTerminal(): void;
   setTerminalOpen(open: boolean): void;
   setActiveTerminalId(id: string | null): void;
-  setSshHost(host: string | null): void;
-  setSshConnected(connected: boolean): void;
-  setEnvironment(env: 'local' | 'ssh' | 'wsl'): void;
   setBottomPanelMode(mode: 'agent' | 'terminal'): void;
   toggleBottomPanelMode(): void;
   setActiveFile(file: { path: string; name: string } | null): void;
@@ -385,24 +388,6 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-    setSshHost(host) {
-      set((state) => {
-        state.sshHost = host;
-      });
-    },
-
-    setSshConnected(connected) {
-      set((state) => {
-        state.sshConnected = connected;
-        state.environment = connected ? 'ssh' : 'local';
-      });
-    },
-
-    setEnvironment(env) {
-      set((state) => {
-        state.environment = env;
-      });
-    },
 
     setBottomPanelMode(mode) {
       set((state) => {
@@ -440,7 +425,8 @@ export const useUiStore = create<UiState>()(
 
     addRecentProject(project) {
       set((state) => {
-        const filtered = state.recentProjects.filter((p) => p.path !== project.path);
+        const projectKey = getRecentProjectKey(project);
+        const filtered = state.recentProjects.filter((p) => getRecentProjectKey(p) !== projectKey);
         state.recentProjects = [project, ...filtered].slice(0, 10);
       });
     },

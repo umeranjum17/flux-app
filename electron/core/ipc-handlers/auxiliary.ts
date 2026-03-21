@@ -5,7 +5,6 @@ import fs from 'fs';
 import path from 'path';
 
 import fg from 'fast-glob';
-import { agentManager } from '../agents/manager';
 import type { AgentHandle } from '../agents/types';
 import { logDiagnostic, tailDiagnostics, getDiagnosticsLogPath } from '../diagnostics/logger';
 import { ConfigManager } from '../config/config';
@@ -15,13 +14,12 @@ import type { WorkspaceLifecycleManager } from '../worktree/lifecycle';
 import { SessionStore } from '../session/store';
 import { UsageTracker } from '../usage/tracker';
 import { LiveUsageService, type LiveUsageOverview } from '../usage/live';
-import { setSshHost as setToolsSshHost } from '../tools/ssh';
+import type { RemoteConnectionManager } from '../remote/connection-manager';
 import { grepFiles } from '../tools/grep';
 import { repoMapService } from '../intelligence/repomap';
 import {
   extendedEnv,
   resolveSshCommand,
-  classifySpawnError,
 } from '../process-utils';
 import { executeBash } from '../tools/bash';
 import { suggestCompletion, availableCompletionProviders } from '../completion/service';
@@ -55,10 +53,7 @@ type AuxiliaryIpcDeps = {
   cachedRateLimits: Map<string, RateLimitInfo>;
   getCurrentCwd: () => string;
   setCurrentCwd: (cwd: string) => void;
-  getLocalCwd: () => string;
-  setLocalCwd: (cwd: string) => void;
-  getSshHost: () => string | null;
-  setSshHost: (host: string | null) => void;
+  remoteConnection: RemoteConnectionManager;
   requireFields: (obj: Record<string, unknown>, ...fields: string[]) => void;
   toRemoteShellPath: (value: string) => string;
   expandLocalHomePath: (value: string) => string;
@@ -81,16 +76,33 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     cachedRateLimits,
     getCurrentCwd,
     setCurrentCwd,
-    getLocalCwd,
-    setLocalCwd,
-    getSshHost,
-    setSshHost,
+    remoteConnection,
     requireFields,
     toRemoteShellPath,
     expandLocalHomePath,
     toAbsoluteFilePath,
     captureGitDiff,
   } = deps;
+
+  async function listRemoteDirectories(host: string, dirPath: string) {
+    const targetDir = dirPath || '~';
+    try {
+      const cmd = `cd ${toRemoteShellPath(targetDir)} 2>/dev/null && pwd && ls -1pA 2>/dev/null | head -200`;
+      const { stdout } = await execFileAsync(resolveSshCommand(), [host, cmd], {
+        timeout: 10000,
+        env: extendedEnv(),
+      });
+      const lines = stdout.trim().split('\n');
+      const resolvedPath = lines[0] || targetDir;
+      const entries = lines.slice(1).filter(Boolean).map((line) => ({
+        name: line.replace(/\/$/, ''),
+        isDirectory: line.endsWith('/'),
+      }));
+      return { path: resolvedPath, entries, error: null };
+    } catch (err: any) {
+      return { path: targetDir, entries: [], error: err.message };
+    }
+  }
 
   ipcMain.handle('sessions:list', async () => {
     return sessionStore.listWithSummaries();
@@ -323,8 +335,8 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   ipcMain.handle('cwd:set', async (_event, { cwd }: { cwd: string }) => {
     requireFields({ cwd }, 'cwd');
     setCurrentCwd(cwd);
-    if (!getSshHost()) {
-      setLocalCwd(cwd);
+    if (!remoteConnection.isConnected()) {
+      remoteConnection.localCwd = cwd;
     }
     return getCurrentCwd();
   });
@@ -336,7 +348,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     setCurrentCwd(result.filePaths[0]);
-    setLocalCwd(result.filePaths[0]);
+    remoteConnection.localCwd = result.filePaths[0];
     return getCurrentCwd();
   });
 
@@ -378,7 +390,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       }
     }
     setCurrentCwd(newPath);
-    setLocalCwd(newPath);
+    remoteConnection.localCwd = newPath;
     return { path: newPath };
   });
 
@@ -448,14 +460,14 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       children?: TreeNode[];
     }
 
-    if (getSshHost()) {
+    if (remoteConnection.host) {
       try {
         const skipFilter = Array.from(skipDirs)
           .map((d) => `-name '${d}'`)
           .join(' -o ');
         const escapedDir = targetDir.replace(/'/g, "'\\''");
         const cmd = `find '${escapedDir}' -maxdepth ${depth} \\( ${skipFilter} \\) -prune -o -not -name '.*' \\( -type d -o -type f \\) -print | while IFS= read -r p; do if [ -d "$p" ]; then echo "d $p"; else echo "f $p"; fi; done`;
-        const { stdout } = await execFileAsync(resolveSshCommand(), [getSshHost()!, cmd], {
+        const { stdout } = await execFileAsync(resolveSshCommand(), [remoteConnection.host!, cmd], {
           timeout: 15000,
           env: extendedEnv(),
         });
@@ -541,8 +553,8 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('fs:read', async (_event, { filePath }: { filePath: string }) => {
     try {
-      if (getSshHost()) {
-        const { stdout } = await execFileAsync(resolveSshCommand(), [getSshHost()!, `cat ${toRemoteShellPath(filePath)}`], {
+      if (remoteConnection.host) {
+        const { stdout } = await execFileAsync(resolveSshCommand(), [remoteConnection.host!, `cat ${toRemoteShellPath(filePath)}`], {
           timeout: 10000,
           env: extendedEnv(),
         });
@@ -566,10 +578,10 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('fs:glob', async (_event, { cwd, limit = 5000 }: { cwd: string; limit?: number }) => {
     try {
-      if (getSshHost()) {
+      if (remoteConnection.host) {
         const escapedDir = cwd.replace(/'/g, "'\\''");
         const cmd = `cd '${escapedDir}' && git ls-files 2>/dev/null || find . -type f -not -path '*/.*' -not -path '*/node_modules/*' | head -${limit}`;
-        const { stdout } = await execFileAsync(resolveSshCommand(), [getSshHost()!, cmd], {
+        const { stdout } = await execFileAsync(resolveSshCommand(), [remoteConnection.host!, cmd], {
           timeout: 15000,
           env: extendedEnv(),
         });
@@ -611,19 +623,8 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   ipcMain.handle('fs:listdirs', async (_event, { dirPath }: { dirPath: string }) => {
     const targetDir = dirPath || '~';
     try {
-      if (getSshHost()) {
-        const cmd = `cd ${toRemoteShellPath(targetDir)} 2>/dev/null && pwd && ls -1pA 2>/dev/null | head -200`;
-        const { stdout } = await execFileAsync(resolveSshCommand(), [getSshHost()!, cmd], {
-          timeout: 10000,
-          env: extendedEnv(),
-        });
-        const lines = stdout.trim().split('\n');
-        const resolvedPath = lines[0] || targetDir;
-        const entries = lines.slice(1).filter(Boolean).map((line) => ({
-          name: line.replace(/\/$/, ''),
-          isDirectory: line.endsWith('/'),
-        }));
-        return { path: resolvedPath, entries, error: null };
+      if (remoteConnection.host) {
+        return listRemoteDirectories(remoteConnection.host, targetDir);
       }
       const resolved = path.resolve(expandLocalHomePath(targetDir));
       const dirEntries = fs.readdirSync(resolved, { withFileTypes: true });
@@ -640,54 +641,35 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     }
   });
 
+  ipcMain.handle('ssh:listdirs', async (_event, { host, dirPath }: { host: string; dirPath: string }) => {
+    requireFields({ host }, 'host');
+    return listRemoteDirectories(host, dirPath);
+  });
+
   // Terminal handlers are registered in the dedicated terminal module
   registerTerminalIpcHandlers({
     sendToRenderer,
     activeTerminals,
     getCurrentCwd,
-    getLocalCwd,
-    getSshHost,
+    remoteConnection,
     toRemoteShellPath,
     requireFields,
     getWorkspacePath: (workspaceId: string) => workspaceStore.get(workspaceId)?.worktreePath,
   });
 
   ipcMain.handle('ssh:test', async (_event, { host }: { host: string }) => {
-    try {
-      await execFileAsync(resolveSshCommand(), ['-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', host, 'echo', 'ok'], {
-        timeout: 10000,
-        env: extendedEnv(),
-      });
-      return { success: true, error: null };
-    } catch (err: any) {
-      const info = classifySpawnError(err as Error, { command: 'ssh', sshHost: host });
-      return { success: false, error: `${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}` };
-    }
+    return remoteConnection.test(host);
   });
 
   ipcMain.handle('ssh:connect', async (_event, { host, remoteCwd }: { host: string; remoteCwd?: string }) => {
-    try {
-      await execFileAsync(resolveSshCommand(), ['-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', host, 'echo', 'ok'], {
-        timeout: 10000,
-        env: extendedEnv(),
-      });
-    } catch (err: any) {
-      const info = classifySpawnError(err as Error, { command: 'ssh', sshHost: host });
-      throw new Error(`SSH connection failed: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`);
-    }
-    setSshHost(host);
-    setToolsSshHost(host);
-    setLocalCwd(getCurrentCwd());
+    await remoteConnection.connect(host, getCurrentCwd());
     if (remoteCwd) setCurrentCwd(remoteCwd);
-    await agentManager.detectAllRemote(host).catch(() => {});
     return { connected: true };
   });
 
   ipcMain.handle('ssh:disconnect', async () => {
-    setSshHost(null);
-    setToolsSshHost(null);
-    setCurrentCwd(getLocalCwd());
-    agentManager.detectAll().catch(() => {});
+    const localCwd = remoteConnection.disconnect();
+    setCurrentCwd(localCwd);
     return { connected: false, cwd: getCurrentCwd() };
   });
 

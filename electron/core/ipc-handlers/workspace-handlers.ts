@@ -26,7 +26,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     sendToRenderer,
     lifecycleManager,
     operationManager,
-    getSshHost,
+    remoteConnection,
     spawnTaskRun,
     releaseTask,
   } = ctx;
@@ -88,7 +88,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   };
 
   ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
-    if (getSshHost()) return [];
+    if (remoteConnection.isConnected()) return [];
     return workspaceStore.list(parentRepo);
   });
 
@@ -119,7 +119,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       },
     ) => {
       requireFields({ name, parentRepo, branch, agentId, model }, 'name', 'parentRepo', 'branch', 'agentId', 'model');
-      if (getSshHost()) {
+      if (remoteConnection.isConnected()) {
         throw new Error('Workspaces are only supported for local repositories right now');
       }
 
@@ -170,7 +170,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       { parentRepo, agentId, model, mode, thinking }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
-      if (getSshHost()) {
+      if (remoteConnection.isConnected()) {
         throw new Error('Workspaces are only supported for local repositories right now');
       }
 

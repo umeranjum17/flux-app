@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { AgentId, DetectedAgent, TaskMode, ThinkingLevel } from '../../lib/types';
-import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession, WorkspaceOperation } from '../../lib/ipc-api';
+import type { FluxConfig, Session, Workspace, SessionMessage, WorkspaceSession, WorkspaceOperation } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
@@ -175,15 +175,6 @@ export function AppShell() {
           console.error('CWD fetch failed:', err);
         }
 
-        // Detect runtime environment (WSL, SSH session, etc.)
-        try {
-          const envInfo = await window.api.invoke('env:detect') as EnvironmentInfo;
-          if (envInfo.runtime !== 'local') {
-            useUiStore.getState().setEnvironment(envInfo.runtime);
-          }
-        } catch (err) {
-          console.error('Environment detection failed:', err);
-        }
 
         try {
           const sessions = await window.api.invoke('sessions:list') as Session[];
@@ -792,7 +783,7 @@ export function AppShell() {
         await rememberRecentProject(project);
         return;
       } catch {
-        useUiStore.getState().setOverlay('ssh-connect');
+        useUiStore.getState().setOverlay('connect-remote');
         return;
       }
     }

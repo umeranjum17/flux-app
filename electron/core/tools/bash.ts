@@ -1,5 +1,5 @@
 import { exec } from 'child_process';
-import { getSshHost, sshExec } from './ssh';
+import { RemoteConnectionManager } from '../remote/connection-manager';
 
 const BANNED_COMMANDS = ['rm -rf /', 'mkfs', 'dd if='];
 
@@ -18,10 +18,10 @@ export async function executeBash(
     }
   }
 
-  const host = getSshHost();
-  if (host) {
+  const remote = RemoteConnectionManager.current;
+  if (remote?.host) {
     const escaped = cwd.replace(/'/g, "'\\''");
-    return sshExec(host, `cd '${escaped}' && ${command}`, timeout);
+    return remote.exec(`cd '${escaped}' && ${command}`, timeout);
   }
 
   return new Promise((resolve) => {

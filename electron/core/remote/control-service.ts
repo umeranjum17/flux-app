@@ -159,7 +159,7 @@ export class RemoteControlService {
     thinking?: string;
   }) {
     const { name, parentRepo, branch, agentId, model, mode, thinking } = input;
-    if (this.ctx.getSshHost()) {
+    if (this.ctx.remoteConnection.isConnected()) {
       throw new Error('Workspaces are only supported for local repositories right now');
     }
 
@@ -205,7 +205,7 @@ export class RemoteControlService {
     thinking?: string;
   }) {
     const { parentRepo, agentId, model, mode, thinking } = input;
-    if (this.ctx.getSshHost()) {
+    if (this.ctx.remoteConnection.isConnected()) {
       throw new Error('Workspaces are only supported for local repositories right now');
     }
     if (!fs.existsSync(parentRepo)) {

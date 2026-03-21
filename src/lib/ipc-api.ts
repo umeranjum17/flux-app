@@ -86,6 +86,7 @@ export interface IpcChannels {
   'terminal:ack': { args: [{ id: string; charCount: number }]; result: void };
   'terminal:get-profiles': { args: []; result: Array<{ name: string; path: string; icon: string }> };
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
+  'ssh:listdirs': { args: [{ host: string; dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
