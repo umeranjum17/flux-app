@@ -15,6 +15,16 @@ export const REMOTE_RPC_METHODS = [
   'workspace:stop',
   'workspace:diff-files',
   'workspace:file-diff',
+  'config:get',
+  'workspace:create',
+  'workspace:create-quick',
+  'workspace:delete',
+  'workspace:archive',
+  'workspace:rename-branch',
+  'workspace:set-outcome',
+  'workspace:update',
+  'workspace:merge-preview',
+  'workspace:create-pr',
 ] as const;
 
 export const REMOTE_EVENT_CHANNELS = [
