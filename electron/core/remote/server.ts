@@ -114,6 +114,14 @@ export class RemoteControlServer {
     this.wss = null;
   }
 
+  disconnectClient(clientId: string): void {
+    for (const [socket, state] of this.sockets.entries()) {
+      if (state.client?.id === clientId) {
+        socket.close(4003, 'Client revoked');
+      }
+    }
+  }
+
   getStatus(advertised: boolean): RemoteServerStatus {
     return {
       enabled: !!this.wss,
@@ -321,6 +329,50 @@ export class RemoteControlServer {
       case 'workspace:file-diff': {
         const p = this.requireParam<{ workspaceId: string; filePath: string; scope?: 'all' | 'committed' | 'uncommitted' }>(params, 'workspaceId', 'filePath');
         return this.options.controlService.fileDiff(p.workspaceId, p.filePath, p.scope);
+      }
+      case 'config:get':
+        return this.options.controlService.getConfig();
+      case 'workspace:create': {
+        const p = this.requireParam<{
+          name: string; parentRepo: string; branch: string; agentId: string; model: string;
+          mode?: string; thinking?: string;
+        }>(params, 'name', 'parentRepo', 'branch', 'agentId', 'model');
+        return this.options.controlService.createWorkspace(p as any);
+      }
+      case 'workspace:create-quick': {
+        const p = this.requireParam<{
+          parentRepo: string; agentId: string; model: string;
+          mode?: string; thinking?: string;
+        }>(params, 'parentRepo', 'agentId', 'model');
+        return this.options.controlService.createQuickWorkspace(p as any);
+      }
+      case 'workspace:delete': {
+        const p = this.requireParam<{ workspaceId: string }>(params, 'workspaceId');
+        return this.options.controlService.deleteWorkspace(p.workspaceId);
+      }
+      case 'workspace:archive': {
+        const p = this.requireParam<{ workspaceId: string }>(params, 'workspaceId');
+        return this.options.controlService.archiveWorkspace(p.workspaceId);
+      }
+      case 'workspace:rename-branch': {
+        const p = this.requireParam<{ workspaceId: string; newBranch: string; newName?: string }>(params, 'workspaceId', 'newBranch');
+        return this.options.controlService.renameBranch(p.workspaceId, p.newBranch, p.newName);
+      }
+      case 'workspace:set-outcome': {
+        const p = this.requireParam<{ workspaceId: string; outcome: string }>(params, 'workspaceId', 'outcome');
+        return this.options.controlService.setOutcome(p.workspaceId, p.outcome as any);
+      }
+      case 'workspace:update': {
+        const p = this.requireParam<{ workspaceId: string }>(params, 'workspaceId');
+        return this.options.controlService.updateWorkspace(p.workspaceId, p as any);
+      }
+      case 'workspace:merge-preview': {
+        const p = this.requireParam<{ workspaceId: string; targetBranch: string }>(params, 'workspaceId', 'targetBranch');
+        return this.options.controlService.mergePreview(p.workspaceId, p.targetBranch);
+      }
+      case 'workspace:create-pr': {
+        const p = this.requireParam<{ workspaceId: string; title: string; body: string; targetBranch: string; draft?: boolean }>(params, 'workspaceId', 'title', 'body', 'targetBranch');
+        return this.options.controlService.createPr(p.workspaceId, p.title, p.body, p.targetBranch, p.draft);
       }
       default:
         throw new RemoteRpcError(-32601, `Method not found: ${method}`);

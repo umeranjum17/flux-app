@@ -3,15 +3,16 @@ import os from 'os';
 import { getDb } from '../db/connection';
 import { logDiagnostic } from '../diagnostics/logger';
 import type { RemoteClientInfo, RemotePairingCode } from './protocol';
-import { generateOpaqueSecret, hashSecret, maskSecret, secretEquals } from './secure-store';
+import { generateOpaqueSecret, maskSecret } from './secure-store';
+
+// ── DEV MODE: set to true to auto-accept any mobile connection ──
+const DEV_SKIP_AUTH = true;
 
 const DEFAULT_PAIRING_TTL_MS = 10 * 60 * 1000;
-const PAIRING_ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
-const MAX_PAIRING_ATTEMPTS_PER_ADDRESS = 10;
 
 interface PairingRow {
   id: string;
-  code_hash: string;
+  code: string;
   expires_at: number;
   consumed_at: number | null;
   created_at: number;
@@ -20,7 +21,7 @@ interface PairingRow {
 interface ClientRow {
   id: string;
   client_name: string;
-  token_hash: string;
+  token: string;
   token_preview: string;
   created_at: number;
   updated_at: number;
@@ -36,9 +37,7 @@ export interface PairingResult {
 }
 
 export class RemoteAuthService {
-  private readonly attemptWindow = new Map<string, number[]>();
   private activePairingCode: RemotePairingCode | null = null;
-
   createPairingCode(ttlMs: number = DEFAULT_PAIRING_TTL_MS): RemotePairingCode {
     const now = Date.now();
     const expiresAt = now + ttlMs;
@@ -47,9 +46,9 @@ export class RemoteAuthService {
 
     const db = getDb();
     db.prepare(
-      `INSERT INTO remote_pairing_sessions (id, code_hash, created_at, expires_at, consumed_at)
+      `INSERT INTO remote_pairing_sessions (id, code, created_at, expires_at, consumed_at)
        VALUES (?, ?, ?, ?, NULL)`,
-    ).run(id, hashSecret(code), now, expiresAt);
+    ).run(id, code, now, expiresAt);
 
     logDiagnostic('remote-auth', 'pairing code created', {
       pairingId: id,
@@ -77,9 +76,10 @@ export class RemoteAuthService {
       .prepare(
         `SELECT id, client_name, token_preview, created_at, updated_at, last_seen_at, revoked_at, last_address
          FROM remote_clients
+         WHERE revoked_at IS NULL
          ORDER BY updated_at DESC`,
       )
-      .all() as Array<Omit<ClientRow, 'token_hash'>>;
+      .all() as Array<Omit<ClientRow, 'token'>>;
 
     return rows.map((row) => ({
       id: row.id,
@@ -115,7 +115,6 @@ export class RemoteAuthService {
 
   authenticateToken(token: string, clientName?: string, remoteAddress?: string | null): PairingResult {
     // DEV MODE: bypass all token/pairing validation
-    const DEV_SKIP_AUTH = true;
     if (DEV_SKIP_AUTH) {
       logDiagnostic('remote-auth', 'DEV_SKIP_AUTH: auto-accepting connection', { clientName });
       return this.createClient(
@@ -130,70 +129,72 @@ export class RemoteAuthService {
       throw new Error('Token is required');
     }
 
-    if (remoteAddress) {
-      this.recordAttempt(remoteAddress);
-    }
-
     const db = getDb();
-    const clients = db
-      .prepare(
-        `SELECT id, client_name, token_hash, token_preview, created_at, updated_at, last_seen_at, revoked_at, last_address
-         FROM remote_clients
-         WHERE revoked_at IS NULL`,
-      )
-      .all() as unknown as ClientRow[];
 
-    for (const row of clients) {
-      if (!secretEquals(trimmed, row.token_hash)) continue;
+    // Check existing clients first (reconnection with saved token)
+    const client = db
+      .prepare(
+        `SELECT id, client_name, token, token_preview, created_at, updated_at, last_seen_at, revoked_at, last_address
+         FROM remote_clients
+         WHERE token = ? AND revoked_at IS NULL`,
+      )
+      .get(trimmed) as ClientRow | undefined;
+
+    if (client) {
       const now = Date.now();
-      const nextName = clientName?.trim() || row.client_name;
+      const nextName = clientName?.trim() || client.client_name;
       db.prepare(
         `UPDATE remote_clients
          SET client_name = ?, updated_at = ?, last_seen_at = ?, last_address = ?
          WHERE id = ?`,
-      ).run(nextName, now, now, remoteAddress ?? row.last_address, row.id);
-
-      this.clearAttempts(remoteAddress);
+      ).run(nextName, now, now, remoteAddress ?? client.last_address, client.id);
 
       return {
         client: {
-          id: row.id,
+          id: client.id,
           clientName: nextName,
-          tokenPreview: row.token_preview,
-          createdAt: row.created_at,
+          tokenPreview: client.token_preview,
+          createdAt: client.created_at,
           updatedAt: now,
           lastSeenAt: now,
-          revokedAt: row.revoked_at,
-          lastAddress: remoteAddress ?? row.last_address,
+          revokedAt: client.revoked_at,
+          lastAddress: remoteAddress ?? client.last_address,
         },
         token: trimmed,
         upgradedFromPairingCode: false,
       };
     }
 
-    const pairings = db
+    // Check if the token belongs to a revoked client
+    const revokedClients = db
       .prepare(
-        `SELECT id, code_hash, created_at, expires_at, consumed_at
-         FROM remote_pairing_sessions
-         WHERE consumed_at IS NULL AND expires_at > ?
-         ORDER BY created_at DESC`,
+        `SELECT id, token_hash FROM remote_clients WHERE revoked_at IS NOT NULL`,
       )
-      .all(Date.now()) as unknown as PairingRow[];
+      .all() as unknown as Pick<ClientRow, 'id' | 'token_hash'>[];
 
-    for (const pairing of pairings) {
-      if (!secretEquals(trimmed, pairing.code_hash)) continue;
+    for (const row of revokedClients) {
+      if (!secretEquals(trimmed, row.token_hash)) continue;
+      throw new Error('Client has been revoked');
+    }
+
+    // Check pairing codes
+    const pairing = db
+      .prepare(
+        `SELECT id, code, created_at, expires_at, consumed_at
+         FROM remote_pairing_sessions
+         WHERE code = ? AND consumed_at IS NULL AND expires_at > ?`,
+      )
+      .get(trimmed, Date.now()) as PairingRow | undefined;
+
+    if (pairing) {
       const result = this.createClient(
         clientName?.trim() || `Flux Mobile (${os.hostname()})`,
         undefined,
         remoteAddress,
       );
       db.prepare(
-        `UPDATE remote_pairing_sessions
-         SET consumed_at = ?
-         WHERE id = ?`,
+        `UPDATE remote_pairing_sessions SET consumed_at = ? WHERE id = ?`,
       ).run(Date.now(), pairing.id);
-
-      this.clearAttempts(remoteAddress);
 
       logDiagnostic('remote-auth', 'pairing code consumed', {
         pairingId: pairing.id,
@@ -210,7 +211,7 @@ export class RemoteAuthService {
       };
     }
 
-    throw new Error('Invalid or expired remote token');
+    throw new Error('Invalid token');
   }
 
   private createClient(
@@ -226,18 +227,9 @@ export class RemoteAuthService {
 
     db.prepare(
       `INSERT INTO remote_clients (
-        id, client_name, token_hash, token_preview, created_at, updated_at, last_seen_at, revoked_at, last_address
+        id, client_name, token, token_preview, created_at, updated_at, last_seen_at, revoked_at, last_address
       ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
-    ).run(
-      id,
-      clientName,
-      hashSecret(durableToken),
-      tokenPreview,
-      now,
-      now,
-      now,
-      remoteAddress ?? null,
-    );
+    ).run(id, clientName, durableToken, tokenPreview, now, now, now, remoteAddress ?? null);
 
     logDiagnostic('remote-auth', 'remote client created', {
       clientId: id,
@@ -270,21 +262,5 @@ export class RemoteAuthService {
       code += alphabet[randomBytes[i] % alphabet.length];
     }
     return code;
-  }
-
-  private recordAttempt(remoteAddress: string): void {
-    const now = Date.now();
-    const attempts = (this.attemptWindow.get(remoteAddress) ?? [])
-      .filter((timestamp) => now - timestamp < PAIRING_ATTEMPT_WINDOW_MS);
-    attempts.push(now);
-    this.attemptWindow.set(remoteAddress, attempts);
-    if (attempts.length > MAX_PAIRING_ATTEMPTS_PER_ADDRESS) {
-      throw new Error('Too many pairing attempts, try again later');
-    }
-  }
-
-  private clearAttempts(remoteAddress?: string | null): void {
-    if (!remoteAddress) return;
-    this.attemptWindow.delete(remoteAddress);
   }
 }
