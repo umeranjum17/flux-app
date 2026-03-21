@@ -23,6 +23,7 @@ export const REMOTE_RPC_METHODS = [
   'workspace:rename-branch',
   'workspace:set-outcome',
   'workspace:update',
+  'workspace:merge',
   'workspace:merge-preview',
   'workspace:create-pr',
 ] as const;

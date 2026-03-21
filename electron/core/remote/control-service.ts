@@ -350,6 +350,12 @@ export class RemoteControlService {
     return { commitsAhead, filesChanged, additions, deletions, conflicts, canFastForward };
   }
 
+  async merge(workspaceId: string, _targetBranch: string, _squash?: boolean) {
+    const workspace = this.ctx.workspaceStore.get(workspaceId);
+    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+    throw new Error(`Direct workspace merges are disabled for ${workspace.name}. Start an Agent Merge instead.`);
+  }
+
   async createPr(workspaceId: string, title: string, body: string, targetBranch: string, draft?: boolean) {
     const workspace = this.ctx.workspaceStore.get(workspaceId);
     if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);

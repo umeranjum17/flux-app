@@ -366,6 +366,10 @@ export class RemoteControlServer {
         const p = this.requireParam<{ workspaceId: string }>(params, 'workspaceId');
         return this.options.controlService.updateWorkspace(p.workspaceId, p as any);
       }
+      case 'workspace:merge': {
+        const p = this.requireParam<{ workspaceId: string; targetBranch: string; squash?: boolean }>(params, 'workspaceId', 'targetBranch');
+        return this.options.controlService.merge(p.workspaceId, p.targetBranch, p.squash);
+      }
       case 'workspace:merge-preview': {
         const p = this.requireParam<{ workspaceId: string; targetBranch: string }>(params, 'workspaceId', 'targetBranch');
         return this.options.controlService.mergePreview(p.workspaceId, p.targetBranch);
