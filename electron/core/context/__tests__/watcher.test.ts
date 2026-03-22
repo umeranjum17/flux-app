@@ -1,8 +1,10 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContextWatcher } from '../watcher';
+import type { WorkspaceFs } from '../../worktree/workspace-fs';
+import * as workspaceFsModule from '../../worktree/workspace-fs';
 
 const tempDirs: string[] = [];
 
@@ -18,8 +20,14 @@ afterEach(() => {
   }
 });
 
+async function waitForWatcherToSettle(watcher: ContextWatcher): Promise<void> {
+  await vi.waitFor(() => {
+    expect((watcher as unknown as { polling: boolean }).polling).toBe(false);
+  });
+}
+
 describe('ContextWatcher', () => {
-  it('creates .context and polls immediately on start', () => {
+  it('creates .context and polls immediately on start', async () => {
     const cwd = makeTempDir();
     const statePath = path.join(cwd, '.context', 'state.json');
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
@@ -34,6 +42,7 @@ describe('ContextWatcher', () => {
     });
 
     watcher.start();
+    await vi.waitFor(() => expect(seen).toEqual([{ outcome: 'planned' }]));
     watcher.stop();
 
     expect(fs.existsSync(path.join(cwd, '.context'))).toBe(true);
@@ -41,7 +50,7 @@ describe('ContextWatcher', () => {
     expect(watcher.hasReceivedState).toBe(true);
   });
 
-  it('treats empty todo lists as real state updates', () => {
+  it('treats empty todo lists as real state updates', async () => {
     const cwd = makeTempDir();
     const statePath = path.join(cwd, '.context', 'state.json');
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
@@ -56,13 +65,14 @@ describe('ContextWatcher', () => {
     });
 
     watcher.start();
+    await vi.waitFor(() => expect(seen).toEqual({ todos: [] }));
     watcher.stop();
 
     expect(seen).toEqual({ todos: [] });
     expect(watcher.hasReceivedState).toBe(true);
   });
 
-  it('ignores empty state objects', () => {
+  it('ignores empty state objects', async () => {
     const cwd = makeTempDir();
     const statePath = path.join(cwd, '.context', 'state.json');
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
@@ -77,13 +87,14 @@ describe('ContextWatcher', () => {
     });
 
     watcher.start();
+    await waitForWatcherToSettle(watcher);
     watcher.stop();
 
     expect(callCount).toBe(0);
     expect(watcher.hasReceivedState).toBe(false);
   });
 
-  it('leaves requests unclaimed when shouldProcessRequest returns false', () => {
+  it('leaves requests unclaimed when shouldProcessRequest returns false', async () => {
     const cwd = makeTempDir();
     const requestsDir = path.join(cwd, '.context', 'requests');
     fs.mkdirSync(requestsDir, { recursive: true });
@@ -104,6 +115,7 @@ describe('ContextWatcher', () => {
     });
 
     watcher.start();
+    await waitForWatcherToSettle(watcher);
     watcher.stop();
 
     expect(callCount).toBe(0);
@@ -117,12 +129,13 @@ describe('ContextWatcher', () => {
     });
 
     secondWatcher.start();
+    await vi.waitFor(() => expect(callCount).toBe(1));
     secondWatcher.stop();
 
     expect(callCount).toBe(1);
   });
 
-  it('does not replay fulfilled requests after watcher restart', () => {
+  it('does not replay fulfilled requests after watcher restart', async () => {
     const cwd = makeTempDir();
     const contextDir = path.join(cwd, '.context');
     const requestsDir = path.join(contextDir, 'requests');
@@ -150,6 +163,7 @@ describe('ContextWatcher', () => {
     });
 
     watcher.start();
+    await waitForWatcherToSettle(watcher);
     watcher.stop();
 
     const secondWatcher = new ContextWatcher({
@@ -161,7 +175,63 @@ describe('ContextWatcher', () => {
     });
 
     secondWatcher.start();
+    await waitForWatcherToSettle(secondWatcher);
     secondWatcher.stop();
     expect(callCount).toBe(0);
+  });
+
+  it('polls remote requests via WorkspaceFs.listDir', async () => {
+    const cwd = "/tmp/quote's-workspace";
+    const seenRequests: string[] = [];
+    const fakeWfs: WorkspaceFs = {
+      isRemote: true,
+      sshHost: 'dev@example',
+      git: async () => ({ stdout: '', stderr: '' }),
+      readFile: async (filePath) => {
+        if (filePath.endsWith('/state.json')) {
+          return JSON.stringify({ outcome: 'in_progress' });
+        }
+        if (filePath.endsWith('/requests/r1.json')) {
+          return JSON.stringify({
+            id: 'r1',
+            action: 'terminal:spawn',
+            payload: { command: 'npm run dev' },
+          });
+        }
+        return null;
+      },
+      writeFile: async () => {},
+      writeBuffer: async () => {},
+      exists: async () => false,
+      listDir: async (dirPath) => {
+        expect(dirPath).toBe("/tmp/quote's-workspace/.context/requests");
+        return ['r1.json'];
+      },
+      mkdirp: async () => {},
+      rmrf: async () => {},
+      exec: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      diskUsage: async () => 0,
+    };
+
+    const createWorkspaceFsSpy = vi
+      .spyOn(workspaceFsModule, 'createWorkspaceFs')
+      .mockReturnValue(fakeWfs);
+
+    try {
+      const watcher = new ContextWatcher({
+        cwd,
+        sshHost: 'dev@example',
+        onStateChange: () => {},
+        onRequest: (request) => {
+          seenRequests.push(request.id);
+        },
+      });
+
+      watcher.start();
+      await vi.waitFor(() => expect(seenRequests).toEqual(['r1']));
+      watcher.stop();
+    } finally {
+      createWorkspaceFsSpy.mockRestore();
+    }
   });
 });

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import readline from 'readline';
 import fg from 'fast-glob';
-import { getSshHost, sshExec } from './ssh';
+import { RemoteConnectionManager } from '../remote/connection-manager';
 
 function escapeShellArg(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
@@ -12,15 +12,14 @@ export async function grepFiles(
   cwd: string,
   glob: string = '**/*'
 ): Promise<Array<{ file: string; line: number; content: string }>> {
-  const host = getSshHost();
-  if (host) {
+  const remote = RemoteConnectionManager.current;
+  if (remote?.host) {
     const escapedPattern = escapeShellArg(pattern);
     const escaped = escapeShellArg(cwd);
     const includeArg = glob !== '**/*'
       ? `--include=${escapeShellArg(glob.replace(/\*\*\//g, ''))}`
       : '';
-    const result = await sshExec(
-      host,
+    const result = await remote.exec(
       `grep -rFn -F ${includeArg} -- ${escapedPattern} ${escaped} 2>/dev/null || true`,
     );
     if (!result.stdout.trim()) return [];

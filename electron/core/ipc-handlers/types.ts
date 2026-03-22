@@ -10,6 +10,7 @@ import type { LiveUsageService } from '../usage/live';
 import type { WorkspaceStore } from '../worktree/store';
 import type { WorkspaceLifecycleManager } from '../worktree/lifecycle';
 import type { WorkspaceOperationManager } from '../worktree/operation-manager';
+import type { RemoteConnectionManager } from '../remote/connection-manager';
 import type { RateLimitInfo } from './utils';
 
 export interface SubagentEntry {
@@ -66,10 +67,7 @@ export interface BaseIpcContext {
   // Mutable connection state
   getCurrentCwd: () => string;
   setCurrentCwd: (cwd: string) => void;
-  getLocalCwd: () => string;
-  setLocalCwd: (cwd: string) => void;
-  getSshHost: () => string | null;
-  setSshHost: (host: string | null) => void;
+  remoteConnection: RemoteConnectionManager;
 
   // Renderer communication
   sendToRenderer: (channel: string, payload: unknown) => boolean;

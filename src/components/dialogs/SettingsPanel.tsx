@@ -47,7 +47,10 @@ const IDE_OPTIONS = [
 ];
 
 export function SettingsPanel() {
-  const { activeOverlay, setOverlay, setTheme, setSendKey } = useUiStore();
+  const activeOverlay = useUiStore((s) => s.activeOverlay);
+  const setOverlay = useUiStore((s) => s.setOverlay);
+  const setTheme = useUiStore((s) => s.setTheme);
+  const setSendKey = useUiStore((s) => s.setSendKey);
   const [config, setConfig] = useState<FluxConfig>(defaultConfig);
   const [newCommand, setNewCommand] = useState('');
   const [loading, setLoading] = useState(true);

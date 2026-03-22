@@ -205,11 +205,11 @@ export function CommandPalette() {
         },
       },
       {
-        id: 'ssh-connect',
-        name: 'SSH Connect',
+        id: 'connect-remote',
+        name: 'Connect Remote',
         icon: Wifi,
         handler: () => {
-          setOverlay('ssh-connect');
+          setOverlay('connect-remote');
         },
       },
       {
@@ -219,11 +219,7 @@ export function CommandPalette() {
         handler: async () => {
           setOverlay(null);
           const result = await window.api.invoke('ssh:disconnect') as { cwd?: string };
-          useUiStore.getState().setSshHost(null);
-          useUiStore.getState().setSshConnected(false);
-          if (result?.cwd) {
-            useUiStore.getState().setCwd(result.cwd);
-          }
+          useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
         },
       },
     ],

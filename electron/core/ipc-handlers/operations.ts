@@ -7,12 +7,18 @@
  * delegate here instead.
  */
 import crypto from 'crypto';
-import fs from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import type { FileAttachment } from '../agents/types';
 import type { DiffScope } from '../worktree/types';
 import { getChangedFiles, getFileDiff } from '../worktree/diff';
+import { createWorkspaceFs } from '../worktree/workspace-fs';
+import { escapeShell } from '../worktree/remote-manager';
 import { agentManager } from '../agents/manager';
+import { extendedEnv } from '../process-utils';
 import type { IpcContext, SpawnTaskRunOptions } from './types';
+
+const execFileAsync = promisify(execFile);
 import { WorkspaceGroupStore } from '../workspace-group/store';
 import {
   requireFields,
@@ -136,39 +142,41 @@ export async function steerTask(
   const previousAttachmentContext = sessionId
     ? extractLatestSessionAttachmentContext(ctx.sessionStore, sessionId)
     : null;
+
+  // Derive sshHost from the workspace when possible, fall back to global
+  const workspaceId = ctx.lifecycleManager.getWorkspaceForTask(taskId);
+  const workspace = workspaceId ? ctx.workspaceStore.get(workspaceId) : null;
+  const effectiveSshHost = workspace?.sshHost ?? ctx.remoteConnection.host ?? undefined;
+
   const attachmentContext = await writeAttachmentContextFile(
     activeSession?.cwd ?? ctx.getCurrentCwd(),
     {
       images: images?.length ? images : previousAttachmentContext?.images,
       attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
-      sshHost: ctx.getSshHost(),
+      sshHost: effectiveSshHost,
     },
   );
-  let effectivePrompt = await buildPromptWithAttachments(prompt, attachments, ctx.getSshHost());
+  let effectivePrompt = await buildPromptWithAttachments(prompt, attachments);
 
   // Inject workspace skills on follow-up messages so the agent retains
   // lifecycle protocol context across the full conversation.
-  const workspaceId = ctx.lifecycleManager.getWorkspaceForTask(taskId);
-  if (workspaceId) {
-    const workspace = ctx.workspaceStore.get(workspaceId);
-    if (workspace) {
-      const siblingContext = workspaceGroupStore.getGroupForWorkspace(workspace.id)?.siblings;
-      const attachmentsForSkills = attachmentContext
-        ? {
-            manifestPath: attachmentContext.manifestPath,
-            imageCount: attachmentContext.imageCount,
-            fileCount: attachmentContext.attachmentCount,
-          }
-        : undefined;
-      const wsContext = buildWorkspaceSystemContext(workspace, workspace.mode, {
-        agentId: workspace.agentId,
-        isExistingSession: true,
-        attachments: attachmentsForSkills,
-        siblingWorkspaces: siblingContext,
-      });
-      if (wsContext) {
-        effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
-      }
+  if (workspaceId && workspace) {
+    const siblingContext = workspaceGroupStore.getGroupForWorkspace(workspace.id)?.siblings;
+    const attachmentsForSkills = attachmentContext
+      ? {
+          manifestPath: attachmentContext.manifestPath,
+          imageCount: attachmentContext.imageCount,
+          fileCount: attachmentContext.attachmentCount,
+        }
+      : undefined;
+    const wsContext = buildWorkspaceSystemContext(workspace, workspace.mode, {
+      agentId: workspace.agentId,
+      isExistingSession: true,
+      attachments: attachmentsForSkills,
+      siblingWorkspaces: siblingContext,
+    });
+    if (wsContext) {
+      effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
     }
   }
 
@@ -220,7 +228,8 @@ export async function spawnWorkspaceChat(
   if (!workspace) {
     throw new Error(`Workspace ${input.workspaceId} not found`);
   }
-  if (!fs.existsSync(workspace.worktreePath)) {
+  const wfs = createWorkspaceFs(workspace.sshHost);
+  if (!(await wfs.exists(workspace.worktreePath))) {
     throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}`);
   }
 
@@ -233,6 +242,7 @@ export async function spawnWorkspaceChat(
     model: input.model ?? workspace.model,
     mode: input.mode ?? workspace.mode,
     cwd: workspace.worktreePath,
+    sshHost: workspace.sshHost,
     images: input.images,
     attachments: input.attachments,
   });
@@ -269,7 +279,7 @@ export async function diffFiles(ctx: IpcContext, workspaceId: string) {
   if (!workspace) {
     throw new Error(`Workspace ${workspaceId} not found`);
   }
-  return getChangedFiles(workspace.worktreePath, workspace.parentRepo);
+  return getChangedFiles(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
 }
 
 export async function fileDiff(
@@ -283,7 +293,160 @@ export async function fileDiff(
   if (!workspace) {
     throw new Error(`Workspace ${workspaceId} not found`);
   }
-  return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
+  return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.sshHost);
+}
+
+// ---------------------------------------------------------------------------
+// Branch & PR operations
+// ---------------------------------------------------------------------------
+
+export async function renameBranch(
+  ctx: IpcContext,
+  workspaceId: string,
+  newBranch: string,
+  newName?: string,
+) {
+  const workspace = ctx.workspaceStore.get(workspaceId);
+  if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+  const trimmedName = newName?.trim();
+  let nextBranch = workspace.branch;
+  if (newBranch.trim() && newBranch !== workspace.branch) {
+    try {
+      const wfs = createWorkspaceFs(workspace.sshHost);
+      await wfs.git(workspace.worktreePath, ['branch', '-m', workspace.branch, newBranch], { timeout: 10000 });
+      nextBranch = newBranch;
+    } catch { /* best-effort */ }
+  }
+
+  const updated = ctx.workspaceStore.update(workspaceId, {
+    branch: nextBranch,
+    ...(trimmedName ? { name: trimmedName } : {}),
+  });
+  if (!updated) throw new Error(`Workspace ${workspaceId} not found`);
+  return updated;
+}
+
+export async function mergePreview(
+  ctx: IpcContext,
+  workspaceId: string,
+  targetBranch: string,
+) {
+  const workspace = ctx.workspaceStore.get(workspaceId);
+  if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+  const wfs = createWorkspaceFs(workspace.sshHost);
+  const { worktreePath, parentRepo } = workspace;
+
+  let mergeBase = '';
+  try {
+    const { stdout } = await wfs.git(worktreePath, ['merge-base', 'HEAD', targetBranch]);
+    mergeBase = stdout.trim();
+  } catch { /* no common ancestor */ }
+
+  let commitsAhead = 0;
+  if (mergeBase) {
+    try {
+      const { stdout } = await wfs.git(worktreePath, ['rev-list', '--count', `${mergeBase}..HEAD`]);
+      commitsAhead = parseInt(stdout.trim(), 10) || 0;
+    } catch { /* fallback */ }
+  }
+
+  let filesChanged = 0;
+  let additions = 0;
+  let deletions = 0;
+  try {
+    const diffRef = mergeBase || targetBranch;
+    const { stdout } = await wfs.git(worktreePath, ['diff', '--stat', '--numstat', diffRef]);
+    for (const line of stdout.trim().split('\n')) {
+      const parts = line.split('\t');
+      if (parts.length >= 3) {
+        filesChanged++;
+        const a = parseInt(parts[0], 10);
+        const d = parseInt(parts[1], 10);
+        if (!isNaN(a)) additions += a;
+        if (!isNaN(d)) deletions += d;
+      }
+    }
+  } catch { /* fallback */ }
+
+  const conflicts: string[] = [];
+  let canFastForward = false;
+  try {
+    await wfs.git(worktreePath, ['merge-base', '--is-ancestor', targetBranch, 'HEAD']);
+    canFastForward = true;
+  } catch {
+    try {
+      await wfs.git(parentRepo, ['merge-tree', '--write-tree', '--no-messages', targetBranch, workspace.branch]);
+    } catch (err: any) {
+      const stderr = err.stderr ?? err.message ?? '';
+      if (stderr) {
+        for (const line of (stderr as string).split('\n')) {
+          if (line.includes('CONFLICT')) {
+            const match = line.match(/CONFLICT.*?: (.+)/);
+            if (match) conflicts.push(match[1]);
+          }
+        }
+      }
+    }
+  }
+
+  return { commitsAhead, filesChanged, additions, deletions, conflicts, canFastForward };
+}
+
+export async function createPr(
+  ctx: IpcContext,
+  workspaceId: string,
+  title: string,
+  body: string,
+  targetBranch: string,
+  draft?: boolean,
+) {
+  const workspace = ctx.workspaceStore.get(workspaceId);
+  if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+  const wfs = createWorkspaceFs(workspace.sshHost);
+
+  try {
+    await wfs.git(workspace.worktreePath, ['push', '-u', 'origin', workspace.branch], { timeout: 60000 });
+  } catch (err: any) {
+    throw new Error(`Failed to push branch: ${err.message}`);
+  }
+
+  const ghArgs = ['pr', 'create',
+    '--title', title,
+    '--body', body,
+    '--base', targetBranch,
+    '--head', workspace.branch,
+  ];
+  if (draft) ghArgs.push('--draft');
+
+  try {
+    let url: string;
+    if (wfs.isRemote) {
+      // Remote: must go through shell
+      const ghCommand = `gh ${ghArgs.map(a => `'${escapeShell(a)}'`).join(' ')}`;
+      const result = await wfs.exec(workspace.parentRepo, ghCommand, { timeout: 30000 });
+      if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
+      url = result.stdout.trim();
+    } else {
+      // Local: use execFileAsync to avoid shell interpretation of user input
+      const { stdout } = await execFileAsync('gh', ghArgs, {
+        cwd: workspace.parentRepo,
+        timeout: 30000,
+        env: extendedEnv(),
+      });
+      url = stdout.trim();
+    }
+    const prNumberMatch = url.match(/\/pull\/(\d+)/);
+    const number = prNumberMatch ? parseInt(prNumberMatch[1], 10) : 0;
+
+    ctx.lifecycleManager.setOutcome(workspaceId, 'ready_to_merge', { force: true });
+
+    return { url, number };
+  } catch (err: any) {
+    throw new Error(`Failed to create PR: ${err.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -170,10 +170,10 @@ export class RemoteAuthService {
       .prepare(
         `SELECT id, token_hash FROM remote_clients WHERE revoked_at IS NOT NULL`,
       )
-      .all() as unknown as Pick<ClientRow, 'id' | 'token_hash'>[];
+      .all() as unknown as Pick<ClientRow, 'id' | 'token'>[];
 
     for (const row of revokedClients) {
-      if (!secretEquals(trimmed, row.token_hash)) continue;
+      if (!crypto.timingSafeEqual(Buffer.from(trimmed), Buffer.from(row.token))) continue;
       throw new Error('Client has been revoked');
     }
 

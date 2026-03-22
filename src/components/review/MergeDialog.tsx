@@ -34,10 +34,24 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const [preview, setPreview] = useState<MergePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [globalDefaults, setGlobalDefaults] = useState<Pick<FluxConfig, 'defaultMergeAgent' | 'defaultMergeModel' | 'defaultMergeThinking'>>({});
-  const defaultAgentId = (workspace.actAgentId ?? globalDefaults.defaultMergeAgent ?? workspace.agentId) as AgentId;
-  const defaultModel = workspace.actModel ?? globalDefaults.defaultMergeModel ?? workspace.model;
-  const defaultThinking = workspace.actThinking ?? globalDefaults.defaultMergeThinking ?? workspace.thinking ?? 'medium';
+  const [globalDefaults, setGlobalDefaults] = useState<{
+    agent?: string; model?: string; thinking?: ThinkingLevel;
+  }>({});
+
+  // Load sticky merge defaults from global config
+  useEffect(() => {
+    void window.api.invoke('config:get').then((cfg: any) => {
+      setGlobalDefaults({
+        agent: cfg.defaultMergeAgent,
+        model: cfg.defaultMergeModel,
+        thinking: cfg.defaultMergeThinking,
+      });
+    });
+  }, []);
+
+  const defaultAgentId = (workspace.actAgentId ?? globalDefaults.agent ?? workspace.agentId) as AgentId;
+  const defaultModel = workspace.actModel ?? globalDefaults.model ?? workspace.model;
+  const defaultThinking = workspace.actThinking ?? globalDefaults.thinking ?? workspace.thinking ?? 'medium';
   const [mergeAgentId, setMergeAgentId] = useState<AgentId>(defaultAgentId);
   const [mergeModel, setMergeModel] = useState(defaultModel);
   const [mergeThinking, setMergeThinking] = useState<ThinkingLevel>(defaultThinking);
@@ -421,6 +435,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           loadingModels={mergeModelsLoading}
           onClose={() => {
             setPickerOpen(false);
+            // Persist merge agent selection globally so it's sticky across new workspaces
             void window.api.invoke('config:set', {
               defaultMergeAgent: mergeAgentId,
               defaultMergeModel: mergeModel,

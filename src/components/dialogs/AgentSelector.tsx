@@ -15,17 +15,16 @@ const thinkingLevels: { value: ThinkingLevel; label: string; short: string }[] =
 ];
 
 export function AgentSelector() {
-  const { activeOverlay, setOverlay } = useUiStore();
-  const {
-    agents,
-    selectedAgentId,
-    selectedModel,
-    selectedThinking,
-    dynamicModels,
-    setSelectedAgent,
-    setSelectedModel,
-    setSelectedThinking,
-  } = useAgentStore();
+  const activeOverlay = useUiStore((s) => s.activeOverlay);
+  const setOverlay = useUiStore((s) => s.setOverlay);
+  const agents = useAgentStore((s) => s.agents);
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectedModel = useAgentStore((s) => s.selectedModel);
+  const selectedThinking = useAgentStore((s) => s.selectedThinking);
+  const dynamicModels = useAgentStore((s) => s.dynamicModels);
+  const setSelectedAgent = useAgentStore((s) => s.setSelectedAgent);
+  const setSelectedModel = useAgentStore((s) => s.setSelectedModel);
+  const setSelectedThinking = useAgentStore((s) => s.setSelectedThinking);
 
   const open = activeOverlay === 'agent-selector';
   const [draftAgentId, setDraftAgentId] = useState<AgentId>(selectedAgentId);

@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { extendedEnv, resolveExecutable, resolveSshCommand } from '../process-utils';
 
@@ -78,12 +78,13 @@ const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle> = {
   ollama: spawnOllama,
 };
 
-function versionSync(command: string): string {
+async function versionAsync(command: string): Promise<string> {
   try {
-    return execFileSync(command, ['--version'], {
+    const { stdout } = await execFileAsync(command, ['--version'], {
       encoding: 'utf-8',
       env: extendedEnv(),
-    }).trim().split('\n')[0];
+    });
+    return stdout.trim().split('\n')[0];
   } catch {
     return 'unknown';
   }
@@ -269,7 +270,7 @@ class AgentManager {
     // CLI-based agents
     const path = resolveExecutable(def.cmd!);
     const available = path !== null;
-    const version = available ? versionSync(path) : 'unknown';
+    const version = available ? await versionAsync(path) : 'unknown';
 
     let authStatus: DetectedAgent['authStatus'] = 'unknown';
     if (!available) {

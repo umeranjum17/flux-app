@@ -2,13 +2,17 @@ import fs from 'fs';
 import path from 'path';
 import type { ContextState, ContextRequest } from './protocol';
 import { hasContextStatePayload, parseContextState, parseContextRequest } from './protocol';
+import { createWorkspaceFs, type WorkspaceFs } from '../worktree/workspace-fs';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
+const DEFAULT_SSH_POLL_INTERVAL_MS = 2000;
 
 export interface ContextWatcherOptions {
   /** Workspace root directory containing .context/. */
   cwd: string;
-  /** Poll interval in ms (default 500). */
+  /** SSH host for remote workspaces. When set, polls via SSH instead of local fs. */
+  sshHost?: string;
+  /** Poll interval in ms (default 500 local, 2000 SSH). */
   pollIntervalMs?: number;
   /** Called when .context/state.json changes with valid data. */
   onStateChange: (state: ContextState) => void;
@@ -21,10 +25,12 @@ export interface ContextWatcherOptions {
 /**
  * Polls `.context/state.json` and `.context/requests/` for changes.
  *
- * Designed for simplicity and cross-platform reliability over fs.watch.
+ * Uses WorkspaceFs to work identically for local and remote (SSH) workspaces.
  * Silently skips parse errors (partial writes) and retries next cycle.
  */
 export class ContextWatcher {
+  private readonly wfs: WorkspaceFs;
+  private readonly joinPath: (...paths: string[]) => string;
   private readonly statePath: string;
   private readonly requestsDir: string;
   private readonly responsesDir: string;
@@ -37,12 +43,16 @@ export class ContextWatcher {
   private lastStateContent = '';
   private processedRequestIds = new Set<string>();
   private disposed = false;
+  private polling = false;
 
   constructor(options: ContextWatcherOptions) {
-    this.statePath = path.join(options.cwd, '.context', 'state.json');
-    this.requestsDir = path.join(options.cwd, '.context', 'requests');
-    this.responsesDir = path.join(options.cwd, '.context', 'responses');
-    this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+    this.wfs = createWorkspaceFs(options.sshHost);
+    this.joinPath = options.sshHost ? path.posix.join : path.join;
+    this.statePath = this.joinPath(options.cwd, '.context', 'state.json');
+    this.requestsDir = this.joinPath(options.cwd, '.context', 'requests');
+    this.responsesDir = this.joinPath(options.cwd, '.context', 'responses');
+    this.pollIntervalMs = options.pollIntervalMs
+      ?? (options.sshHost ? DEFAULT_SSH_POLL_INTERVAL_MS : DEFAULT_POLL_INTERVAL_MS);
     this.onStateChange = options.onStateChange;
     this.onRequest = options.onRequest;
     this.shouldProcessRequest = options.shouldProcessRequest;
@@ -51,9 +61,11 @@ export class ContextWatcher {
   /** Start polling. Idempotent. */
   start(): void {
     if (this.timer || this.disposed) return;
-    fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    this.poll();
-    this.timer = setInterval(() => this.poll(), this.pollIntervalMs);
+    if (!this.wfs.isRemote) {
+      fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
+    }
+    void this.poll();
+    this.timer = setInterval(() => void this.poll(), this.pollIntervalMs);
   }
 
   /** Stop polling and clean up. Idempotent. */
@@ -71,40 +83,44 @@ export class ContextWatcher {
   }
 
   /** Write a response file for a processed request. */
-  writeResponse(id: string, ok: boolean, data?: Record<string, unknown>, error?: string): void {
+  async writeResponse(id: string, ok: boolean, data?: Record<string, unknown>, error?: string): Promise<void> {
     try {
-      fs.mkdirSync(this.responsesDir, { recursive: true });
-      const responsePath = path.join(this.responsesDir, `${id}.json`);
-      fs.writeFileSync(responsePath, JSON.stringify({ id, ok, data, error }, null, 2));
+      const responsePath = this.responsePathFor(id);
+      await this.wfs.writeFile(responsePath, JSON.stringify({ id, ok, data, error }, null, 2));
     } catch {
       // Best-effort — agent can retry or timeout
     }
   }
 
-  private poll(): void {
-    this.pollState();
-    if (this.onRequest) {
-      this.pollRequests();
+  private async poll(): Promise<void> {
+    if (this.polling || this.disposed) return;
+    this.polling = true;
+    try {
+      await this.pollState();
+      if (this.onRequest) {
+        await this.pollRequests();
+      }
+    } finally {
+      this.polling = false;
     }
   }
 
-  private pollState(): void {
+  private async pollState(): Promise<void> {
     let content: string;
     try {
-      content = fs.readFileSync(this.statePath, 'utf-8');
+      const nextContent = await this.wfs.readFile(this.statePath);
+      if (!nextContent) return;
+      content = nextContent;
     } catch {
-      // File doesn't exist yet — that's fine
       return;
     }
 
-    // Skip if content hasn't changed
     if (content === this.lastStateContent) return;
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(content);
     } catch {
-      // Partial write — skip and retry next cycle
       return;
     }
 
@@ -115,12 +131,11 @@ export class ContextWatcher {
     this.onStateChange(state);
   }
 
-  private pollRequests(): void {
+  private async pollRequests(): Promise<void> {
     let entries: string[];
     try {
-      entries = fs.readdirSync(this.requestsDir);
+      entries = await this.wfs.listDir(this.requestsDir);
     } catch {
-      // Directory doesn't exist yet
       return;
     }
 
@@ -128,14 +143,16 @@ export class ContextWatcher {
       if (!entry.endsWith('.json')) continue;
       const id = entry.replace('.json', '');
       if (this.processedRequestIds.has(id)) continue;
-      if (fs.existsSync(path.join(this.responsesDir, `${id}.json`))) {
+      if (await this.hasResponseForRequest(id)) {
         this.processedRequestIds.add(id);
         continue;
       }
 
       let content: string;
       try {
-        content = fs.readFileSync(path.join(this.requestsDir, entry), 'utf-8');
+        const nextContent = await this.wfs.readFile(this.joinPath(this.requestsDir, entry));
+        if (!nextContent) continue;
+        content = nextContent;
       } catch {
         continue;
       }
@@ -149,7 +166,7 @@ export class ContextWatcher {
 
       const request = parseContextRequest(parsed);
       if (!request) continue;
-      if (this.hasResponseForRequest(request.id)) {
+      if (await this.hasResponseForRequest(request.id)) {
         this.processedRequestIds.add(id);
         continue;
       }
@@ -160,11 +177,11 @@ export class ContextWatcher {
     }
   }
 
-  private hasResponseForRequest(id: string): boolean {
-    try {
-      return fs.existsSync(path.join(this.responsesDir, `${id}.json`));
-    } catch {
-      return false;
-    }
+  private responsePathFor(id: string): string {
+    return this.joinPath(this.responsesDir, `${id}.json`);
+  }
+
+  private async hasResponseForRequest(id: string): Promise<boolean> {
+    return this.wfs.exists(this.responsePathFor(id));
   }
 }

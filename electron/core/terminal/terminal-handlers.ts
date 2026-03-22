@@ -12,6 +12,7 @@ import * as pty from 'node-pty';
 
 import { createInitialTerminalCommandController } from './initial-command';
 import { setupShellIntegration, parseShellIntegrationEvents } from './shell-integration';
+import type { RemoteConnectionManager } from '../remote/connection-manager';
 import {
   extendedEnv,
   resolveSshCommand,
@@ -25,8 +26,7 @@ export interface TerminalHandlerDeps {
   sendToRenderer: (channel: string, payload: unknown) => boolean;
   activeTerminals: Map<string, ChildProcess>;
   getCurrentCwd: () => string;
-  getLocalCwd: () => string;
-  getSshHost: () => string | null;
+  remoteConnection: RemoteConnectionManager;
   toRemoteShellPath: (value: string) => string;
   requireFields: (obj: Record<string, unknown>, ...fields: string[]) => void;
   getWorkspacePath: (workspaceId: string) => string | undefined;
@@ -123,8 +123,7 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
     sendToRenderer,
     activeTerminals,
     getCurrentCwd,
-    getLocalCwd,
-    getSshHost,
+    remoteConnection,
     toRemoteShellPath,
     requireFields,
     getWorkspacePath,
@@ -175,16 +174,16 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
       const wsPath = getWorkspacePath(workspaceId);
       spawnCwd = wsPath ?? termCwd ?? getCurrentCwd();
     } else {
-      spawnCwd = getSshHost() ? getLocalCwd() : (termCwd ?? getCurrentCwd());
+      spawnCwd = remoteConnection.isConnected() ? remoteConnection.localCwd : (termCwd ?? getCurrentCwd());
     }
 
     // Initialize flow control state
     flowStates.set(id, { unackedChars: 0, paused: false });
 
-    if (getSshHost()) {
+    if (remoteConnection.isConnected()) {
       // SSH: fall back to child_process with pseudo-tty allocation
-      const proc = spawn(resolveSshCommand(), ['-tt', getSshHost()!], {
-        cwd: getLocalCwd(),
+      const proc = spawn(resolveSshCommand(), ['-tt', remoteConnection.host!], {
+        cwd: remoteConnection.localCwd,
         env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });

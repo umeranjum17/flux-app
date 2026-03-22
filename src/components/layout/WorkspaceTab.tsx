@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2 } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
-import { createEmptyWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { createEmptyWorkspace, createRecentProject, rememberRecentProject, isWorkspaceSshAvailable } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
@@ -421,6 +421,9 @@ function WorkspaceListItem({
   onOpenContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onArchive: () => void | Promise<void>;
 }) {
+  const connectedSshHosts = useUiStore((s) => s.connectedSshHosts);
+  const isSshWorkspace = !!workspace.sshHost;
+  const sshAvailable = isSshWorkspace ? connectedSshHosts.has(workspace.sshHost!) : true;
   const isArchiving = isWorkspaceArchiving(operation);
   const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr'
     || workspace.outcome === 'reviewing'
@@ -448,18 +451,28 @@ function WorkspaceListItem({
     ? `Linked with ${siblings.map((member) => `${member.workspaceName} (${member.branch})`).join(', ')}`
     : undefined;
 
+  const sshDisabled = isSshWorkspace && !sshAvailable;
+  const sshTooltip = isSshWorkspace
+    ? (sshAvailable ? `SSH: ${workspace.sshHost}` : `SSH disconnected: ${workspace.sshHost}`)
+    : undefined;
+
   return (
     <button
-      onClick={onSelect}
-      onContextMenu={onOpenContextMenu}
-      title={signal.tooltip}
+      onClick={sshDisabled ? undefined : onSelect}
+      onContextMenu={sshDisabled ? undefined : onOpenContextMenu}
+      title={sshDisabled ? sshTooltip : signal.tooltip}
       aria-label={signal.ariaLabel}
-      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''} ${actionNeeded ? 'workspace-row-action-needed' : ''}`}
+      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''} ${actionNeeded ? 'workspace-row-action-needed' : ''} ${sshDisabled ? 'opacity-40 pointer-events-none' : ''}`}
       style={actionNeeded ? { '--workspace-signal-color': `var(--color-${signal.state === 'awaiting_approval' ? 'warning' : signal.state === 'awaiting_input' ? 'info' : 'error'})` } as React.CSSProperties : undefined}
     >
       <div className="relative shrink-0" aria-hidden="true">
         <WorkspaceLifecycleIcon state={signal.state} size={8} className={signal.iconColor} />
       </div>
+      {isSshWorkspace && (
+        <span className={`shrink-0 ${sshAvailable ? 'text-accent' : 'text-text-tertiary'}`} title={sshTooltip}>
+          <Monitor size={12} />
+        </span>
+      )}
       {siblings.length > 0 && (
         <span className="shrink-0 text-accent" title={linkedTooltip}>
           <Link2 size={12} />
@@ -470,7 +483,9 @@ function WorkspaceListItem({
           <AnimatedWorkspaceName name={workspace.name} />
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
-          {actionNeeded ? (
+          {sshDisabled ? (
+            <span className="font-medium text-text-tertiary">SSH disconnected</span>
+          ) : actionNeeded ? (
             <span className={`font-medium ${signal.iconColor}`}>{signal.label}</span>
           ) : (
             <>

@@ -86,19 +86,20 @@ export interface IpcChannels {
   'terminal:ack': { args: [{ id: string; charCount: number }]; result: void };
   'terminal:get-profiles': { args: []; result: Array<{ name: string; path: string; icon: string }> };
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
+  'ssh:listdirs': { args: [{ host: string; dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
-    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
     result: Workspace;
   };
   'workspace:create-quick': {
-    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
     result: Workspace;
   };
   'workspace:rename-branch': {
-    args: [{ workspaceId: string; newBranch: string; newName?: string; newWorktreeName?: string }];
+    args: [{ workspaceId: string; newBranch: string; newName?: string }];
     result: Workspace;
   };
   'workspace:spawn': { args: [{ taskId?: string; workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
@@ -503,6 +504,8 @@ export interface Workspace {
   actAgentId?: string;
   actModel?: string;
   actThinking?: ThinkingLevel;
+  /** SSH host for remote workspaces. Undefined = local workspace. */
+  sshHost?: string;
   worktreePath: string;
   sessionId?: string;
 }

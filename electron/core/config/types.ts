@@ -39,6 +39,9 @@ export interface FluxConfig {
   recentProjects: RecentProject[];
   recentSshHosts: RecentSshHost[];
   zoomLevel?: number;
+  defaultMergeAgent?: string;
+  defaultMergeModel?: string;
+  defaultMergeThinking?: ThinkingLevel;
   repoMap: RepoMapConfig;
   defaultMergeAgent?: string;
   defaultMergeModel?: string;

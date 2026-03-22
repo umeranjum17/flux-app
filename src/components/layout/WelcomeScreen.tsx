@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Zap, FolderPlus, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal } from 'lucide-react';
-import { useUiStore, type RecentProject } from '../../stores/ui';
+import { getRecentProjectKey, useUiStore, type RecentProject } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
@@ -85,7 +85,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
             <div className="space-y-1.5">
               {recentProjects.slice(0, 5).map((project) => (
                 <RecentProjectRow
-                  key={project.path}
+                  key={getRecentProjectKey(project)}
                   project={project}
                   onClick={() => onOpenProject(project.path, project.isSSH ? { isSSH: true, sshHost: project.sshHost } : undefined)}
                 />
@@ -379,7 +379,10 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
       <Zap size={12} className="text-text-tertiary shrink-0" />
       <div className="flex-1 min-w-0">
         <span className="block truncate text-[14px] font-medium text-text-primary">{project.name}</span>
-        <span className="mt-0.5 block truncate text-[12px] text-text-tertiary">{project.path}</span>
+        <span className="mt-0.5 block truncate text-[12px] text-text-tertiary">
+          {project.isSSH && project.sshHost ? `${project.sshHost} · ` : ''}
+          {project.path}
+        </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {project.isSSH && (

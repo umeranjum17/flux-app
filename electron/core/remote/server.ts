@@ -2,6 +2,7 @@ import os, { networkInterfaces } from 'os';
 import type { AddressInfo } from 'net';
 import { WebSocket, WebSocketServer } from 'ws';
 import { logDiagnostic } from '../diagnostics/logger';
+import type { TaskMode } from '../agents/types';
 import type { RemoteControlService } from './control-service';
 import type { RemoteAuthService } from './auth-service';
 import type { RemoteEventBus } from './event-bus';
@@ -280,7 +281,7 @@ export class RemoteControlServer {
           prompt: string;
           agentId?: string;
           model?: string;
-          mode?: string;
+          mode?: TaskMode;
           thinking?: string;
           cwd?: string;
           autoApprovePermissions?: boolean;
