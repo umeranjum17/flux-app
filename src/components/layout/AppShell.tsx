@@ -105,8 +105,8 @@ export function AppShell() {
       useAgentStore.getState().setDetecting(true);
       let restoredProjectPath: string | null = null;
       try {
+        // Step 1: Load config first (other steps depend on it)
         let config: FluxConfig | null = null;
-
         try {
           config = await window.api.invoke('config:get') as FluxConfig;
           useUiStore.getState().setTheme(config.theme);
@@ -119,10 +119,8 @@ export function AppShell() {
           if (typeof (config as any).autoApprove === 'boolean') {
             useUiStore.getState().setAutoApprove((config as any).autoApprove);
           }
-          // Restore multi-project state
           if (config.openProjects && config.openProjects.length > 0) {
             useUiStore.getState().setOpenProjects(config.openProjects);
-            // Restore active project (if saved) or use the first open project
             if (config.activeProjectPath && config.openProjects.includes(config.activeProjectPath)) {
               restoredProjectPath = config.activeProjectPath;
               useUiStore.getState().setActiveProject(config.activeProjectPath);
@@ -136,8 +134,28 @@ export function AppShell() {
           console.error('Config load failed:', err);
         }
 
-        try {
-          const agents = await window.api.invoke('agents:detect') as DetectedAgent[];
+        // Step 2: Run agent detection, CWD, env detection, and sessions in parallel
+        const [agentsResult, , envResult, sessionsResult] = await Promise.allSettled([
+          // Agent detection
+          window.api.invoke('agents:detect') as Promise<DetectedAgent[]>,
+          // CWD — depends on config for restoredProjectPath
+          (async () => {
+            if (restoredProjectPath) {
+              await window.api.invoke('cwd:set', { cwd: restoredProjectPath });
+            } else {
+              const cwdResult = await window.api.invoke('cwd:get') as string;
+              useUiStore.getState().setCwd(cwdResult);
+            }
+          })(),
+          // Environment detection
+          window.api.invoke('env:detect') as Promise<EnvironmentInfo>,
+          // Sessions
+          window.api.invoke('sessions:list') as Promise<Session[]>,
+        ]);
+
+        // Apply agent detection results
+        if (agentsResult.status === 'fulfilled') {
+          const agents = agentsResult.value;
           useAgentStore.getState().setAgents(agents);
 
           const preferredAgent = config?.defaultAgent
@@ -150,37 +168,36 @@ export function AppShell() {
               selectedModel: config?.defaultModel || preferredAgent.models[0] || state.selectedModel,
               dynamicModels: [],
             }));
-            await useAgentStore.getState().fetchModels(preferredAgent.id);
-            if (config?.defaultModel) {
-              const availableModels = useAgentStore.getState().dynamicModels.map((model) => model.id);
-              if (availableModels.includes(config.defaultModel) || preferredAgent.models.includes(config.defaultModel)) {
-                useAgentStore.getState().setSelectedModel(config.defaultModel);
+            // Defer model fetching — fire after init completes so UI appears immediately
+            useAgentStore.getState().fetchModels(preferredAgent.id).then(() => {
+              if (config?.defaultModel) {
+                const availableModels = useAgentStore.getState().dynamicModels.map((model) => model.id);
+                if (availableModels.includes(config.defaultModel) || preferredAgent.models.includes(config.defaultModel)) {
+                  useAgentStore.getState().setSelectedModel(config.defaultModel);
+                }
               }
-            }
+            }).catch((err) => console.error('Model fetch failed:', err));
           }
-        } catch (err) {
+        } else {
           toast.error('Failed to detect agents');
-          console.error('Agent detection failed:', err);
+          console.error('Agent detection failed:', agentsResult.reason);
         }
 
-        try {
-          if (restoredProjectPath) {
-            // Sync the restored project path to the backend so git checks use it
-            await window.api.invoke('cwd:set', { cwd: restoredProjectPath });
-          } else {
-            const cwdResult = await window.api.invoke('cwd:get') as string;
-            useUiStore.getState().setCwd(cwdResult);
+        // Apply environment detection results
+        if (envResult.status === 'fulfilled') {
+          const envInfo = envResult.value;
+          if (envInfo.runtime !== 'local') {
+            useUiStore.getState().setEnvironment(envInfo.runtime);
           }
-        } catch (err) {
-          console.error('CWD fetch failed:', err);
+        } else {
+          console.error('Environment detection failed:', envResult.reason);
         }
 
-
-        try {
-          const sessions = await window.api.invoke('sessions:list') as Session[];
-          useSessionStore.getState().setSessions(sessions);
-        } catch (err) {
-          console.error('Sessions fetch failed:', err);
+        // Apply session results
+        if (sessionsResult.status === 'fulfilled') {
+          useSessionStore.getState().setSessions(sessionsResult.value);
+        } else {
+          console.error('Sessions fetch failed:', sessionsResult.reason);
         }
       } finally {
         useAgentStore.getState().setDetecting(false);
@@ -238,48 +255,43 @@ export function AppShell() {
 
     (async () => {
       try {
-        const allWorkspaces: Workspace[] = [];
-        for (const repo of projects) {
-          const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
-          if (cancelled) return;
-          allWorkspaces.push(...result);
-        }
+        // Fetch all workspace lists concurrently across projects
+        const listResults = await Promise.all(
+          projects.map((repo) => window.api.invoke('workspace:list', { parentRepo: repo }) as Promise<Workspace[]>),
+        );
+        if (cancelled) return;
+        const allWorkspaces = listResults.flat();
 
         useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
-        // Sync outcomes and reset stale statuses before restoring sessions.
-        // This updates the backend DB and emits workspace:status/outcome events.
-        for (const repo of projects) {
-          try {
-            await window.api.invoke('workspace:sync-outcomes', { parentRepo: repo });
-          } catch (err) {
-            console.warn('[AppShell] Failed to sync workspace outcomes:', err);
-          }
-        }
+        // Sync outcomes concurrently across all projects
+        await Promise.allSettled(
+          projects.map((repo) => window.api.invoke('workspace:sync-outcomes', { parentRepo: repo })),
+        );
+        if (cancelled) return;
 
-        // Re-fetch workspaces after sync so we have fresh status/outcome data.
-        // Without this, restoreWorkspaceChats uses stale pre-sync data which can
-        // cause tasks to be created with incorrect status (e.g. 'running' instead
-        // of 'idle') after an app crash.
-        const freshWorkspaces: Workspace[] = [];
-        for (const repo of projects) {
-          const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
-          if (cancelled) return;
-          freshWorkspaces.push(...result);
-        }
+        // Re-fetch workspaces concurrently after sync for fresh status/outcome data
+        const freshResults = await Promise.all(
+          projects.map((repo) => window.api.invoke('workspace:list', { parentRepo: repo }) as Promise<Workspace[]>),
+        );
+        if (cancelled) return;
+        const freshWorkspaces = freshResults.flat();
+
         useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
         await useWorkspaceStore.getState().loadWorkspaceOperations();
         await Promise.all(
           freshWorkspaces.map((workspace) => useWorkspaceGroupStore.getState().loadGroupForWorkspace(workspace.id)),
         );
 
-        for (const workspace of freshWorkspaces) {
-          const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
-          if (cancelled) return;
-
-          useWorkspaceStore.getState().setWorkspaceSessions(workspace.id, sessions);
-          await restoreWorkspaceChats(workspace, sessions);
-        }
+        // Restore workspace chats concurrently
+        await Promise.all(
+          freshWorkspaces.map(async (workspace) => {
+            const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
+            if (cancelled) return;
+            useWorkspaceStore.getState().setWorkspaceSessions(workspace.id, sessions);
+            await restoreWorkspaceChats(workspace, sessions);
+          }),
+        );
       } catch {
         // Workspace restore is best-effort.
       }
