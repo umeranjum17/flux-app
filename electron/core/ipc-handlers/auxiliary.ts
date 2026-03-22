@@ -380,6 +380,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     if (initGit) {
       try {
         await execFileAsync('git', ['init'], { cwd: newPath, timeout: 10000 });
+        await fs.promises.appendFile(path.join(newPath, '.gitignore'), '.context\n');
         // Create an initial empty commit so worktrees work immediately
         await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
           cwd: newPath,
@@ -398,6 +399,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     const target = dirPath ?? getCurrentCwd();
     try {
       await execFileAsync('git', ['init'], { cwd: target, timeout: 10000 });
+      await fs.promises.appendFile(path.join(target, '.gitignore'), '.context\n');
       // Create an initial empty commit so worktrees work immediately
       await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
         cwd: target,
