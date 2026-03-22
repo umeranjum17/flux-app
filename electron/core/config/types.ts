@@ -40,4 +40,7 @@ export interface FluxConfig {
   recentSshHosts: RecentSshHost[];
   zoomLevel?: number;
   repoMap: RepoMapConfig;
+  defaultMergeAgent?: string;
+  defaultMergeModel?: string;
+  defaultMergeThinking?: ThinkingLevel;
 }

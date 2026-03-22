@@ -5,6 +5,7 @@ import { useAgentStore } from '../../stores/agent';
 import { startWorkspaceMerge } from '../../lib/workspace-state';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import type { Workspace, MergePreview } from '../../lib/ipc-api';
+import type { FluxConfig } from '../../lib/ipc-api';
 import type { AgentId, DetectedAgent, ModelInfo, ThinkingLevel } from '../../lib/types';
 
 type MergeMode = 'agent' | 'pr';
@@ -33,9 +34,10 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const [preview, setPreview] = useState<MergePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const defaultAgentId = (workspace.actAgentId ?? workspace.agentId) as AgentId;
-  const defaultModel = workspace.actModel ?? workspace.model;
-  const defaultThinking = workspace.actThinking ?? workspace.thinking ?? 'medium';
+  const [globalDefaults, setGlobalDefaults] = useState<Pick<FluxConfig, 'defaultMergeAgent' | 'defaultMergeModel' | 'defaultMergeThinking'>>({});
+  const defaultAgentId = (workspace.actAgentId ?? globalDefaults.defaultMergeAgent ?? workspace.agentId) as AgentId;
+  const defaultModel = workspace.actModel ?? globalDefaults.defaultMergeModel ?? workspace.model;
+  const defaultThinking = workspace.actThinking ?? globalDefaults.defaultMergeThinking ?? workspace.thinking ?? 'medium';
   const [mergeAgentId, setMergeAgentId] = useState<AgentId>(defaultAgentId);
   const [mergeModel, setMergeModel] = useState(defaultModel);
   const [mergeThinking, setMergeThinking] = useState<ThinkingLevel>(defaultThinking);
@@ -61,6 +63,16 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     }
     return [{ id: mergeModel, name: mergeModel }, ...combined];
   }, [mergeModel, mergeModels, selectedAgent]);
+
+  useEffect(() => {
+    void (window.api.invoke('config:get') as Promise<FluxConfig>).then((config) => {
+      setGlobalDefaults({
+        defaultMergeAgent: config.defaultMergeAgent,
+        defaultMergeModel: config.defaultMergeModel,
+        defaultMergeThinking: config.defaultMergeThinking,
+      });
+    });
+  }, []);
 
   useEffect(() => {
     if (!defaultBranch) return;
@@ -407,7 +419,14 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           thinking={mergeThinking}
           modelOptions={modelOptions}
           loadingModels={mergeModelsLoading}
-          onClose={() => setPickerOpen(false)}
+          onClose={() => {
+            setPickerOpen(false);
+            void window.api.invoke('config:set', {
+              defaultMergeAgent: mergeAgentId,
+              defaultMergeModel: mergeModel,
+              defaultMergeThinking: mergeThinking,
+            });
+          }}
           onReloadModels={() => setReloadToken((current) => current + 1)}
           onSelectAgent={(agent) => {
             const fallbackModel = agent.models[0] ?? '';
