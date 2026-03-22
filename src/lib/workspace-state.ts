@@ -368,7 +368,7 @@ export async function startWorkspaceMerge(
   }
 
   const taskId = crypto.randomUUID();
-  const agentId = opts.agentId ?? workspace.actAgentId ?? workspace.agentId as AgentId;
+  const agentId = (opts.agentId ?? workspace.actAgentId ?? workspace.agentId) as AgentId;
   const model = opts.model ?? workspace.actModel ?? workspace.model;
   const thinking = opts.thinking ?? workspace.actThinking ?? workspace.thinking ?? 'medium';
   const prompt = buildWorkspaceMergeTaskPrompt(workspace, opts.targetBranch, opts.squash);
