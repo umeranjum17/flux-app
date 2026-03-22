@@ -407,7 +407,15 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
           thinking={mergeThinking}
           modelOptions={modelOptions}
           loadingModels={mergeModelsLoading}
-          onClose={() => setPickerOpen(false)}
+          onClose={() => {
+            setPickerOpen(false);
+            void window.api.invoke('workspace:update', {
+              workspaceId: workspace.id,
+              actAgentId: mergeAgentId,
+              actModel: mergeModel,
+              actThinking: mergeThinking,
+            });
+          }}
           onReloadModels={() => setReloadToken((current) => current + 1)}
           onSelectAgent={(agent) => {
             const fallbackModel = agent.models[0] ?? '';
