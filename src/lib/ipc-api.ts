@@ -91,15 +91,15 @@ export interface IpcChannels {
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
-    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
     result: Workspace;
   };
   'workspace:create-quick': {
-    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
     result: Workspace;
   };
   'workspace:rename-branch': {
-    args: [{ workspaceId: string; newBranch: string; newName?: string; newWorktreeName?: string }];
+    args: [{ workspaceId: string; newBranch: string; newName?: string }];
     result: Workspace;
   };
   'workspace:spawn': { args: [{ taskId?: string; workspaceId: string; prompt: string; mode?: TaskMode }]; result: { taskId: string; session: Session } };
@@ -504,6 +504,8 @@ export interface Workspace {
   actAgentId?: string;
   actModel?: string;
   actThinking?: ThinkingLevel;
+  /** SSH host for remote workspaces. Undefined = local workspace. */
+  sshHost?: string;
   worktreePath: string;
   sessionId?: string;
 }

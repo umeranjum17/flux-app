@@ -75,10 +75,6 @@ function recoveryDelay(retryCount: number): number {
   return Math.min(RECOVERY_DELAY_MS * Math.pow(2, retryCount), MAX_RECOVERY_DELAY_MS);
 }
 
-async function ensureWorkspaceContextDir(cwd: string): Promise<void> {
-  await fs.promises.mkdir(path.join(cwd, '.context'), { recursive: true });
-}
-
 export function registerTaskHandlers(ctx: BaseIpcContext): {
   spawnTaskRun: (options: SpawnTaskRunOptions) => Promise<{ taskId: string; session: any }>;
   releaseTask: (taskId: string) => void;
@@ -332,7 +328,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   ): Promise<{ taskId: string; session: any }> => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
-    const sshHost = remoteConnection.host;
+    // Per-workspace sshHost takes priority over the global SSH connection
+    const sshHost = options.sshHost ?? remoteConnection.host ?? undefined;
     const localCwd = remoteConnection.localCwd;
     const workspace = options.workspaceId
       ? workspaceStore.get(options.workspaceId)
@@ -365,17 +362,19 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const previousAttachmentContext = existingSession
       ? extractLatestSessionAttachmentContext(sessionStore, session.id)
       : null;
-    await ensureWorkspaceContextDir(options.cwd);
+    // Ensure .context/ exists for both local and remote workspaces
+    const wfs = (await import('../worktree/workspace-fs')).createWorkspaceFs(sshHost ?? undefined);
+    await wfs.mkdirp(`${options.cwd}/.context`);
     const attachmentContext = await writeAttachmentContextFile(options.cwd, {
       images: options.images?.length ? options.images : previousAttachmentContext?.images,
       attachments: options.attachments?.length ? options.attachments : previousAttachmentContext?.attachments,
-      sshHost,
+      sshHost: sshHost ?? null,
     });
 
     // Write initial session context to disk for crash/compression recovery
-    await writeSessionContextFile(options.cwd, session.id, sessionStore);
+    await writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost);
 
-    let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments, sshHost);
+    let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments);
 
     // Contextless tasks: skip repo map and use home directory as cwd
     // so no project-specific CLAUDE.md or context leaks in.
@@ -742,6 +741,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       const contextWatcher = new ContextWatcher({
         cwd: options.cwd,
+        sshHost: sshHost ?? undefined,
         onStateChange: (state: ContextState) => {
           // Todos
           if (state.todos) {
@@ -1037,12 +1037,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       const now = Date.now();
       if (now - lastSessionContextWrite >= SESSION_CONTEXT_INTERVAL_MS) {
         lastSessionContextWrite = now;
-        writeSessionContextFile(options.cwd, session.id, sessionStore).catch(() => {});
+        writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost).catch(() => {});
       } else if (!sessionContextTimer) {
         sessionContextTimer = setTimeout(() => {
           sessionContextTimer = null;
           lastSessionContextWrite = Date.now();
-          writeSessionContextFile(options.cwd, session.id, sessionStore).catch(() => {});
+          writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost).catch(() => {});
         }, SESSION_CONTEXT_INTERVAL_MS - (now - lastSessionContextWrite));
       }
 
@@ -1339,7 +1339,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       toolHeartbeats.clear();
       if (sessionContextTimer) { clearTimeout(sessionContextTimer); sessionContextTimer = null; }
       // Final session-context write on completion
-      writeSessionContextFile(options.cwd, session.id, sessionStore).catch(() => {});
+      writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost).catch(() => {});
 
       void (async () => {
         // ── Guard: bail if task was already cleaned up by stop/cleanup ──

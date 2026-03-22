@@ -8,8 +8,9 @@ import type { AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../age
 import type { Session } from '../session/types';
 import { composeSkillPrompts } from '../agents/skills';
 import { logDiagnostic } from '../diagnostics/logger';
-import { extendedEnv, resolveSshCommand } from '../process-utils';
+import { extendedEnv } from '../process-utils';
 import type { SessionStore } from '../session/store';
+import { createWorkspaceFs } from '../worktree/workspace-fs';
 import type { Workspace, WorkspaceOutcome } from '../worktree/types';
 
 const execFileAsync = promisify(execFile);
@@ -453,22 +454,10 @@ export async function runShellCommand(command: string, cwd: string, remoteHost: 
   exitCode: number;
 }> {
   if (remoteHost) {
-    try {
-      const { stdout, stderr } = await execFileAsync(
-        resolveSshCommand(),
-        [remoteHost, `cd ${toRemoteShellPath(cwd)} && ${command}`],
-        { timeout: 120000, env: extendedEnv() },
-      );
-      return { stdout, stderr, exitCode: 0 };
-    } catch (err: any) {
-      return {
-        stdout: err.stdout ?? '',
-        stderr: err.stderr ?? err.message ?? '',
-        exitCode: err.code ?? 1,
-      };
-    }
+    return createWorkspaceFs(remoteHost).exec(cwd, command, { timeout: 120000 });
   }
 
+  // Local: use login shell for proper environment setup
   const shell = process.platform === 'win32'
     ? 'powershell.exe'
     : process.env.SHELL && fs.existsSync(process.env.SHELL)
@@ -874,7 +863,6 @@ export function extractLatestSessionAttachmentContext(
 
 async function collectAttachmentPreviews(
   attachments: FileAttachment[] | undefined,
-  sshHost: string | null,
 ): Promise<AttachmentPreview[]> {
   if (!attachments?.length) return [];
 
@@ -888,7 +876,6 @@ async function collectAttachmentPreviews(
       const preview = await readAttachmentPreview(
         attachment.path,
         Math.min(MAX_ATTACHMENT_CHARS_PER_FILE, remainingChars),
-        sshHost,
       );
       remainingChars -= preview.text.length;
       previews.push({
@@ -970,14 +957,15 @@ export async function writeAttachmentContextFile(
   const imageInputs = options.images?.length ? dedupeImages(options.images) : [];
   const attachments = options.attachments?.length ? dedupeAttachments(options.attachments) : [];
   if (imageInputs.length === 0 && attachments.length === 0) return null;
-  if (options.sshHost) return null;
 
   try {
-    const contextDir = path.join(cwd, '.context');
-    const attachmentDir = path.join(contextDir, 'attachments');
-    await fs.promises.mkdir(contextDir, { recursive: true });
-    await fs.promises.rm(attachmentDir, { recursive: true, force: true });
-    await fs.promises.mkdir(attachmentDir, { recursive: true });
+    const wfs = createWorkspaceFs(options.sshHost ?? undefined);
+    const joinPath = wfs.isRemote ? path.posix.join : path.join;
+    const contextDir = joinPath(cwd, '.context');
+    const attachmentDir = joinPath(contextDir, 'attachments');
+    await wfs.mkdirp(contextDir);
+    await wfs.rmrf(attachmentDir);
+    await wfs.mkdirp(attachmentDir);
 
     const manifest: AttachmentManifestEntry[] = [];
     const imageNotes: string[] = [];
@@ -990,8 +978,8 @@ export async function writeAttachmentContextFile(
         continue;
       }
       const relativeFile = `attachments/image-${index + 1}.${parsed.extension}`;
-      const outputPath = path.join(contextDir, relativeFile);
-      await fs.promises.writeFile(outputPath, parsed.buffer);
+      const outputPath = joinPath(contextDir, relativeFile);
+      await wfs.writeBuffer(outputPath, parsed.buffer);
       persistedImageCount += 1;
       imageNotes.push(`- Image ${index + 1}: \`${relativeFile}\` (${parsed.mediaType})`);
       manifest.push({
@@ -1004,7 +992,7 @@ export async function writeAttachmentContextFile(
       });
     }
 
-    const previews = await collectAttachmentPreviews(attachments, null);
+    const previews = await collectAttachmentPreviews(attachments);
     for (const preview of previews) {
       manifest.push({
         type: 'file',
@@ -1057,11 +1045,11 @@ export async function writeAttachmentContextFile(
       lines.push('', `- Additional omitted attachments: ${attachments.length - MAX_ATTACHED_FILES}`);
     }
 
-    const absolutePath = path.join(contextDir, 'attachments.md');
-    await fs.promises.writeFile(absolutePath, `${lines.join('\n')}\n`, 'utf-8');
+    const absolutePath = joinPath(contextDir, 'attachments.md');
+    await wfs.writeFile(absolutePath, `${lines.join('\n')}\n`);
 
-    const manifestPath = path.join(contextDir, 'attachments.json');
-    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+    const manifestPath = joinPath(contextDir, 'attachments.json');
+    await wfs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 
     return {
       absolutePath,
@@ -1097,11 +1085,10 @@ export function buildAttachmentContextPrompt(
 export async function buildPromptWithAttachments(
   prompt: string,
   attachments: FileAttachment[] | undefined,
-  sshHost: string | null,
 ): Promise<string> {
   if (!attachments?.length) return prompt;
 
-  const blocks = (await collectAttachmentPreviews(attachments, sshHost)).map(formatAttachmentPreviewBlock);
+  const blocks = (await collectAttachmentPreviews(attachments)).map(formatAttachmentPreviewBlock);
 
   if (attachments.length > MAX_ATTACHED_FILES) {
     blocks.push(`[${attachments.length - MAX_ATTACHED_FILES} additional attachments omitted]`);
@@ -1115,22 +1102,9 @@ export async function buildPromptWithAttachments(
 async function readAttachmentPreview(
   filePath: string,
   maxChars: number,
-  sshHost: string | null,
 ): Promise<{ text: string; truncated: boolean; binary: boolean }> {
-  if (sshHost) {
-    const cmd = `head -c ${maxChars + 1} ${toRemoteShellPath(filePath)}`;
-    const { stdout } = await execFileAsync(resolveSshCommand(), [sshHost, cmd], {
-      timeout: 10000,
-      env: extendedEnv(),
-    });
-    const text = stdout;
-    return {
-      text: text.slice(0, maxChars),
-      truncated: text.length > maxChars,
-      binary: text.includes('\u0000'),
-    };
-  }
-
+  // Attachments originate on the local machine; SSH workspaces consume the
+  // persisted .context artifacts instead of reading attachment paths remotely.
   const fd = fs.openSync(filePath, 'r');
   try {
     const buffer = Buffer.alloc(maxChars + 1);
@@ -1525,6 +1499,7 @@ export async function writeSessionContextFile(
   cwd: string,
   sessionId: string,
   sessionStore: SessionStore,
+  sshHost?: string | null,
 ): Promise<string | null> {
   try {
     const session = sessionStore.get(sessionId);
@@ -1617,11 +1592,12 @@ export async function writeSessionContextFile(
       }
     }
 
-    const contextDir = path.join(cwd, '.context');
-    await fs.promises.mkdir(contextDir, { recursive: true });
-    const filePath = path.join(contextDir, 'session-context.md');
-    await fs.promises.writeFile(filePath, sections.join('\n') + '\n', 'utf-8');
-    return filePath;
+    const content = sections.join('\n') + '\n';
+    const contextFilePath = `${cwd}/.context/session-context.md`;
+
+    const wfs = createWorkspaceFs(sshHost ?? undefined);
+    await wfs.writeFile(contextFilePath, content);
+    return contextFilePath;
   } catch {
     return null;
   }

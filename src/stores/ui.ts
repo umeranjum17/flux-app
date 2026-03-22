@@ -59,6 +59,7 @@ interface UiState {
   // SSH
   sshHost: string | null;
   sshConnected: boolean;
+  connectedSshHosts: Set<string>;
   environment: 'local' | 'ssh' | 'wsl';
 
   // Active file preview
@@ -176,6 +177,7 @@ export const useUiStore = create<UiState>()(
     pendingWorkspaceTerminalId: null,
     sshHost: null,
     sshConnected: false,
+    connectedSshHosts: new Set(),
     environment: 'local',
     activeFile: null,
     pendingMention: null,
@@ -388,7 +390,6 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-
     setBottomPanelMode(mode) {
       set((state) => {
         state.bottomPanelMode = mode;
@@ -435,6 +436,7 @@ export const useUiStore = create<UiState>()(
       set((state) => {
         state.sshHost = host;
         state.sshConnected = true;
+        state.connectedSshHosts.add(host);
         state.environment = 'ssh';
         state.cwd = cwd;
         state.projectName = basename(cwd);
@@ -444,6 +446,9 @@ export const useUiStore = create<UiState>()(
 
     disconnectSsh(localCwd) {
       set((state) => {
+        if (state.sshHost) {
+          state.connectedSshHosts.delete(state.sshHost);
+        }
         state.sshHost = null;
         state.sshConnected = false;
         state.environment = 'local';

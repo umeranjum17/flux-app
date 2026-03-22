@@ -668,8 +668,13 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   });
 
   ipcMain.handle('ssh:disconnect', async () => {
+    const previousHost = remoteConnection.host;
     const localCwd = remoteConnection.disconnect();
     setCurrentCwd(localCwd);
+    if (previousHost) {
+      const { clearRemoteHomeCache } = await import('../worktree/remote-manager');
+      clearRemoteHomeCache(previousHost);
+    }
     return { connected: false, cwd: getCurrentCwd() };
   });
 

@@ -97,6 +97,8 @@ export interface Workspace {
   actAgentId?: AgentId;
   actModel?: string;
   actThinking?: ThinkingLevel;
+  /** SSH host for remote workspaces. Undefined = local workspace. */
+  sshHost?: string;
   status: WorkspaceStatus;
   outcome: WorkspaceOutcome;
   createdAt: number;

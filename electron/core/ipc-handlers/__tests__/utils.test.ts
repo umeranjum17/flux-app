@@ -1,9 +1,10 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildAttachmentContextPrompt,
+  buildPromptWithAttachments,
   buildWorkspaceSystemContext,
   extractLatestSessionAttachmentContext,
   getStepTrackableContent,
@@ -17,7 +18,9 @@ import {
   writeAttachmentContextFile,
 } from '../utils';
 import type { AgentMessage } from '../../agents/types';
+import type { WorkspaceFs } from '../../worktree/workspace-fs';
 import type { Workspace } from '../../worktree/types';
+import * as workspaceFsModule from '../../worktree/workspace-fs';
 
 const workspace: Workspace = {
   id: 'ws-1',
@@ -404,6 +407,64 @@ describe('attachment context helpers', () => {
     expect(content).toContain('1 could not be materialized');
   });
 
+  it('writes attachment context for SSH workspaces via WorkspaceFs', async () => {
+    const writeFileCalls: Array<{ filePath: string; content: string }> = [];
+    const writeBufferCalls: Array<{ filePath: string; content: Uint8Array }> = [];
+    const fakeWfs: WorkspaceFs = {
+      isRemote: true,
+      sshHost: 'dev@example',
+      git: async () => ({ stdout: '', stderr: '' }),
+      readFile: async () => null,
+      writeFile: async (filePath, content) => {
+        writeFileCalls.push({ filePath, content });
+      },
+      writeBuffer: async (filePath, content) => {
+        writeBufferCalls.push({ filePath, content });
+      },
+      exists: async () => false,
+      listDir: async () => [],
+      mkdirp: async () => {},
+      rmrf: async () => {},
+      exec: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      diskUsage: async () => 0,
+    };
+
+    const createWorkspaceFsSpy = vi
+      .spyOn(workspaceFsModule, 'createWorkspaceFs')
+      .mockReturnValue(fakeWfs);
+
+    try {
+      const cwd = '/remote/worktree';
+      const attachmentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-remote-attachments-'));
+      tempDirs.push(attachmentDir);
+      const sourceFile = path.join(attachmentDir, 'notes.txt');
+      fs.writeFileSync(sourceFile, 'remote preview text\n', 'utf-8');
+
+      const result = await writeAttachmentContextFile(cwd, {
+        sshHost: 'dev@example',
+        images: ['data:image/png;base64,aGVsbG8='],
+        attachments: [{ path: sourceFile, name: 'notes.txt' }],
+      });
+
+      expect(result).not.toBeNull();
+      expect(createWorkspaceFsSpy).toHaveBeenCalledWith('dev@example');
+      expect(result?.absolutePath).toBe('/remote/worktree/.context/attachments.md');
+      expect(result?.manifestPath).toBe('.context/attachments.json');
+      expect(writeBufferCalls).toHaveLength(1);
+      expect(writeBufferCalls[0].filePath).toBe('/remote/worktree/.context/attachments/image-1.png');
+      expect(Buffer.from(writeBufferCalls[0].content).toString()).toBe('hello');
+      expect(writeFileCalls.map((call) => call.filePath)).toEqual([
+        '/remote/worktree/.context/attachments.md',
+        '/remote/worktree/.context/attachments.json',
+      ]);
+      expect(writeFileCalls[0].content).toContain('attachments/image-1.png');
+      expect(writeFileCalls[1].content).toContain('"type": "image"');
+      expect(writeFileCalls[1].content).toContain('"type": "file"');
+    } finally {
+      createWorkspaceFsSpy.mockRestore();
+    }
+  });
+
   it('builds a prompt note for persisted attachment context', () => {
     expect(buildAttachmentContextPrompt({
       absolutePath: '/repo/.context/attachments.md',
@@ -412,6 +473,20 @@ describe('attachment context helpers', () => {
       imageCount: 1,
       attachmentCount: 2,
     })).toContain('.context/attachments.md');
+  });
+
+  it('builds prompt attachment previews from local files', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-attachment-prompt-'));
+    tempDirs.push(cwd);
+    const sourceFile = path.join(cwd, 'notes.txt');
+    fs.writeFileSync(sourceFile, 'first line\nsecond line\n', 'utf-8');
+
+    const prompt = await buildPromptWithAttachments('Ship it', [{ path: sourceFile, name: 'notes.txt' }]);
+
+    expect(prompt).toContain('Attached file context');
+    expect(prompt).toContain('notes.txt');
+    expect(prompt).toContain('first line');
+    expect(prompt).toContain('User request:\nShip it');
   });
 
   it('extracts the latest stored user attachment context from payloadJson', () => {

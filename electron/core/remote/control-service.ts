@@ -1,20 +1,16 @@
 /**
- * Remote control service — thin transport adapter over shared operations.
+ * Remote control service — API surface for the React Native companion app.
  *
+ * This is the WebSocket transport, NOT related to SSH workspaces.
  * Every method delegates to the canonical handler in `operations.ts` so the
  * remote (WebSocket) path and the IPC (Electron renderer) path share the
  * exact same orchestration logic.
  */
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs';
-
 import type { DiffScope, WorkspaceOutcome } from '../worktree/types';
 import type { SpawnOptions } from '../agents/types';
 import type { IpcContext } from '../ipc-handlers/types';
-import { createWorktree, removeWorktree } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
-import { extendedEnv } from '../process-utils';
+import { createWorktreeAny, removeWorktreeAny } from '../worktree/workspace-fs';
 import {
   detectAgents,
   getActiveTasks,
@@ -31,9 +27,10 @@ import {
   fileDiff,
   getSession,
   sessionMessages,
+  renameBranch,
+  mergePreview,
+  createPr,
 } from '../ipc-handlers/operations';
-
-const execFileAsync = promisify(execFile);
 
 export class RemoteControlService {
   constructor(private readonly ctx: IpcContext) {}
@@ -131,6 +128,7 @@ export class RemoteControlService {
       mode: input.mode ?? workspace.mode,
       thinking: input.thinking as any,
       cwd: input.cwd ?? workspace.worktreePath,
+      sshHost: workspace.sshHost,
       autoApprovePermissions: input.autoApprovePermissions,
       workspaceAction: input.workspaceAction,
       mergeContext: input.mergeContext,
@@ -157,29 +155,12 @@ export class RemoteControlService {
     model: string;
     mode?: SpawnOptions['mode'];
     thinking?: string;
+    sshHost?: string;
   }) {
     const { name, parentRepo, branch, agentId, model, mode, thinking } = input;
-    if (this.ctx.remoteConnection.isConnected()) {
-      throw new Error('Workspaces are only supported for local repositories right now');
-    }
+    const effectiveSshHost = input.sshHost ?? this.ctx.remoteConnection.host ?? undefined;
+    const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, branch);
 
-    try {
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
-    } catch {
-      if (!fs.existsSync(parentRepo)) {
-        throw new Error(`Directory "${parentRepo}" does not exist.`);
-      }
-      await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
-      await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], { cwd: parentRepo, timeout: 10000 });
-    }
-
-    let baseBranch: string | undefined;
-    try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
-      baseBranch = stdout.trim() || undefined;
-    } catch { /* best-effort */ }
-
-    const worktree = await createWorktree(parentRepo, branch, branch);
     const ws = this.ctx.workspaceStore.create({
       id: worktree.id,
       name,
@@ -191,6 +172,7 @@ export class RemoteControlService {
       model,
       mode,
       thinking: thinking as any,
+      sshHost: effectiveSshHost,
       status: 'idle',
     });
     this.ctx.sendToRenderer('workspace:created', { workspace: ws });
@@ -203,31 +185,15 @@ export class RemoteControlService {
     model: string;
     mode?: SpawnOptions['mode'];
     thinking?: string;
+    sshHost?: string;
   }) {
     const { parentRepo, agentId, model, mode, thinking } = input;
-    if (this.ctx.remoteConnection.isConnected()) {
-      throw new Error('Workspaces are only supported for local repositories right now');
-    }
-    if (!fs.existsSync(parentRepo)) {
-      throw new Error(`Directory "${parentRepo}" does not exist.`);
-    }
-
-    try {
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
-    } catch {
-      await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
-      await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], { cwd: parentRepo, timeout: 10000 });
-    }
-
-    let baseBranch: string | undefined;
-    try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
-      baseBranch = stdout.trim() || undefined;
-    } catch { /* best-effort */ }
+    const effectiveSshHost = input.sshHost ?? this.ctx.remoteConnection.host ?? undefined;
 
     const workspaceName = generateWorkspaceName();
     const branch = `flux/${workspaceName}`;
-    const worktree = await createWorktree(parentRepo, branch, workspaceName);
+    const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, workspaceName);
+
     const ws = this.ctx.workspaceStore.create({
       id: worktree.id,
       name: workspaceName,
@@ -239,6 +205,7 @@ export class RemoteControlService {
       model,
       mode,
       thinking: thinking as any,
+      sshHost: effectiveSshHost,
       status: 'idle',
     });
     this.ctx.sendToRenderer('workspace:created', { workspace: ws });
@@ -257,7 +224,7 @@ export class RemoteControlService {
         lifecycleManager.clearTask(taskId);
       }
 
-      await removeWorktree(workspace.parentRepo, workspace.worktreePath);
+      await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath);
       workspaceStore.delete(workspaceId);
       sendToRenderer('workspace:deleted', { workspaceId });
     });
@@ -282,7 +249,7 @@ export class RemoteControlService {
               lifecycleManager.clearTask(taskId);
             }
             update({ stage: 'checking_repo', progress: 0.22, message: 'Checking worktree state' });
-            await removeWorktree(workspace.parentRepo, workspace.worktreePath, { signal });
+            await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, { signal });
             update({ stage: 'cleaning_db', progress: 0.88, message: 'Cleaning workspace records', cancellable: false });
             workspaceStore.delete(workspaceId);
             sendToRenderer('workspace:deleted', { workspaceId });
@@ -293,27 +260,7 @@ export class RemoteControlService {
   }
 
   async renameBranch(workspaceId: string, newBranch: string, newName?: string) {
-    const workspace = this.ctx.workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-    const trimmedName = newName?.trim();
-    let nextBranch = workspace.branch;
-    if (newBranch.trim() && newBranch !== workspace.branch) {
-      try {
-        await execFileAsync('git', ['branch', '-m', workspace.branch, newBranch], {
-          cwd: workspace.worktreePath,
-          timeout: 10000,
-        });
-        nextBranch = newBranch;
-      } catch { /* best-effort */ }
-    }
-
-    const updated = this.ctx.workspaceStore.update(workspaceId, {
-      branch: nextBranch,
-      ...(trimmedName ? { name: trimmedName } : {}),
-    });
-    if (!updated) throw new Error(`Workspace ${workspaceId} not found`);
-    return updated;
+    return renameBranch(this.ctx, workspaceId, newBranch, newName);
   }
 
   async setOutcome(workspaceId: string, outcome: WorkspaceOutcome) {
@@ -329,63 +276,7 @@ export class RemoteControlService {
   }
 
   async mergePreview(workspaceId: string, targetBranch: string) {
-    const workspace = this.ctx.workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-    const worktreePath = workspace.worktreePath;
-    const parentRepo = workspace.parentRepo;
-
-    let mergeBase = '';
-    try {
-      const { stdout } = await execFileAsync('git', ['merge-base', 'HEAD', targetBranch], { cwd: worktreePath, timeout: 10000 });
-      mergeBase = stdout.trim();
-    } catch { /* no common ancestor */ }
-
-    let commitsAhead = 0;
-    if (mergeBase) {
-      try {
-        const { stdout } = await execFileAsync('git', ['rev-list', '--count', `${mergeBase}..HEAD`], { cwd: worktreePath, timeout: 10000 });
-        commitsAhead = parseInt(stdout.trim(), 10) || 0;
-      } catch { /* fallback */ }
-    }
-
-    let filesChanged = 0, additions = 0, deletions = 0;
-    try {
-      const diffRef = mergeBase || targetBranch;
-      const { stdout } = await execFileAsync('git', ['diff', '--stat', '--numstat', diffRef], { cwd: worktreePath, timeout: 30000 });
-      for (const line of stdout.trim().split('\n')) {
-        const parts = line.split('\t');
-        if (parts.length >= 3) {
-          filesChanged++;
-          const a = parseInt(parts[0], 10);
-          const d = parseInt(parts[1], 10);
-          if (!isNaN(a)) additions += a;
-          if (!isNaN(d)) deletions += d;
-        }
-      }
-    } catch { /* fallback */ }
-
-    const conflicts: string[] = [];
-    let canFastForward = false;
-    try {
-      await execFileAsync('git', ['merge-base', '--is-ancestor', targetBranch, 'HEAD'], { cwd: worktreePath, timeout: 10000 });
-      canFastForward = true;
-    } catch {
-      try {
-        await execFileAsync('git', ['merge-tree', '--write-tree', '--no-messages', targetBranch, workspace.branch], { cwd: parentRepo, timeout: 30000 });
-      } catch (err: any) {
-        if (err.stderr) {
-          for (const line of (err.stderr as string).split('\n')) {
-            if (line.includes('CONFLICT')) {
-              const match = line.match(/CONFLICT.*?: (.+)/);
-              if (match) conflicts.push(match[1]);
-            }
-          }
-        }
-      }
-    }
-
-    return { commitsAhead, filesChanged, additions, deletions, conflicts, canFastForward };
+    return mergePreview(this.ctx, workspaceId, targetBranch);
   }
 
   async merge(workspaceId: string, _targetBranch: string, _squash?: boolean) {
@@ -395,35 +286,6 @@ export class RemoteControlService {
   }
 
   async createPr(workspaceId: string, title: string, body: string, targetBranch: string, draft?: boolean) {
-    const workspace = this.ctx.workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-    try {
-      await execFileAsync('git', ['push', '-u', 'origin', workspace.branch], {
-        cwd: workspace.worktreePath,
-        timeout: 60000,
-        env: extendedEnv(),
-      });
-    } catch (err: any) {
-      throw new Error(`Failed to push branch: ${err.message}`);
-    }
-
-    const ghArgs = ['pr', 'create', '--title', title, '--body', body, '--base', targetBranch, '--head', workspace.branch];
-    if (draft) ghArgs.push('--draft');
-
-    try {
-      const { stdout } = await execFileAsync('gh', ghArgs, {
-        cwd: workspace.parentRepo,
-        timeout: 30000,
-        env: extendedEnv(),
-      });
-      const url = stdout.trim();
-      const prNumberMatch = url.match(/\/pull\/(\d+)/);
-      const number = prNumberMatch ? parseInt(prNumberMatch[1], 10) : 0;
-      this.ctx.lifecycleManager.setOutcome(workspaceId, 'ready_to_merge', { force: true });
-      return { url, number };
-    } catch (err: any) {
-      throw new Error(`Failed to create PR: ${err.message}`);
-    }
+    return createPr(this.ctx, workspaceId, title, body, targetBranch, draft);
   }
 }

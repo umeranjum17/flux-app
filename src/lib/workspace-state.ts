@@ -11,6 +11,12 @@ function basename(value: string): string {
   return value.split('/').pop() || value.split('\\').pop() || value;
 }
 
+/** Returns true if a workspace's SSH host is connected (or it's a local workspace). */
+export function isWorkspaceSshAvailable(ws: Workspace): boolean {
+  if (!ws.sshHost) return true;
+  return useUiStore.getState().connectedSshHosts.has(ws.sshHost);
+}
+
 export function createRecentProject(
   path: string,
   options?: { isSSH?: boolean; sshHost?: string | null; lastOpened?: number },
@@ -181,13 +187,16 @@ export async function createEmptyWorkspace(opts: {
   mode?: TaskMode;
   thinking?: ThinkingLevel;
   cwd: string;
+  sshHost?: string;
 }): Promise<Workspace> {
+  const effectiveSshHost = opts.sshHost ?? useUiStore.getState().sshHost ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
     agentId: opts.agentId,
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
+    sshHost: effectiveSshHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);
@@ -351,7 +360,6 @@ export async function startWorkspaceMerge(
           workspaceId: workspace.id,
           newBranch,
           newName: name,
-          newWorktreeName: newBranch.replace(/^flux\//, ''),
         }) as Workspace | undefined;
         if (renamed) {
           useWorkspaceStore.getState().updateWorkspace(workspace.id, {
@@ -428,6 +436,7 @@ export async function createWorkspaceAndChat(
   // The agent can still refine via `.context/state.json` workspace_name at completion.
   const branch = createFluxBranchName(prompt);
   const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
+  const effectiveSshHost = useUiStore.getState().sshHost ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create', {
     name: deriveWorkspaceNameFromPrompt(prompt),
@@ -437,6 +446,7 @@ export async function createWorkspaceAndChat(
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
+    sshHost: effectiveSshHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);

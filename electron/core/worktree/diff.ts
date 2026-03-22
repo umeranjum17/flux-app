@@ -1,111 +1,27 @@
-import { execFile } from 'child_process';
-import fs from 'fs/promises';
+/**
+ * Diff operations for worktrees — works identically for local and remote (SSH).
+ *
+ * All functions use the WorkspaceFs abstraction internally, so callers never
+ * need to branch on `sshHost`.  Pass the workspace's `sshHost` (or omit it
+ * for local) and the right strategy is selected automatically.
+ */
 import path from 'path';
-import { promisify } from 'util';
 import type { DiffFile, DiffFileSections, DiffScope } from './types';
+import { createWorkspaceFs, type WorkspaceFs } from './workspace-fs';
 
-const execFileAsync = promisify(execFile);
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
-async function runGit(
-  cwd: string,
-  args: string[],
-): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, {
-    cwd,
-    timeout: 30000,
-  });
-  return stdout;
-}
-
-async function tryGit(
-  cwd: string,
-  args: string[],
-): Promise<string | null> {
+async function tryGit(wfs: WorkspaceFs, cwd: string, args: string[]): Promise<string | null> {
   try {
-    return await runGit(cwd, args);
+    const { stdout } = await wfs.git(cwd, args);
+    return stdout;
   } catch {
     return null;
   }
 }
 
-async function resolveDiffBase(worktreePath: string, parentRepo?: string): Promise<string> {
-  const candidates: string[] = [];
-
-  if (parentRepo) {
-    const parentHead = (await tryGit(parentRepo, ['rev-parse', 'HEAD']))?.trim();
-    if (parentHead) {
-      candidates.push(parentHead);
-    }
-
-    const parentBranch = (await tryGit(parentRepo, ['rev-parse', '--abbrev-ref', 'HEAD']))?.trim();
-    if (parentBranch && parentBranch !== 'HEAD') {
-      candidates.push(parentBranch, `origin/${parentBranch}`);
-    }
-  }
-
-  const remoteHead = (await tryGit(worktreePath, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']))?.trim();
-  if (remoteHead) {
-    candidates.push(remoteHead);
-  }
-
-  candidates.push('main', 'master');
-
-  const seen = new Set<string>();
-  for (const candidate of candidates) {
-    if (!candidate || seen.has(candidate)) continue;
-    seen.add(candidate);
-    const mergeBase = (await tryGit(worktreePath, ['merge-base', candidate, 'HEAD']))?.trim();
-    if (mergeBase) {
-      return mergeBase;
-    }
-  }
-
-  const previousHead = (await tryGit(worktreePath, ['rev-parse', 'HEAD~1']))?.trim();
-  if (previousHead) {
-    return previousHead;
-  }
-
-  const rootCommit = (await tryGit(worktreePath, ['rev-list', '--max-parents=0', 'HEAD']))?.trim();
-  return rootCommit?.split('\n')[0] ?? 'HEAD';
-}
-
-async function listUntrackedFiles(worktreePath: string): Promise<string[]> {
-  const output = await tryGit(worktreePath, ['ls-files', '--others', '--exclude-standard']);
-  if (!output) {
-    return [];
-  }
-
-  return output
-    .split('\n')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-async function readWorkingTreeFile(worktreePath: string, filePath: string): Promise<string> {
-  try {
-    return await fs.readFile(path.join(worktreePath, filePath), 'utf-8');
-  } catch {
-    return '';
-  }
-}
-
-async function readFileAtRef(worktreePath: string, ref: string, filePath: string): Promise<string> {
-  try {
-    return await runGit(worktreePath, ['show', `${ref}:${filePath}`]);
-  } catch {
-    return '';
-  }
-}
-
-function countContentLines(content: string): number {
-  if (!content) return 0;
-  return content.split('\n').length;
-}
-
-/**
- * Count additions/deletions by parsing a unified diff string.
- * Used as a fallback when `git diff --numstat` returns 0 or empty.
- */
 function countFromUnifiedDiff(diff: string): { additions: number; deletions: number } {
   let additions = 0;
   let deletions = 0;
@@ -117,130 +33,88 @@ function countFromUnifiedDiff(diff: string): { additions: number; deletions: num
   return { additions, deletions };
 }
 
-export async function getChangedFiles(worktreePath: string, parentRepo?: string): Promise<DiffFile[]> {
-  const base = await resolveDiffBase(worktreePath, parentRepo);
-  return collectChangedFiles(worktreePath, base, true);
+function resolveWorktreeFilePath(worktreePath: string, filePath: string, sshHost?: string): string {
+  const pathApi = sshHost ? path.posix : path;
+  const root = pathApi.resolve(worktreePath);
+  const resolved = pathApi.resolve(worktreePath, filePath);
+  if (resolved === root || resolved.startsWith(`${root}${pathApi.sep}`)) {
+    return resolved;
+  }
+  throw new Error(`File path escapes worktree: ${filePath}`);
 }
 
-export async function getChangedFilesSeparated(worktreePath: string, parentRepo?: string): Promise<DiffFileSections> {
-  const base = await resolveDiffBase(worktreePath, parentRepo);
+// ---------------------------------------------------------------------------
+// Diff base resolution
+// ---------------------------------------------------------------------------
 
-  const [committed, uncommitted] = await Promise.all([
-    collectChangedFiles(worktreePath, `${base}..HEAD`, false),
-    collectChangedFiles(worktreePath, 'HEAD', true),
-  ]);
-
-  return { committed, uncommitted };
-}
-
-export async function getFileDiff(
+export async function resolveDiffBase(
   worktreePath: string,
-  filePath: string,
   parentRepo?: string,
-  scope: DiffScope = 'all',
-): Promise<{ oldContent: string; newContent: string; unified: string }> {
-  const base = await resolveDiffBase(worktreePath, parentRepo);
+  sshHost?: string,
+): Promise<string> {
+  const wfs = createWorkspaceFs(sshHost);
+  const candidates: string[] = [];
 
-  if (scope === 'committed') {
-    const oldContent = await readFileAtRef(worktreePath, base, filePath);
-    const newContent = await readFileAtRef(worktreePath, 'HEAD', filePath);
-    const unified = await tryGit(
-      worktreePath,
-      ['diff', '--find-renames', `${base}..HEAD`, '--', filePath],
-    ) ?? '';
-    return { oldContent, newContent, unified };
+  if (parentRepo) {
+    const parentHead = (await tryGit(wfs, parentRepo, ['rev-parse', 'HEAD']))?.trim();
+    if (parentHead) {
+      candidates.push(parentHead);
+    }
+
+    const parentBranch = (await tryGit(wfs, parentRepo, ['rev-parse', '--abbrev-ref', 'HEAD']))?.trim();
+    if (parentBranch && parentBranch !== 'HEAD') {
+      candidates.push(parentBranch, `origin/${parentBranch}`);
+    }
   }
 
-  if (scope === 'uncommitted') {
-    const oldContent = await readFileAtRef(worktreePath, 'HEAD', filePath);
-    const newContent = await readWorkingTreeFile(worktreePath, filePath);
-    const unified = await tryGit(
-      worktreePath,
-      ['diff', '--find-renames', 'HEAD', '--', filePath],
-    ) ?? '';
-    return { oldContent, newContent, unified };
+  const remoteHead = (await tryGit(wfs, worktreePath, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']))?.trim();
+  if (remoteHead) {
+    candidates.push(remoteHead);
   }
 
-  const oldContent = await readFileAtRef(worktreePath, base, filePath);
-  const newContent = await readWorkingTreeFile(worktreePath, filePath);
+  candidates.push('main', 'master');
 
-  // Get unified diff
-  const unified = await tryGit(
-    worktreePath,
-    ['diff', '--find-renames', base, '--', filePath],
-  ) ?? '';
-
-  return { oldContent, newContent, unified };
-}
-
-export async function getFullDiff(worktreePath: string, parentRepo?: string): Promise<string> {
-  const base = await resolveDiffBase(worktreePath, parentRepo);
-  return runGit(worktreePath, ['diff', base]);
-}
-
-async function fileExistsInRef(worktreePath: string, ref: string, filePath: string): Promise<boolean> {
-  try {
-    await execFileAsync('git', ['cat-file', '-e', `${ref}:${filePath}`], {
-      cwd: worktreePath,
-      timeout: 10000,
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function discardFile(
-  worktreePath: string,
-  filePath: string,
-  parentRepo?: string,
-  scope: Exclude<DiffScope, 'committed'> = 'all',
-): Promise<void> {
-  const base = await resolveDiffBase(worktreePath, parentRepo);
-  const restoreRef = scope === 'uncommitted' ? 'HEAD' : base;
-  const fileExistsInBase = await fileExistsInRef(worktreePath, restoreRef, filePath);
-
-  if (fileExistsInBase) {
-    await execFileAsync('git', ['checkout', restoreRef, '--', filePath], {
-      cwd: worktreePath,
-      timeout: 10000,
-    });
-    return;
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    const mergeBase = (await tryGit(wfs, worktreePath, ['merge-base', candidate, 'HEAD']))?.trim();
+    if (mergeBase) {
+      return mergeBase;
+    }
   }
 
-  try {
-    await execFileAsync('git', ['rm', '-f', '--ignore-unmatch', '--', filePath], {
-      cwd: worktreePath,
-      timeout: 10000,
-    });
-  } catch {
-    // If the file is not tracked, fall back to removing it from disk.
+  const previousHead = (await tryGit(wfs, worktreePath, ['rev-parse', 'HEAD~1']))?.trim();
+  if (previousHead) {
+    return previousHead;
   }
 
-  await fs.rm(path.join(worktreePath, filePath), { force: true, recursive: true });
+  const rootCommit = (await tryGit(wfs, worktreePath, ['rev-list', '--max-parents=0', 'HEAD']))?.trim();
+  return rootCommit?.split('\n')[0] ?? 'HEAD';
 }
 
-export async function discardAll(worktreePath: string): Promise<void> {
-  await execFileAsync('git', ['checkout', '.'], {
-    cwd: worktreePath,
-    timeout: 10000,
-  });
-  await execFileAsync('git', ['clean', '-fd'], {
-    cwd: worktreePath,
-    timeout: 10000,
-  });
-}
+// ---------------------------------------------------------------------------
+// Changed file collection
+// ---------------------------------------------------------------------------
 
 async function collectChangedFiles(
+  wfs: WorkspaceFs,
   worktreePath: string,
   diffTarget: string,
   includeUntracked: boolean,
 ): Promise<DiffFile[]> {
-  const nameStatus = await runGit(
-    worktreePath,
-    ['diff', '--name-status', '--find-renames', diffTarget, '--'],
-  );
-  const untrackedFiles = includeUntracked ? await listUntrackedFiles(worktreePath) : [];
+  const nameStatus = (await tryGit(wfs, worktreePath, ['diff', '--name-status', '--find-renames', diffTarget, '--'])) ?? '';
+
+  const untrackedFiles: string[] = [];
+  if (includeUntracked) {
+    const output = await tryGit(wfs, worktreePath, ['ls-files', '--others', '--exclude-standard']);
+    if (output) {
+      for (const line of output.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed) untrackedFiles.push(trimmed);
+      }
+    }
+  }
 
   const entries = new Map<string, DiffFile['status']>();
   for (const line of nameStatus.split('\n')) {
@@ -271,24 +145,18 @@ async function collectChangedFiles(
 
   for (const [filePath, status] of entries) {
     try {
-      const numstat = await tryGit(
-        worktreePath,
-        ['diff', '--numstat', '--find-renames', diffTarget, '--', filePath],
-      );
+      const numstat = await tryGit(wfs, worktreePath, ['diff', '--numstat', '--find-renames', diffTarget, '--', filePath]);
       const [addStr = '0', delStr = '0'] = (numstat ?? '').trim().split('\t');
       const additions = addStr === '-' ? 0 : parseInt(addStr, 10) || 0;
       const deletions = delStr === '-' ? 0 : parseInt(delStr, 10) || 0;
-      const diff = await tryGit(
-        worktreePath,
-        ['diff', '--find-renames', diffTarget, '--', filePath],
-      );
+      const diff = await tryGit(wfs, worktreePath, ['diff', '--find-renames', diffTarget, '--', filePath]);
 
       if (status === 'added' && !diff) {
-        const content = await readWorkingTreeFile(worktreePath, filePath);
+        const content = await wfs.readFile(`${worktreePath}/${filePath}`);
         files.push({
           path: filePath,
           status,
-          additions: countContentLines(content),
+          additions: content ? content.split('\n').length : 0,
           deletions: 0,
           diff: '',
         });
@@ -317,4 +185,129 @@ async function collectChangedFiles(
   }
 
   return files;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export async function getChangedFiles(
+  worktreePath: string,
+  parentRepo?: string,
+  sshHost?: string,
+): Promise<DiffFile[]> {
+  const wfs = createWorkspaceFs(sshHost);
+  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  return collectChangedFiles(wfs, worktreePath, base, true);
+}
+
+export async function getChangedFilesSeparated(
+  worktreePath: string,
+  parentRepo?: string,
+  sshHost?: string,
+): Promise<DiffFileSections> {
+  const wfs = createWorkspaceFs(sshHost);
+  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+
+  const [committed, uncommitted] = await Promise.all([
+    collectChangedFiles(wfs, worktreePath, `${base}..HEAD`, false),
+    collectChangedFiles(wfs, worktreePath, 'HEAD', true),
+  ]);
+
+  return { committed, uncommitted };
+}
+
+export async function getFileDiff(
+  worktreePath: string,
+  filePath: string,
+  parentRepo?: string,
+  scope: DiffScope = 'all',
+  sshHost?: string,
+): Promise<{ oldContent: string; newContent: string; unified: string }> {
+  const wfs = createWorkspaceFs(sshHost);
+  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const absoluteFilePath = resolveWorktreeFilePath(worktreePath, filePath, sshHost);
+
+  const readAtRef = async (ref: string) => {
+    try {
+      const { stdout } = await wfs.git(worktreePath, ['show', `${ref}:${filePath}`]);
+      return stdout;
+    } catch {
+      return '';
+    }
+  };
+
+  if (scope === 'committed') {
+    const oldContent = await readAtRef(base);
+    const newContent = await readAtRef('HEAD');
+    const unified = (await tryGit(wfs, worktreePath, ['diff', '--find-renames', `${base}..HEAD`, '--', filePath])) ?? '';
+    return { oldContent, newContent, unified };
+  }
+
+  if (scope === 'uncommitted') {
+    const oldContent = await readAtRef('HEAD');
+    const newContent = (await wfs.readFile(absoluteFilePath)) ?? '';
+    const unified = (await tryGit(wfs, worktreePath, ['diff', '--find-renames', 'HEAD', '--', filePath])) ?? '';
+    return { oldContent, newContent, unified };
+  }
+
+  // scope === 'all'
+  const oldContent = await readAtRef(base);
+  const newContent = (await wfs.readFile(absoluteFilePath)) ?? '';
+  const unified = (await tryGit(wfs, worktreePath, ['diff', '--find-renames', base, '--', filePath])) ?? '';
+  return { oldContent, newContent, unified };
+}
+
+export async function getFullDiff(
+  worktreePath: string,
+  parentRepo?: string,
+  sshHost?: string,
+): Promise<string> {
+  const wfs = createWorkspaceFs(sshHost);
+  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const { stdout } = await wfs.git(worktreePath, ['diff', base]);
+  return stdout;
+}
+
+export async function discardFile(
+  worktreePath: string,
+  filePath: string,
+  parentRepo?: string,
+  scope: Exclude<DiffScope, 'committed'> = 'all',
+  sshHost?: string,
+): Promise<void> {
+  const wfs = createWorkspaceFs(sshHost);
+  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const restoreRef = scope === 'uncommitted' ? 'HEAD' : base;
+  const absoluteFilePath = resolveWorktreeFilePath(worktreePath, filePath, sshHost);
+
+  // Check if the file exists at the restore ref
+  let fileExistsInBase = false;
+  try {
+    await wfs.git(worktreePath, ['cat-file', '-e', `${restoreRef}:${filePath}`]);
+    fileExistsInBase = true;
+  } catch { /* doesn't exist */ }
+
+  if (fileExistsInBase) {
+    await wfs.git(worktreePath, ['checkout', restoreRef, '--', filePath]);
+    return;
+  }
+
+  try {
+    await wfs.git(worktreePath, ['rm', '-f', '--ignore-unmatch', '--', filePath]);
+  } catch {
+    // not tracked — remove from disk
+  }
+
+  // Fallback: ensure file is gone even if untracked (works for both local and remote)
+  await wfs.rmrf(absoluteFilePath);
+}
+
+export async function discardAll(
+  worktreePath: string,
+  sshHost?: string,
+): Promise<void> {
+  const wfs = createWorkspaceFs(sshHost);
+  await wfs.git(worktreePath, ['checkout', '.']);
+  await wfs.git(worktreePath, ['clean', '-fd']);
 }

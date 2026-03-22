@@ -7,11 +7,8 @@
  * (task_completed_merge).
  */
 
-import fs from 'fs';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
 import type { Workspace, WorkspaceOutcome } from './types';
+import { createWorkspaceFs, type WorkspaceFs } from './workspace-fs';
 
 // Lazy-load logDiagnostic to avoid importing 'electron' in test environments
 let _logDiagnostic: typeof import('../diagnostics/logger').logDiagnostic | undefined;
@@ -26,8 +23,6 @@ function logDiagnostic(...args: Parameters<typeof import('../diagnostics/logger'
   }
   _logDiagnostic!(...args);
 }
-
-const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,15 +57,19 @@ export interface WorkspaceGitState {
 /**
  * Query git to determine the workspace's current state: whether it has
  * commits, uncommitted changes, and whether the branch has been merged.
+ *
+ * Works identically for local and remote (SSH) workspaces via WorkspaceFs.
  */
 export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGitState> {
+  const wfs = createWorkspaceFs(workspace.sshHost);
+
   let hasCommits = false;
   let hasUncommittedChanges = false;
   let isMerged = false;
   const warnings: string[] = [];
 
   // Pre-check: verify worktree directory exists
-  if (!fs.existsSync(workspace.worktreePath)) {
+  if (!(await wfs.exists(workspace.worktreePath))) {
     return {
       hasCommits: false,
       hasUncommittedChanges: false,
@@ -81,30 +80,19 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
     };
   }
 
-  const target = await resolveTarget(workspace);
+  const target = await resolveTarget(wfs, workspace);
 
   // 1. Commits ahead of merge-base
   try {
-    const { stdout: mergeBaseOut } = await execFileAsync(
-      'git', ['merge-base', target, 'HEAD'],
-      { cwd: workspace.worktreePath, timeout: 5000 },
-    );
+    const { stdout: mergeBaseOut } = await wfs.git(workspace.worktreePath, ['merge-base', target, 'HEAD'], { timeout: 5000 });
     const mergeBase = mergeBaseOut.trim();
-
     if (mergeBase) {
-      const { stdout: countOut } = await execFileAsync(
-        'git', ['rev-list', '--count', `${mergeBase}..HEAD`],
-        { cwd: workspace.worktreePath, timeout: 5000 },
-      );
+      const { stdout: countOut } = await wfs.git(workspace.worktreePath, ['rev-list', '--count', `${mergeBase}..HEAD`], { timeout: 5000 });
       hasCommits = parseInt(countOut.trim(), 10) > 0;
     }
-  } catch (err) {
-    // Fallback: simple rev-list count
+  } catch {
     try {
-      const { stdout: countOut } = await execFileAsync(
-        'git', ['rev-list', '--count', 'HEAD'],
-        { cwd: workspace.worktreePath, timeout: 5000 },
-      );
+      const { stdout: countOut } = await wfs.git(workspace.worktreePath, ['rev-list', '--count', 'HEAD'], { timeout: 5000 });
       hasCommits = parseInt(countOut.trim(), 10) > 0;
     } catch (innerErr) {
       warnings.push(`Cannot determine commit state: ${innerErr instanceof Error ? innerErr.message : String(innerErr)}`);
@@ -113,10 +101,7 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
 
   // 2. Uncommitted changes
   try {
-    const { stdout: statusOut } = await execFileAsync(
-      'git', ['status', '--porcelain'],
-      { cwd: workspace.worktreePath, timeout: 5000 },
-    );
+    const { stdout: statusOut } = await wfs.git(workspace.worktreePath, ['status', '--porcelain'], { timeout: 5000 });
     hasUncommittedChanges = statusOut.trim().length > 0;
   } catch (err) {
     warnings.push(`Cannot determine uncommitted state: ${err instanceof Error ? err.message : String(err)}`);
@@ -124,52 +109,30 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
 
   // 3. Branch merged check
   try {
-    const { stdout: branchTip } = await execFileAsync(
-      'git', ['rev-parse', 'HEAD'],
-      { cwd: workspace.worktreePath, timeout: 5000 },
-    );
+    const { stdout: branchTipOut } = await wfs.git(workspace.worktreePath, ['rev-parse', 'HEAD'], { timeout: 5000 });
+    const branchTip = branchTipOut.trim();
 
-    // Find the merge-base between branch tip and target
-    const { stdout: mergeBaseOut } = await execFileAsync(
-      'git', ['merge-base', branchTip.trim(), target],
-      { cwd: workspace.parentRepo, timeout: 5000 },
-    );
+    const { stdout: mergeBaseOut } = await wfs.git(workspace.parentRepo, ['merge-base', branchTip, target], { timeout: 5000 });
     const mergeBase = mergeBaseOut.trim();
 
-    // If the branch tip IS the merge base, the branch never diverged — not "merged"
-    if (branchTip.trim() !== mergeBase) {
-      // The branch has diverged. Now check if it's been merged back.
+    if (branchTip !== mergeBase) {
       try {
-        await execFileAsync(
-          'git', ['merge-base', '--is-ancestor', branchTip.trim(), target],
-          { cwd: workspace.parentRepo, timeout: 5000 },
-        );
-        // Exit code 0 → fully merged (regular merge)
+        await wfs.git(workspace.parentRepo, ['merge-base', '--is-ancestor', branchTip, target], { timeout: 5000 });
         isMerged = true;
       } catch {
-        // Exit code 1 → not a regular merge. Check for squash merge:
-        // if all files changed by the branch have the same content in
-        // target, the branch was effectively squash-merged.
+        // Check for squash merge
         try {
-          const { stdout: changedFilesOut } = await execFileAsync(
-            'git', ['diff', '--name-only', mergeBase, branchTip.trim()],
-            { cwd: workspace.parentRepo, timeout: 5000 },
-          );
+          const { stdout: changedFilesOut } = await wfs.git(workspace.parentRepo, ['diff', '--name-only', mergeBase, branchTip], { timeout: 5000 });
           const changedFiles = changedFilesOut.trim().split('\n').filter(Boolean);
           if (changedFiles.length > 0 && changedFiles.length <= 500) {
-            await execFileAsync(
-              'git', ['diff', '--quiet', branchTip.trim(), target, '--', ...changedFiles],
-              { cwd: workspace.parentRepo, timeout: 10000 },
-            );
-            // Exit code 0 → all branch-changed files match target → squash-merged
+            await wfs.git(workspace.parentRepo, ['diff', '--quiet', branchTip, target, '--', ...changedFiles], { timeout: 10000 });
             isMerged = true;
           }
         } catch {
-          // Diff found or command failed → not squash-merged either
+          // Not squash-merged either
         }
       }
     }
-    // else: branch tip === merge base → never diverged → not merged
   } catch (err) {
     warnings.push(`Cannot determine merge state: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -265,15 +228,12 @@ export async function transitionWorkspaceOutcome(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function resolveTarget(workspace: Workspace): Promise<string> {
+async function resolveTarget(wfs: WorkspaceFs, workspace: Workspace): Promise<string> {
   let target = workspace.baseBranch?.trim() || '';
   if (!target) {
     try {
-      const { stdout: parentBranch } = await execFileAsync(
-        'git', ['rev-parse', '--abbrev-ref', 'HEAD'],
-        { cwd: workspace.parentRepo, timeout: 5000 },
-      );
-      target = parentBranch.trim() || 'HEAD';
+      const { stdout } = await wfs.git(workspace.parentRepo, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 5000 });
+      target = stdout.trim() || 'HEAD';
     } catch {
       target = 'HEAD';
     }
