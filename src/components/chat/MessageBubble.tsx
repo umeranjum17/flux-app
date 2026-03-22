@@ -5,6 +5,8 @@ import { Paperclip, ClipboardList } from 'lucide-react';
 import { markdownComponents } from './MarkdownComponents';
 import type { FileAttachment } from '../../lib/types';
 
+const remarkPlugins = [remarkGfm];
+
 interface MessageBubbleProps {
   content: string;
   role: 'user' | 'assistant' | 'system';
@@ -13,7 +15,7 @@ interface MessageBubbleProps {
   highlightAsPlan?: boolean;
 }
 
-export function MessageBubble({ content, role, images, attachments, highlightAsPlan = false }: MessageBubbleProps) {
+export const MessageBubble = React.memo(function MessageBubble({ content, role, images, attachments, highlightAsPlan = false }: MessageBubbleProps) {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   const hasMedia = (images && images.length > 0) || (attachments && attachments.length > 0);
@@ -22,7 +24,7 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
   if (role === 'system') {
     return (
       <div className="markdown-prose px-1 text-sm italic text-text-tertiary">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
           {content}
         </ReactMarkdown>
       </div>
@@ -88,7 +90,7 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
         )}
         <div className="markdown-prose max-w-none text-text-primary text-[14px] leading-relaxed">
           <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={remarkPlugins}
           components={markdownComponents}
         >
           {content}
@@ -111,4 +113,4 @@ export function MessageBubble({ content, role, images, attachments, highlightAsP
       )}
     </>
   );
-}
+});

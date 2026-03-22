@@ -1,4 +1,5 @@
-import fs from 'fs';
+import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import type { ContextState, ContextRequest } from './protocol';
 import { hasContextStatePayload, parseContextState, parseContextRequest } from './protocol';
@@ -37,6 +38,7 @@ export class ContextWatcher {
   private lastStateContent = '';
   private processedRequestIds = new Set<string>();
   private disposed = false;
+  private polling = false;
 
   constructor(options: ContextWatcherOptions) {
     this.statePath = path.join(options.cwd, '.context', 'state.json');
@@ -51,9 +53,9 @@ export class ContextWatcher {
   /** Start polling. Idempotent. */
   start(): void {
     if (this.timer || this.disposed) return;
-    fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    this.poll();
-    this.timer = setInterval(() => this.poll(), this.pollIntervalMs);
+    fsSync.mkdirSync(path.dirname(this.statePath), { recursive: true });
+    void this.poll();
+    this.timer = setInterval(() => void this.poll(), this.pollIntervalMs);
   }
 
   /** Stop polling and clean up. Idempotent. */
@@ -71,27 +73,33 @@ export class ContextWatcher {
   }
 
   /** Write a response file for a processed request. */
-  writeResponse(id: string, ok: boolean, data?: Record<string, unknown>, error?: string): void {
+  async writeResponse(id: string, ok: boolean, data?: Record<string, unknown>, error?: string): Promise<void> {
     try {
-      fs.mkdirSync(this.responsesDir, { recursive: true });
+      await fs.mkdir(this.responsesDir, { recursive: true });
       const responsePath = path.join(this.responsesDir, `${id}.json`);
-      fs.writeFileSync(responsePath, JSON.stringify({ id, ok, data, error }, null, 2));
+      await fs.writeFile(responsePath, JSON.stringify({ id, ok, data, error }, null, 2));
     } catch {
       // Best-effort — agent can retry or timeout
     }
   }
 
-  private poll(): void {
-    this.pollState();
-    if (this.onRequest) {
-      this.pollRequests();
+  private async poll(): Promise<void> {
+    if (this.polling) return;
+    this.polling = true;
+    try {
+      await this.pollState();
+      if (this.onRequest) {
+        await this.pollRequests();
+      }
+    } finally {
+      this.polling = false;
     }
   }
 
-  private pollState(): void {
+  private async pollState(): Promise<void> {
     let content: string;
     try {
-      content = fs.readFileSync(this.statePath, 'utf-8');
+      content = await fs.readFile(this.statePath, 'utf-8');
     } catch {
       // File doesn't exist yet — that's fine
       return;
@@ -115,10 +123,10 @@ export class ContextWatcher {
     this.onStateChange(state);
   }
 
-  private pollRequests(): void {
+  private async pollRequests(): Promise<void> {
     let entries: string[];
     try {
-      entries = fs.readdirSync(this.requestsDir);
+      entries = await fs.readdir(this.requestsDir);
     } catch {
       // Directory doesn't exist yet
       return;
@@ -128,14 +136,14 @@ export class ContextWatcher {
       if (!entry.endsWith('.json')) continue;
       const id = entry.replace('.json', '');
       if (this.processedRequestIds.has(id)) continue;
-      if (fs.existsSync(path.join(this.responsesDir, `${id}.json`))) {
+      if (await this.hasResponseForRequest(id)) {
         this.processedRequestIds.add(id);
         continue;
       }
 
       let content: string;
       try {
-        content = fs.readFileSync(path.join(this.requestsDir, entry), 'utf-8');
+        content = await fs.readFile(path.join(this.requestsDir, entry), 'utf-8');
       } catch {
         continue;
       }
@@ -149,7 +157,7 @@ export class ContextWatcher {
 
       const request = parseContextRequest(parsed);
       if (!request) continue;
-      if (this.hasResponseForRequest(request.id)) {
+      if (await this.hasResponseForRequest(request.id)) {
         this.processedRequestIds.add(id);
         continue;
       }
@@ -160,9 +168,10 @@ export class ContextWatcher {
     }
   }
 
-  private hasResponseForRequest(id: string): boolean {
+  private async hasResponseForRequest(id: string): Promise<boolean> {
     try {
-      return fs.existsSync(path.join(this.responsesDir, `${id}.json`));
+      await fs.access(path.join(this.responsesDir, `${id}.json`));
+      return true;
     } catch {
       return false;
     }
