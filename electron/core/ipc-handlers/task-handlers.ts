@@ -633,7 +633,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     if (options.mode === 'act' && !sshHost) {
       const baselineCommands = await resolveQualityGateCommands(options.cwd);
       for (const cmd of baselineCommands) {
-        const baseResult = await runShellCommand(cmd, options.cwd, sshHost);
+        const baseResult = await runShellCommand(cmd, options.cwd, sshHost ?? null);
         qualityGateBaseline.set(cmd, baseResult.exitCode === 0);
       }
     }
@@ -1432,7 +1432,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 if (!lifecycleManager.isTaskActive(options.taskId)) return;
 
-                const gateResult = await runShellCommand(command, options.cwd, sshHost);
+                const gateResult = await runShellCommand(command, options.cwd, sshHost ?? null);
                 passed = gateResult.exitCode === 0;
                 lastResult = gateResult;
 

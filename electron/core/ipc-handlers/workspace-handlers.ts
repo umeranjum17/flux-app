@@ -65,7 +65,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
             await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, {
               signal,
-              onStage: (stage) => update(archiveStageDetails[stage]),
+              onStage: (stage) => update(archiveStageDetails[stage as keyof typeof archiveStageDetails]),
             });
           }
 
@@ -164,7 +164,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       },
     ) => {
       requireFields({ name, parentRepo, agentId, model }, 'name', 'parentRepo', 'agentId', 'model');
-      if (getSshHost()) {
+      if (remoteConnection.host) {
         throw new Error('Workspaces are only supported for local repositories right now');
       }
 

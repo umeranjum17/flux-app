@@ -153,7 +153,7 @@ export async function steerTask(
     {
       images: images?.length ? images : previousAttachmentContext?.images,
       attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
-      sshHost: effectiveSshHost,
+      sshHost: effectiveSshHost ?? null,
     },
   );
   let effectivePrompt = await buildPromptWithAttachments(prompt, attachments);

@@ -44,7 +44,4 @@ export interface FluxConfig {
   defaultMergeModel?: string;
   defaultMergeThinking?: ThinkingLevel;
   repoMap: RepoMapConfig;
-  defaultMergeAgent?: string;
-  defaultMergeModel?: string;
-  defaultMergeThinking?: ThinkingLevel;
 }

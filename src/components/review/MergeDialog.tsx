@@ -5,7 +5,6 @@ import { useAgentStore } from '../../stores/agent';
 import { startWorkspaceMerge } from '../../lib/workspace-state';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
 import type { Workspace, MergePreview } from '../../lib/ipc-api';
-import type { FluxConfig } from '../../lib/ipc-api';
 import type { AgentId, DetectedAgent, ModelInfo, ThinkingLevel } from '../../lib/types';
 
 type MergeMode = 'agent' | 'pr';
@@ -77,16 +76,6 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     }
     return [{ id: mergeModel, name: mergeModel }, ...combined];
   }, [mergeModel, mergeModels, selectedAgent]);
-
-  useEffect(() => {
-    void (window.api.invoke('config:get') as Promise<FluxConfig>).then((config) => {
-      setGlobalDefaults({
-        defaultMergeAgent: config.defaultMergeAgent,
-        defaultMergeModel: config.defaultMergeModel,
-        defaultMergeThinking: config.defaultMergeThinking,
-      });
-    });
-  }, []);
 
   useEffect(() => {
     if (!defaultBranch) return;

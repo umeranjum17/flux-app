@@ -228,7 +228,7 @@ async function remoteWriteContent(
   if (dir) {
     await sshExec(host, `mkdir -p '${escapeShell(dir)}'`);
   }
-  const result = await sshWriteFile(host, remotePath, content);
+  const result = await sshWriteFile(host, remotePath, typeof content === 'string' ? content : content.toString());
   if (!result.success) {
     throw new Error(result.error || `Failed to write remote file: ${remotePath}`);
   }
