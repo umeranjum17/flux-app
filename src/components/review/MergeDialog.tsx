@@ -48,7 +48,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     });
   }, []);
 
-  // Global defaults (persisted user choice) take priority over workspace-level overrides
+  // Persisted merge defaults always take priority over the main chat's active selection
   const defaultAgentId = (globalDefaults.agent ?? workspace.actAgentId ?? workspace.agentId) as AgentId;
   const defaultModel = globalDefaults.model ?? workspace.actModel ?? workspace.model;
   const defaultThinking = globalDefaults.thinking ?? workspace.actThinking ?? workspace.thinking ?? 'medium';
@@ -83,13 +83,16 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     setTargetBranch((current) => current.trim() || defaultBranch);
   }, [defaultBranch]);
 
+  // Only re-sync merge picker when global defaults first load or workspace changes —
+  // never when the main chat model changes, so the merge picker stays independent.
   useEffect(() => {
     setMergeAgentId(defaultAgentId);
     setMergeModel(defaultModel);
     setMergeThinking(defaultThinking);
     setMergeModels([]);
     setReloadToken(0);
-  }, [defaultAgentId, defaultModel, defaultThinking, workspace.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalDefaults.agent, globalDefaults.model, globalDefaults.thinking, workspace.id]);
 
   // Close on Escape
   useEffect(() => {
