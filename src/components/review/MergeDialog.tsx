@@ -8,6 +8,30 @@ import type { Workspace, MergePreview } from '../../lib/ipc-api';
 import type { AgentId, DetectedAgent, ModelInfo, ThinkingLevel } from '../../lib/types';
 
 type MergeMode = 'agent' | 'pr';
+
+const MERGE_PREF_KEY = 'flux:merge-agent-prefs';
+
+interface MergePrefs {
+  agentId?: string;
+  model?: string;
+  thinking?: ThinkingLevel;
+}
+
+function loadMergePrefs(): MergePrefs {
+  try {
+    const raw = localStorage.getItem(MERGE_PREF_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveMergePrefs(prefs: MergePrefs) {
+  try {
+    localStorage.setItem(MERGE_PREF_KEY, JSON.stringify(prefs));
+  } catch { /* ignore */ }
+}
+
 const thinkingLevels: { value: ThinkingLevel; label: string }[] = [
   { value: 'disabled', label: 'Disabled' },
   { value: 'low', label: 'Low' },
@@ -33,9 +57,13 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const [preview, setPreview] = useState<MergePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const defaultAgentId = (workspace.actAgentId ?? workspace.agentId) as AgentId;
-  const defaultModel = workspace.actModel ?? workspace.model;
-  const defaultThinking = workspace.actThinking ?? workspace.thinking ?? 'medium';
+  const savedPrefs = useMemo(() => loadMergePrefs(), []);
+  const fallbackAgentId = (workspace.actAgentId ?? workspace.agentId) as AgentId;
+  const fallbackModel = workspace.actModel ?? workspace.model;
+  const fallbackThinking = workspace.actThinking ?? workspace.thinking ?? 'medium';
+  const defaultAgentId = (savedPrefs.agentId ?? fallbackAgentId) as AgentId;
+  const defaultModel = savedPrefs.model ?? fallbackModel;
+  const defaultThinking = savedPrefs.thinking ?? fallbackThinking;
   const [mergeAgentId, setMergeAgentId] = useState<AgentId>(defaultAgentId);
   const [mergeModel, setMergeModel] = useState(defaultModel);
   const [mergeThinking, setMergeThinking] = useState<ThinkingLevel>(defaultThinking);
@@ -68,12 +96,14 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   }, [defaultBranch]);
 
   useEffect(() => {
-    setMergeAgentId(defaultAgentId);
-    setMergeModel(defaultModel);
-    setMergeThinking(defaultThinking);
+    const prefs = loadMergePrefs();
+    const validAgent = prefs.agentId && agents.some((a) => a.id === prefs.agentId && a.available);
+    setMergeAgentId((validAgent ? prefs.agentId : fallbackAgentId) as AgentId);
+    setMergeModel(validAgent && prefs.model ? prefs.model : fallbackModel);
+    setMergeThinking(prefs.thinking ?? fallbackThinking);
     setMergeModels([]);
     setReloadToken(0);
-  }, [defaultAgentId, defaultModel, defaultThinking, workspace.id]);
+  }, [fallbackAgentId, fallbackModel, fallbackThinking, workspace.id, agents]);
 
   // Close on Escape
   useEffect(() => {
@@ -140,6 +170,7 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const handleAgentMerge = async () => {
     setMerging(true);
     setError(null);
+    saveMergePrefs({ agentId: mergeAgentId, model: mergeModel, thinking: mergeThinking });
     try {
       await startWorkspaceMerge({
         workspace,
