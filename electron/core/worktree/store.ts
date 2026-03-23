@@ -21,6 +21,7 @@ interface CreateWorkspaceInput {
   actAgentId?: string;
   actModel?: string;
   actThinking?: ThinkingLevel;
+  direct?: boolean;
   sshHost?: string;
   status?: WorkspaceStatus;
   outcome?: WorkspaceOutcome;
@@ -77,7 +78,9 @@ export class WorkspaceStore {
       actAgentId: (input.actAgentId ?? input.agentId) as any,
       actModel: input.actModel ?? input.model,
       actThinking: input.actThinking ?? input.thinking,
+      direct: input.direct ?? false,
       sshHost: input.sshHost,
+      direct: input.direct ?? false,
       status: input.status ?? 'idle',
       outcome: input.outcome ?? 'in_progress',
       createdAt: now,
@@ -89,8 +92,10 @@ export class WorkspaceStore {
       `INSERT INTO workspaces (
         id, name, parent_repo, worktree_path, branch, base_branch, agent_id, model, mode, thinking,
         plan_agent_id, plan_model, plan_thinking, act_agent_id, act_model, act_thinking,
+        direct, status, outcome, created_at, updated_at, session_id
         ssh_host, status, outcome, created_at, updated_at, session_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        direct, ssh_host, status, outcome, created_at, updated_at, session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       workspace.id,
       workspace.name,
@@ -108,6 +113,9 @@ export class WorkspaceStore {
       workspace.actAgentId ?? null,
       workspace.actModel ?? null,
       workspace.actThinking ?? null,
+      workspace.direct ? 1 : 0,
+      workspace.sshHost ?? null,
+      workspace.direct ? 1 : 0,
       workspace.sshHost ?? null,
       workspace.status,
       workspace.outcome,
@@ -136,7 +144,9 @@ export class WorkspaceStore {
       `UPDATE workspaces
        SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, base_branch = ?, agent_id = ?, model = ?, mode = ?, thinking = ?,
            plan_agent_id = ?, plan_model = ?, plan_thinking = ?, act_agent_id = ?, act_model = ?, act_thinking = ?,
+           direct = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
            ssh_host = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
+           direct = ?, ssh_host = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
        WHERE id = ?`,
     ).run(
       next.name,
@@ -154,6 +164,9 @@ export class WorkspaceStore {
       next.actAgentId ?? null,
       next.actModel ?? null,
       next.actThinking ?? null,
+      next.direct ? 1 : 0,
+      next.sshHost ?? null,
+      next.direct ? 1 : 0,
       next.sshHost ?? null,
       next.status,
       next.outcome,
@@ -241,6 +254,7 @@ function rowToWorkspace(row: any): Workspace {
     outcome: row.outcome ?? 'in_progress',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    direct: row.direct === 1 ? true : undefined,
     sessionId: row.session_id ?? undefined,
 };
 }

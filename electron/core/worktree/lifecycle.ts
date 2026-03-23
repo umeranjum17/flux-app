@@ -154,6 +154,7 @@ export class WorkspaceLifecycleManager {
             const fresh = this.workspaceStore.get(ws.id);
             if (!fresh) return;
 
+            // Validate worktree directory exists on disk (skip for direct workspaces)
             // Remote worktree paths don't exist locally — skip fs check for SSH workspaces
             if (fresh.sshHost) {
               // Cannot validate remote worktree on startup (host may be offline).
@@ -161,8 +162,8 @@ export class WorkspaceLifecycleManager {
               return;
             }
 
-            // Validate worktree directory exists on disk
-            if (!fs.existsSync(fresh.worktreePath)) {
+            // Validate worktree directory exists on disk (skip for direct workspaces)
+            if (!fresh.direct && !fs.existsSync(fresh.worktreePath)) {
               console.warn(`[lifecycle:reconcile] Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
               if (fresh.outcome === 'in_progress') {
                 // No commits and worktree gone — auto-archive

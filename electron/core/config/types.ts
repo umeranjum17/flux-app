@@ -33,6 +33,7 @@ export interface FluxConfig {
   subagentModel?: string;
   defaultThinking: ThinkingLevel;
   defaultMode: 'plan' | 'act';
+  quickCreateDirect?: boolean;
   qualityGateCommands: string[];
   qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;

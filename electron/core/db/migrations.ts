@@ -97,7 +97,11 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     sql: RENAME_REMOTE_AUTH_COLUMNS,
   },
   {
-    name: '024_add_workspace_ssh_host',
+    name: '024_add_workspace_direct',
+    sql: 'ALTER TABLE workspaces ADD COLUMN direct INTEGER NOT NULL DEFAULT 0',
+  },
+  {
+    name: '025_add_workspace_ssh_host',
     sql: 'ALTER TABLE workspaces ADD COLUMN ssh_host TEXT',
   },
 ];
@@ -158,7 +162,15 @@ export function runMigrations(): void {
       continue;
     }
 
-    if (migration.name === '024_add_workspace_ssh_host' && hasColumn(db, 'workspaces', 'ssh_host')) {
+    if (migration.name === '024_add_workspace_direct' && hasColumn(db, 'workspaces', 'direct')) {
+      db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
+        migration.name,
+        Date.now()
+      );
+      continue;
+    }
+
+    if (migration.name === '025_add_workspace_ssh_host' && hasColumn(db, 'workspaces', 'ssh_host')) {
       db.prepare('INSERT INTO migrations (name, applied_at) VALUES (?, ?)').run(
         migration.name,
         Date.now()

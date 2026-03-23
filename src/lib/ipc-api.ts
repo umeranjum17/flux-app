@@ -98,6 +98,10 @@ export interface IpcChannels {
     args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
     result: Workspace;
   };
+  'workspace:create-direct': {
+    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    result: Workspace;
+  };
   'workspace:rename-branch': {
     args: [{ workspaceId: string; newBranch: string; newName?: string }];
     result: Workspace;
@@ -401,6 +405,7 @@ export interface FluxConfig {
   subagentModel?: string;
   defaultThinking: ThinkingLevel;
   defaultMode: TaskMode;
+  quickCreateDirect?: boolean;
   qualityGateCommands: string[];
   qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;
@@ -507,6 +512,8 @@ export interface Workspace {
   /** SSH host for remote workspaces. Undefined = local workspace. */
   sshHost?: string;
   worktreePath: string;
+  /** When true, the workspace operates directly on the parent repo (no worktree/branch). */
+  direct?: boolean;
   sessionId?: string;
 }
 

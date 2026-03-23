@@ -16,6 +16,7 @@ const defaultConfig: FluxConfig = {
   subagentModel: 'haiku',
   defaultThinking: 'medium',
   defaultMode: 'act' as const,
+  quickCreateDirect: false,
   zoomLevel: 1.0,
   qualityGateCommands: [],
   qualityGateMaxRetries: 2,
@@ -291,6 +292,29 @@ export function SettingsPanel() {
                 <section>
                   <h3 className="text-sm font-medium text-text-secondary mb-3">Defaults</h3>
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <label className="text-sm text-text-primary">Quick create mode</label>
+                      <div className="flex gap-1.5">
+                        {([
+                          { value: false, label: 'Isolated' },
+                          { value: true, label: 'Direct' },
+                        ]).map((opt) => (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() => updateConfig({ quickCreateDirect: opt.value })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              Boolean(config.quickCreateDirect) === opt.value
+                                ? 'bg-success text-white'
+                                : 'bg-bg-primary text-text-secondary border border-border hover:bg-bg-hover'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <label className="text-sm text-text-primary">Default Agent</label>
                       <input

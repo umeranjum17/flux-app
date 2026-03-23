@@ -56,16 +56,19 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
             lifecycleManager.clearTask(taskId);
           }
 
-          update({
-            stage: 'checking_repo',
-            progress: 0.22,
-            message: 'Checking worktree state',
-          });
+          if (!workspace.direct) {
+            update({
+              stage: 'checking_repo',
+              progress: 0.22,
+              message: 'Checking worktree state',
+            });
 
-          await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, {
-            signal,
-            onStage: (stage) => update(archiveStageDetails[stage]),
-          });
+          if (!workspace.direct) {
+            await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, {
+              signal,
+              onStage: (stage) => update(archiveStageDetails[stage]),
+            });
+          }
 
           update({
             stage: 'cleaning_db',
@@ -134,6 +137,77 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode,
         thinking: thinking as any,
         sshHost: effectiveSshHost,
+        status: 'idle',
+      });
+      sendToRenderer('workspace:created', { workspace: ws });
+      return ws;
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:create-direct',
+    async (
+      _event,
+      {
+        name,
+        parentRepo,
+        agentId,
+        model,
+        mode,
+        thinking,
+      }: {
+        name: string;
+        parentRepo: string;
+        agentId: string;
+        model: string;
+        mode?: SpawnOptions['mode'];
+        thinking?: string;
+      },
+    ) => {
+      requireFields({ name, parentRepo, agentId, model }, 'name', 'parentRepo', 'agentId', 'model');
+      if (getSshHost()) {
+        throw new Error('Workspaces are only supported for local repositories right now');
+      }
+
+      if (!fs.existsSync(parentRepo)) {
+        throw new Error(`Directory "${parentRepo}" does not exist.`);
+      }
+
+      // Ensure git is initialized
+      try {
+        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
+      } catch {
+        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+          cwd: parentRepo,
+          timeout: 10000,
+        });
+      }
+
+      // Guard: only one direct workspace per repo at a time
+      const existing = workspaceStore.list(parentRepo).find((ws) => ws.direct);
+      if (existing) {
+        throw new Error(`A direct workspace already exists for this project: "${existing.name}"`);
+      }
+
+      // Get current branch
+      let currentBranch = 'main';
+      try {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
+        currentBranch = stdout.trim() || 'main';
+      } catch { /* best-effort */ }
+
+      const ws = workspaceStore.create({
+        id: crypto.randomUUID(),
+        name,
+        parentRepo,
+        worktreePath: parentRepo,
+        branch: currentBranch,
+        agentId,
+        model,
+        mode,
+        thinking: thinking as any,
+        direct: true,
         status: 'idle',
       });
       sendToRenderer('workspace:created', { workspace: ws });
@@ -277,7 +351,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         lifecycleManager.clearTask(taskId);
       }
 
-      await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath);
+      if (!workspace.direct) {
+        await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath);
+      }
       workspaceStore.delete(workspaceId);
       sendToRenderer('workspace:deleted', { workspaceId });
     });

@@ -22,6 +22,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   subagentModel: 'haiku',
   defaultThinking: 'medium',
   defaultMode: 'act',
+  quickCreateDirect: false,
   qualityGateCommands: [],
   qualityGateMaxRetries: 2,
   customAgentPaths: {},
@@ -48,6 +49,7 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
         : DEFAULT_CONFIG.defaultThinking;
 
   const defaultMode = raw.defaultMode === 'plan' ? 'plan' : 'act';
+  const quickCreateDirect = raw.quickCreateDirect === true;
 
   return {
     ...DEFAULT_CONFIG,
@@ -57,6 +59,7 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     preferredIde,
     defaultThinking,
     defaultMode,
+    quickCreateDirect,
     subagentModel: typeof raw.subagentModel === 'string' ? raw.subagentModel : DEFAULT_CONFIG.subagentModel,
     customAgentPaths:
       raw.customAgentPaths && typeof raw.customAgentPaths === 'object' && !Array.isArray(raw.customAgentPaths)

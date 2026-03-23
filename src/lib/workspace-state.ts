@@ -345,6 +345,10 @@ export async function startWorkspaceChat(
 export async function startWorkspaceMerge(
   opts: StartWorkspaceMergeOptions,
 ): Promise<{ taskId: string; session: Session }> {
+  if (opts.workspace.direct) {
+    throw new Error('Direct workspaces cannot be merged — changes are already on the current branch.');
+  }
+
   // If the workspace still has an auto-generated branch, try to rename it
   // from its commit history so the merge commit message is human-friendly.
   let workspace = opts.workspace;
@@ -447,6 +451,38 @@ export async function createWorkspaceAndChat(
     mode: opts.mode,
     thinking: opts.thinking,
     sshHost: effectiveSshHost,
+  }) as Workspace;
+
+  useWorkspaceStore.getState().addWorkspace(workspace);
+  useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
+
+  const { taskId, session } = await startWorkspaceChat({
+    workspace,
+    prompt,
+    agentId: opts.agentId,
+    model: opts.model,
+    mode: opts.mode,
+    thinking: opts.thinking,
+    images: opts.images,
+    attachments: opts.attachments,
+  });
+
+  return { workspace, taskId, session };
+}
+
+export async function createDirectWorkspaceAndChat(
+  prompt: string,
+  opts: Omit<CreateWorkspaceAndChatOptions, 'parentRepo'> & { parentRepo?: string },
+): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
+  const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
+
+  const workspace = await window.api.invoke('workspace:create-direct', {
+    name: deriveWorkspaceNameFromPrompt(prompt),
+    parentRepo: effectiveParentRepo,
+    agentId: opts.agentId,
+    model: opts.model,
+    mode: opts.mode,
+    thinking: opts.thinking,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);
