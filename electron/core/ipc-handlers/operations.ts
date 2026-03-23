@@ -276,9 +276,7 @@ export function listMulti(ctx: IpcContext, parentRepos: string[]) {
 export async function diffFiles(ctx: IpcContext, workspaceId: string) {
   requireFields({ workspaceId }, 'workspaceId');
   const workspace = ctx.workspaceStore.get(workspaceId);
-  if (!workspace) {
-    throw new Error(`Workspace ${workspaceId} not found`);
-  }
+  if (!workspace) return [];
   return getChangedFiles(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
 }
 
@@ -290,9 +288,7 @@ export async function fileDiff(
 ) {
   requireFields({ workspaceId, filePath }, 'workspaceId', 'filePath');
   const workspace = ctx.workspaceStore.get(workspaceId);
-  if (!workspace) {
-    throw new Error(`Workspace ${workspaceId} not found`);
-  }
+  if (!workspace) return null;
   return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.sshHost);
 }
 

@@ -233,7 +233,12 @@ export class RemoteControlService {
   async archiveWorkspace(workspaceId: string) {
     const { workspaceStore, operationManager, lifecycleManager, sendToRenderer, releaseTask } = this.ctx;
     const workspace = workspaceStore.get(workspaceId) ?? workspaceStore.getIncludingMissing(workspaceId);
-    if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+    if (!workspace) {
+      // Already gone — clean up and return a completed noop
+      workspaceStore.delete(workspaceId);
+      sendToRenderer('workspace:deleted', { workspaceId });
+      return { operation: null };
+    }
 
     return {
       operation: operationManager.start({

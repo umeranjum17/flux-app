@@ -707,17 +707,13 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('checkpoint:diff', async (_event, { checkpointId, workspaceId }: { checkpointId: string; workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+    if (!workspace) return null;
     return getCheckpointDiff(checkpointId, workspace.worktreePath);
   });
 
   ipcMain.handle('checkpoint:revert', async (_event, { checkpointId, workspaceId }: { checkpointId: string; workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+    if (!workspace) return;
     await revertToCheckpoint(workspace.worktreePath, checkpointId);
     lifecycleManager.setStatus(workspaceId, 'done');
   });

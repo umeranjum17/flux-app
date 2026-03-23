@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
-import type { DiffScope, WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
+import type { DiffScope, WorkspaceOperation, WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
 import { listWorktrees } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
 import { resolveGitState } from '../worktree/outcome';
@@ -35,7 +35,24 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   const startArchive = (workspaceId: string) => {
     const workspace = workspaceStore.get(workspaceId) ?? workspaceStore.getIncludingMissing(workspaceId);
     if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
+      // Workspace already gone (e.g. deleted directly from DB) — emit deleted and return
+      workspaceStore.delete(workspaceId);
+      sendToRenderer('workspace:deleted', { workspaceId });
+      logDiagnostic('workspace:archive', 'workspace already missing, cleaned up', { workspaceId });
+      const now = Date.now();
+      return {
+        id: `archive-${workspaceId}-noop`,
+        workspaceId,
+        kind: 'archive',
+        status: 'completed',
+        stage: 'cleaning_db',
+        progress: 1,
+        message: 'Workspace already removed',
+        startedAt: now,
+        updatedAt: now,
+        finishedAt: now,
+        cancellable: false,
+      } satisfies WorkspaceOperation;
     }
 
     return operationManager.start({
@@ -251,7 +268,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     async (_event, { workspaceId }: { workspaceId: string }) => {
       requireFields({ workspaceId }, 'workspaceId');
       const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+      if (!workspace) return null;
       try {
         const wfs = createWorkspaceFs(workspace.sshHost);
         const { stdout } = await wfs.git(workspace.worktreePath, ['log', '-1', '--format=%s'], { timeout: 5000 });
@@ -511,9 +528,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+    if (!workspace) return { staged: [], unstaged: [], committed: [] };
     return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
   });
 
@@ -531,9 +546,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       { workspaceId, filePath, scope }: { workspaceId: string; filePath: string; scope?: Exclude<DiffScope, 'committed'> },
     ) => {
       const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) {
-        throw new Error(`Workspace ${workspaceId} not found`);
-      }
+      if (!workspace) return;
       await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.sshHost);
     },
   );
@@ -546,7 +559,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:detect-scripts',
     async (_event, { workspaceId }: { workspaceId: string }) => {
       const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+      if (!workspace) return [];
 
       const scripts: Array<{ name: string; command: string; source: 'package.json' | 'detected' }> = [];
 
@@ -695,19 +708,19 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle('workspace:discard-all', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    if (!workspace) return;
     await discardAll(workspace.worktreePath, workspace.sshHost);
   });
 
   ipcMain.handle('workspace:full-diff', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    if (!workspace) return null;
     return getFullDiff(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
   });
 
   ipcMain.handle('workspace:git-state', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+    if (!workspace) return null;
     return resolveGitState(workspace);
   });
 
