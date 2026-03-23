@@ -25,6 +25,7 @@ function createWindow(): void {
   const config = configManager.get();
 
   mainWindow = new BrowserWindow({
+    show: false,
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -63,6 +64,13 @@ function createWindow(): void {
     });
   }
 
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+  });
+
+  // Run migrations after loadURL (non-blocking) so renderer loads in parallel
+  runMigrations();
+
   registerIpcHandlers(mainWindow);
 
   mainWindow.on('closed', () => {
@@ -73,7 +81,7 @@ function createWindow(): void {
 app.on('ready', () => {
   console.info('[main] Electron app ready; starting initialization');
   try {
-    runMigrations();
+    // Create window first so renderer starts loading in parallel with migrations
     createWindow();
   } catch (error) {
     console.error('[main] Failed to initialize application', error);

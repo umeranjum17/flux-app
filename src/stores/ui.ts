@@ -153,7 +153,7 @@ function basename(p: string): string {
 
 export const useUiStore = create<UiState>()(
   immer((set, get) => ({
-    sidebarOpen: true,
+    sidebarOpen: false,
     sidebarTab: 'workspaces',
     theme: 'dark',
     sendKey: 'cmd+enter',

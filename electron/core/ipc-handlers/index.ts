@@ -224,6 +224,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'git:upstream',
     'git:is-repo',
     'git:status',
+    'git:info',
     'git:log',
     'git:diff-stat',
     'fs:readdir',
@@ -402,22 +403,25 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   registerWorkspaceHandlers(fullCtx);
 
-  remoteServer?.stop();
-  remoteMdns?.stop();
-  remoteServer = new RemoteControlServer({
-    authService: remoteAuthService,
-    controlService: remoteControlService,
-    eventBus: remoteEventBus,
-  });
-  remoteMdns = new MdnsAdvertiser();
-  try {
-    remoteServer.start();
-    remoteMdns.start(REMOTE_SERVER_PORT, PROTOCOL_VERSION);
-  } catch (error) {
-    logDiagnostic('remote-server', 'startup failed', {
-      error: error instanceof Error ? error.message : String(error),
+  // Defer remote server startup — not needed for initial render
+  setTimeout(() => {
+    remoteServer?.stop();
+    remoteMdns?.stop();
+    remoteServer = new RemoteControlServer({
+      authService: remoteAuthService!,
+      controlService: remoteControlService,
+      eventBus: remoteEventBus,
     });
-  }
+    remoteMdns = new MdnsAdvertiser();
+    try {
+      remoteServer.start();
+      remoteMdns.start(REMOTE_SERVER_PORT, PROTOCOL_VERSION);
+    } catch (error) {
+      logDiagnostic('remote-server', 'startup failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, 3000);
 
   ipcMain.handle('remote:status', async () => {
     return remoteServer?.getStatus(remoteMdns?.isAdvertised() ?? false) ?? {
@@ -486,11 +490,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     globalContextWatcher.start();
   }
 
-  // Self-heal workspace state before renderer connects.
-  // Fire-and-forget but log errors — must not block handler registration.
-  lifecycleManager.reconcileOnStartup().catch(err => {
-    console.error('[lifecycle] Startup reconciliation failed:', err);
-  });
+  // Self-heal workspace state — deferred to avoid blocking initial render.
+  // Fire-and-forget but log errors.
+  setTimeout(() => {
+    lifecycleManager.reconcileOnStartup().catch(err => {
+      console.error('[lifecycle] Startup reconciliation failed:', err);
+    });
+  }, 2000);
 
   const projectGroupStore = new ProjectGroupStore();
   registerProjectGroupHandlers({ projectGroupStore, workspaceStore });
@@ -502,13 +508,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     operationManager.cancelAll();
   });
 
-  // Initialize repo map if enabled
-  const initialConfig = configManager.get().repoMap;
-  if (initialConfig.enabled) {
-    repoMapService.init(currentCwd, initialConfig).catch(() => {
-      // Initialization error is non-fatal
-    });
-  }
+  // Initialize repo map if enabled — deferred to avoid blocking startup
+  setTimeout(() => {
+    const initialConfig = configManager.get().repoMap;
+    if (initialConfig.enabled) {
+      repoMapService.init(currentCwd, initialConfig).catch(() => {
+        // Initialization error is non-fatal
+      });
+    }
+  }, 5000);
 
   // Push status updates to renderer
   repoMapService.onStatusChange((status) => {

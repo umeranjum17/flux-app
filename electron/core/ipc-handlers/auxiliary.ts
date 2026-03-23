@@ -104,8 +104,8 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     }
   }
 
-  ipcMain.handle('sessions:list', async () => {
-    return sessionStore.listWithSummaries();
+  ipcMain.handle('sessions:list', async (_event, args?: { limit?: number }) => {
+    return sessionStore.listWithSummaries(args?.limit);
   });
 
   ipcMain.handle('sessions:get', async (_event, { id }: { id: string }) => {
@@ -449,6 +449,27 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     } catch {
       return { dirty: false, files: '' };
     }
+  });
+
+  // Combined git info — single IPC round trip instead of 4 sequential calls
+  ipcMain.handle('git:info', async () => {
+    const cwd = getCurrentCwd();
+    try {
+      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd, timeout: 5000 });
+    } catch {
+      return { isRepo: false, branch: null, upstream: null, dirty: false };
+    }
+    const [branchRes, upstreamRes, statusRes] = await Promise.allSettled([
+      execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd }),
+      execFileAsync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd }),
+      execFileAsync('git', ['status', '--porcelain'], { cwd }),
+    ]);
+    return {
+      isRepo: true,
+      branch: branchRes.status === 'fulfilled' ? branchRes.value.stdout.trim() : null,
+      upstream: upstreamRes.status === 'fulfilled' ? (upstreamRes.value.stdout.trim() || null) : null,
+      dirty: statusRes.status === 'fulfilled' ? statusRes.value.stdout.trim().length > 0 : false,
+    };
   });
 
   ipcMain.handle('fs:readdir', async (_event, { dirPath, depth = 3 }: { dirPath?: string; depth?: number }) => {

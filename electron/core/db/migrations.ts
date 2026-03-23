@@ -104,6 +104,44 @@ SELECT id, session_id, 0, created_at FROM workspaces WHERE session_id IS NOT NUL
     name: '025_add_workspace_ssh_host',
     sql: 'ALTER TABLE workspaces ADD COLUMN ssh_host TEXT',
   },
+  {
+    name: '026_add_messages_session_id_index',
+    sql: 'CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)',
+  },
+  {
+    name: '027_purge_dead_data',
+    sql: `
+      -- Step 1: Collect all session IDs that will be deleted (archived + orphaned)
+      -- Step 2: Delete messages first (FK: messages.session_id → sessions.id)
+      DELETE FROM messages WHERE session_id IN (
+        SELECT ws.session_id FROM workspace_sessions ws
+        JOIN workspaces w ON w.id = ws.workspace_id
+        WHERE w.archived_at IS NOT NULL
+      );
+      DELETE FROM messages WHERE session_id NOT IN (
+        SELECT session_id FROM workspace_sessions
+      );
+
+      -- Step 3: Delete workspace_sessions for archived workspaces (FK: workspace_sessions.session_id → sessions.id)
+      DELETE FROM workspace_sessions WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE archived_at IS NOT NULL
+      );
+
+      -- Step 4: Delete sessions (archived-linked ones are now unreferenced, plus orphans)
+      DELETE FROM sessions WHERE id NOT IN (
+        SELECT session_id FROM workspace_sessions
+      );
+
+      -- Step 5: Delete remaining archived workspace data
+      DELETE FROM checkpoints WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE archived_at IS NOT NULL
+      );
+      DELETE FROM workspace_group_members WHERE workspace_id IN (
+        SELECT id FROM workspaces WHERE archived_at IS NOT NULL
+      );
+      DELETE FROM workspaces WHERE archived_at IS NOT NULL;
+    `,
+  },
 ];
 
 export function runMigrations(): void {
@@ -192,6 +230,15 @@ export function runMigrations(): void {
       migration.name,
       Date.now()
     );
+
+    // VACUUM after purge to reclaim disk space (can't run inside a transaction)
+    if (migration.name === '027_purge_dead_data') {
+      try {
+        db.exec('VACUUM');
+      } catch (err) {
+        console.warn('[migrations] VACUUM failed (non-fatal):', err);
+      }
+    }
   }
 }
 

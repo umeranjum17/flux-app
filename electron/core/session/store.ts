@@ -151,11 +151,54 @@ export class SessionStore {
     };
   }
 
-  listWithSummaries(): (Session & { summary: SessionSummary })[] {
-    const sessions = this.list();
-    return sessions.map((s) => ({
-      ...s,
-      summary: this.getSummary(s.id),
+  listWithSummaries(limit?: number): (Session & { summary: SessionSummary })[] {
+    const db = getDb();
+
+    // Single query for sessions + aggregated stats (replaces N+1 pattern)
+    const sql = `
+      SELECT s.*,
+        COALESCE(SUM(m.input_tokens), 0) as total_input_tokens,
+        COALESCE(SUM(m.output_tokens), 0) as total_output_tokens,
+        COALESCE(SUM(m.cost_usd), 0) as total_cost_usd,
+        COUNT(m.id) as message_count
+      FROM sessions s
+      LEFT JOIN messages m ON m.session_id = s.id
+      GROUP BY s.id
+      ORDER BY s.updated_at DESC
+      ${limit ? 'LIMIT ?' : ''}
+    `;
+    const rows = (limit
+      ? db.prepare(sql).all(limit)
+      : db.prepare(sql).all()) as any[];
+
+    // Single query for last message previews
+    const sessionIds = rows.map((r) => r.id);
+    const previewMap = new Map<string, string>();
+    if (sessionIds.length > 0) {
+      const placeholders = sessionIds.map(() => '?').join(',');
+      const previewRows = db.prepare(`
+        SELECT session_id, content FROM (
+          SELECT session_id, content,
+            ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY timestamp DESC, id DESC) as rn
+          FROM messages
+          WHERE session_id IN (${placeholders})
+            AND type IN ('text', 'result') AND role = 'assistant'
+        ) WHERE rn = 1
+      `).all(...sessionIds) as any[];
+      for (const pr of previewRows) {
+        previewMap.set(pr.session_id, pr.content?.slice(0, 80) ?? '');
+      }
+    }
+
+    return rows.map((row) => ({
+      ...rowToSession(row),
+      summary: {
+        totalInputTokens: row.total_input_tokens ?? 0,
+        totalOutputTokens: row.total_output_tokens ?? 0,
+        totalCostUsd: row.total_cost_usd ?? 0,
+        messageCount: row.message_count ?? 0,
+        lastMessagePreview: previewMap.get(row.id) ?? null,
+      },
     }));
   }
 }

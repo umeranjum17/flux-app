@@ -640,7 +640,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     let handle: AgentHandle;
     try {
-      handle = agentManager.spawn(agentId, spawnOptions, resumeMessages);
+      handle = await agentManager.spawn(agentId, spawnOptions, resumeMessages);
     } catch (err) {
       if (!existingSession) {
         sessionStore.delete(session.id);
@@ -1465,7 +1465,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                   timestamp: Date.now(),
                 });
 
-                const fixHandle = agentManager.spawn(agentId, {
+                const fixHandle = await agentManager.spawn(agentId, {
                   taskId: fixTaskId,
                   prompt: fixPrompt,
                   cwd: spawnOptions.cwd,
@@ -1816,7 +1816,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     let subHandle: AgentHandle;
     try {
-      subHandle = agentManager.spawn(parentAgentId, subSpawnOptions);
+      subHandle = await agentManager.spawn(parentAgentId, subSpawnOptions);
     } catch (error) {
       sessionStore.delete(session.id);
       throw error;

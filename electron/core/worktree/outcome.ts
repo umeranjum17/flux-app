@@ -177,7 +177,6 @@ export function computeNextOutcome(
       if (current === 'merged' && gitState.isMerged) return 'ready_to_archive';
       return null;
 
-
     default:
       return null;
   }

@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { AgentMessage, TaskMode, ThinkingLevel } from './types';
 
 interface LoopMessage {
@@ -46,7 +46,8 @@ export class ConversationLoop {
   messages: LoopMessage[] = [];
 
   constructor(options: ConversationLoopOptions) {
-    this.client = options.client ?? new OpenAI();
+    if (!options.client) throw new Error('OpenAI client is required');
+    this.client = options.client;
     this.model = options.model;
     this.mode = options.mode;
     this.thinking = options.thinking;

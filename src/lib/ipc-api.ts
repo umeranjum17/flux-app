@@ -74,6 +74,7 @@ export interface IpcChannels {
   'git:branch': { args: []; result: string | null };
   'git:upstream': { args: []; result: string | null };
   'git:status': { args: []; result: { dirty: boolean; files: string } };
+  'git:info': { args: []; result: { isRepo: boolean; branch: string | null; upstream: string | null; dirty: boolean } };
   'fs:readdir': { args: [{ dirPath?: string; depth?: number }]; result: Array<{ name: string; path: string; isDirectory: boolean; children?: unknown[] }> };
   'fs:read': { args: [{ filePath: string }]; result: { content: string | null; error: string | null } };
   'fs:listdirs': { args: [{ dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };

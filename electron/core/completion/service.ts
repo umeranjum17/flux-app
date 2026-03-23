@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
@@ -138,6 +137,7 @@ async function completeWithOpenAI(
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return '';
 
+  const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey });
   const response = await client.chat.completions.create(
     {

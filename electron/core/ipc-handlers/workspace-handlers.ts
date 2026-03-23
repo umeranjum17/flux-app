@@ -63,7 +63,6 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
               message: 'Checking worktree state',
             });
 
-          if (!workspace.direct) {
             await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, {
               signal,
               onStage: (stage) => update(archiveStageDetails[stage]),

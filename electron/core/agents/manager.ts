@@ -69,7 +69,7 @@ const AGENT_DEFS: Record<
   },
 };
 
-const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle> = {
+const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle | Promise<AgentHandle>> = {
   'claude-code': spawnClaude,
   codex: (opts) => spawnCodex(opts),
   copilot: spawnCopilot,
@@ -83,6 +83,7 @@ async function versionAsync(command: string): Promise<string> {
     const { stdout } = await execFileAsync(command, ['--version'], {
       encoding: 'utf-8',
       env: extendedEnv(),
+      timeout: 3000,
     });
     return stdout.trim().split('\n')[0];
   } catch {
@@ -162,7 +163,7 @@ class AgentManager {
     return fetchModelsForAgent(id);
   }
 
-  spawn(id: AgentId, options: SpawnOptions, resumeMessages?: SessionMessage[]): AgentHandle {
+  async spawn(id: AgentId, options: SpawnOptions, resumeMessages?: SessionMessage[]): Promise<AgentHandle> {
     const agent = this.agents.get(id);
     if (!agent || !agent.available) {
       throw new Error(`Agent ${id} is not available`);

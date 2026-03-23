@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { AlertTriangle, FolderOpen, Terminal } from 'lucide-react';
 import { TopBar } from './TopBar';
@@ -14,14 +14,14 @@ import { TabBar } from './TabBar';
 import { BottomPanel } from './BottomPanel';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { useUiStore } from '../../stores/ui';
-import { useAgentStore } from '../../stores/agent';
+import { useAgentStore, normalizeClaudeCodeModel } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { AgentId, DetectedAgent, TaskMode, ThinkingLevel } from '../../lib/types';
-import type { FluxConfig, Session, EnvironmentInfo, Workspace, WorkspaceOperation } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession, WorkspaceOperation } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
@@ -32,7 +32,7 @@ import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
 import { QuickOpen } from '../dialogs/QuickOpen';
 import { SearchFiles } from '../dialogs/SearchFiles';
 import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
-
+import { restoreSessionMessage } from '../../lib/session-messages';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
 
 
@@ -100,6 +100,8 @@ export function AppShell() {
     return workspace ?? null;
   });
 
+  const [appReady, setAppReady] = useState(false);
+
   useAgentStream();
 
   // Detect agents and fetch CWD on mount
@@ -108,8 +110,8 @@ export function AppShell() {
       useAgentStore.getState().setDetecting(true);
       let restoredProjectPath: string | null = null;
       try {
+        // Phase 1: Load config first (fast, needed to route other calls)
         let config: FluxConfig | null = null;
-
         try {
           config = await window.api.invoke('config:get') as FluxConfig;
           useUiStore.getState().setTheme(config.theme);
@@ -122,10 +124,8 @@ export function AppShell() {
           if (typeof (config as any).autoApprove === 'boolean') {
             useUiStore.getState().setAutoApprove((config as any).autoApprove);
           }
-          // Restore multi-project state
           if (config.openProjects && config.openProjects.length > 0) {
             useUiStore.getState().setOpenProjects(config.openProjects);
-            // Restore active project (if saved) or use the first open project
             if (config.activeProjectPath && config.openProjects.includes(config.activeProjectPath)) {
               restoredProjectPath = config.activeProjectPath;
               useUiStore.getState().setActiveProject(config.activeProjectPath);
@@ -139,8 +139,25 @@ export function AppShell() {
           console.error('Config load failed:', err);
         }
 
-        try {
-          const agents = await window.api.invoke('agents:detect') as DetectedAgent[];
+        // Show the shell immediately — only config was needed for theme/layout
+        setAppReady(true);
+        useUiStore.getState().setSidebarOpen(true);
+
+        // Phase 2: Fire independent IPC calls in parallel (progressive, non-blocking)
+        const cwdPromise = restoredProjectPath
+          ? window.api.invoke('cwd:set', { cwd: restoredProjectPath })
+          : window.api.invoke('cwd:get');
+
+        const [agentsResult, cwdResult, envResult, sessionsResult] = await Promise.allSettled([
+          window.api.invoke('agents:detect') as Promise<DetectedAgent[]>,
+          cwdPromise,
+          window.api.invoke('env:detect') as Promise<EnvironmentInfo>,
+          window.api.invoke('sessions:list', { limit: 50 }) as Promise<Session[]>,
+        ]);
+
+        // Apply agents
+        if (agentsResult.status === 'fulfilled') {
+          const agents = agentsResult.value;
           useAgentStore.getState().setAgents(agents);
 
           const preferredAgent = config?.defaultAgent
@@ -153,46 +170,42 @@ export function AppShell() {
               selectedModel: config?.defaultModel || preferredAgent.models[0] || state.selectedModel,
               dynamicModels: [],
             }));
-            await useAgentStore.getState().fetchModels(preferredAgent.id);
-            if (config?.defaultModel) {
-              const availableModels = useAgentStore.getState().dynamicModels.map((model) => model.id);
-              if (availableModels.includes(config.defaultModel) || preferredAgent.models.includes(config.defaultModel)) {
-                useAgentStore.getState().setSelectedModel(config.defaultModel);
+            // Fire-and-forget: model list only populates a dropdown
+            useAgentStore.getState().fetchModels(preferredAgent.id).then(() => {
+              if (config?.defaultModel) {
+                const availableModels = useAgentStore.getState().dynamicModels.map((model) => model.id);
+                if (availableModels.includes(config.defaultModel) || preferredAgent.models.includes(config.defaultModel)) {
+                  useAgentStore.getState().setSelectedModel(config.defaultModel);
+                }
               }
-            }
+            }).catch(console.error);
           }
-        } catch (err) {
+        } else {
           toast.error('Failed to detect agents');
-          console.error('Agent detection failed:', err);
+          console.error('Agent detection failed:', agentsResult.reason);
         }
 
-        try {
-          if (restoredProjectPath) {
-            // Sync the restored project path to the backend so git checks use it
-            await window.api.invoke('cwd:set', { cwd: restoredProjectPath });
-          } else {
-            const cwdResult = await window.api.invoke('cwd:get') as string;
-            useUiStore.getState().setCwd(cwdResult);
+        // Apply CWD
+        if (cwdResult.status === 'fulfilled' && !restoredProjectPath) {
+          useUiStore.getState().setCwd(cwdResult.value as string);
+        } else if (cwdResult.status === 'rejected') {
+          console.error('CWD fetch failed:', cwdResult.reason);
+        }
+
+        // Apply environment
+        if (envResult.status === 'fulfilled') {
+          if (envResult.value.runtime !== 'local') {
+            useUiStore.setState({ environment: envResult.value.runtime });
           }
-        } catch (err) {
-          console.error('CWD fetch failed:', err);
+        } else {
+          console.error('Environment detection failed:', envResult.reason);
         }
 
-        // Detect runtime environment (WSL, SSH session, etc.)
-        try {
-          const envInfo = await window.api.invoke('env:detect') as EnvironmentInfo;
-          if (envInfo.runtime !== 'local') {
-            useUiStore.setState({ environment: envInfo.runtime });
-          }
-        } catch (err) {
-          console.error('Environment detection failed:', err);
-        }
-
-        try {
-          const sessions = await window.api.invoke('sessions:list') as Session[];
-          useSessionStore.getState().setSessions(sessions);
-        } catch (err) {
-          console.error('Sessions fetch failed:', err);
+        // Apply sessions
+        if (sessionsResult.status === 'fulfilled') {
+          useSessionStore.getState().setSessions(sessionsResult.value);
+        } else {
+          console.error('Sessions fetch failed:', sessionsResult.reason);
         }
       } finally {
         useAgentStore.getState().setDetecting(false);
@@ -209,56 +222,90 @@ export function AppShell() {
     if (projects.length === 0) return;
     let cancelled = false;
 
+    const restoreWorkspaceChats = async (workspace: Workspace, sessions: WorkspaceSession[]) => {
+      const chatStore = useChatStore.getState();
+      const thinking = workspace.thinking ?? useAgentStore.getState().selectedThinking;
+
+      for (const workspaceSession of sessions) {
+        const existingTask = Array.from(chatStore.tasks.values()).find(
+          (task) => task.workspaceId === workspace.id && task.sessionId === workspaceSession.sessionId,
+        );
+        if (existingTask) continue;
+
+        const session = await window.api.invoke('sessions:get', { id: workspaceSession.sessionId }) as Session | null;
+        if (!session || cancelled) continue;
+
+        const messages = await window.api.invoke('sessions:messages', { id: workspaceSession.sessionId }) as SessionMessage[];
+        if (cancelled) return;
+
+        const taskId = workspaceSession.taskId ?? crypto.randomUUID();
+        const restoredMessages = messages
+          .map((message) => restoreSessionMessage(message))
+          .filter((message): message is NonNullable<typeof message> => !!message);
+
+        chatStore.createTask({
+          id: taskId,
+          title: workspaceSession.label || session.title || workspace.name,
+          agentId: (session.agentId || workspace.agentId) as any,
+          model: normalizeClaudeCodeModel(session.model || workspace.model, session.agentId || workspace.agentId),
+          mode: session.mode,
+          thinking,
+          cwd: workspace.worktreePath,
+          sessionId: session.id,
+          workspaceId: workspace.id,
+        });
+
+        chatStore.restoreMessages(taskId, restoredMessages);
+        chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
+      }
+    };
+
     (async () => {
       try {
-        // Phase 1: Load workspace metadata from DB and render immediately.
-        const allWorkspaces: Workspace[] = [];
-        for (const repo of projects) {
-          const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
-          if (cancelled) return;
-          allWorkspaces.push(...result);
-        }
-
+        // Phase 1: Fetch workspace lists in parallel — render UI immediately
+        const listsPerProject = await Promise.all(
+          projects.map((repo) => window.api.invoke('workspace:list', { parentRepo: repo }) as Promise<Workspace[]>),
+        );
+        if (cancelled) return;
+        const allWorkspaces = listsPerProject.flat();
         useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
-        // Eagerly restore sessions for the active workspace so the user sees
-        // their chat history right away.
+        // Phase 2: Load operations (needed for sidebar); groups load in background
+        await useWorkspaceStore.getState().loadWorkspaceOperations();
+        if (cancelled) return;
+
+        // Fire-and-forget: group loading + chat restoration don't block sidebar render
+        Promise.all(
+          allWorkspaces.map((ws) => useWorkspaceGroupStore.getState().loadGroupForWorkspace(ws.id)),
+        ).catch(() => {});
+
         const activeId = useWorkspaceStore.getState().activeWorkspaceId;
         if (activeId) {
-          await useWorkspaceStore.getState().ensureSessionsLoaded(activeId);
+          const activeWs = allWorkspaces.find((ws) => ws.id === activeId);
+          if (activeWs) {
+            window.api.invoke('workspace:list-chats', { workspaceId: activeWs.id }).then(async (raw) => {
+              if (cancelled) return;
+              const sessions = raw as WorkspaceSession[];
+              useWorkspaceStore.getState().setWorkspaceSessions(activeWs.id, sessions);
+              await restoreWorkspaceChats(activeWs, sessions);
+            }).catch(() => {});
+          }
         }
 
-        // Phase 2: Background — sync git outcomes, refresh data, load groups.
-        // The existing workspace:status/outcome event listeners will
-        // progressively update the UI as the backend processes each workspace.
-        if (cancelled) return;
-        void (async () => {
-          try {
-            for (const repo of projects) {
-              try {
-                await window.api.invoke('workspace:sync-outcomes', { parentRepo: repo });
-              } catch (err) {
-                console.warn('[AppShell] Failed to sync workspace outcomes:', err);
-              }
-            }
+        // Phase 3 (background): Sync outcomes and refresh — doesn't block UI
+        if (!cancelled) {
+          Promise.allSettled(
+            projects.map((repo) => window.api.invoke('workspace:sync-outcomes', { parentRepo: repo })),
+          ).then(async () => {
             if (cancelled) return;
-
-            // Re-fetch workspaces after sync for fresh status/outcome data.
-            const freshWorkspaces: Workspace[] = [];
-            for (const repo of projects) {
-              const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
-              if (cancelled) return;
-              freshWorkspaces.push(...result);
-            }
-            useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
-            await useWorkspaceStore.getState().loadWorkspaceOperations();
-            await Promise.all(
-              freshWorkspaces.map((workspace) => useWorkspaceGroupStore.getState().loadGroupForWorkspace(workspace.id)),
+            const freshLists = await Promise.all(
+              projects.map((repo) => window.api.invoke('workspace:list', { parentRepo: repo }) as Promise<Workspace[]>),
             );
-          } catch {
-            // Background sync is best-effort.
-          }
-        })();
+            if (!cancelled) {
+              useWorkspaceStore.getState().setWorkspaces(freshLists.flat());
+            }
+          }).catch(() => {});
+        }
       } catch {
         // Workspace restore is best-effort.
       }
@@ -362,6 +409,43 @@ export function AppShell() {
       const selection = getModeSelection(workspace, workspaceMode, fallbackThinking);
       useUiStore.getState().setMode(workspaceMode);
       useAgentStore.getState().syncToWorkspace(selection.agentId, selection.model, selection.thinking);
+
+      // Lazily restore chats for this workspace if not already loaded
+      const existingSessions = useWorkspaceStore.getState().workspaceSessions.get(activeWorkspaceId);
+      if (!existingSessions) {
+        (async () => {
+          const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: activeWorkspaceId }) as WorkspaceSession[];
+          useWorkspaceStore.getState().setWorkspaceSessions(activeWorkspaceId, sessions);
+          const chatStore = useChatStore.getState();
+          const thinking = workspace.thinking ?? useAgentStore.getState().selectedThinking;
+          for (const workspaceSession of sessions) {
+            const existingTask = Array.from(chatStore.tasks.values()).find(
+              (task) => task.workspaceId === workspace.id && task.sessionId === workspaceSession.sessionId,
+            );
+            if (existingTask) continue;
+            const session = await window.api.invoke('sessions:get', { id: workspaceSession.sessionId }) as Session | null;
+            if (!session) continue;
+            const messages = await window.api.invoke('sessions:messages', { id: workspaceSession.sessionId }) as SessionMessage[];
+            const taskId = workspaceSession.taskId ?? crypto.randomUUID();
+            const restoredMessages = messages
+              .map((message) => restoreSessionMessage(message))
+              .filter((message): message is NonNullable<typeof message> => !!message);
+            chatStore.createTask({
+              id: taskId,
+              title: workspaceSession.label || session.title || workspace.name,
+              agentId: (session.agentId || workspace.agentId) as any,
+              model: normalizeClaudeCodeModel(session.model || workspace.model, session.agentId || workspace.agentId),
+              mode: session.mode,
+              thinking,
+              cwd: workspace.worktreePath,
+              sessionId: session.id,
+              workspaceId: workspace.id,
+            });
+            chatStore.restoreMessages(taskId, restoredMessages);
+            chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
+          }
+        })().catch(console.error);
+      }
     } else {
       // Restore global defaults when leaving a workspace
       window.api.invoke('config:get').then((raw) => {
@@ -579,7 +663,7 @@ export function AppShell() {
     };
   }, []);
 
-  // Fetch git info when CWD changes
+  // Fetch git info when CWD changes — single IPC round trip
   useEffect(() => {
     if (!cwd) return;
     let cancelled = false;
@@ -588,34 +672,21 @@ export function AppShell() {
       await window.api.invoke('cwd:set', { cwd }).catch(() => {});
       if (cancelled) return;
 
-      // Check if the folder is a git repository first
       try {
-        const isRepo = await window.api.invoke('git:is-repo') as boolean;
-        if (!cancelled) useUiStore.getState().setIsGitRepo(isRepo);
-        if (!isRepo) {
-          // Not a git repo — clear git state and stop
+        const info = await window.api.invoke('git:info') as { isRepo: boolean; branch: string | null; upstream: string | null; dirty: boolean };
+        if (cancelled) return;
+        useUiStore.getState().setIsGitRepo(info.isRepo);
+        useUiStore.getState().setGitBranch(info.branch);
+        useUiStore.getState().setGitUpstream(info.upstream);
+        useUiStore.getState().setGitDirty(info.dirty);
+      } catch {
+        if (!cancelled) {
+          useUiStore.getState().setIsGitRepo(false);
           useUiStore.getState().setGitBranch(null);
           useUiStore.getState().setGitUpstream(null);
           useUiStore.getState().setGitDirty(false);
-          return;
         }
-      } catch {
-        if (!cancelled) useUiStore.getState().setIsGitRepo(false);
-        return;
       }
-
-      try {
-        const branch = await window.api.invoke('git:branch') as string | null;
-        if (!cancelled) useUiStore.getState().setGitBranch(branch);
-      } catch { if (!cancelled) useUiStore.getState().setGitBranch(null); }
-      try {
-        const upstream = await window.api.invoke('git:upstream') as string | null;
-        if (!cancelled) useUiStore.getState().setGitUpstream(upstream);
-      } catch { if (!cancelled) useUiStore.getState().setGitUpstream(null); }
-      try {
-        const status = await window.api.invoke('git:status') as { dirty: boolean };
-        if (!cancelled) useUiStore.getState().setGitDirty(status.dirty);
-      } catch { if (!cancelled) useUiStore.getState().setGitDirty(false); }
     })();
     return () => { cancelled = true; };
   }, [cwd]);
@@ -942,6 +1013,10 @@ export function AppShell() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [createNewTab, cycleModel, cycleThinking]);
+
+  if (!appReady) {
+    return <div className="flex h-screen items-center justify-center bg-bg-primary" />;
+  }
 
   return (
     <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary text-text-primary">

@@ -8,7 +8,13 @@ import { ipcMain } from 'electron';
 import { spawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import * as pty from 'node-pty';
+import type * as ptyTypes from 'node-pty';
+
+let _pty: typeof import('node-pty') | null = null;
+async function getPty() {
+  if (!_pty) _pty = await import('node-pty');
+  return _pty;
+}
 
 import { createInitialTerminalCommandController } from './initial-command';
 import { setupShellIntegration, parseShellIntegrationEvents } from './shell-integration';
@@ -129,7 +135,7 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
     getWorkspacePath,
   } = deps;
 
-  const activePtys = new Map<string, pty.IPty>();
+  const activePtys = new Map<string, ptyTypes.IPty>();
   const flowStates = new Map<string, FlowState>();
   const initialCommandControllers = new Map<string, ReturnType<typeof createInitialTerminalCommandController>>();
   const dataBuffer = new TerminalDataBuffer((id, data) => {
@@ -232,6 +238,7 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
     const integration = process.platform === 'win32'
       ? { args: [] as string[], env: {} as Record<string, string> }
       : setupShellIntegration(shell);
+    const pty = await getPty();
     const ptyProcess = pty.spawn(shell, integration.args, {
       name: 'xterm-256color',
       cols: 80,

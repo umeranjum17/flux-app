@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { EventEmitter } from 'events';
 import type { AgentHandle, SpawnOptions, AgentMessage, TaskMode } from './types';
 import { ConversationLoop } from './loop';
@@ -13,12 +13,14 @@ import type { SessionMessage } from '../session/types';
  * OpenAI API-based agent backed by the shared conversation loop so tool
  * execution actually completes instead of stopping after tool call emission.
  */
-export function spawnOpenAI(options: SpawnOptions, resumeMessages?: SessionMessage[]): AgentHandle {
+export async function spawnOpenAI(options: SpawnOptions, resumeMessages?: SessionMessage[]): Promise<AgentHandle> {
   const emitter = new EventEmitter() as AgentHandle;
   emitter.setMaxListeners(20);
   emitter.taskId = options.taskId;
   emitter.agentId = 'openai';
 
+  // Dynamic import to avoid loading openai at startup
+  const { default: OpenAI } = await import('openai');
   const loop = new ConversationLoop({
     client: new OpenAI(),
     model: options.model ?? 'gpt-5.1',

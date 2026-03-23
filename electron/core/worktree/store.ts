@@ -37,10 +37,7 @@ export class WorkspaceStore {
           .all(parentRepo)
       : db.prepare('SELECT * FROM workspaces ORDER BY updated_at DESC').all();
 
-    return (rows as any[])
-      .map(rowToWorkspace)
-      // Remote worktree paths don't exist locally — skip fs check for SSH workspaces
-      .filter((workspace) => workspace.sshHost || fs.existsSync(workspace.worktreePath));
+    return (rows as any[]).map(rowToWorkspace);
   }
 
   get(id: string): Workspace | null {
@@ -80,7 +77,6 @@ export class WorkspaceStore {
       actThinking: input.actThinking ?? input.thinking,
       direct: input.direct ?? false,
       sshHost: input.sshHost,
-      direct: input.direct ?? false,
       status: input.status ?? 'idle',
       outcome: input.outcome ?? 'in_progress',
       createdAt: now,
@@ -92,8 +88,6 @@ export class WorkspaceStore {
       `INSERT INTO workspaces (
         id, name, parent_repo, worktree_path, branch, base_branch, agent_id, model, mode, thinking,
         plan_agent_id, plan_model, plan_thinking, act_agent_id, act_model, act_thinking,
-        direct, status, outcome, created_at, updated_at, session_id
-        ssh_host, status, outcome, created_at, updated_at, session_id
         direct, ssh_host, status, outcome, created_at, updated_at, session_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
@@ -113,8 +107,6 @@ export class WorkspaceStore {
       workspace.actAgentId ?? null,
       workspace.actModel ?? null,
       workspace.actThinking ?? null,
-      workspace.direct ? 1 : 0,
-      workspace.sshHost ?? null,
       workspace.direct ? 1 : 0,
       workspace.sshHost ?? null,
       workspace.status,
@@ -144,8 +136,6 @@ export class WorkspaceStore {
       `UPDATE workspaces
        SET name = ?, parent_repo = ?, worktree_path = ?, branch = ?, base_branch = ?, agent_id = ?, model = ?, mode = ?, thinking = ?,
            plan_agent_id = ?, plan_model = ?, plan_thinking = ?, act_agent_id = ?, act_model = ?, act_thinking = ?,
-           direct = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
-           ssh_host = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
            direct = ?, ssh_host = ?, status = ?, outcome = ?, updated_at = ?, session_id = ?
        WHERE id = ?`,
     ).run(
@@ -166,8 +156,6 @@ export class WorkspaceStore {
       next.actThinking ?? null,
       next.direct ? 1 : 0,
       next.sshHost ?? null,
-      next.direct ? 1 : 0,
-      next.sshHost ?? null,
       next.status,
       next.outcome,
       next.updatedAt,
@@ -183,8 +171,26 @@ export class WorkspaceStore {
     const workspaceGroupStore = new WorkspaceGroupStore();
     db.exec('BEGIN');
     try {
+      // Collect session IDs before deleting the link rows
+      const sessionRows = db.prepare(
+        'SELECT session_id FROM workspace_sessions WHERE workspace_id = ?',
+      ).all(id) as { session_id: string }[];
+      const sessionIds = sessionRows.map((r) => r.session_id);
+
+      // Cascade-delete in FK-safe order: messages → workspace_sessions → sessions → rest
+      if (sessionIds.length > 0) {
+        const placeholders = sessionIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM messages WHERE session_id IN (${placeholders})`).run(...sessionIds);
+      }
+
       workspaceGroupStore.cleanupWorkspaceMembership(id);
       db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
+
+      if (sessionIds.length > 0) {
+        const placeholders = sessionIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM sessions WHERE id IN (${placeholders})`).run(...sessionIds);
+      }
+
       db.prepare('DELETE FROM checkpoints WHERE workspace_id = ?').run(id);
       db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
       db.exec('COMMIT');
@@ -249,14 +255,14 @@ function rowToWorkspace(row: any): Workspace {
     actAgentId: row.act_agent_id ?? undefined,
     actModel: row.act_model ?? undefined,
     actThinking: row.act_thinking ?? undefined,
+    direct: row.direct === 1 ? true : undefined,
     sshHost: row.ssh_host ?? undefined,
     status: row.status,
     outcome: row.outcome ?? 'in_progress',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    direct: row.direct === 1 ? true : undefined,
     sessionId: row.session_id ?? undefined,
-};
+  };
 }
 
 function getWorkspaceRow(id: string): any | null {
