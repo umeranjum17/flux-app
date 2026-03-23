@@ -48,9 +48,10 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
     });
   }, []);
 
-  const defaultAgentId = (workspace.actAgentId ?? globalDefaults.agent ?? workspace.agentId) as AgentId;
-  const defaultModel = workspace.actModel ?? globalDefaults.model ?? workspace.model;
-  const defaultThinking = workspace.actThinking ?? globalDefaults.thinking ?? workspace.thinking ?? 'medium';
+  // Global defaults (persisted user choice) take priority over workspace-level overrides
+  const defaultAgentId = (globalDefaults.agent ?? workspace.actAgentId ?? workspace.agentId) as AgentId;
+  const defaultModel = globalDefaults.model ?? workspace.actModel ?? workspace.model;
+  const defaultThinking = globalDefaults.thinking ?? workspace.actThinking ?? workspace.thinking ?? 'medium';
   const [mergeAgentId, setMergeAgentId] = useState<AgentId>(defaultAgentId);
   const [mergeModel, setMergeModel] = useState(defaultModel);
   const [mergeThinking, setMergeThinking] = useState<ThinkingLevel>(defaultThinking);
