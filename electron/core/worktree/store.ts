@@ -51,6 +51,12 @@ export class WorkspaceStore {
     return (workspace.sshHost || fs.existsSync(workspace.worktreePath)) ? workspace : null;
   }
 
+  getIncludingMissing(id: string): Workspace | null {
+    const row = getWorkspaceRow(id);
+    if (!row) return null;
+    return rowToWorkspace(row);
+  }
+
   create(input: CreateWorkspaceInput): Workspace {
     const db = getDb();
     const now = Date.now();

@@ -79,4 +79,27 @@ describe('WorkspaceStore', () => {
       branch: 'flux/renamed',
     });
   });
+
+  it('getIncludingMissing returns workspace even when worktree path is missing', () => {
+    const store = new WorkspaceStore();
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    store.create({
+      id: 'ws-missing',
+      name: 'Missing path workspace',
+      parentRepo: '/tmp/repo',
+      worktreePath: '/tmp/worktrees/missing',
+      branch: 'flux/missing',
+      agentId: 'codex',
+      model: 'gpt-5-codex',
+      status: 'idle',
+    });
+
+    expect(store.get('ws-missing')).toBeNull();
+    expect(store.getIncludingMissing('ws-missing')).toMatchObject({
+      id: 'ws-missing',
+      worktreePath: '/tmp/worktrees/missing',
+      branch: 'flux/missing',
+    });
+  });
 });

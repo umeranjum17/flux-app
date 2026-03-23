@@ -33,7 +33,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   } = ctx;
 
   const startArchive = (workspaceId: string) => {
-    const workspace = workspaceStore.get(workspaceId);
+    const workspace = workspaceStore.get(workspaceId) ?? workspaceStore.getIncludingMissing(workspaceId);
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
