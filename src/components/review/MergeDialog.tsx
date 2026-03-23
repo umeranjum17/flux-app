@@ -159,6 +159,12 @@ export function MergeDialog({ workspace, onClose }: MergeDialogProps) {
   const handleAgentMerge = async () => {
     setMerging(true);
     setError(null);
+    // Persist current selection so it's sticky for next workspace
+    void window.api.invoke('config:set', {
+      defaultMergeAgent: mergeAgentId,
+      defaultMergeModel: mergeModel,
+      defaultMergeThinking: mergeThinking,
+    });
     try {
       await startWorkspaceMerge({
         workspace,
