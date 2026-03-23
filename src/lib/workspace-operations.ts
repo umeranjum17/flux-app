@@ -22,8 +22,13 @@ export async function archiveWorkspace(workspaceId: string): Promise<WorkspaceOp
   useWorkspaceStore.getState().setWorkspaceOperation(optimistic);
 
   try {
-    const result = await window.api.invoke('workspace:archive', { workspaceId }) as { operation: WorkspaceOperation };
-    useWorkspaceStore.getState().setWorkspaceOperation(result.operation);
+    const result = await window.api.invoke('workspace:archive', { workspaceId }) as { operation: WorkspaceOperation | null };
+    if (result.operation) {
+      useWorkspaceStore.getState().setWorkspaceOperation(result.operation);
+    } else {
+      // Workspace was already removed — clear optimistic state
+      useWorkspaceStore.getState().clearWorkspaceOperation(workspaceId);
+    }
     return result.operation;
   } catch (error) {
     useWorkspaceStore.getState().clearWorkspaceOperation(workspaceId);

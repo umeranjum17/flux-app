@@ -34,7 +34,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   const startArchive = (workspaceId: string) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
+      // Workspace already removed (e.g. DB edited externally) — clean up and notify
+      workspaceStore.delete(workspaceId);
+      sendToRenderer('workspace:deleted', { workspaceId });
+      return null;
     }
 
     return operationManager.start({
@@ -448,7 +451,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle('workspace:archive', async (_event, { workspaceId }: { workspaceId: string }) => {
-    return { operation: startArchive(workspaceId) };
+    const operation = startArchive(workspaceId);
+    if (!operation) return { operation: null };
+    return { operation };
   });
 
   ipcMain.handle(
@@ -502,9 +507,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
-    if (!workspace) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+    if (!workspace) return { committed: [], uncommitted: [] };
     return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo);
   });
 

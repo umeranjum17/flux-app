@@ -133,7 +133,7 @@ export interface IpcChannels {
     }];
     result: void;
   };
-  'workspace:archive': { args: [{ workspaceId: string }]; result: { operation: WorkspaceOperation } };
+  'workspace:archive': { args: [{ workspaceId: string }]; result: { operation: WorkspaceOperation | null } };
   'workspace:open-ide': { args: [{ workspaceId: string; ide?: 'code' | 'cursor' | 'zed' }]; result: { ide: 'code' | 'cursor' | 'zed' } };
   'workspace:diff-files': { args: [{ workspaceId: string }]; result: DiffFile[] };
   'workspace:diff-files-separated': { args: [{ workspaceId: string }]; result: WorkspaceDiffSections };
