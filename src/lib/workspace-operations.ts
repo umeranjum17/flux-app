@@ -26,6 +26,26 @@ export async function archiveWorkspace(workspaceId: string): Promise<WorkspaceOp
     useWorkspaceStore.getState().setWorkspaceOperation(result.operation);
     return result.operation;
   } catch (error) {
+    // If the backend can't find the workspace, treat it as already deleted
+    if (error instanceof Error && error.message.includes('not found')) {
+      const now = Date.now();
+      const completed: WorkspaceOperation = {
+        id: `archive:${workspaceId}:noop`,
+        workspaceId,
+        kind: 'archive',
+        status: 'completed',
+        stage: 'cleaning_db',
+        progress: 1,
+        message: 'Workspace already removed',
+        startedAt: now,
+        updatedAt: now,
+        finishedAt: now,
+        cancellable: false,
+      };
+      useWorkspaceStore.getState().setWorkspaceOperation(completed);
+      useWorkspaceStore.getState().removeWorkspace(workspaceId);
+      return completed;
+    }
     useWorkspaceStore.getState().clearWorkspaceOperation(workspaceId);
     throw error;
   }
