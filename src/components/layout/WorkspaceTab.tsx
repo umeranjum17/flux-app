@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -250,6 +250,16 @@ export function WorkspaceTab() {
           >
             <FolderOpen size={14} />
           </button>
+          {cwd && isGitRepo && (
+            <button
+              onClick={() => handleCreateWorkspace(cwd)}
+              disabled={creating}
+              className="premium-toolbar-button rounded-md p-1.5 text-accent"
+              title="Quick create workspace"
+            >
+              {creating ? <LoaderCircle size={14} className="animate-spin" /> : <Zap size={14} />}
+            </button>
+          )}
           <button
             onClick={() => {
               const projectPath = cwd || Array.from(groupedWorkspaces.keys())[0];
@@ -511,6 +521,30 @@ function WorkspaceListItem({
     ? `Linked with ${siblings.map((member) => `${member.workspaceName} (${member.branch})`).join(', ')}`
     : undefined;
 
+  const [committing, setCommitting] = useState(false);
+  const isTerminal = workspace.status === 'done' || workspace.status === 'error';
+  const showReviewAlways = workspace.outcome === 'ready_for_pr' || workspace.outcome === 'ready_to_merge';
+  const showInlineActions = hasChanges && !isTerminal;
+
+  const handleReview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    useWorkspaceStore.getState().toggleChangesPanel(workspace.id);
+  };
+
+  const handleCommit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (committing) return;
+    setCommitting(true);
+    try {
+      const result = await window.api.invoke('workspace:commit', { workspaceId: workspace.id });
+      toast.success(`Committed ${result.sha}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Commit failed');
+    } finally {
+      setCommitting(false);
+    }
+  };
+
   const sshDisabled = isSshWorkspace && !sshAvailable;
   const sshTooltip = isSshWorkspace
     ? (sshAvailable ? `SSH: ${workspace.sshHost}` : `SSH disconnected: ${workspace.sshHost}`)
@@ -556,6 +590,30 @@ function WorkspaceListItem({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-0.5 self-start">
+        {(showInlineActions || showReviewAlways) && (
+          <span
+            role="button"
+            tabIndex={-1}
+            title="Review changes"
+            onClick={handleReview}
+            className={`rounded-lg p-1 text-text-tertiary transition-opacity hover:text-accent ${
+              showReviewAlways ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            <Eye size={12} />
+          </span>
+        )}
+        {showInlineActions && (
+          <span
+            role="button"
+            tabIndex={-1}
+            title="Commit changes"
+            onClick={handleCommit}
+            className="rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-success"
+          >
+            {committing ? <LoaderCircle size={12} className="animate-spin" /> : <GitCommit size={12} />}
+          </span>
+        )}
         <span
           role="button"
           tabIndex={-1}

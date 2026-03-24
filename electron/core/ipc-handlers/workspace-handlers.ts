@@ -264,6 +264,35 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle(
+    'workspace:commit',
+    async (_event, { workspaceId, message }: { workspaceId: string; message?: string }) => {
+      requireFields({ workspaceId }, 'workspaceId');
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+      const wfs = createWorkspaceFs(workspace.sshHost);
+      const commitMessage = message || 'checkpoint';
+
+      // Stage all changes
+      await wfs.git(workspace.worktreePath, ['add', '-A'], { timeout: 15000 });
+
+      // Check if there's anything to commit
+      const { stdout: statusOut } = await wfs.git(workspace.worktreePath, ['status', '--porcelain'], { timeout: 5000 });
+      if (!statusOut.trim()) {
+        throw new Error('Nothing to commit — working tree is clean');
+      }
+
+      // Commit
+      const { stdout: commitOut } = await wfs.git(workspace.worktreePath, ['commit', '-m', commitMessage], { timeout: 15000 });
+
+      // Get the new SHA
+      const { stdout: shaOut } = await wfs.git(workspace.worktreePath, ['rev-parse', '--short', 'HEAD'], { timeout: 5000 });
+
+      return { sha: shaOut.trim(), message: commitMessage };
+    },
+  );
+
+  ipcMain.handle(
     'workspace:get-commit-subject',
     async (_event, { workspaceId }: { workspaceId: string }) => {
       requireFields({ workspaceId }, 'workspaceId');

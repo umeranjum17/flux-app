@@ -177,6 +177,10 @@ export interface IpcChannels {
 
   // Workspace single fetch & bulk operations
   'workspace:get': { args: [{ workspaceId: string }]; result: Workspace | null };
+  'workspace:commit': {
+    args: [{ workspaceId: string; message?: string }];
+    result: { sha: string; message: string };
+  };
   'workspace:discard-all': { args: [{ workspaceId: string }]; result: void };
   'workspace:full-diff': { args: [{ workspaceId: string }]; result: string };
   'workspace:git-state': {
