@@ -6,7 +6,7 @@ import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
-import { createEmptyWorkspace, createRecentProject, rememberRecentProject, isWorkspaceSshAvailable } from '../../lib/workspace-state';
+import { createRecentProject, rememberRecentProject, isWorkspaceSshAvailable } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
@@ -22,7 +22,6 @@ export function WorkspaceTab() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const tasks = useChatStore((s) => s.tasks);
-  const isGitRepo = useUiStore((s) => s.isGitRepo);
   const cwd = useUiStore((s) => s.cwd);
   const openProjects = useUiStore((s) => s.openProjects);
   const collapsedProjects = useUiStore((s) => s.collapsedProjects);
@@ -153,34 +152,6 @@ export function WorkspaceTab() {
     }
   }, []);
 
-  const handleCreateWorkspace = useCallback(async (projectPath: string) => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
-      const mode = useUiStore.getState().mode;
-      const ws = await createEmptyWorkspace({ agentId, model, mode, thinking: selectedThinking, cwd: projectPath });
-      const taskId = crypto.randomUUID();
-      useChatStore.getState().createTask({
-        id: taskId,
-        title: 'New chat',
-        agentId: ws.agentId as any,
-        model: ws.model,
-        mode: ws.mode ?? mode,
-        thinking: ws.thinking ?? selectedThinking,
-        cwd: ws.worktreePath,
-        workspaceId: ws.id,
-      });
-      useChatStore.getState().setActiveTask(taskId);
-      useUiStore.getState().setBottomPanelMode('agent');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
-    } finally {
-      setCreating(false);
-    }
-  }, [creating]);
-
   const handleCreateQuickWorkspace = useCallback(async (projectPath: string) => {
     if (creating) return;
     setCreating(true);
@@ -250,26 +221,16 @@ export function WorkspaceTab() {
           >
             <FolderOpen size={14} />
           </button>
-          {cwd && isGitRepo && (
-            <button
-              onClick={() => handleCreateWorkspace(cwd)}
-              disabled={creating}
-              className="premium-toolbar-button rounded-md p-1.5 text-accent"
-              title="Quick create workspace"
-            >
-              {creating ? <LoaderCircle size={14} className="animate-spin" /> : <Zap size={14} />}
-            </button>
-          )}
           <button
             onClick={() => {
               const projectPath = cwd || Array.from(groupedWorkspaces.keys())[0];
               if (projectPath) handleCreateQuickWorkspace(projectPath);
             }}
             disabled={creating}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-            title="Quick task (direct, no worktree)"
+            className="premium-toolbar-button rounded-md p-1.5 text-accent"
+            title="New workspace"
           >
-            <Zap size={14} />
+            {creating ? <LoaderCircle size={14} className="animate-spin" /> : <Zap size={14} />}
           </button>
           <button
             onClick={handleAddProject}
@@ -320,22 +281,10 @@ export function WorkspaceTab() {
                   <span
                     role="button"
                     tabIndex={-1}
-                    title="Quick task (direct, no worktree)"
+                    title="New workspace"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCreateQuickWorkspace(projectPath);
-                    }}
-                    className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
-                  >
-                    <Zap size={11} />
-                  </span>
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    title="New workspace in this project"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCreateWorkspace(projectPath);
                     }}
                     className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
                   >
