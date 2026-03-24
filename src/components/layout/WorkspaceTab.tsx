@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -181,6 +181,43 @@ export function WorkspaceTab() {
     }
   }, [creating]);
 
+  const handleCreateQuickWorkspace = useCallback(async (projectPath: string) => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
+      const mode = useUiStore.getState().mode;
+      const ws = await window.api.invoke('workspace:create-direct', {
+        name: 'Quick Task',
+        parentRepo: projectPath,
+        agentId,
+        model,
+        mode,
+        thinking: selectedThinking,
+      }) as Workspace;
+      useWorkspaceStore.getState().addWorkspace(ws);
+      useWorkspaceStore.getState().setActiveWorkspace(ws.id);
+      const taskId = crypto.randomUUID();
+      useChatStore.getState().createTask({
+        id: taskId,
+        title: 'Quick task',
+        agentId: ws.agentId as any,
+        model: ws.model,
+        mode: ws.mode ?? mode,
+        thinking: ws.thinking ?? selectedThinking,
+        cwd: ws.worktreePath,
+        workspaceId: ws.id,
+      });
+      useChatStore.getState().setActiveTask(taskId);
+      useUiStore.getState().setBottomPanelMode('agent');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message);
+    } finally {
+      setCreating(false);
+    }
+  }, [creating]);
+
   const handleAddProject = useCallback(() => {
     useUiStore.getState().setOverlay('create-folder');
   }, []);
@@ -212,6 +249,17 @@ export function WorkspaceTab() {
             title="Open project"
           >
             <FolderOpen size={14} />
+          </button>
+          <button
+            onClick={() => {
+              const projectPath = cwd || Array.from(groupedWorkspaces.keys())[0];
+              if (projectPath) handleCreateQuickWorkspace(projectPath);
+            }}
+            disabled={creating}
+            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
+            title="Quick task (direct, no worktree)"
+          >
+            <Zap size={14} />
           </button>
           <button
             onClick={handleAddProject}
@@ -258,6 +306,18 @@ export function WorkspaceTab() {
                   </span>
                   <span className="ml-auto text-[10px] text-text-tertiary">
                     {projectWorkspaces.length}
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    title="Quick task (direct, no worktree)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCreateQuickWorkspace(projectPath);
+                    }}
+                    className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
+                  >
+                    <Zap size={11} />
                   </span>
                   <span
                     role="button"
