@@ -562,6 +562,11 @@ function WorkspaceListItem({
       <div className="relative shrink-0" aria-hidden="true">
         <WorkspaceLifecycleIcon state={signal.state} size={8} className={signal.iconColor} />
       </div>
+      {workspace.direct && (
+        <span className="shrink-0 text-warning" title="Direct mode — changes apply to the parent repo">
+          <Zap size={12} />
+        </span>
+      )}
       {isSshWorkspace && (
         <span className={`shrink-0 ${sshAvailable ? 'text-accent' : 'text-text-tertiary'}`} title={sshTooltip}>
           <Monitor size={12} />
