@@ -181,6 +181,10 @@ export interface IpcChannels {
     args: [{ workspaceId: string; message?: string }];
     result: { sha: string; message: string };
   };
+  'workspace:pull-master': {
+    args: [{ workspaceId: string }];
+    result: { message: string };
+  };
   'workspace:discard-all': { args: [{ workspaceId: string }]; result: void };
   'workspace:full-diff': { args: [{ workspaceId: string }]; result: string };
   'workspace:git-state': {

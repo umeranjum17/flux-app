@@ -13,7 +13,8 @@ export const fluxMergeSkill: FluxSkill = {
     const merge = ctx.merge!;
     const pullCommand = `git pull --no-rebase origin ${merge.targetBranch}`;
     const squashResetCommand = `git reset --soft origin/${merge.targetBranch}`;
-    const pushCommand = `git push origin HEAD:${merge.targetBranch}`;
+    const updateLocalBranchCommand = `git fetch . HEAD:${merge.targetBranch}`;
+    const pushCommand = `git push origin ${merge.targetBranch}`;
 
     return [
       '<flux-skill name="merge" mode="act">',
@@ -42,10 +43,12 @@ export const fluxMergeSkill: FluxSkill = {
       merge.squash
         ? '7. Resolve straightforward conflicts directly inside the worktree before the squash commit. If the merge needs a human decision, stop and report exactly what is blocked.'
         : `7. If a merge commit message needs adjustment, use the format \`merge(${merge.targetBranch}): <concise summary of what changed>\`. Do NOT use generic labels like "Workspace". If the merge needs a human decision, stop and report exactly what is blocked.`,
-      `8. Push with \`${pushCommand}\` so the updated worktree branch lands on \`${merge.targetBranch}\` without checking out the target branch locally.`,
-      '9. Run `git status` and confirm the merge landed cleanly.',
+      `8. Update the local \`${merge.targetBranch}\` branch to match the merged result with \`${updateLocalBranchCommand}\`. This fast-forwards the local branch without checking it out.`,
+      `9. Push the updated local branch with \`${pushCommand}\`.`,
+      '10. Run `git status` and confirm the merge landed cleanly.',
       '',
       '## Important',
+      '- If step 8 fails because `${merge.targetBranch}` is checked out in the parent repo, fall back to `git push origin HEAD:${merge.targetBranch}` and then run `cd ${ws.parentRepo} && git pull --ff-only` to sync the parent.',
       '- If any step fails with an error you cannot resolve, stop immediately and report the exact error.',
       '- Do NOT silently continue past failures.',
       '- Finish with a short summary of what landed, including the merge commit hash (or squash commit hash) and the key files changed.',

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap, ArrowDownToLine } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -471,6 +471,7 @@ function WorkspaceListItem({
     : undefined;
 
   const [committing, setCommitting] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const isTerminal = workspace.status === 'done' || workspace.status === 'error';
   const showReviewAlways = workspace.outcome === 'ready_for_pr' || workspace.outcome === 'ready_to_merge';
   const showInlineActions = hasChanges && !isTerminal;
@@ -491,6 +492,20 @@ function WorkspaceListItem({
       toast.error(err instanceof Error ? err.message : 'Commit failed');
     } finally {
       setCommitting(false);
+    }
+  };
+
+  const handlePullMaster = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (pulling) return;
+    setPulling(true);
+    try {
+      const result = await window.api.invoke('workspace:pull-master', { workspaceId: workspace.id });
+      toast.success(result.message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Pull failed');
+    } finally {
+      setPulling(false);
     }
   };
 
@@ -544,6 +559,17 @@ function WorkspaceListItem({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-0.5 self-start">
+        {!workspace.direct && (
+          <span
+            role="button"
+            tabIndex={-1}
+            title={`Pull from ${workspace.baseBranch || 'master'}`}
+            onClick={handlePullMaster}
+            className="rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-accent"
+          >
+            {pulling ? <LoaderCircle size={12} className="animate-spin" /> : <ArrowDownToLine size={12} />}
+          </span>
+        )}
         {(showInlineActions || showReviewAlways) && (
           <span
             role="button"

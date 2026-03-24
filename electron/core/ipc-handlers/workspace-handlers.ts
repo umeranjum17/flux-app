@@ -293,6 +293,30 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   );
 
   ipcMain.handle(
+    'workspace:pull-master',
+    async (_event, { workspaceId }: { workspaceId: string }) => {
+      requireFields({ workspaceId }, 'workspaceId');
+      const workspace = workspaceStore.get(workspaceId);
+      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
+
+      const wfs = createWorkspaceFs(workspace.sshHost);
+      const targetBranch = workspace.baseBranch || 'master';
+
+      // Fetch latest from remote
+      await wfs.git(workspace.worktreePath, ['fetch', 'origin', targetBranch], { timeout: 30000 });
+
+      // Merge origin/<target> into the workspace branch (no rebase to keep history clean)
+      const { stdout } = await wfs.git(
+        workspace.worktreePath,
+        ['merge', `origin/${targetBranch}`, '--no-edit'],
+        { timeout: 30000 },
+      );
+
+      return { message: stdout.trim() || `Merged origin/${targetBranch} into workspace` };
+    },
+  );
+
+  ipcMain.handle(
     'workspace:get-commit-subject',
     async (_event, { workspaceId }: { workspaceId: string }) => {
       requireFields({ workspaceId }, 'workspaceId');
