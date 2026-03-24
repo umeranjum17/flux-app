@@ -42,10 +42,14 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         contextTable,
         '',
-        'Follow the plan steps. Do NOT commit — leave changes for the user to review and commit via the Flux UI.',
+        ws.direct
+          ? 'Follow the plan steps. Do NOT commit — leave changes staged for the user to review and commit.'
+          : 'Follow the plan steps. Commit changes with clear messages when done.',
         'Review `.context/plan.md` for the approved plan.',
         'If context was lost (e.g. after conversation compression), re-read `.context/` files to recover plan details and attachments.',
-        'Do NOT push to remote or create pull requests.',
+        ws.direct
+          ? 'The user will review and commit your changes via the Flux UI.'
+          : 'Do NOT push to remote or create pull requests.',
         '',
         ...buildOutcomeSection(ctx),
         '',
@@ -67,9 +71,13 @@ export const fluxWorkspaceSkill: FluxSkill = {
         contextTable,
         '',
         isChangesRequested
-          ? 'Make only the requested changes. Do NOT commit — leave changes for the user to review and commit via the Flux UI.'
+          ? ws.direct
+            ? 'Make only the requested changes. Do NOT commit — leave changes for the user to review and commit.'
+            : 'Make only the requested changes. Commit with clear messages when done.'
           : 'Only make changes if the reviewer asks for them.',
-        'Do NOT push to remote or create pull requests.',
+        ws.direct
+          ? 'The user will review and commit your changes via the Flux UI.'
+          : 'Do NOT push to remote or create pull requests.',
         '',
         ...buildOutcomeSection(ctx),
         '',
@@ -124,16 +132,27 @@ export const fluxWorkspaceSkill: FluxSkill = {
       );
 
       // ── Work rules ──
+      const isDirect = !!ws.direct;
       lines.push(
         '',
         '## Work Rules',
         '',
         '1. Make changes directly in the workspace.',
-        '2. Do NOT commit changes yourself — leave the final commit to the user.',
-        '3. Do NOT push to remote or create pull requests.',
-        '4. When your work is complete, set the outcome to `ready_for_pr` and summarize what you changed.',
-        '5. The user will review your changes and commit or merge via the Flux UI.',
       );
+
+      if (isDirect) {
+        lines.push(
+          '2. Do NOT commit changes yourself — stage your changes but leave the final commit to the user.',
+          '3. When your work is complete, set the outcome to `ready_for_pr` and summarize what you changed.',
+          '4. The user will review your changes and commit via the Flux UI.',
+        );
+      } else {
+        lines.push(
+          '2. Commit with clear, descriptive messages when done.',
+          '3. Do NOT push to remote or create pull requests — the user merges via the Flux UI.',
+          '4. After committing, summarize what you changed.',
+        );
+      }
 
       if (ctx.hasNativeTodoTool) {
         lines.push(
@@ -208,7 +227,9 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
     'Valid outcomes: `in_progress`, `planned`, `ready_for_pr`',
     '',
     'Guidelines:',
-    '- `ready_for_pr` — Your changes are complete and ready for the user to review and commit.',
+    ctx.workspace?.direct
+      ? '- `ready_for_pr` — Your changes are complete and ready for the user to review and commit.'
+      : '- `ready_for_pr` — You have committed meaningful changes and the work is complete or at a review-ready checkpoint.',
     '- `planned` — You produced a plan (plan mode only).',
     '- `in_progress` — Work is ongoing, not yet at a reviewable state.',
     '',
@@ -229,7 +250,9 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
   } else {
     lines.push(
       '',
-      'When all work is finished and ready for review, set `outcome` to `ready_for_pr`:',
+      ctx.workspace?.direct
+        ? 'When all work is finished and ready for review, set `outcome` to `ready_for_pr`:'
+        : 'When all work is finished and committed, set `outcome` to `ready_for_pr`:',
       '',
       '```json',
       '{ "outcome": "ready_for_pr", "workspace_name": "Fix Token Refresh Logic" }',
