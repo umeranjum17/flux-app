@@ -131,8 +131,20 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '1. Make changes directly in the workspace.',
         '2. Do NOT commit changes yourself — leave the final commit to the user.',
         '3. Do NOT push to remote or create pull requests.',
-        '4. When your work is complete, set the outcome to `ready_for_pr` and summarize what you changed.',
+        '4. When your work is complete, set the outcome to `ready_for_pr` and summarize the outcome.',
         '5. The user will review your changes and commit or merge via the Flux UI.',
+        '',
+        '## Communication Style',
+        '',
+        'Talk like an engineer reporting to a product manager — outcomes, not implementation details.',
+        '',
+        '- **DO:** "Added retry logic to token refresh — sessions no longer drop on transient 401s."',
+        '- **DO:** "Kanban cards now show real-time status updates from the agent."',
+        '- **DON\'T:** "Modified `src/components/Card.tsx`, `electron/core/agents/skills/flux-kanban.ts`, and 3 other files."',
+        '- **DON\'T:** "Changed the `buildPrompt` function to return different strings."',
+        '',
+        'Never list which files you changed, how many files you touched, or describe code-level mechanics.',
+        'The user can see the diff. Focus on **what changed for the product** and **why it matters**.',
       );
 
       if (ctx.hasNativeTodoTool) {
