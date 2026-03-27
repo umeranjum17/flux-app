@@ -351,16 +351,33 @@ export function AppShell() {
       const { workspaceId, outcome } = data as { workspaceId: string; outcome: string };
       useWorkspaceStore.getState().updateWorkspace(workspaceId, { outcome: outcome as any });
 
-      // Auto-merge in kanban mode: when a workspace is approved (ready_to_merge),
-      // automatically trigger the merge without requiring the user to open the merge modal.
+      // Auto-merge/commit in kanban mode: when a workspace is approved (ready_to_merge),
+      // automatically trigger merge (worktree) or commit (direct) without user interaction.
       if (outcome === 'ready_to_merge' && useUiStore.getState().workspaceViewMode === 'kanban') {
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId);
-        if (ws && !ws.direct && ws.status !== 'merging') {
-          const targetBranch = ws.baseBranch?.trim() || useUiStore.getState().gitBranch?.trim() || 'master';
-          startWorkspaceMerge({ workspace: ws, targetBranch, squash: true }).catch((err) => {
-            console.error('[auto-merge] Failed to start merge for', workspaceId, err);
-            toast.error(`Auto-merge failed: ${err instanceof Error ? err.message : String(err)}`);
-          });
+        const ws = useWorkspaceStore.getState().workspaces.get(workspaceId);
+        if (ws && ws.status !== 'merging') {
+          if (ws.direct) {
+            // Direct workspaces: auto-commit and transition to terminal state
+            window.api.invoke('workspace:commit', { workspaceId: ws.id })
+              .then(() => {
+                useWorkspaceStore.getState().setOutcome(ws.id, 'merged');
+              })
+              .catch((err) => {
+                // If nothing to commit, still transition to terminal
+                if (err instanceof Error && err.message.includes('Nothing to commit')) {
+                  useWorkspaceStore.getState().setOutcome(ws.id, 'merged');
+                } else {
+                  console.error('[auto-commit] Failed for direct workspace', workspaceId, err);
+                  toast.error(`Auto-commit failed: ${err instanceof Error ? err.message : String(err)}`);
+                }
+              });
+          } else {
+            const targetBranch = ws.baseBranch?.trim() || useUiStore.getState().gitBranch?.trim() || 'master';
+            startWorkspaceMerge({ workspace: ws, targetBranch, squash: true }).catch((err) => {
+              console.error('[auto-merge] Failed to start merge for', workspaceId, err);
+              toast.error(`Auto-merge failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
+          }
         }
       }
     });

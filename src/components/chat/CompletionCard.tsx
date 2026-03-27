@@ -57,7 +57,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   // Treat ready_for_pr outcome as a strong signal that changes exist so
   // merge/review buttons render instantly without waiting for the async
   // workspace:diff-files IPC call to resolve.
-  const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr';
+  const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr' || workspace.outcome === 'ready_to_merge';
   const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff || outcomeImpliesChanges });
   const hasChanges = hasInlineDiff || hasWorkspaceChanges || outcomeImpliesChanges;
   const isDirect = !!workspace.direct;

@@ -260,10 +260,10 @@ export function WorkspaceActionBar() {
           disabled={ideDisabled}
         />
         {hasChanges && !isMerged && (
-          <>
-            <ActionBtn icon={<Eye size={12} />} label="Review Changes" onClick={() => useWorkspaceStore.getState().toggleChangesPanel(workspace.id)} />
-            <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
-          </>
+          <ActionBtn icon={<Eye size={12} />} label="Review Changes" onClick={() => useWorkspaceStore.getState().toggleChangesPanel(workspace.id)} />
+        )}
+        {(hasChanges || workspace?.outcome === 'ready_to_merge') && !isMerged && !workspace?.direct && (
+          <ActionBtn icon={<GitMerge size={12} />} label="Merge" onClick={() => useWorkspaceStore.getState().openMerge(workspace.id)} />
         )}
         {!isRunning && (
           <>

@@ -403,9 +403,9 @@ interface WorkspaceListSignalOptions {
   hasChanges?: boolean;
 }
 
-/** Whether the workspace has reached a terminal outcome (merged, ready to merge, or ready to archive). */
+/** Whether the workspace has reached a terminal outcome (merged or ready to archive). */
 export function isTerminalOutcome(outcome: WorkspaceOutcome | undefined): boolean {
-  return outcome === 'merged' || outcome === 'ready_to_merge' || outcome === 'ready_to_archive';
+  return outcome === 'merged' || outcome === 'ready_to_archive';
 }
 
 export function getWorkspaceLifecycleState(

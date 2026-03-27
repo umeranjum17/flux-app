@@ -198,11 +198,26 @@ export function WorkspaceDashboard() {
           onArchive={handleArchive}
           onSetOutcome={(ws, outcome) => {
             if (outcome === 'ready_to_merge') {
-              // Auto-merge: use base branch (or current git branch) with squash
-              const targetBranch = ws.baseBranch || useUiStore.getState().gitBranch || 'main';
-              startWorkspaceMerge({ workspace: ws, targetBranch, squash: true })
-                .then(() => toast.success(`Merging ${ws.name} → ${targetBranch}`))
-                .catch((err) => toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`));
+              if (ws.direct) {
+                // Direct workspaces: auto-commit and transition to terminal state
+                window.api.invoke('workspace:commit', { workspaceId: ws.id })
+                  .then(() => {
+                    useWorkspaceStore.getState().setOutcome(ws.id, 'merged');
+                    toast.success(`Committed changes for ${ws.name}`);
+                  })
+                  .catch((err) => {
+                    if (err instanceof Error && err.message.includes('Nothing to commit')) {
+                      useWorkspaceStore.getState().setOutcome(ws.id, 'merged');
+                    } else {
+                      toast.error(`Commit failed: ${err instanceof Error ? err.message : String(err)}`);
+                    }
+                  });
+              } else {
+                const targetBranch = ws.baseBranch || useUiStore.getState().gitBranch || 'main';
+                startWorkspaceMerge({ workspace: ws, targetBranch, squash: true })
+                  .then(() => toast.success(`Merging ${ws.name} → ${targetBranch}`))
+                  .catch((err) => toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`));
+              }
             } else {
               useWorkspaceStore.getState().setOutcome(ws.id, outcome);
             }

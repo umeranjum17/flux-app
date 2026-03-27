@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { X, FolderOpen, Wifi, ImagePlus, Play, FileText, Search } from 'lucide-react';
+import { X, FolderOpen, Wifi, ImagePlus, Play, FileText, Search, Inbox } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
 import { getProjectSourceKey, normalizeProjectSource, useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -230,11 +230,12 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
           {/* How to start */}
           <div>
             <label className="block text-[11px] font-medium text-text-tertiary mb-1.5">How to start</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {([
                 { outcome: 'in_progress' as const, icon: Play, label: 'Build', desc: 'Start coding immediately' },
                 { outcome: 'planned' as const, icon: FileText, label: 'Plan First', desc: 'Create a plan, then build' },
                 { outcome: 'discovery' as const, icon: Search, label: 'Discover', desc: 'Explore and gather context' },
+                { outcome: 'backlog' as const, icon: Inbox, label: 'Backlog', desc: 'Save for later' },
               ]).map(({ outcome, icon: Icon, label, desc }) => (
                 <button
                   key={outcome}
@@ -301,7 +302,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
             disabled={creating || !prompt.trim()}
             className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {creating ? 'Creating...' : startingOutcome === 'discovery' ? 'Discover & Start' : startingOutcome === 'planned' ? 'Plan & Start' : 'Create & Start'}
+            {creating ? 'Creating...' : startingOutcome === 'backlog' ? 'Add to Backlog' : startingOutcome === 'discovery' ? 'Discover & Start' : startingOutcome === 'planned' ? 'Plan & Start' : 'Create & Start'}
           </button>
         </div>
       </div>
