@@ -39,7 +39,6 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
     return projectOptions[0] ? getProjectSourceKey(projectOptions[0]) : '';
   }, [activeProject, projectOptions]);
 
-  const [name, setName] = useState('');
   const [agentId, setAgentId] = useState(selectedAgentId);
   const [model, setModel] = useState(selectedModel);
   const [selectedProjectKey, setSelectedProjectKey] = useState(initialProjectKey);
@@ -89,7 +88,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   }, [projectOptions, selectedProjectKey]);
 
   const handleCreate = async () => {
-    if (!name.trim() || !prompt.trim()) return;
+    if (!prompt.trim()) return;
     if (!parentRepo) return;
     setCreating(true);
     setError(null);
@@ -98,7 +97,6 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
     try {
       const branch = createDefaultBranchName();
       workspace = await window.api.invoke('workspace:create', {
-        name: name.trim(),
         parentRepo: parentRepo,
         branch,
         agentId,
@@ -201,16 +199,6 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
             />
           </div>
 
-          {/* Name */}
-          <Field label="Name">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Add auth system"
-              className="input-field"
-            />
-          </Field>
-
           {/* Assignee — combined Agent · Model selector */}
           <Field label="Assignee">
             <select
@@ -310,7 +298,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
           </button>
           <button
             onClick={handleCreate}
-            disabled={creating || !name.trim() || !prompt.trim()}
+            disabled={creating || !prompt.trim()}
             className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {creating ? 'Creating...' : startingOutcome === 'discovery' ? 'Discover & Start' : startingOutcome === 'planned' ? 'Plan & Start' : 'Create & Start'}

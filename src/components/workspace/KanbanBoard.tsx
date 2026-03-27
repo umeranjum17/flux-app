@@ -24,36 +24,36 @@ interface KanbanGroup {
 
 const KANBAN_GROUPS: KanbanGroup[] = [
   {
-    id: 'backlog',
-    label: 'Backlog',
+    id: 'think',
+    label: 'Think',
     columns: [
-      { outcome: 'discovery', label: 'Discovery' },
-      { outcome: 'planned', label: 'Planned' },
+      { outcome: 'discovery', label: 'Exploring' },
+      { outcome: 'planned', label: 'Plan Ready' },
     ],
   },
   {
-    id: 'active',
-    label: 'Active',
+    id: 'build',
+    label: 'Build',
     columns: [
-      { outcome: 'in_progress', label: 'In Progress' },
-      { outcome: 'ready_for_pr', label: 'Ready for Review' },
+      { outcome: 'in_progress', label: 'Building' },
     ],
   },
   {
     id: 'review',
     label: 'Review',
     columns: [
-      { outcome: 'reviewing', label: 'Reviewing' },
-      { outcome: 'changes_requested', label: 'Changes Requested' },
-      { outcome: 'ready_to_merge', label: 'Ready to Merge' },
+      { outcome: 'ready_for_pr', label: 'Ready for You' },
+      { outcome: 'reviewing', label: 'In Review' },
+      { outcome: 'changes_requested', label: 'Needs Changes' },
     ],
   },
   {
-    id: 'done',
-    label: 'Done',
+    id: 'ship',
+    label: 'Ship',
     columns: [
-      { outcome: 'merged', label: 'Merged' },
-      { outcome: 'ready_to_archive', label: 'Archive' },
+      { outcome: 'ready_to_merge', label: 'Approved' },
+      { outcome: 'merged', label: 'Shipped' },
+      { outcome: 'ready_to_archive', label: 'Clean Up' },
     ],
   },
 ];

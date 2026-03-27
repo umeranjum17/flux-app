@@ -129,7 +129,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         sshHost,
         outcome,
       }: {
-        name: string;
+        name?: string;
         parentRepo: string;
         branch: string;
         agentId: string;
@@ -140,13 +140,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         outcome?: import('../worktree/types').WorkspaceOutcome;
       },
     ) => {
-      requireFields({ name, parentRepo, branch, agentId, model }, 'name', 'parentRepo', 'branch', 'agentId', 'model');
+      requireFields({ parentRepo, branch, agentId, model }, 'parentRepo', 'branch', 'agentId', 'model');
       const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
       const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, branch);
 
       const ws = workspaceStore.create({
         id: worktree.id,
-        name,
+        name: name?.trim() || generateWorkspaceName(),
         parentRepo,
         worktreePath: worktree.path,
         branch: worktree.branch,
@@ -178,7 +178,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         sshHost,
         outcome,
       }: {
-        name: string;
+        name?: string;
         parentRepo: string;
         agentId: string;
         model: string;
@@ -188,7 +188,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         outcome?: import('../worktree/types').WorkspaceOutcome;
       },
     ) => {
-      requireFields({ name, parentRepo, agentId, model }, 'name', 'parentRepo', 'agentId', 'model');
+      requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
       const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
       const wfs = createWorkspaceFs(effectiveSshHost);
 
@@ -217,7 +217,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
       const ws = workspaceStore.create({
         id: crypto.randomUUID(),
-        name,
+        name: name?.trim() || generateWorkspaceName(),
         parentRepo,
         worktreePath: parentRepo,
         branch: currentBranch,
