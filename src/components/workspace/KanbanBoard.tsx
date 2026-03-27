@@ -11,54 +11,42 @@ import {
   workspaceOutcomeImpliesChanges,
 } from '../../lib/workspace-state';
 
-interface KanbanColumn {
-  outcome: WorkspaceOutcome;
-  label: string;
-}
-
-interface KanbanGroup {
+interface KanbanLane {
   id: string;
   label: string;
-  columns: KanbanColumn[];
+  outcomes: WorkspaceOutcome[];
+  /** Color token used for the accent dot and badge (first outcome's config is used). */
+  color: string;
 }
 
-const KANBAN_GROUPS: KanbanGroup[] = [
+const KANBAN_LANES: KanbanLane[] = [
   {
     id: 'think',
     label: 'Think',
-    columns: [
-      { outcome: 'discovery', label: 'Exploring' },
-      { outcome: 'planned', label: 'Plan Ready' },
-    ],
+    outcomes: ['discovery', 'planned'],
+    color: 'text-accent',
   },
   {
     id: 'build',
     label: 'Build',
-    columns: [
-      { outcome: 'in_progress', label: 'Building' },
-    ],
+    outcomes: ['in_progress'],
+    color: 'text-info',
   },
   {
     id: 'review',
     label: 'Review',
-    columns: [
-      { outcome: 'ready_for_pr', label: 'Ready for You' },
-      { outcome: 'reviewing', label: 'In Review' },
-      { outcome: 'changes_requested', label: 'Needs Changes' },
-    ],
+    outcomes: ['ready_for_pr', 'reviewing', 'changes_requested'],
+    color: 'text-plan',
   },
   {
     id: 'ship',
     label: 'Ship',
-    columns: [
-      { outcome: 'ready_to_merge', label: 'Approved' },
-      { outcome: 'merged', label: 'Shipped' },
-      { outcome: 'ready_to_archive', label: 'Clean Up' },
-    ],
+    outcomes: ['ready_to_merge', 'merged', 'ready_to_archive'],
+    color: 'text-success',
   },
 ];
 
-const ALL_COLUMNS = KANBAN_GROUPS.flatMap((g) => g.columns);
+const ALL_OUTCOMES = KANBAN_LANES.flatMap((l) => l.outcomes);
 
 interface KanbanBoardProps {
   workspaces: Workspace[];
@@ -88,94 +76,72 @@ export function KanbanBoard({
   onArchive,
 }: KanbanBoardProps) {
   const grouped = useMemo(() => {
-    const byOutcome = new Map<WorkspaceOutcome, Workspace[]>();
-    for (const col of ALL_COLUMNS) {
-      byOutcome.set(col.outcome, []);
+    const byLane = new Map<string, Workspace[]>();
+    for (const lane of KANBAN_LANES) {
+      byLane.set(lane.id, []);
+    }
+    // Build a quick outcome → lane lookup
+    const outcomeLane = new Map<WorkspaceOutcome, string>();
+    for (const lane of KANBAN_LANES) {
+      for (const o of lane.outcomes) {
+        outcomeLane.set(o, lane.id);
+      }
     }
     for (const ws of workspaces) {
       const outcome = ws.outcome ?? 'in_progress';
-      const list = byOutcome.get(outcome);
-      if (list) {
-        list.push(ws);
-      } else {
-        byOutcome.get('in_progress')!.push(ws);
-      }
+      const laneId = outcomeLane.get(outcome) ?? 'build';
+      byLane.get(laneId)!.push(ws);
     }
-    return byOutcome;
+    return byLane;
   }, [workspaces]);
 
   return (
     <div className="flex h-full gap-4 overflow-x-auto px-6 py-5">
-      {KANBAN_GROUPS.map((group) => {
-        const groupCount = group.columns.reduce(
-          (sum, col) => sum + (grouped.get(col.outcome)?.length ?? 0),
-          0,
-        );
+      {KANBAN_LANES.map((lane) => {
+        const laneWorkspaces = grouped.get(lane.id) ?? [];
+        const accentBg = lane.color.replace('text-', 'bg-');
         return (
-          <div key={group.id} className="flex flex-col gap-0">
-            {/* Group header */}
-            <div className="mb-2 flex items-center gap-2 px-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary/50">
-                {group.label}
+          <div
+            key={lane.id}
+            className="flex w-[280px] min-w-[280px] flex-col rounded-xl bg-bg-secondary/40"
+          >
+            {/* Lane header */}
+            <div className="flex items-center gap-2.5 px-3.5 pb-2.5 pt-3.5">
+              <span className={`h-2 w-2 rounded-full ${accentBg}`} />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                {lane.label}
               </span>
-              {groupCount > 0 && (
-                <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-bg-secondary px-1 text-[9px] font-medium text-text-tertiary">
-                  {groupCount}
+              {laneWorkspaces.length > 0 && (
+                <span className={`ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-medium ${accentBg}/12 ${lane.color}`}>
+                  {laneWorkspaces.length}
                 </span>
               )}
             </div>
-            {/* Columns inside the group */}
-            <div className="flex flex-1 gap-2">
-              {group.columns.map((col) => {
-                const colWorkspaces = grouped.get(col.outcome) ?? [];
-                const cfg = workspaceOutcomeConfig[col.outcome];
-                const accentBg = cfg.color.replace('text-', 'bg-');
-                return (
-                  <div
-                    key={col.outcome}
-                    className="flex w-[248px] min-w-[248px] flex-col rounded-xl bg-bg-secondary/40"
-                  >
-                    {/* Column header */}
-                    <div className="flex items-center gap-2.5 px-3.5 pb-2.5 pt-3.5">
-                      <span className={`h-2 w-2 rounded-full ${accentBg}`} />
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-                        {col.label}
-                      </span>
-                      {colWorkspaces.length > 0 && (
-                        <span className={`ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-medium ${accentBg}/12 ${cfg.color}`}>
-                          {colWorkspaces.length}
-                        </span>
-                      )}
-                    </div>
 
-                    {/* Cards */}
-                    <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-3">
-                      {colWorkspaces.length === 0 ? (
-                        <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-border/30">
-                          <span className="text-[11px] text-text-tertiary/40">Empty</span>
-                        </div>
-                      ) : (
-                        colWorkspaces.map((ws) => (
-                          <KanbanCard
-                            key={ws.id}
-                            workspace={ws}
-                            isActive={ws.id === activeWorkspaceId}
-                            archiveOperation={workspaceOperations.get(ws.id)}
-                            onSelect={() => onOpenDetail(ws)}
-                            onChat={() => onSelect(ws)}
-                            onStop={() => onStop(ws)}
-                            onReview={() => onReview(ws)}
-                            onMerge={() => onMerge(ws)}
-                            onDelete={() => onDelete(ws)}
-                            onOpenIde={() => onOpenIde(ws)}
-                            onArchive={() => onArchive(ws)}
-                          />
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Cards */}
+            <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-3">
+              {laneWorkspaces.length === 0 ? (
+                <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-border/30">
+                  <span className="text-[11px] text-text-tertiary/40">Empty</span>
+                </div>
+              ) : (
+                laneWorkspaces.map((ws) => (
+                  <KanbanCard
+                    key={ws.id}
+                    workspace={ws}
+                    isActive={ws.id === activeWorkspaceId}
+                    archiveOperation={workspaceOperations.get(ws.id)}
+                    onSelect={() => onOpenDetail(ws)}
+                    onChat={() => onSelect(ws)}
+                    onStop={() => onStop(ws)}
+                    onReview={() => onReview(ws)}
+                    onMerge={() => onMerge(ws)}
+                    onDelete={() => onDelete(ws)}
+                    onOpenIde={() => onOpenIde(ws)}
+                    onArchive={() => onArchive(ws)}
+                  />
+                ))
+              )}
             </div>
           </div>
         );
@@ -247,7 +213,7 @@ function KanbanCard({
           </div>
         </div>
 
-        {/* Project + mode */}
+        {/* Project + outcome + mode */}
         <div className="mt-2 flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[10px] text-text-tertiary">
             {workspace.sshHost ? (
@@ -257,6 +223,11 @@ function KanbanCard({
             )}
             <span className="truncate max-w-[120px]">{projectName}</span>
           </span>
+          {workspace.outcome && (
+            <span className={`rounded-full border border-current/15 px-1.5 py-0.5 text-[9px] font-medium ${workspaceOutcomeConfig[workspace.outcome].color}`}>
+              {workspaceOutcomeConfig[workspace.outcome].label}
+            </span>
+          )}
           {workspace.direct && (
             <span className="rounded-full border border-warning/20 bg-warning/8 px-1.5 py-0.5 text-[9px] font-medium text-warning">
               Direct
