@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, Loader2, Clock, X, FolderOpen, ChevronRight, ArrowUp, Home } from 'lucide-react';
-import { getActiveOpenProject, useUiStore } from '../../stores/ui';
+import { useUiStore } from '../../stores/ui';
 import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import type { FluxConfig } from '../../lib/ipc-api';
 
@@ -44,9 +44,9 @@ export function ConnectRemoteDialog() {
   useEffect(() => {
     if (open) {
       const ui = useUiStore.getState();
-      const activeProject = getActiveOpenProject(ui);
-      setHost(activeProject?.isSSH ? activeProject.sshHost ?? '' : '');
-      setRemotePath(activeProject?.isSSH ? activeProject.path || '~' : '~');
+      const activeProject = ui.activeProject;
+      setHost(activeProject?.source === 'ssh' ? activeProject.sshHost ?? '' : '');
+      setRemotePath(activeProject?.source === 'ssh' ? activeProject.path || '~' : '~');
       setError(null);
       setTesting(false);
       setConnecting(false);

@@ -244,7 +244,7 @@ export async function createEmptyWorkspace(opts: {
   cwd: string;
   sshHost?: string;
 }): Promise<Workspace> {
-  const effectiveSshHost = opts.sshHost ?? getActiveSshHost(useUiStore.getState()) ?? undefined;
+  const effectiveSshHost = opts.sshHost ?? useUiStore.getState().sshHost ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
     agentId: opts.agentId,

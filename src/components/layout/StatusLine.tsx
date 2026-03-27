@@ -31,7 +31,7 @@ export function StatusLine() {
   const gitDirty = useUiStore((s) => s.gitDirty);
   // Derive SSH state from the active project
   const activeProject = useUiStore((s) => s.openProjects.find((p) => p.path === s.cwd));
-  const sshConnected = activeProject?.isSSH ?? false;
+  const sshConnected = activeProject?.source === 'ssh';
   const sshHost = activeProject?.sshHost ?? null;
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceOperation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
