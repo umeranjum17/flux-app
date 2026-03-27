@@ -437,6 +437,9 @@ export interface FluxConfig {
   lastActiveGroupId?: string;
   openProjects?: Array<string | { path: string; name: string; isSSH?: boolean; sshHost?: string; environment: 'local' | 'ssh' }>;
   activeProjectPath?: string;
+
+  // View mode
+  viewMode?: 'eng' | 'product';
 }
 
 export interface RemotePairingCode {
@@ -571,7 +574,7 @@ export interface WorkspaceGroupLookupResult {
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
-export type WorkspaceOutcome = 'in_progress' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
+export type WorkspaceOutcome = 'in_progress' | 'discovered' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
 
 export type WorkspaceOperationKind = 'archive';
 

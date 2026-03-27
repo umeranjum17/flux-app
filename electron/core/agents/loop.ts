@@ -51,7 +51,7 @@ export class ConversationLoop {
     this.model = options.model;
     this.mode = options.mode;
     this.thinking = options.thinking;
-    this.tools = (options.mode === 'act' || options.mode === 'architect') ? options.tools : undefined;
+    this.tools = (options.mode === 'act' || options.mode === 'architect' || options.mode === 'discovery') ? options.tools : undefined;
     this.toolHandler = options.toolHandler ?? null;
     this.maxTurns = options.maxTurns ?? 10;
 

@@ -3,7 +3,7 @@ import { useAgentStore, normalizeClaudeCodeModel } from '../stores/agent';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useChatStore } from '../stores/chat';
 import { useSessionStore } from '../stores/session';
-import type { Workspace, Session, SessionMessage, WorkspaceSession } from './ipc-api';
+import type { Workspace, WorkspaceOutcome, Session, SessionMessage, WorkspaceSession } from './ipc-api';
 import type { AgentId, TaskMode, ThinkingLevel, FileAttachment } from './types';
 import { restoreSessionMessage } from './session-messages';
 
@@ -85,6 +85,19 @@ export interface StartWorkspaceMergeOptions {
   agentId?: AgentId;
   model?: string;
   thinking?: ThinkingLevel;
+}
+
+function getPhaseOutcomeForMode(mode: TaskMode): WorkspaceOutcome | null {
+  switch (mode) {
+    case 'discovery':
+      return 'discovered';
+    case 'plan':
+      return 'planned';
+    case 'act':
+      return 'in_progress';
+    default:
+      return null;
+  }
 }
 
 function buildWorkspaceMergeTaskPrompt(
@@ -281,6 +294,30 @@ export async function startWorkspaceChat(
 ): Promise<{ taskId: string; session: Session }> {
   const taskId = opts.taskId ?? crypto.randomUUID();
   const title = opts.prompt.trim().slice(0, 80) || 'New chat';
+  const phaseOutcome = getPhaseOutcomeForMode(opts.mode);
+
+  await window.api.invoke('workspace:update', {
+    workspaceId: opts.workspace.id,
+    agentId: opts.agentId,
+    model: opts.model,
+    mode: opts.mode,
+    thinking: opts.thinking,
+  });
+  if (phaseOutcome && opts.workspace.outcome !== phaseOutcome) {
+    await window.api.invoke('workspace:set-outcome', {
+      workspaceId: opts.workspace.id,
+      outcome: phaseOutcome,
+    });
+  }
+
+  useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, {
+    agentId: opts.agentId,
+    model: opts.model,
+    mode: opts.mode,
+    thinking: opts.thinking,
+    ...(phaseOutcome ? { outcome: phaseOutcome } : {}),
+  });
+
   primeWorkspaceTask({
     taskId,
     title,

@@ -2,13 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { TaskMode } from '../../lib/types';
 
-const MODE_ORDER: TaskMode[] = ['plan', 'act', 'ask', 'architect'];
+const MODE_ORDER: TaskMode[] = ['plan', 'act', 'ask', 'architect', 'discovery'];
 
 const MODE_META: Record<TaskMode, { label: string; description: string }> = {
   plan: { label: 'Plan', description: 'Read & plan without making changes' },
   act: { label: 'Act', description: 'Make changes directly' },
   ask: { label: 'Ask', description: 'Answer questions without modifications' },
   architect: { label: 'Architect', description: 'Analyze & propose high-level designs' },
+  discovery: { label: 'Discovery', description: 'Explore the problem space & research approaches' },
 };
 
 interface ModeDropdownProps {

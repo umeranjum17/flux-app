@@ -7,9 +7,10 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 
-const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
+const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'discovered', 'planned', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
 const outcomeIndicatorState = {
   in_progress: 'idle',
+  discovered: 'discovered',
   planned: 'planned',
   ready_for_pr: 'ready_for_review',
   reviewing: 'reviewing',

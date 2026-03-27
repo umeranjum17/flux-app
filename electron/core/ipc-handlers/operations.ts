@@ -215,7 +215,7 @@ export async function spawnWorkspaceChat(
     taskId?: string;
     workspaceId: string;
     prompt: string;
-    mode?: 'plan' | 'act' | 'ask' | 'architect';
+    mode?: 'plan' | 'act' | 'ask' | 'architect' | 'discovery';
     agentId?: string;
     model?: string;
     images?: string[];

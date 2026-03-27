@@ -54,6 +54,7 @@ interface UiState {
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
+  viewMode: 'eng' | 'product';
   activeOverlay: Overlay;
 
   // CWD / Project
@@ -168,6 +169,10 @@ interface UiState {
   addShellCommand(cmd: string): void;
   setCompletionModel(model: string): void;
 
+  // View mode
+  setViewMode(mode: 'eng' | 'product'): void;
+  toggleViewMode(): void;
+
   // Bottom panel
   toggleBottomPanel(): void;
   setBottomPanelOpen(open: boolean): void;
@@ -186,6 +191,7 @@ export const useUiStore = create<UiState>()(
     theme: 'dark',
     sendKey: 'cmd+enter',
     mode: 'act',
+    viewMode: 'eng',
     activeOverlay: null,
     cwd: '',
     projectName: '',
@@ -272,7 +278,7 @@ export const useUiStore = create<UiState>()(
 
     toggleMode() {
       set((state) => {
-        const order: TaskMode[] = ['plan', 'act', 'ask', 'architect'];
+        const order: TaskMode[] = ['discovery', 'plan', 'act', 'ask', 'architect'];
         const idx = order.indexOf(state.mode);
         state.mode = order[(idx + 1) % order.length];
       });
@@ -625,6 +631,18 @@ export const useUiStore = create<UiState>()(
     setCompletionModel(model) {
       set((state) => {
         state.completionModel = model;
+      });
+    },
+
+    setViewMode(mode) {
+      set((state) => {
+        state.viewMode = mode;
+      });
+    },
+
+    toggleViewMode() {
+      set((state) => {
+        state.viewMode = state.viewMode === 'eng' ? 'product' : 'eng';
       });
     },
 

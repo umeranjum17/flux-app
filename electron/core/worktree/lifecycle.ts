@@ -21,8 +21,9 @@ import type { WorkspaceStore } from './store';
 // ---------------------------------------------------------------------------
 
 const validOutcomeTransitions: Record<WorkspaceOutcome, WorkspaceOutcome[]> = {
-  in_progress: ['planned', 'ready_for_pr'],
-  planned: ['in_progress', 'ready_for_pr'],
+  in_progress: ['discovered', 'planned', 'ready_for_pr'],
+  discovered: ['in_progress', 'planned'],
+  planned: ['discovered', 'in_progress', 'ready_for_pr'],
   ready_for_pr: ['reviewing', 'in_progress', 'ready_to_merge', 'merged'],
   reviewing: ['changes_requested', 'ready_to_merge', 'merged'],
   changes_requested: ['in_progress', 'ready_for_pr', 'reviewing'],

@@ -35,6 +35,7 @@ import { SearchFiles } from '../dialogs/SearchFiles';
 import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
+import { ProductView } from '../kanban/ProductView';
 
 
 type ModeSelection = {
@@ -82,6 +83,7 @@ export function AppShell() {
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
+  const viewMode = useUiStore((s) => s.viewMode);
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
@@ -146,6 +148,9 @@ export function AppShell() {
           }
           if (config.lastActiveGroupId) {
             useUiStore.getState().setActiveGroupId(config.lastActiveGroupId);
+          }
+          if (config.viewMode) {
+            useUiStore.getState().setViewMode(config.viewMode);
           }
         } catch (err) {
           toast.error('Failed to load configuration');
@@ -847,6 +852,18 @@ export function AppShell() {
     return unsub;
   }, []);
 
+  // Auto-persist viewMode changes to config
+  useEffect(() => {
+    let prev = useUiStore.getState().viewMode;
+    const unsub = useUiStore.subscribe((state) => {
+      if (state.viewMode !== prev) {
+        prev = state.viewMode;
+        window.api.invoke('config:set', { viewMode: state.viewMode }).catch(() => {});
+      }
+    });
+    return unsub;
+  }, []);
+
   // Open project handler
   const openProject = useCallback(async (projectPath?: string, options?: { isSSH?: boolean; sshHost?: string }) => {
     if (options?.isSSH && options.sshHost && projectPath) {
@@ -928,6 +945,8 @@ export function AppShell() {
     function handleKeyDown(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key === 'b') { e.preventDefault(); useUiStore.getState().toggleSidebar(); }
+      // Toggle view mode: Cmd+Shift+B
+      if (meta && e.shiftKey && e.key === 'B') { e.preventDefault(); useUiStore.getState().toggleViewMode(); }
       if (meta && !e.shiftKey && e.key === 't') { e.preventDefault(); createNewTab(); }
       if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
@@ -1054,6 +1073,10 @@ export function AppShell() {
             <div className="flex flex-1 overflow-hidden">
               <div className="relative flex min-w-0 flex-1 flex-col">
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
+                    {viewMode === 'product' ? (
+                      <ProductView />
+                    ) : (
+                    <>
                     <TabBar />
                     {activeWorkspaceId && <WorkspaceActionBar />}
 
@@ -1117,6 +1140,8 @@ export function AppShell() {
                       </div>
                       <WorkspaceSidePanel />
                     </div>
+                    </>
+                    )}
                   </div>
               </div>
             </div>

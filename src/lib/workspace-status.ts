@@ -12,6 +12,7 @@ export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; lab
 
 export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; label: string }> = {
   in_progress: { color: 'text-info', label: 'In Progress' },
+  discovered: { color: 'text-warning', label: 'Discovered' },
   planned: { color: 'text-info', label: 'Planned' },
   ready_for_pr: { color: 'text-plan', label: 'Ready for Review' },
   reviewing: { color: 'text-plan', label: 'Reviewing' },
@@ -24,8 +25,10 @@ export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; l
 export type WorkspaceLifecycleState =
   | 'idle'
   | 'coding'
+  | 'discovered'
   | 'planning'
   | 'planned'
+  | 'discovering'
   | 'awaiting_approval'
   | 'awaiting_input'
   | 'ready_for_review'
@@ -76,6 +79,17 @@ export const workspaceLifecycleConfig: Record<
     accentColor: 'bg-info',
     cardTint: 'lifecycle-tint-info',
   },
+  discovered: {
+    color: 'bg-warning',
+    iconColor: 'text-warning',
+    label: 'Discovered',
+    glow: 'dot-glow-warning',
+    dotMotionClass: 'workspace-dot-settled',
+    detail: 'Discovery is complete and ready to plan.',
+    badgeClass: 'bg-warning/12 text-warning',
+    accentColor: 'bg-warning',
+    cardTint: 'lifecycle-tint-warning',
+  },
   planning: {
     color: 'bg-plan',
     iconColor: 'text-plan',
@@ -96,6 +110,16 @@ export const workspaceLifecycleConfig: Record<
     badgeClass: 'bg-info/12 text-info',
     accentColor: 'bg-info',
     cardTint: 'lifecycle-tint-info',
+  },
+  discovering: {
+    color: 'bg-warning',
+    iconColor: 'text-warning',
+    label: 'Discovering',
+    dotMotionClass: 'workspace-dot-active',
+    detail: 'Agent is exploring the problem space.',
+    badgeClass: 'bg-warning/12 text-warning',
+    accentColor: 'bg-warning',
+    cardTint: 'lifecycle-tint-warning',
   },
   awaiting_approval: {
     color: 'bg-warning',
@@ -246,6 +270,13 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     dotClassName: 'workspace-list-signal workspace-list-signal-working',
     dotMotionClass: 'workspace-dot-active',
   },
+  discovered: {
+    ...lifecycleColors('discovered'),
+    label: 'Discovered',
+    detail: 'Discovery is complete and ready to plan.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-planned',
+    dotMotionClass: 'workspace-dot-settled',
+  },
   planning: {
     ...lifecycleColors('planning'),
     label: 'Planning',
@@ -259,6 +290,13 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     detail: 'Plan ready for your review.',
     dotClassName: 'workspace-list-signal workspace-list-signal-planned',
     dotMotionClass: 'workspace-dot-settled',
+  },
+  discovering: {
+    ...lifecycleColors('discovering'),
+    label: 'Discovering',
+    detail: 'Agent is exploring the problem space.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-discovering',
+    dotMotionClass: 'workspace-dot-active',
   },
   awaiting_approval: {
     ...lifecycleColors('awaiting_approval'),
@@ -373,7 +411,7 @@ export function getWorkspaceLifecycleState(
 ): WorkspaceLifecycleState {
   if (workspace.status === 'error') return 'blocked';
   if (workspace.status === 'merging') return 'merging';
-  if (workspace.status === 'running') return workspace.mode === 'plan' ? 'planning' : 'coding';
+  if (workspace.status === 'running') return workspace.mode === 'plan' ? 'planning' : workspace.mode === 'discovery' ? 'discovering' : 'coding';
   if (workspace.status === 'waiting_approval') return 'awaiting_approval';
   if (workspace.status === 'waiting_input') return 'awaiting_input';
 
@@ -383,6 +421,7 @@ export function getWorkspaceLifecycleState(
   if (workspace.outcome === 'reviewing') return 'reviewing';
   if (workspace.outcome === 'changes_requested') return 'changes_requested';
   if (workspace.outcome === 'ready_for_pr') return 'ready_for_review';
+  if (workspace.outcome === 'discovered') return 'discovered';
   if (workspace.outcome === 'planned') return 'planned';
 
   return 'idle';

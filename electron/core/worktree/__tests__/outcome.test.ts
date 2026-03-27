@@ -52,7 +52,7 @@ describe('computeNextOutcome', () => {
   // ---------------------------------------------------------------------------
   describe('sync', () => {
     it('any non-terminal + isMerged → merged', () => {
-      const outcomes: WorkspaceOutcome[] = ['in_progress', 'planned', 'ready_for_pr', 'reviewing', 'changes_requested', 'ready_to_merge'];
+      const outcomes: WorkspaceOutcome[] = ['in_progress', 'discovered', 'planned', 'ready_for_pr', 'reviewing', 'changes_requested', 'ready_to_merge'];
       for (const outcome of outcomes) {
         expect(computeNextOutcome(outcome, 'sync', git({ isMerged: true }))).toBe('merged');
       }
