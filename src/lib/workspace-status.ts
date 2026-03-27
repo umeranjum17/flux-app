@@ -413,7 +413,11 @@ export function getWorkspaceLifecycleState(
 ): WorkspaceLifecycleState {
   if (workspace.status === 'error') return 'blocked';
   if (workspace.status === 'merging') return 'merging';
-  if (workspace.status === 'running') return workspace.mode === 'plan' ? 'planning' : 'coding';
+  if (workspace.status === 'running') {
+    if (workspace.mode === 'plan') return 'planning';
+    if (workspace.mode === 'discovery') return 'discovery';
+    return 'coding';
+  }
   if (workspace.status === 'waiting_approval') return 'awaiting_approval';
   if (workspace.status === 'waiting_input') return 'awaiting_input';
 
