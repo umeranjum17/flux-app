@@ -47,6 +47,7 @@ const phaseTransitionMessages: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 const validOutcomeTransitions: Record<WorkspaceOutcome, WorkspaceOutcome[]> = {
+  backlog: ['discovery', 'in_progress', 'planned'],
   discovery: ['in_progress', 'planned'],
   in_progress: ['planned', 'ready_for_pr'],
   planned: ['in_progress', 'ready_for_pr'],

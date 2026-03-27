@@ -13,8 +13,9 @@ import {
   workspaceOutcomeImpliesChanges,
 } from '../../lib/workspace-state';
 
-const outcomeOptions: WorkspaceOutcome[] = ['discovery', 'in_progress', 'planned', 'ready_for_pr', 'reviewing', 'changes_requested', 'ready_to_merge', 'merged', 'ready_to_archive'];
+const outcomeOptions: WorkspaceOutcome[] = ['backlog', 'discovery', 'in_progress', 'planned', 'ready_for_pr', 'reviewing', 'changes_requested', 'ready_to_merge', 'merged', 'ready_to_archive'];
 const outcomeIndicatorState = {
+  backlog: 'backlog',
   discovery: 'discovery',
   in_progress: 'idle',
   planned: 'planned',

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, LoaderCircle, FolderOpen, Wifi } from 'lucide-react';
 import type { Workspace, WorkspaceOutcome, WorkspaceOperation } from '../../lib/ipc-api';
 import { workspaceOutcomeConfig, getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
@@ -20,6 +20,12 @@ interface KanbanLane {
 }
 
 const KANBAN_LANES: KanbanLane[] = [
+  {
+    id: 'backlog',
+    label: 'Backlog',
+    outcomes: ['backlog'],
+    color: 'text-text-tertiary',
+  },
   {
     id: 'think',
     label: 'Think',
@@ -58,6 +64,7 @@ interface KanbanBoardProps {
   onDelete: (ws: Workspace) => void;
   onOpenIde: (ws: Workspace) => void;
   onArchive: (ws: Workspace) => void;
+  onSetOutcome?: (ws: Workspace, outcome: WorkspaceOutcome) => void;
 }
 
 export function KanbanBoard({
@@ -72,7 +79,38 @@ export function KanbanBoard({
   onDelete,
   onOpenIde,
   onArchive,
+  onSetOutcome,
 }: KanbanBoardProps) {
+  const [dragOverLane, setDragOverLane] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, ws: Workspace) => {
+    e.dataTransfer.setData('text/plain', ws.id);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, laneId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverLane(laneId);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverLane(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, lane: KanbanLane) => {
+    e.preventDefault();
+    setDragOverLane(null);
+    const wsId = e.dataTransfer.getData('text/plain');
+    const ws = workspaces.find((w) => w.id === wsId);
+    if (!ws || !onSetOutcome) return;
+    // If workspace is already in this lane, do nothing
+    const currentLane = KANBAN_LANES.find((l) => l.outcomes.includes(ws.outcome ?? 'in_progress'));
+    if (currentLane?.id === lane.id) return;
+    // Set to the lane's first outcome
+    onSetOutcome(ws, lane.outcomes[0]);
+  }, [workspaces, onSetOutcome]);
+
   const grouped = useMemo(() => {
     const byLane = new Map<string, Workspace[]>();
     for (const lane of KANBAN_LANES) {
@@ -101,7 +139,14 @@ export function KanbanBoard({
         return (
           <div
             key={lane.id}
-            className="flex w-[280px] min-w-[280px] flex-col rounded-xl bg-bg-secondary/40"
+            onDragOver={(e) => handleDragOver(e, lane.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, lane)}
+            className={`flex w-[280px] min-w-[280px] flex-col rounded-xl transition-colors ${
+              dragOverLane === lane.id
+                ? 'bg-bg-secondary/70 ring-1 ring-accent/30'
+                : 'bg-bg-secondary/40'
+            }`}
           >
             {/* Lane header */}
             <div className="flex items-center gap-2.5 px-3.5 pb-2.5 pt-3.5">
@@ -129,6 +174,8 @@ export function KanbanBoard({
                     workspace={ws}
                     isActive={ws.id === activeWorkspaceId}
                     archiveOperation={workspaceOperations.get(ws.id)}
+                    draggable={!!onSetOutcome}
+                    onDragStart={(e) => handleDragStart(e, ws)}
                     onSelect={() => onOpenDetail(ws)}
                     onChat={() => onSelect(ws)}
                     onStop={() => onStop(ws)}
@@ -152,6 +199,8 @@ function KanbanCard({
   workspace,
   isActive,
   archiveOperation,
+  draggable,
+  onDragStart,
   onSelect,
   onChat,
   onStop,
@@ -164,6 +213,8 @@ function KanbanCard({
   workspace: Workspace;
   isActive: boolean;
   archiveOperation?: WorkspaceOperation;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
   onSelect: () => void;
   onChat: () => void;
   onStop: () => void;
@@ -191,7 +242,11 @@ function KanbanCard({
   return (
     <button
       onClick={onSelect}
+      draggable={draggable}
+      onDragStart={onDragStart}
       className={`group relative w-full rounded-lg border text-left transition-all ${
+        draggable ? 'cursor-grab active:cursor-grabbing' : ''
+      } ${
         isActive
           ? 'border-accent/40 bg-bg-primary shadow-sm shadow-accent/5'
           : 'border-border/40 bg-bg-primary/80 hover:border-border/60 hover:shadow-sm'

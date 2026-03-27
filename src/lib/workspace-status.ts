@@ -11,6 +11,7 @@ export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; lab
 };
 
 export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; label: string }> = {
+  backlog: { color: 'text-text-tertiary', label: 'Backlog' },
   discovery: { color: 'text-accent', label: 'Exploring' },
   in_progress: { color: 'text-info', label: 'Building' },
   planned: { color: 'text-info', label: 'Plan Ready' },
@@ -24,6 +25,7 @@ export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; l
 
 export type WorkspaceLifecycleState =
   | 'idle'
+  | 'backlog'
   | 'discovery'
   | 'coding'
   | 'planning'
@@ -40,6 +42,7 @@ export type WorkspaceLifecycleState =
   | 'blocked';
 
 export type WorkspaceListSignalState = WorkspaceLifecycleState | 'has_changes' | 'archiving' | 'archive_failed';
+
 
 
 interface WorkspaceLifecycleConfigEntry {
@@ -65,6 +68,16 @@ export const workspaceLifecycleConfig: Record<
     label: 'Idle',
     dotMotionClass: 'workspace-dot-idle',
     detail: 'Waiting for the next task.',
+    badgeClass: 'bg-bg-secondary text-text-tertiary',
+    accentColor: 'bg-text-tertiary/40',
+    cardTint: '',
+  },
+  backlog: {
+    color: 'bg-text-tertiary/60',
+    iconColor: 'text-text-tertiary/70',
+    label: 'Backlog',
+    dotMotionClass: 'workspace-dot-idle',
+    detail: 'Queued — not yet started.',
     badgeClass: 'bg-bg-secondary text-text-tertiary',
     accentColor: 'bg-text-tertiary/40',
     cardTint: '',
@@ -244,6 +257,13 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     dotClassName: 'workspace-list-signal workspace-list-signal-idle',
     dotMotionClass: 'workspace-dot-idle',
   },
+  backlog: {
+    ...lifecycleColors('backlog'),
+    label: 'Backlog',
+    detail: 'Queued — not yet started.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-backlog',
+    dotMotionClass: 'workspace-dot-idle',
+  },
   has_changes: {
     color: 'bg-accent',
     iconColor: 'text-accent',
@@ -405,6 +425,7 @@ export function getWorkspaceLifecycleState(
   if (workspace.outcome === 'ready_for_pr') return 'ready_for_review';
   if (workspace.outcome === 'planned') return 'planned';
   if (workspace.outcome === 'discovery') return 'discovery';
+  if (workspace.outcome === 'backlog') return 'backlog';
 
   return 'idle';
 }

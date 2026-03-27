@@ -11,6 +11,7 @@ import { CommitDialog } from '../review/CommitDialog';
 import type { Workspace } from '../../lib/ipc-api';
 import { WorkspaceDetailPanel } from './WorkspaceDetailPanel';
 import { archiveWorkspace } from '../../lib/workspace-operations';
+import { startWorkspaceMerge } from '../../lib/workspace-state';
 import { toast } from 'sonner';
 
 export function WorkspaceDashboard() {
@@ -195,6 +196,17 @@ export function WorkspaceDashboard() {
           onDelete={handleDelete}
           onOpenIde={handleOpenIde}
           onArchive={handleArchive}
+          onSetOutcome={(ws, outcome) => {
+            if (outcome === 'ready_to_merge') {
+              // Auto-merge: use base branch (or current git branch) with squash
+              const targetBranch = ws.baseBranch || useUiStore.getState().gitBranch || 'main';
+              startWorkspaceMerge({ workspace: ws, targetBranch, squash: true })
+                .then(() => toast.success(`Merging ${ws.name} → ${targetBranch}`))
+                .catch((err) => toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`));
+            } else {
+              useWorkspaceStore.getState().setOutcome(ws.id, outcome);
+            }
+          }}
         />
       ) : (
         <div className="flex-1 overflow-y-auto px-6 py-5">
