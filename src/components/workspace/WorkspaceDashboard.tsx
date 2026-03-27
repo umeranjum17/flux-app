@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
 import { WorkspaceCard } from './WorkspaceCard';
+import { KanbanBoard } from './KanbanBoard';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { MergeDialog } from '../review/MergeDialog';
 import { CommitDialog } from '../review/CommitDialog';
@@ -17,6 +18,7 @@ export function WorkspaceDashboard() {
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
+  const viewMode = useUiStore((s) => s.workspaceViewMode);
 
   const [showCreate, setShowCreate] = useState(false);
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
@@ -146,32 +148,45 @@ export function WorkspaceDashboard() {
         </button>
       </div>
 
-      {/* Workspace list */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {workspaceList.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated/60">
-              <LayoutGrid size={28} className="text-text-tertiary/50" />
-            </div>
-            <p className="mt-4 text-sm font-medium text-text-secondary">
-              {isGitRepo ? 'No workspaces yet' : 'Not a git repository'}
-            </p>
-            <p className="mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-text-tertiary">
-              {isGitRepo
-                ? 'Create a workspace to run agents on isolated branches.'
-                : 'Workspaces require a git repository. Run "git init" to get started.'}
-            </p>
-            {isGitRepo && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="premium-toolbar-button mt-5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2.5 text-xs font-medium text-text-secondary"
-              >
-                <Plus size={13} />
-                Create First Workspace
-              </button>
-            )}
+      {/* Workspace list / kanban */}
+      {workspaceList.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated/60">
+            <LayoutGrid size={28} className="text-text-tertiary/50" />
           </div>
-        ) : (
+          <p className="mt-4 text-sm font-medium text-text-secondary">
+            {isGitRepo ? 'No workspaces yet' : 'Not a git repository'}
+          </p>
+          <p className="mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-text-tertiary">
+            {isGitRepo
+              ? 'Create a workspace to run agents on isolated branches.'
+              : 'Workspaces require a git repository. Run "git init" to get started.'}
+          </p>
+          {isGitRepo && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="premium-toolbar-button mt-5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2.5 text-xs font-medium text-text-secondary"
+            >
+              <Plus size={13} />
+              Create First Workspace
+            </button>
+          )}
+        </div>
+      ) : viewMode === 'kanban' ? (
+        <KanbanBoard
+          workspaces={workspaceList}
+          activeWorkspaceId={activeWorkspaceId}
+          workspaceOperations={workspaceOperations}
+          onSelect={handleSelect}
+          onStop={handleStop}
+          onReview={(ws) => useWorkspaceStore.getState().toggleChangesPanel(ws.id)}
+          onMerge={(ws) => setMergingWorkspaceId(ws.id)}
+          onDelete={handleDelete}
+          onOpenIde={handleOpenIde}
+          onArchive={handleArchive}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-px">
             {workspaceList.map((ws) => (
               <WorkspaceCard
@@ -188,10 +203,9 @@ export function WorkspaceDashboard() {
                 archiveOperation={workspaceOperations.get(ws.id)}
               />
             ))}
-
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Dialogs */}
       {showCreate && <CreateWorkspaceDialog onClose={() => setShowCreate(false)} />}

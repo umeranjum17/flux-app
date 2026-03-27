@@ -27,6 +27,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
+import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
 import { MergeDialog } from '../review/MergeDialog';
 import { CommitDialog } from '../review/CommitDialog';
 import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
@@ -82,6 +83,7 @@ export function AppShell() {
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
+  const workspaceViewMode = useUiStore((s) => s.workspaceViewMode);
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
@@ -1068,7 +1070,9 @@ export function AppShell() {
                         {explorerOpen && <FileExplorer />}
                         {changesPanelOpen && <ChangesPanel />}
                         <ErrorBoundary>
-                          {hasTasks ? (
+                          {workspaceViewMode === 'kanban' ? (
+                            <WorkspaceDashboard />
+                          ) : hasTasks ? (
                             <MessageList />
                           ) : sessionsLoading ? (
                             <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">

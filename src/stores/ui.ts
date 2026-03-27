@@ -81,6 +81,9 @@ interface UiState {
   shellHistory: string[];
   completionModel: string;
 
+  // Workspace view mode (list vs kanban)
+  workspaceViewMode: 'list' | 'kanban';
+
   setLiveOverview(overview: LiveUsageOverview | null): void;
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
@@ -129,6 +132,8 @@ interface UiState {
   toggleInputMode(): void;
   addShellCommand(cmd: string): void;
   setCompletionModel(model: string): void;
+  setWorkspaceViewMode(mode: 'list' | 'kanban'): void;
+  toggleWorkspaceViewMode(): void;
 
   // Bottom panel
   toggleBottomPanel(): void;
@@ -278,6 +283,7 @@ export const useUiStore = create<UiState>()(
     inputMode: 'chat',
     shellHistory: [],
     completionModel: 'haiku',
+    workspaceViewMode: 'list',
 
     setLiveOverview(overview) {
       set((state) => {
@@ -677,6 +683,18 @@ export const useUiStore = create<UiState>()(
       });
     },
 
+
+    setWorkspaceViewMode(mode) {
+      set((state) => {
+        state.workspaceViewMode = mode;
+      });
+    },
+
+    toggleWorkspaceViewMode() {
+      set((state) => {
+        state.workspaceViewMode = state.workspaceViewMode === 'list' ? 'kanban' : 'list';
+      });
+    },
 
     toggleBottomPanel() {
       set((state) => {
