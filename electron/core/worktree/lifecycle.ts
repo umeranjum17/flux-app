@@ -17,10 +17,37 @@ import type { WorkspaceOutcomeTrigger } from './outcome';
 import type { WorkspaceStore } from './store';
 
 // ---------------------------------------------------------------------------
+// Phase transition descriptions
+// ---------------------------------------------------------------------------
+
+const phaseTransitionMessages: Record<string, string> = {
+  'discovery→in_progress': 'Discovery complete — starting implementation.',
+  'discovery→planned': 'Discovery complete — plan produced.',
+  'in_progress→planned': 'Analysis complete — plan produced.',
+  'in_progress→ready_for_pr': 'Implementation complete — ready for review.',
+  'planned→in_progress': 'Plan approved — starting implementation.',
+  'planned→ready_for_pr': 'Implementation complete — ready for review.',
+  'ready_for_pr→reviewing': 'Review started.',
+  'ready_for_pr→in_progress': 'Returning to implementation.',
+  'ready_for_pr→ready_to_merge': 'Review approved — ready to merge.',
+  'ready_for_pr→merged': 'Changes merged.',
+  'reviewing→changes_requested': 'Reviewer requested changes.',
+  'reviewing→ready_to_merge': 'Review approved — ready to merge.',
+  'reviewing→merged': 'Review approved and merged.',
+  'changes_requested→in_progress': 'Addressing requested changes.',
+  'changes_requested→ready_for_pr': 'Changes addressed — ready for re-review.',
+  'changes_requested→reviewing': 'Re-review started.',
+  'ready_to_merge→merged': 'Changes merged.',
+  'ready_to_merge→in_progress': 'Returning to implementation.',
+  'merged→ready_to_archive': 'Merged — ready to clean up.',
+};
+
+// ---------------------------------------------------------------------------
 // Valid outcome transitions
 // ---------------------------------------------------------------------------
 
 const validOutcomeTransitions: Record<WorkspaceOutcome, WorkspaceOutcome[]> = {
+  discovery: ['in_progress', 'planned'],
   in_progress: ['planned', 'ready_for_pr'],
   planned: ['in_progress', 'ready_for_pr'],
   ready_for_pr: ['reviewing', 'in_progress', 'ready_to_merge', 'merged'],
@@ -140,7 +167,7 @@ export class WorkspaceLifecycleManager {
     // Phase 1: Reset impossible statuses (no tasks survive a restart)
     for (const ws of allWorkspaces) {
       if (activeStatuses.includes(ws.status)) {
-        const resetStatus = ws.outcome === 'in_progress' ? 'idle' : 'done';
+        const resetStatus = ws.outcome === 'in_progress' || ws.outcome === 'discovery' ? 'idle' : 'done';
         console.log(`[lifecycle:reconcile] ${ws.id}: status ${ws.status} → ${resetStatus} (no active task)`);
         this.workspaceStore.update(ws.id, { status: resetStatus });
       }
@@ -306,6 +333,19 @@ export class WorkspaceLifecycleManager {
     console.log(`[outcome] ${workspaceId}: ${current} → ${outcome}`);
     this.workspaceStore.update(workspaceId, { outcome });
     this.sendToRenderer('workspace:outcome', { workspaceId, outcome });
+
+    // Emit phase-transition comment for the activity thread
+    if (current) {
+      const key = `${current}→${outcome}`;
+      const description = phaseTransitionMessages[key] ?? `Phase changed: ${current} → ${outcome}.`;
+      this.sendToRenderer('workspace:phase-comment', {
+        workspaceId,
+        fromOutcome: current,
+        toOutcome: outcome,
+        description,
+        timestamp: Date.now(),
+      });
+    }
   }
 
   /**

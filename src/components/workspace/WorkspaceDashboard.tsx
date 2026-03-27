@@ -9,6 +9,7 @@ import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { MergeDialog } from '../review/MergeDialog';
 import { CommitDialog } from '../review/CommitDialog';
 import type { Workspace } from '../../lib/ipc-api';
+import { WorkspaceDetailPanel } from './WorkspaceDetailPanel';
 import { archiveWorkspace } from '../../lib/workspace-operations';
 import { toast } from 'sonner';
 
@@ -92,6 +93,12 @@ export function WorkspaceDashboard() {
     await window.api.invoke('workspace:open-ide', { workspaceId: ws.id });
   }, []);
 
+  const detailPanelWorkspaceId = useUiStore((s) => s.detailPanelWorkspaceId);
+
+  const handleOpenDetail = useCallback((ws: Workspace) => {
+    useUiStore.getState().openDetailPanel(ws.id);
+  }, []);
+
   const handleSelect = useCallback((ws: Workspace) => {
     useWorkspaceStore.getState().setActiveWorkspace(ws.id);
     useUiStore.getState().setActiveProject(
@@ -121,7 +128,8 @@ export function WorkspaceDashboard() {
     : null;
 
   return (
-    <div className="chrome-stage flex flex-1 flex-col overflow-hidden">
+    <div className="chrome-stage flex flex-1 overflow-hidden">
+    <div className={`flex min-w-0 flex-1 flex-col overflow-hidden`}>
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-6 py-5">
         <div className="min-w-0">
@@ -178,6 +186,7 @@ export function WorkspaceDashboard() {
           activeWorkspaceId={activeWorkspaceId}
           workspaceOperations={workspaceOperations}
           onSelect={handleSelect}
+          onOpenDetail={handleOpenDetail}
           onStop={handleStop}
           onReview={(ws) => useWorkspaceStore.getState().toggleChangesPanel(ws.id)}
           onMerge={(ws) => setMergingWorkspaceId(ws.id)}
@@ -193,7 +202,7 @@ export function WorkspaceDashboard() {
                 key={ws.id}
                 workspace={ws}
                 isActive={ws.id === activeWorkspaceId}
-                onSelect={() => handleSelect(ws)}
+                onSelect={() => handleOpenDetail(ws)}
                 onStop={() => handleStop(ws)}
                 onReview={() => useWorkspaceStore.getState().toggleChangesPanel(ws.id)}
                 onMerge={() => setMergingWorkspaceId(ws.id)}
@@ -221,6 +230,10 @@ export function WorkspaceDashboard() {
           onClose={() => setCommittingWorkspaceId(null)}
         />
       )}
+    </div>
+
+    {/* Detail panel (ticket view) */}
+    {detailPanelWorkspaceId && <WorkspaceDetailPanel />}
     </div>
   );
 }

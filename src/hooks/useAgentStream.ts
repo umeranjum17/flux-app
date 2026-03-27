@@ -227,6 +227,37 @@ export function useAgentStream() {
       useChatStore.getState().addSystemActivity(activeTaskId, buildRepoMapActivity(status));
     });
 
+    // Phase-transition comments — inject lifecycle messages into the workspace's task stream
+    const unsubPhaseComment = window.api.on('workspace:phase-comment', (data: unknown) => {
+      const { workspaceId, fromOutcome, toOutcome, description, timestamp } = data as {
+        workspaceId: string;
+        fromOutcome: string;
+        toOutcome: string;
+        description: string;
+        timestamp: number;
+      };
+      // Find an active task for this workspace and inject a lifecycle message
+      const tasks = useChatStore.getState().tasks;
+      for (const task of tasks.values()) {
+        if (task.workspaceId === workspaceId) {
+          useChatStore.getState().addMessage(task.id, {
+            type: 'lifecycle',
+            role: 'system',
+            content: description,
+            timestamp,
+            lifecycleState: toOutcome,
+            lifecycleLabel: `${fromOutcome} → ${toOutcome}`,
+          });
+          break;
+        }
+      }
+      // Also add to workspace activities for the sidebar
+      useWorkspaceStore.getState().addWorkspaceActivity(
+        workspaceId,
+        makeActivity('workspace', `Phase: ${description}`),
+      );
+    });
+
     // IPC activity events are too noisy for end-user UI — skip them entirely.
     const unsubIpcActivity = window.api.on('ipc:activity', () => {});
 
@@ -248,6 +279,7 @@ export function useAgentStream() {
       unsubWorkspaceUpdated();
       unsubWorkspaceOperation();
       unsubRepoMapStatus();
+      unsubPhaseComment();
       unsubIpcActivity();
     };
   }, []);

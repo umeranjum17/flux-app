@@ -16,7 +16,7 @@ export interface ContextTodoItem {
   status: ContextTodoStatus;
 }
 
-export type ContextOutcome = 'in_progress' | 'planned' | 'ready_for_pr';
+export type ContextOutcome = 'discovery' | 'in_progress' | 'planned' | 'ready_for_pr';
 
 export interface ContextState {
   /** Short workspace display name (3-5 words, title case). */
@@ -55,7 +55,7 @@ export interface ContextResponse {
 // Validation helpers
 // ---------------------------------------------------------------------------
 
-const VALID_OUTCOMES = new Set<ContextOutcome>(['in_progress', 'planned', 'ready_for_pr']);
+const VALID_OUTCOMES = new Set<ContextOutcome>(['discovery', 'in_progress', 'planned', 'ready_for_pr']);
 
 /**
  * Parse and validate raw JSON into a ContextState.

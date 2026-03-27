@@ -11,6 +11,7 @@ export const workspaceStatusConfig: Record<WorkspaceStatus, { color: string; lab
 };
 
 export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; label: string }> = {
+  discovery: { color: 'text-accent', label: 'Discovery' },
   in_progress: { color: 'text-info', label: 'In Progress' },
   planned: { color: 'text-info', label: 'Planned' },
   ready_for_pr: { color: 'text-plan', label: 'Ready for Review' },
@@ -23,6 +24,7 @@ export const workspaceOutcomeConfig: Record<WorkspaceOutcome, { color: string; l
 
 export type WorkspaceLifecycleState =
   | 'idle'
+  | 'discovery'
   | 'coding'
   | 'planning'
   | 'planned'
@@ -38,6 +40,7 @@ export type WorkspaceLifecycleState =
   | 'blocked';
 
 export type WorkspaceListSignalState = WorkspaceLifecycleState | 'has_changes' | 'archiving' | 'archive_failed';
+
 
 interface WorkspaceLifecycleConfigEntry {
   color: string;
@@ -65,6 +68,16 @@ export const workspaceLifecycleConfig: Record<
     badgeClass: 'bg-bg-secondary text-text-tertiary',
     accentColor: 'bg-text-tertiary/40',
     cardTint: '',
+  },
+  discovery: {
+    color: 'bg-accent',
+    iconColor: 'text-accent',
+    label: 'Discovery',
+    dotMotionClass: 'workspace-dot-active',
+    detail: 'Agent is exploring and gathering context.',
+    badgeClass: 'bg-accent/12 text-accent',
+    accentColor: 'bg-accent',
+    cardTint: 'lifecycle-tint-info',
   },
   coding: {
     color: 'bg-info',
@@ -239,6 +252,13 @@ const workspaceListSignalConfig: Record<WorkspaceListSignalState, WorkspaceListS
     dotClassName: 'workspace-list-signal workspace-list-signal-has-changes',
     dotMotionClass: 'workspace-dot-settled',
   },
+  discovery: {
+    ...lifecycleColors('discovery'),
+    label: 'Discovery',
+    detail: 'Agent is exploring and gathering context.',
+    dotClassName: 'workspace-list-signal workspace-list-signal-discovery',
+    dotMotionClass: 'workspace-dot-active',
+  },
   coding: {
     ...lifecycleColors('coding'),
     label: 'Working',
@@ -384,6 +404,7 @@ export function getWorkspaceLifecycleState(
   if (workspace.outcome === 'changes_requested') return 'changes_requested';
   if (workspace.outcome === 'ready_for_pr') return 'ready_for_review';
   if (workspace.outcome === 'planned') return 'planned';
+  if (workspace.outcome === 'discovery') return 'discovery';
 
   return 'idle';
 }

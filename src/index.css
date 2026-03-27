@@ -1295,3 +1295,27 @@ button:focus-visible {
 .markdown-prose p:last-child {
   margin-bottom: 0;
 }
+
+/* Shared form input field */
+.input-field {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input-field::placeholder {
+  color: var(--color-text-tertiary);
+}
+.input-field:focus {
+  border-color: var(--color-border-focus);
+}
+.input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

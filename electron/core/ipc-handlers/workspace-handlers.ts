@@ -127,6 +127,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode,
         thinking,
         sshHost,
+        outcome,
       }: {
         name: string;
         parentRepo: string;
@@ -136,6 +137,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode?: SpawnOptions['mode'];
         thinking?: string;
         sshHost?: string;
+        outcome?: import('../worktree/types').WorkspaceOutcome;
       },
     ) => {
       requireFields({ name, parentRepo, branch, agentId, model }, 'name', 'parentRepo', 'branch', 'agentId', 'model');
@@ -155,6 +157,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         thinking: thinking as any,
         sshHost: effectiveSshHost,
         status: 'idle',
+        outcome,
       });
       sendToRenderer('workspace:created', { workspace: ws });
       return ws;
@@ -173,6 +176,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode,
         thinking,
         sshHost,
+        outcome,
       }: {
         name: string;
         parentRepo: string;
@@ -181,6 +185,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode?: SpawnOptions['mode'];
         thinking?: string;
         sshHost?: string;
+        outcome?: import('../worktree/types').WorkspaceOutcome;
       },
     ) => {
       requireFields({ name, parentRepo, agentId, model }, 'name', 'parentRepo', 'agentId', 'model');
@@ -223,6 +228,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         direct: true,
         sshHost: effectiveSshHost,
         status: 'idle',
+        outcome,
       });
       sendToRenderer('workspace:created', { workspace: ws });
       return ws;

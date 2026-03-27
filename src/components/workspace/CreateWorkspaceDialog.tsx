@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { X, Zap, GitBranch, FolderOpen, Wifi } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { X, FolderOpen, Wifi, ImagePlus, Play, FileText, Search } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
 import { getProjectSourceKey, normalizeProjectSource, useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
-import type { Workspace } from '../../lib/ipc-api';
+import type { Workspace, WorkspaceOutcome } from '../../lib/ipc-api';
 import { createFluxBranchName, startWorkspaceChat } from '../../lib/workspace-state';
-
-type WorkspaceMode = 'isolated' | 'direct';
+import { ImageAttach } from '../input/ImageAttach';
 
 interface CreateWorkspaceDialogProps {
   onClose: () => void;
@@ -40,28 +39,48 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
     return projectOptions[0] ? getProjectSourceKey(projectOptions[0]) : '';
   }, [activeProject, projectOptions]);
 
-  const [mode, setMode] = useState<WorkspaceMode>('isolated');
   const [name, setName] = useState('');
-  const [branch, setBranch] = useState(() => createDefaultBranchName());
   const [agentId, setAgentId] = useState(selectedAgentId);
   const [model, setModel] = useState(selectedModel);
   const [selectedProjectKey, setSelectedProjectKey] = useState(initialProjectKey);
+  const [startingOutcome, setStartingOutcome] = useState<WorkspaceOutcome>('in_progress');
   const [prompt, setPrompt] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addImageFromFile = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImages((prev) => [...prev, reader.result as string]);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) addImageFromFile(file);
+      }
+    }
+  }, [addImageFromFile]);
 
   const availableAgents = agents.filter((a) => a.available);
   const selectedAgent = agents.find((a) => a.id === agentId);
   const models = dynamicModels.length > 0 ? dynamicModels : (selectedAgent?.models ?? []).map((m) => ({ id: m, name: m }));
   const selectedProject = projectOptions.find((project) => getProjectSourceKey(project) === selectedProjectKey) ?? projectOptions[0] ?? null;
   const parentRepo = selectedProject?.path ?? cwd;
-  const selectedSourceLabel = selectedProject?.source === 'ssh' ? 'SSH project' : 'Local project';
   const sourceContext = selectedProject?.source === 'ssh'
     ? `${selectedProject.sshHost ?? 'SSH host'} · ${selectedProject.path}`
     : selectedProject?.path ?? 'No project selected';
-  const modeDescription = mode === 'isolated'
-    ? 'Creates a dedicated workspace so you can review and merge changes separately.'
-    : 'Runs directly in the selected project without creating a separate worktree.';
 
   useEffect(() => {
     if (!selectedProjectKey && projectOptions[0]) {
@@ -71,33 +90,23 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
 
   const handleCreate = async () => {
     if (!name.trim() || !prompt.trim()) return;
-    if (mode === 'isolated' && !branch.trim()) return;
     if (!parentRepo) return;
     setCreating(true);
     setError(null);
     let workspace: Workspace | null = null;
 
     try {
-      if (mode === 'direct') {
-        workspace = await window.api.invoke('workspace:create-direct', {
-          name: name.trim(),
-          parentRepo: parentRepo,
-          agentId,
-          model,
-          thinking: selectedThinking,
-          sshHost: selectedProject?.source === 'ssh' ? selectedProject.sshHost : undefined,
-        }) as Workspace;
-      } else {
-        workspace = await window.api.invoke('workspace:create', {
-          name: name.trim(),
-          parentRepo: parentRepo,
-          branch: branch.trim(),
-          agentId,
-          model,
-          thinking: selectedThinking,
-          sshHost: selectedProject?.source === 'ssh' ? selectedProject.sshHost : undefined,
-        }) as Workspace;
-      }
+      const branch = createDefaultBranchName();
+      workspace = await window.api.invoke('workspace:create', {
+        name: name.trim(),
+        parentRepo: parentRepo,
+        branch,
+        agentId,
+        model,
+        thinking: selectedThinking,
+        sshHost: selectedProject?.source === 'ssh' ? selectedProject.sshHost : undefined,
+        outcome: startingOutcome,
+      }) as Workspace;
 
       useWorkspaceStore.getState().addWorkspace(workspace);
       useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
@@ -109,6 +118,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
         model,
         mode: 'act',
         thinking: selectedThinking,
+        images: images.length > 0 ? images : undefined,
       });
       onClose();
     } catch (err) {
@@ -128,15 +138,12 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="w-full max-w-lg bg-bg-primary border border-border rounded-xl shadow-2xl"
+        className="w-full max-w-md bg-bg-primary border border-border rounded-xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div>
-            <h2 className="text-sm font-semibold text-text-primary">New Workspace</h2>
-            <p className="mt-1 text-[11px] text-text-tertiary">Pick the project source first, then choose whether this should be isolated or direct.</p>
-          </div>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-sm font-semibold text-text-primary">New Workspace</h2>
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-bg-hover text-text-tertiary"
@@ -148,85 +155,120 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
         </div>
 
         {/* Form */}
-        <div className="px-5 py-4 space-y-4">
-          {/* Mode selector */}
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setMode('isolated')}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                mode === 'isolated'
-                  ? 'bg-bg-hover text-text-primary'
-                  : 'bg-bg-secondary text-text-tertiary hover:text-text-secondary'
-              }`}
-            >
-              <GitBranch size={12} />
-              Isolated
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('direct')}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                mode === 'direct'
-                  ? 'bg-bg-hover text-text-primary'
-                  : 'bg-bg-secondary text-text-tertiary hover:text-text-secondary'
-              }`}
-            >
-              <Zap size={12} />
-              Direct
-            </button>
+        <div className="px-5 py-4 space-y-3">
+          {/* Prompt first — this is the most important field */}
+          <div>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onPaste={handlePaste}
+              placeholder="What should this agent work on?"
+              rows={3}
+              className="input-field resize-none"
+              autoFocus
+            />
+            <div className="mt-1.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+              >
+                <ImagePlus size={12} />
+                Attach image
+              </button>
+              {images.length === 0 && (
+                <span className="text-[10px] text-text-tertiary/50">or paste from clipboard</span>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files) {
+                  for (const file of files) addImageFromFile(file);
+                }
+                e.target.value = '';
+              }}
+            />
+            <ImageAttach
+              images={images}
+              onRemove={(i) => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+              showContextHint
+            />
           </div>
 
-          <div className="rounded-lg border border-border/60 bg-bg-secondary/60 px-3 py-2">
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              <span className={`rounded-full border px-2 py-0.5 font-medium ${
-                selectedProject?.source === 'ssh'
-                  ? 'border-accent/20 bg-accent/8 text-accent'
-                  : 'border-border/60 bg-bg-primary/60 text-text-secondary'
-              }`}>
-                {selectedSourceLabel}
-              </span>
-              <span className={`rounded-full border px-2 py-0.5 font-medium ${
-                mode === 'isolated'
-                  ? 'border-success/20 bg-success/8 text-success'
-                  : 'border-warning/20 bg-warning/8 text-warning'
-              }`}>
-                {mode === 'isolated' ? 'Separate workspace' : 'Current branch'}
-              </span>
-            </div>
-            <div className="mt-2 flex items-start gap-2 text-[11px] text-text-tertiary">
-              {selectedProject?.source === 'ssh'
-                ? <Wifi size={12} className="mt-0.5 shrink-0 text-accent" />
-                : <FolderOpen size={12} className="mt-0.5 shrink-0 text-text-secondary" />}
-              <div className="min-w-0">
-                <p className="truncate text-text-secondary">{sourceContext}</p>
-                <p className="mt-1">{modeDescription}</p>
-              </div>
-            </div>
-          </div>
-
+          {/* Name */}
           <Field label="Name">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., Add auth system"
               className="input-field"
-              autoFocus
             />
           </Field>
 
-          {mode === 'isolated' && (
-            <Field label="Branch">
-              <input
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                className="input-field font-mono text-xs"
-              />
-            </Field>
-          )}
+          {/* Assignee — combined Agent · Model selector */}
+          <Field label="Assignee">
+            <select
+              value={`${agentId}::${model}`}
+              onChange={(e) => {
+                const [newAgentId, newModel] = e.target.value.split('::');
+                setAgentId(newAgentId as any);
+                setModel(newModel);
+              }}
+              className="input-field"
+            >
+              {availableAgents.map((agent) => {
+                const agentModels = agent.id === agentId && dynamicModels.length > 0
+                  ? dynamicModels
+                  : (agent.models ?? []).map((m) => ({ id: m, name: m }));
+                return (
+                  <optgroup key={agent.id} label={agent.name}>
+                    {agentModels.map((m) => (
+                      <option key={`${agent.id}::${m.id}`} value={`${agent.id}::${m.id}`}>
+                        {agent.name} · {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
+          </Field>
 
-          <Field label="Project Source">
-            {projectOptions.length > 1 ? (
+          {/* How to start */}
+          <div>
+            <label className="block text-[11px] font-medium text-text-tertiary mb-1.5">How to start</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { outcome: 'in_progress' as const, icon: Play, label: 'Build', desc: 'Start coding immediately' },
+                { outcome: 'planned' as const, icon: FileText, label: 'Plan First', desc: 'Create a plan, then build' },
+                { outcome: 'discovery' as const, icon: Search, label: 'Discover', desc: 'Explore and gather context' },
+              ]).map(({ outcome, icon: Icon, label, desc }) => (
+                <button
+                  key={outcome}
+                  type="button"
+                  onClick={() => setStartingOutcome(outcome)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border px-3 py-2.5 text-center transition-colors ${
+                    startingOutcome === outcome
+                      ? 'border-accent/50 bg-accent/8 text-text-primary'
+                      : 'border-border bg-bg-secondary text-text-tertiary hover:border-border hover:bg-bg-hover hover:text-text-secondary'
+                  }`}
+                >
+                  <Icon size={14} />
+                  <span className="text-[11px] font-medium">{label}</span>
+                  <span className="text-[9px] leading-tight opacity-60">{desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Project source — only show selector when multiple projects */}
+          {projectOptions.length > 1 && (
+            <Field label="Project">
               <select
                 value={selectedProjectKey}
                 onChange={(e) => setSelectedProjectKey(e.target.value)}
@@ -240,57 +282,16 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
                   </option>
                 ))}
               </select>
-            ) : (
-              <div className="input-field flex items-center gap-2 text-xs text-text-secondary">
-                {selectedProject?.source === 'ssh'
-                  ? <Wifi size={12} className="shrink-0 text-accent" />
-                  : <FolderOpen size={12} className="shrink-0 text-text-tertiary" />}
-                <span className="truncate">{sourceContext}</span>
-              </div>
-            )}
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Agent">
-              <select
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value as any)}
-                className="input-field"
-              >
-                {availableAgents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
             </Field>
-
-            <Field label="Model">
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="input-field"
-              >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
-
-          <Field label="Initial Prompt">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="What should this agent work on?"
-              rows={4}
-              className="input-field resize-none"
-            />
-          </Field>
-
-          {mode === 'direct' && (
-            <div className="text-xs text-text-tertiary bg-bg-secondary border border-border/50 rounded-lg px-3 py-2">
-              Direct mode works on the selected project source immediately. Isolated mode keeps the work in a separate workspace.
-            </div>
           )}
+
+          {/* Context line */}
+          <div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+            {selectedProject?.source === 'ssh'
+              ? <Wifi size={11} className="shrink-0 text-accent" />
+              : <FolderOpen size={11} className="shrink-0" />}
+            <span className="truncate">{sourceContext}</span>
+          </div>
 
           {error && (
             <div className="text-xs text-error bg-error/10 border border-error/30 rounded-lg px-3 py-2">
@@ -312,7 +313,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
             disabled={creating || !name.trim() || !prompt.trim()}
             className="px-4 py-1.5 text-xs font-medium rounded-lg bg-success text-white hover:bg-success/85 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {creating ? 'Creating...' : 'Create & Start'}
+            {creating ? 'Creating...' : startingOutcome === 'discovery' ? 'Discover & Start' : startingOutcome === 'planned' ? 'Plan & Start' : 'Create & Start'}
           </button>
         </div>
       </div>

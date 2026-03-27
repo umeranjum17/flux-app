@@ -787,6 +787,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
             // Emit lifecycle message for the renderer
             const lifecycleStateMap: Record<string, string> = {
+              discovery: 'discovery',
               ready_for_pr: 'ready_for_review',
               planned: 'planned',
             };
@@ -1556,6 +1557,22 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             const nextStatus: WorkspaceStatus = finalError ? 'error' : 'done';
             lifecycleManager.taskCompleted(options.taskId, nextStatus, { sessionId: session.id });
 
+            // Emit agent progress comment summarizing task completion
+            if (!finalError) {
+              const currentWs = workspaceStore.get(workspace.id);
+              sendToRenderer('agent:message', {
+                taskId: options.taskId,
+                message: {
+                  type: 'lifecycle',
+                  role: 'system',
+                  content: `Task completed successfully.`,
+                  timestamp: Date.now(),
+                  lifecycleState: currentWs?.outcome ?? workspace.outcome,
+                  lifecycleLabel: 'Task Complete',
+                },
+              });
+            }
+
             // Skip post-completion ops if already run during result-message
             // handling (stream-json agents like Claude Code). The done handler
             // still runs quality gates and diff capture above, but branch
@@ -1619,9 +1636,13 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                   if (!finalError) {
                     lifecycleManager.setOutcome(workspace.id, 'merged', { force: true });
                   }
-                } else {
-                  // No auto-commit — commits are user-initiated via the Commit or Merge modal.
-                  // Outcome transitions are agent-driven via `.context/state.json` — no fallback here.
+                } else if (!finalError) {
+                  // Auto-advance: if the agent didn't set outcome via state.json,
+                  // use git state to compute the next outcome as a fallback.
+                  const freshWs = workspaceStore.get(workspace.id);
+                  if (freshWs) {
+                    await lifecycleManager.transitionOutcome(freshWs, 'sync');
+                  }
                 }
               } catch (err) {
                 console.error('[done-handler] Outcome transition failed:', err);

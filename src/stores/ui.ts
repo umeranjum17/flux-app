@@ -84,6 +84,9 @@ interface UiState {
   // Workspace view mode (list vs kanban)
   workspaceViewMode: 'list' | 'kanban';
 
+  // Workspace detail panel (ticket view)
+  detailPanelWorkspaceId: string | null;
+
   setLiveOverview(overview: LiveUsageOverview | null): void;
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
@@ -134,6 +137,8 @@ interface UiState {
   setCompletionModel(model: string): void;
   setWorkspaceViewMode(mode: 'list' | 'kanban'): void;
   toggleWorkspaceViewMode(): void;
+  openDetailPanel(workspaceId: string): void;
+  closeDetailPanel(): void;
 
   // Bottom panel
   toggleBottomPanel(): void;
@@ -284,6 +289,7 @@ export const useUiStore = create<UiState>()(
     shellHistory: [],
     completionModel: 'haiku',
     workspaceViewMode: 'list',
+    detailPanelWorkspaceId: null,
 
     setLiveOverview(overview) {
       set((state) => {
@@ -695,16 +701,15 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-
-    setWorkspaceViewMode(mode) {
+    openDetailPanel(workspaceId) {
       set((state) => {
-        state.workspaceViewMode = mode;
+        state.detailPanelWorkspaceId = workspaceId;
       });
     },
 
-    toggleWorkspaceViewMode() {
+    closeDetailPanel() {
       set((state) => {
-        state.workspaceViewMode = state.workspaceViewMode === 'list' ? 'kanban' : 'list';
+        state.detailPanelWorkspaceId = null;
       });
     },
 

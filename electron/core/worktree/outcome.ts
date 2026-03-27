@@ -167,7 +167,7 @@ export function computeNextOutcome(
       // Merge action — allow promotion even from terminal states (except already merged/archived)
       if (current === 'merged' || current === 'ready_to_archive') return null;
       if (gitState.isMerged) return 'merged';
-      if (current === 'in_progress') return 'ready_for_pr';
+      if (current === 'in_progress' || current === 'discovery') return 'ready_for_pr';
       return null;
 
     case 'sync':

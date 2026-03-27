@@ -105,7 +105,7 @@ export interface IpcChannels {
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
-    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
+    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
     result: Workspace;
   };
   'workspace:create-quick': {
@@ -113,7 +113,7 @@ export interface IpcChannels {
     result: Workspace;
   };
   'workspace:create-direct': {
-    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
+    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
     result: Workspace;
   };
   'workspace:rename-branch': {
@@ -579,7 +579,7 @@ export interface WorkspaceGroupLookupResult {
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
-export type WorkspaceOutcome = 'in_progress' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
+export type WorkspaceOutcome = 'discovery' | 'in_progress' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
 
 export type WorkspaceOperationKind = 'archive';
 

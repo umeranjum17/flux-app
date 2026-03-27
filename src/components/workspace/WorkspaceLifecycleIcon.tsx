@@ -31,6 +31,7 @@ type IndicatorVariant = 'ring' | 'quarter' | 'half' | 'three-quarter' | 'solid' 
 
 const indicatorVariantMap = {
   idle: 'ring',
+  discovery: 'quarter',
   has_changes: 'quarter',
   coding: 'solid',
   planning: 'solid',

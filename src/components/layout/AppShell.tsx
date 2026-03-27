@@ -84,14 +84,13 @@ export function AppShell() {
   const isGitRepo = useUiStore((s) => s.isGitRepo);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const workspaceViewMode = useUiStore((s) => s.workspaceViewMode);
+  const isKanbanMode = workspaceViewMode === 'kanban';
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
   const committingWorkspaceId = useWorkspaceStore((s) => s.committingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const linkingWorkspaceId = useUiStore((s) => s.linkingWorkspaceId);
-  const workspaceViewMode = useUiStore((s) => s.workspaceViewMode);
-  const isKanbanMode = workspaceViewMode === 'kanban';
   // Terminal actions are now exposed via useTerminalStore (no ref needed)
 
   const hasTasks = tasks.size > 0;
@@ -1106,9 +1105,7 @@ export function AppShell() {
                         {explorerOpen && <FileExplorer />}
                         {changesPanelOpen && <ChangesPanel />}
                         <ErrorBoundary>
-                          {workspaceViewMode === 'kanban' ? (
-                            <WorkspaceDashboard />
-                          ) : hasTasks ? (
+                          {hasTasks ? (
                             <MessageList />
                           ) : sessionsLoading ? (
                             <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
