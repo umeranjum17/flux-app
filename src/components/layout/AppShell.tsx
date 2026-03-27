@@ -356,16 +356,18 @@ export function AppShell() {
       useWorkspaceStore.getState().addCheckpoint(workspaceId, checkpoint);
     });
     const unsubUpdated = window.api.on('workspace:updated', (data: unknown) => {
-      const { workspaceId, branch, name, worktreePath } = data as {
+      const { workspaceId, branch, name, worktreePath, summary } = data as {
         workspaceId: string;
         branch?: string;
         name?: string;
         worktreePath?: string;
+        summary?: string;
       };
       const updates: Record<string, unknown> = {};
       if (branch != null) updates.branch = branch;
       if (name != null) updates.name = name;
       if (worktreePath) updates.worktreePath = worktreePath;
+      if (summary != null) updates.summary = summary;
       useWorkspaceStore.getState().updateWorkspace(workspaceId, updates);
       if (worktreePath) {
         useChatStore.getState().updateWorkspaceTaskCwd(workspaceId, worktreePath);

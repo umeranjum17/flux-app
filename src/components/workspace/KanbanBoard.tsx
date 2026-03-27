@@ -213,6 +213,13 @@ function KanbanCard({
           </div>
         </div>
 
+        {/* Summary */}
+        {workspace.summary && (
+          <p className="mt-1.5 ml-5 line-clamp-2 text-[11px] leading-relaxed text-text-secondary">
+            {workspace.summary}
+          </p>
+        )}
+
         {/* Project + outcome + mode */}
         <div className="mt-2 flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[10px] text-text-tertiary">

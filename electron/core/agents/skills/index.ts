@@ -11,6 +11,7 @@ import { fluxArchitectSkill } from './flux-architect';
 import { fluxTodoSkill } from './flux-todo';
 import { fluxTerminalSkill } from './flux-terminal';
 import { fluxMultiWorkspaceSkill } from './flux-multi-workspace';
+import { fluxKanbanSkill } from './flux-kanban';
 
 export type { FluxSkill, SkillContext } from './types';
 // ---------------------------------------------------------------------------
@@ -28,6 +29,7 @@ const ALL_SKILLS: FluxSkill[] = [
   fluxTerminalSkill,
   fluxMultiWorkspaceSkill,
   fluxAttachmentsSkill,
+  fluxKanbanSkill,
 ];
 
 // Agents that have their own native todo/task tracking tool

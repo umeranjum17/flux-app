@@ -299,6 +299,9 @@ export function WorkspaceDetailPanel() {
 
       {/* Workspace info summary */}
       <div className="shrink-0 border-b border-border/30 px-4 py-3">
+        {workspace.summary && (
+          <p className="mb-2 text-[12px] leading-relaxed text-text-secondary">{workspace.summary}</p>
+        )}
         <div className="grid grid-cols-2 gap-y-2 text-[11px]">
           <div>
             <span className="text-text-tertiary">Assignee</span>

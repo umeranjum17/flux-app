@@ -106,4 +106,6 @@ export interface Workspace {
   createdAt: number;
   updatedAt: number;
   sessionId?: string;
+  /** One-line engineer-to-product status summary shown on the kanban card. */
+  summary?: string;
 }

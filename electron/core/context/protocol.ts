@@ -25,6 +25,8 @@ export interface ContextState {
   outcome?: ContextOutcome;
   /** Progress tracking items. */
   todos?: ContextTodoItem[];
+  /** One-line engineer-to-product status summary shown on the kanban card. */
+  summary?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +72,10 @@ export function parseContextState(raw: unknown): ContextState | null {
     state.workspace_name = obj.workspace_name.slice(0, 50);
   }
 
+  if (typeof obj.summary === 'string') {
+    state.summary = obj.summary.slice(0, 200);
+  }
+
   if (typeof obj.outcome === 'string' && VALID_OUTCOMES.has(obj.outcome as ContextOutcome)) {
     state.outcome = obj.outcome as ContextOutcome;
   }
@@ -91,7 +97,8 @@ export function parseContextState(raw: unknown): ContextState | null {
 export function hasContextStatePayload(state: ContextState): boolean {
   return typeof state.workspace_name === 'string'
     || typeof state.outcome === 'string'
-    || Array.isArray(state.todos);
+    || Array.isArray(state.todos)
+    || typeof state.summary === 'string';
 }
 
 function normalizeTodoStatus(value: unknown): ContextTodoStatus {

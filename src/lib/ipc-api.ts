@@ -329,7 +329,7 @@ export interface IpcEvents {
   'workspace:status': { workspaceId: string; status: WorkspaceStatus };
   'workspace:outcome': { workspaceId: string; outcome: WorkspaceOutcome };
   'workspace:checkpoint': { workspaceId: string; checkpoint: Checkpoint };
-  'workspace:updated': { workspaceId: string; branch: string; name: string; worktreePath?: string };
+  'workspace:updated': { workspaceId: string; branch: string; name: string; worktreePath?: string; summary?: string };
   'workspace:completion': { workspaceId: string; taskId: string; suggestedMergeTarget: string };
   'workspace:created': { workspace: Workspace };
   'workspace:deleted': { workspaceId: string };
@@ -532,6 +532,8 @@ export interface Workspace {
   /** When true, the workspace operates directly on the parent repo (no worktree/branch). */
   direct?: boolean;
   sessionId?: string;
+  /** One-line engineer-to-product status summary shown on the kanban card. */
+  summary?: string;
 }
 
 export interface WorkspaceSession {

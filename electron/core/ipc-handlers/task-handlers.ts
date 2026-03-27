@@ -773,6 +773,20 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
             }
           }
 
+          // Summary (kanban card description)
+          if (state.summary) {
+            const trimmed = state.summary.trim().slice(0, 200);
+            if (trimmed) {
+              workspaceStore.update(workspace.id, { summary: trimmed });
+              sendToRenderer('workspace:updated', {
+                workspaceId: workspace.id,
+                name: (workspaceStore.get(workspace.id) ?? workspace).name,
+                branch: (workspaceStore.get(workspace.id) ?? workspace).branch,
+                summary: trimmed,
+              });
+            }
+          }
+
           // Outcome (already validated by parseContextState)
           if (state.outcome) {
             logDiagnostic('context-watcher', `state.json outcome → ${state.outcome}`, {
