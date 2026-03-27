@@ -669,7 +669,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       if (
         isExplicitUserAction
         && options.mode === 'act'
-        && (workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
+        && (workspace.outcome === 'ready_to_merge' || workspace.outcome === 'merged' || workspace.outcome === 'ready_to_archive')
       ) {
         lifecycleManager.setOutcome(workspace.id, 'in_progress', { force: true });
       }
