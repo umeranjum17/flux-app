@@ -71,7 +71,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
           : 'Only make changes if the reviewer asks for them.',
         'Do NOT push to remote or create pull requests.',
         '',
-        ...buildOutcomeSection(ctx),
+        ...buildOutcomeSection(ctx, { fromReview: true }),
         '',
         '</flux-skill>',
       ].join('\n');
@@ -218,7 +218,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
 // Outcome section — instructs agents to use .context/state.json
 // ---------------------------------------------------------------------------
 
-function buildOutcomeSection(ctx: SkillContext): string[] {
+function buildOutcomeSection(ctx: SkillContext, opts?: { fromReview?: boolean }): string[] {
   const ws = ctx.workspace!;
   const lines = [
     '## Outcome Signals',
@@ -260,6 +260,21 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
       '',
       '```json',
       '{ "outcome": "in_progress", "workspace_name": "Explore Token Refresh Flow" }',
+      '```',
+    );
+  } else if (opts?.fromReview) {
+    lines.push(
+      '',
+      'When you start making changes based on review feedback, **immediately** set `outcome` to `in_progress`:',
+      '',
+      '```json',
+      '{ "outcome": "in_progress", "workspace_name": "Fix Token Refresh Logic" }',
+      '```',
+      '',
+      'When all requested changes are complete and ready for re-review, set `outcome` to `ready_for_pr`:',
+      '',
+      '```json',
+      '{ "outcome": "ready_for_pr", "workspace_name": "Fix Token Refresh Logic" }',
       '```',
     );
   } else {
