@@ -33,7 +33,7 @@ import { CommitDialog } from '../review/CommitDialog';
 import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
 import { QuickOpen } from '../dialogs/QuickOpen';
 import { SearchFiles } from '../dialogs/SearchFiles';
-import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, openLocalProject, rememberRecentProject } from '../../lib/workspace-state';
+import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, openLocalProject, rememberRecentProject, startWorkspaceMerge } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
 
@@ -350,6 +350,19 @@ export function AppShell() {
     const unsubOutcome = window.api.on('workspace:outcome', (data: unknown) => {
       const { workspaceId, outcome } = data as { workspaceId: string; outcome: string };
       useWorkspaceStore.getState().updateWorkspace(workspaceId, { outcome: outcome as any });
+
+      // Auto-merge in kanban mode: when a workspace is approved (ready_to_merge),
+      // automatically trigger the merge without requiring the user to open the merge modal.
+      if (outcome === 'ready_to_merge' && useUiStore.getState().workspaceViewMode === 'kanban') {
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId);
+        if (ws && !ws.direct && ws.status !== 'merging') {
+          const targetBranch = ws.baseBranch?.trim() || useUiStore.getState().gitBranch?.trim() || 'master';
+          startWorkspaceMerge({ workspace: ws, targetBranch, squash: true }).catch((err) => {
+            console.error('[auto-merge] Failed to start merge for', workspaceId, err);
+            toast.error(`Auto-merge failed: ${err instanceof Error ? err.message : String(err)}`);
+          });
+        }
+      }
     });
     const unsubCheckpoint = window.api.on('workspace:checkpoint', (data: unknown) => {
       const { workspaceId, checkpoint } = data as any;
