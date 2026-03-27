@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Menu, Settings, ShieldCheck, ShieldOff, LayoutGrid, Kanban, List } from 'lucide-react';
+import { Menu, Settings, ShieldCheck, ShieldOff, LayoutGrid } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 
 const isMac = window.api?.platform === 'darwin';
@@ -75,15 +75,6 @@ export function TopBar() {
       </div>
 
       <div className="no-drag flex min-w-0 items-center gap-1.5 overflow-hidden">
-        <button
-          onClick={toggleWorkspaceViewMode}
-          className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-          aria-label={workspaceViewMode === 'kanban' ? 'Switch to list view' : 'Switch to kanban view'}
-          title={workspaceViewMode === 'kanban' ? 'Switch to list view' : 'Switch to kanban view'}
-        >
-          {workspaceViewMode === 'kanban' ? <List size={13} /> : <Kanban size={13} />}
-        </button>
-
         <button
           onClick={toggleAutoApprove}
           className={`premium-toolbar-button rounded-md p-1.5 ${
