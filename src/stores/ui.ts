@@ -683,6 +683,18 @@ export const useUiStore = create<UiState>()(
       });
     },
 
+    setWorkspaceViewMode(mode) {
+      set((state) => {
+        state.workspaceViewMode = mode;
+      });
+    },
+
+    toggleWorkspaceViewMode() {
+      set((state) => {
+        state.workspaceViewMode = state.workspaceViewMode === 'list' ? 'kanban' : 'list';
+      });
+    },
+
 
     setWorkspaceViewMode(mode) {
       set((state) => {

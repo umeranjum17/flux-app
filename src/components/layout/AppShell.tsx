@@ -90,6 +90,8 @@ export function AppShell() {
   const committingWorkspaceId = useWorkspaceStore((s) => s.committingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const linkingWorkspaceId = useUiStore((s) => s.linkingWorkspaceId);
+  const workspaceViewMode = useUiStore((s) => s.workspaceViewMode);
+  const isKanbanMode = workspaceViewMode === 'kanban';
   // Terminal actions are now exposed via useTerminalStore (no ref needed)
 
   const hasTasks = tasks.size > 0;
@@ -1017,6 +1019,40 @@ export function AppShell() {
 
   if (!appReady) {
     return <div className="flex h-screen items-center justify-center bg-bg-primary" />;
+  }
+
+  if (isKanbanMode) {
+    // Full-screen kanban mode — no sidebar, no panels, no chat, no diffs
+    return (
+      <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary text-text-primary">
+        <div className="chrome-window flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <TopBar />
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <ErrorBoundary>
+              <WorkspaceDashboard />
+            </ErrorBoundary>
+          </div>
+          <StatusLine />
+        </div>
+
+        {/* Dialogs still available in kanban mode */}
+        {mergingWorkspace && (
+          <MergeDialog
+            workspace={mergingWorkspace}
+            onClose={() => useWorkspaceStore.getState().closeMerge()}
+          />
+        )}
+        {committingWorkspace && (
+          <CommitDialog
+            workspace={committingWorkspace}
+            onClose={() => useWorkspaceStore.getState().closeCommit()}
+          />
+        )}
+        <QuickOpen />
+        <SearchFiles />
+        {linkingWorkspaceId && <LinkWorkspaceDialog />}
+      </div>
+    );
   }
 
   return (

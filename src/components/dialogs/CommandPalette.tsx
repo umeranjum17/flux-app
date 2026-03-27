@@ -202,6 +202,15 @@ export function CommandPalette() {
         },
       },
       {
+        id: 'toggle-kanban',
+        name: 'Toggle Kanban Board',
+        icon: LayoutGrid,
+        handler: () => {
+          setOverlay(null);
+          useUiStore.getState().toggleWorkspaceViewMode();
+        },
+      },
+      {
         id: 'connect-ssh-project',
         name: 'Connect SSH Project',
         icon: Wifi,
