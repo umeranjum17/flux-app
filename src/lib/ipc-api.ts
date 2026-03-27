@@ -105,7 +105,7 @@ export interface IpcChannels {
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
-    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
+    args: [{ name?: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
     result: Workspace;
   };
   'workspace:create-quick': {
@@ -113,7 +113,7 @@ export interface IpcChannels {
     result: Workspace;
   };
   'workspace:create-direct': {
-    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
+    args: [{ name?: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
     result: Workspace;
   };
   'workspace:rename-branch': {
