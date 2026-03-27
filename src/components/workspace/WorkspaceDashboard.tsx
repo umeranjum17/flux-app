@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, LayoutGrid } from 'lucide-react';
+import { Plus, LayoutGrid, FolderOpen, FolderPlus, Wifi } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
@@ -11,7 +11,7 @@ import { CommitDialog } from '../review/CommitDialog';
 import type { Workspace } from '../../lib/ipc-api';
 import { WorkspaceDetailPanel } from './WorkspaceDetailPanel';
 import { archiveWorkspace } from '../../lib/workspace-operations';
-import { startWorkspaceMerge } from '../../lib/workspace-state';
+import { openLocalProject, startWorkspaceMerge } from '../../lib/workspace-state';
 import { toast } from 'sonner';
 
 export function WorkspaceDashboard() {
@@ -148,15 +148,38 @@ export function WorkspaceDashboard() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          disabled={!isGitRepo}
-          title={isGitRepo ? undefined : 'Not a git repository — run "git init" first'}
-          className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2 text-xs font-medium text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus size={13} />
-          New Workspace
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openLocalProject()}
+            className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
+            title="Open a local project"
+          >
+            <FolderOpen size={14} />
+          </button>
+          <button
+            onClick={() => useUiStore.getState().setOverlay('create-folder')}
+            className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
+            title="Create a new local project"
+          >
+            <FolderPlus size={14} />
+          </button>
+          <button
+            onClick={() => useUiStore.getState().setOverlay('connect-remote')}
+            className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
+            title="Connect an SSH project"
+          >
+            <Wifi size={14} />
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            disabled={!isGitRepo}
+            title={isGitRepo ? undefined : 'Not a git repository — run "git init" first'}
+            className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2 text-xs font-medium text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus size={13} />
+            New Workspace
+          </button>
+        </div>
       </div>
 
       {/* Workspace list / kanban */}
