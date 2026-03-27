@@ -148,6 +148,35 @@ export const fluxWorkspaceSkill: FluxSkill = {
 
       // ── Outcome signals ──
       lines.push('', ...buildOutcomeSection(ctx));
+    } else if (ctx.mode === 'discovery') {
+      lines.push(
+        '',
+        '## Workspace Context',
+        'You are working in an isolated workspace branch managed by Flux.',
+        '',
+        contextTable,
+        '',
+        '## Work Rules',
+        '',
+        '1. Explore the codebase and gather context relevant to the user\'s question.',
+        '2. Do NOT modify source files or run destructive commands.',
+        '3. Read files, search code, trace call chains — but do not change anything.',
+        '4. After outputting your findings, write them to `.context/discovery.md` (`mkdir -p .context` first).',
+        '',
+        '## Workspace Lifecycle',
+        '',
+        'You are in the discovery phase:',
+        '',
+        '1. Discovery (you are here) — Explore the codebase, map relevant files, and surface findings.',
+        '   The user reviews your findings before deciding next steps (plan or implement).',
+        '',
+        '2. Plan or Act — Based on your findings, the user may switch to plan or act mode.',
+        '',
+        'Your discovery output helps the user (and subsequent agents) understand the codebase',
+        'context before making changes. Be thorough and specific.',
+        '',
+        ...buildOutcomeSection(ctx),
+      );
     } else if (ctx.mode === 'plan') {
       lines.push(
         '',
@@ -224,6 +253,15 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
       '',
       '```json',
       '{ "outcome": "planned", "workspace_name": "Plan: Fix Token Refresh" }',
+      '```',
+    );
+  } else if (ctx.mode === 'discovery') {
+    lines.push(
+      '',
+      'Since you are in discovery mode, set `outcome` to `in_progress` when your discovery is complete:',
+      '',
+      '```json',
+      '{ "outcome": "in_progress", "workspace_name": "Discover: Auth Token Flow" }',
       '```',
     );
   } else {

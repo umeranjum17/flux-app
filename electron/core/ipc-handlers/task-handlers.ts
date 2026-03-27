@@ -6,7 +6,7 @@ import path from 'path';
 
 import { agentManager } from '../agents/manager';
 import { findLatestCodexSession } from '../agents/codex-utils';
-import type { AgentHandle, AgentId, AgentMessage, FileAttachment, SpawnOptions } from '../agents/types';
+import type { AgentHandle, AgentId, AgentMessage, FileAttachment, SpawnOptions, TaskMode } from '../agents/types';
 import { isInteractiveToolName } from '../agents/claude';
 import { logDiagnostic } from '../diagnostics/logger';
 import { StallMonitor } from '../agents/stall-monitor';
@@ -1751,7 +1751,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       taskId: string;
       agentId?: AgentId;
       model?: string;
-      mode?: 'plan' | 'act' | 'ask' | 'architect';
+      mode?: TaskMode;
       thinking?: 'disabled' | 'low' | 'medium' | 'high' | 'xhigh';
       cwd?: string;
     },
@@ -1777,7 +1777,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       const context = buildConversationContext(sessionId, sessionStore);
       const nextAgentId = agentId ?? (session.agentId as AgentId);
       const nextModel = model ?? session.model;
-      const nextMode = mode ?? (session.mode as 'plan' | 'act' | 'ask' | 'architect');
+      const nextMode = mode ?? (session.mode as TaskMode);
       const nextThinking = thinking ?? 'medium';
       const selectionChanged =
         nextAgentId !== session.agentId

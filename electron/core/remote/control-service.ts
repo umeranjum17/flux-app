@@ -7,7 +7,7 @@
  * exact same orchestration logic.
  */
 import type { DiffScope, WorkspaceOutcome } from '../worktree/types';
-import type { SpawnOptions } from '../agents/types';
+import type { SpawnOptions, TaskMode } from '../agents/types';
 import type { IpcContext } from '../ipc-handlers/types';
 import { generateWorkspaceName } from '../worktree/names';
 import { createWorktreeAny, removeWorktreeAny } from '../worktree/workspace-fs';
@@ -67,7 +67,7 @@ export class RemoteControlService {
     taskId?: string;
     workspaceId: string;
     prompt: string;
-    mode?: 'plan' | 'act' | 'ask' | 'architect';
+    mode?: TaskMode;
     agentId?: string;
     model?: string;
     images?: string[];

@@ -9,7 +9,7 @@
 import crypto from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import type { FileAttachment } from '../agents/types';
+import type { FileAttachment, TaskMode } from '../agents/types';
 import type { DiffScope, Workspace } from '../worktree/types';
 import { getChangedFiles, getFileDiff } from '../worktree/diff';
 import { createWorkspaceFs } from '../worktree/workspace-fs';
@@ -227,7 +227,7 @@ export async function spawnWorkspaceChat(
     taskId?: string;
     workspaceId: string;
     prompt: string;
-    mode?: 'plan' | 'act' | 'ask' | 'architect';
+    mode?: TaskMode;
     agentId?: string;
     model?: string;
     images?: string[];

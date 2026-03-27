@@ -329,7 +329,7 @@ export class RemoteControlServer {
           taskId?: string;
           workspaceId: string;
           prompt: string;
-          mode?: 'plan' | 'act' | 'ask' | 'architect';
+          mode?: TaskMode;
           agentId?: string;
           model?: string;
           images?: string[];

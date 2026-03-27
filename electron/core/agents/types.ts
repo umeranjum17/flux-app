@@ -6,7 +6,7 @@ export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
 export type ThinkingLevel = 'disabled' | 'low' | 'medium' | 'high' | 'xhigh';
 
-export type TaskMode = 'plan' | 'act' | 'ask' | 'architect';
+export type TaskMode = 'plan' | 'act' | 'ask' | 'architect' | 'discovery';
 
 export interface FileAttachment {
   path: string;
