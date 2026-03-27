@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, LoaderCircle, FolderOpen, Wifi } from 'lucide-react';
 import type { Workspace, WorkspaceOutcome, WorkspaceOperation } from '../../lib/ipc-api';
+import type { TaskMode } from '../../lib/types';
 import { workspaceOutcomeConfig, getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
@@ -17,6 +18,8 @@ interface KanbanLane {
   outcomes: WorkspaceOutcome[];
   /** Color token used for the accent dot and badge (first outcome's config is used). */
   color: string;
+  /** When a workspace is dropped into this lane, switch it to this mode. */
+  mode?: TaskMode;
 }
 
 const KANBAN_LANES: KanbanLane[] = [
@@ -29,14 +32,23 @@ const KANBAN_LANES: KanbanLane[] = [
   {
     id: 'think',
     label: 'Think',
-    outcomes: ['discovery', 'planned'],
+    outcomes: ['discovery'],
     color: 'text-accent',
+    mode: 'discovery',
+  },
+  {
+    id: 'plan',
+    label: 'Plan',
+    outcomes: ['planned'],
+    color: 'text-plan',
+    mode: 'plan',
   },
   {
     id: 'build',
     label: 'Build',
     outcomes: ['in_progress'],
     color: 'text-info',
+    mode: 'act',
   },
   {
     id: 'review',
@@ -64,7 +76,7 @@ interface KanbanBoardProps {
   onDelete: (ws: Workspace) => void;
   onOpenIde: (ws: Workspace) => void;
   onArchive: (ws: Workspace) => void;
-  onSetOutcome?: (ws: Workspace, outcome: WorkspaceOutcome) => void;
+  onSetOutcome?: (ws: Workspace, outcome: WorkspaceOutcome, mode?: TaskMode) => void;
 }
 
 export function KanbanBoard({
@@ -107,8 +119,8 @@ export function KanbanBoard({
     // If workspace is already in this lane, do nothing
     const currentLane = KANBAN_LANES.find((l) => l.outcomes.includes(ws.outcome ?? 'in_progress'));
     if (currentLane?.id === lane.id) return;
-    // Set to the lane's first outcome
-    onSetOutcome(ws, lane.outcomes[0]);
+    // Set to the lane's first outcome and switch mode if the lane defines one
+    onSetOutcome(ws, lane.outcomes[0], lane.mode);
   }, [workspaces, onSetOutcome]);
 
   const grouped = useMemo(() => {

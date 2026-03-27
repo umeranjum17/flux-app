@@ -219,7 +219,7 @@ export function WorkspaceDashboard() {
           onDelete={handleDelete}
           onOpenIde={handleOpenIde}
           onArchive={handleArchive}
-          onSetOutcome={(ws, outcome) => {
+          onSetOutcome={(ws, outcome, mode) => {
             if (outcome === 'ready_to_merge') {
               if (ws.direct) {
                 // Direct workspaces: auto-commit and transition to terminal state
@@ -243,6 +243,13 @@ export function WorkspaceDashboard() {
               }
             } else {
               useWorkspaceStore.getState().setOutcome(ws.id, outcome);
+              if (mode) {
+                window.api.invoke('workspace:update', { workspaceId: ws.id, mode });
+                useWorkspaceStore.getState().updateWorkspace(ws.id, { mode });
+                useUiStore.getState().setMode(mode);
+                // Activate the workspace so the user lands in the new mode
+                handleSelect(ws);
+              }
             }
           }}
         />
