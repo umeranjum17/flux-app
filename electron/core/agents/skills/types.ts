@@ -26,6 +26,8 @@ export interface SkillContext {
     worktreePath: string;
     parentRepo: string;
     outcome: WorkspaceOutcome;
+    /** When true, the workspace operates directly on the parent repo (no worktree/branch). */
+    direct?: boolean;
   };
   /** Persisted attachment context, if attachments were written to `.context/`. */
   attachments?: {

@@ -81,7 +81,8 @@ describe('addRecentProject', () => {
     const list = useUiStore.getState().recentProjects;
     expect(list).toHaveLength(2);
     expect(list[0]).toMatchObject({ path: '/repo', isSSH: true, sshHost: 'user@host' });
-    expect(list[1]).toMatchObject({ path: '/repo', isSSH: undefined });
+    expect(list[1]?.path).toBe('/repo');
+    expect(list[1]).not.toHaveProperty('isSSH');
   });
 
   it('caps the list at 10 entries', () => {
@@ -95,23 +96,39 @@ describe('addRecentProject', () => {
 });
 
 describe('connectSsh / disconnectSsh', () => {
-  it('connectSsh sets host, connected, environment, and cwd', () => {
+  it('connectSsh sets host, connected, environment, cwd, and adds to openProjects', () => {
     useUiStore.getState().connectSsh('user@host', '/remote/path');
-    const { sshHost, sshConnected, environment, cwd } = useUiStore.getState();
+    const { sshHost, sshConnected, environment, cwd, openProjects } = useUiStore.getState();
     expect(sshHost).toBe('user@host');
     expect(sshConnected).toBe(true);
     expect(environment).toBe('ssh');
     expect(cwd).toBe('/remote/path');
+    expect(openProjects).toHaveLength(1);
+    expect(openProjects[0]).toMatchObject({ path: '/remote/path', isSSH: true, sshHost: 'user@host' });
   });
 
-  it('disconnectSsh resets ssh state and restores local cwd', () => {
+  it('disconnectSsh resets ssh state, restores local cwd, and removes SSH projects', () => {
     useUiStore.getState().connectSsh('user@host', '/remote/path');
     useUiStore.getState().disconnectSsh('/local/path');
-    const { sshHost, sshConnected, environment, cwd } = useUiStore.getState();
+    const { sshHost, sshConnected, environment, cwd, openProjects } = useUiStore.getState();
     expect(sshHost).toBeNull();
     expect(sshConnected).toBe(false);
     expect(environment).toBe('local');
     expect(cwd).toBe('/local/path');
+    expect(openProjects).toHaveLength(0);
+  });
+
+  it('setActiveProject clears SSH state when switching from remote to local', () => {
+    useUiStore.getState().connectSsh('user@host', '/remote/path');
+    useUiStore.getState().addOpenProject('/local/path');
+
+    useUiStore.getState().setActiveProject('/local/path');
+
+    const { cwd, sshHost, sshConnected, environment } = useUiStore.getState();
+    expect(cwd).toBe('/local/path');
+    expect(sshHost).toBeNull();
+    expect(sshConnected).toBe(false);
+    expect(environment).toBe('local');
   });
 });
 

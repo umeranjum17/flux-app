@@ -36,7 +36,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const projectOptions = openProjects.length > 0 ? openProjects : cwd ? [cwd] : [];
+  const projectOptions = openProjects.length > 0 ? openProjects.map((p) => p.path) : cwd ? [cwd] : [];
 
   const availableAgents = agents.filter((a) => a.available);
   const selectedAgent = agents.find((a) => a.id === agentId);

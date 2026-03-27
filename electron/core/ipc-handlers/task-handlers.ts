@@ -1204,7 +1204,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               // renderer finalizes the task without waiting for process exit.
               sendToRenderer('agent:done', { taskId: options.taskId });
             } else {
-              await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
+              // No auto-commit — commits are user-initiated via the Commit or Merge modal.
               // Outcome transitions are agent-driven via `.context/state.json`.
               // No fallback transitionOutcome here — the agent is the authority.
             }
@@ -1620,9 +1620,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                     lifecycleManager.setOutcome(workspace.id, 'merged', { force: true });
                   }
                 } else {
-                  if (!finalError) {
-                    await recordWorkspaceCheckpoint(workspace.id, options.prompt, session.id).catch(() => {});
-                  }
+                  // No auto-commit — commits are user-initiated via the Commit or Merge modal.
                   // Outcome transitions are agent-driven via `.context/state.json` — no fallback here.
                 }
               } catch (err) {

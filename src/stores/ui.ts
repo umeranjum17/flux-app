@@ -14,10 +14,38 @@ export interface RecentProject {
   sshHost?: string;
 }
 
+export interface OpenProject {
+  path: string;
+  name: string;
+  isSSH?: boolean;
+  sshHost?: string;
+  environment: 'local' | 'ssh';
+}
+
 export function getRecentProjectKey(project: RecentProject): string {
   return project.isSSH
     ? `ssh:${project.sshHost ?? ''}:${project.path}`
     : `local:${project.path}`;
+}
+
+export function getOpenProjectKey(project: OpenProject): string {
+  return project.isSSH
+    ? `ssh:${project.sshHost ?? ''}:${project.path}`
+    : `local:${project.path}`;
+}
+
+/** Get the active project's metadata from the openProjects list */
+export function getActiveOpenProject(state: { cwd: string; openProjects: OpenProject[] }): OpenProject | undefined {
+  return state.openProjects.find((p) => p.path === state.cwd);
+}
+
+export function getActiveSshHost(state: { cwd: string; openProjects: OpenProject[] }): string | null {
+  const activeProject = getActiveOpenProject(state);
+  return activeProject?.isSSH ? activeProject.sshHost ?? null : null;
+}
+
+export function isActiveProjectSsh(state: { cwd: string; openProjects: OpenProject[] }): boolean {
+  return getActiveSshHost(state) !== null;
 }
 
 interface UiState {
@@ -34,7 +62,7 @@ interface UiState {
 
   // Multi-project / Project Groups
   activeGroupId: string | null;
-  openProjects: string[];
+  openProjects: OpenProject[];
   collapsedProjects: Set<string>;
 
   // Git
@@ -103,8 +131,8 @@ interface UiState {
   setOverlay(overlay: Overlay): void;
   setCwd(cwd: string): void;
   setActiveGroupId(id: string | null): void;
-  setOpenProjects(projects: string[]): void;
-  addOpenProject(path: string): void;
+  setOpenProjects(projects: OpenProject[]): void;
+  addOpenProject(project: string | OpenProject): void;
   removeOpenProject(path: string): void;
   setActiveProject(path: string): void;
   toggleProjectCollapsed(path: string): void;
@@ -276,23 +304,45 @@ export const useUiStore = create<UiState>()(
       });
     },
 
-    addOpenProject(path) {
+    addOpenProject(project) {
       set((state) => {
-        if (!state.openProjects.includes(path)) {
-          state.openProjects = [...state.openProjects, path];
+        const entry: OpenProject = typeof project === 'string'
+          ? { path: project, name: basename(project), environment: 'local' }
+          : project;
+        if (!state.openProjects.some((p) => p.path === entry.path)) {
+          state.openProjects = [...state.openProjects, entry];
         }
       });
     },
 
     removeOpenProject(path) {
       set((state) => {
-        state.openProjects = state.openProjects.filter((p) => p !== path);
+        const removed = state.openProjects.find((p) => p.path === path);
+        state.openProjects = state.openProjects.filter((p) => p.path !== path);
         state.collapsedProjects.delete(path);
+        // If we removed an SSH project, remove it from connectedSshHosts if no other project uses that host
+        if (removed?.isSSH && removed.sshHost) {
+          const hostStillUsed = state.openProjects.some((p) => p.isSSH && p.sshHost === removed.sshHost);
+          if (!hostStillUsed) {
+            state.connectedSshHosts.delete(removed.sshHost);
+          }
+        }
         // If we removed the active project, switch to the first remaining one
         if (state.cwd === path && state.openProjects.length > 0) {
-          state.cwd = state.openProjects[0];
-          state.projectName = basename(state.openProjects[0]);
+          const next = state.openProjects[0];
+          state.cwd = next.path;
+          state.projectName = basename(next.path);
           state.activeFile = null;
+          // Derive SSH state from new active project
+          if (next.isSSH && next.sshHost) {
+            state.sshHost = next.sshHost;
+            state.sshConnected = true;
+            state.environment = 'ssh';
+          } else {
+            state.sshHost = null;
+            state.sshConnected = false;
+            state.environment = 'local';
+          }
         }
       });
     },
@@ -302,8 +352,20 @@ export const useUiStore = create<UiState>()(
         state.cwd = path;
         state.projectName = basename(path);
         state.activeFile = null;
-        if (!state.openProjects.includes(path)) {
-          state.openProjects = [...state.openProjects, path];
+        const existing = state.openProjects.find((p) => p.path === path);
+        if (!existing) {
+          state.openProjects = [...state.openProjects, { path, name: basename(path), environment: 'local' }];
+        }
+        // Derive SSH state from the project we're switching to
+        const project = existing ?? state.openProjects[state.openProjects.length - 1];
+        if (project.isSSH && project.sshHost) {
+          state.sshHost = project.sshHost;
+          state.sshConnected = true;
+          state.environment = 'ssh';
+        } else {
+          state.sshHost = null;
+          state.sshConnected = false;
+          state.environment = 'local';
         }
       });
     },
@@ -441,13 +503,28 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
+        // Add as an open project if not already present
+        if (!state.openProjects.some((p) => p.path === cwd)) {
+          state.openProjects = [...state.openProjects, {
+            path: cwd,
+            name: basename(cwd),
+            isSSH: true,
+            sshHost: host,
+            environment: 'ssh',
+          }];
+        }
       });
     },
 
     disconnectSsh(localCwd) {
       set((state) => {
-        if (state.sshHost) {
-          state.connectedSshHosts.delete(state.sshHost);
+        const disconnectedHost = state.sshHost;
+        if (disconnectedHost) {
+          state.connectedSshHosts.delete(disconnectedHost);
+          // Remove SSH projects for this host from openProjects
+          state.openProjects = state.openProjects.filter(
+            (p) => !(p.isSSH && p.sshHost === disconnectedHost),
+          );
         }
         state.sshHost = null;
         state.sshConnected = false;

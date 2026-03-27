@@ -1179,6 +1179,7 @@ export function buildWorkspaceSystemContext(
       worktreePath: workspace.worktreePath,
       parentRepo: workspace.parentRepo,
       outcome: workspace.outcome,
+      direct: workspace.direct,
     },
     attachments: options.attachments,
     siblingWorkspaces: options.siblingWorkspaces,

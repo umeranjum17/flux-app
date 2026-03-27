@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Zap, FolderPlus, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal } from 'lucide-react';
+import { Zap, FolderPlus, FolderOpen, Wifi, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal } from 'lucide-react';
 import { getRecentProjectKey, useUiStore, type RecentProject } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -47,11 +47,25 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
 
         <div className="mb-6 flex justify-center gap-2">
           <button
+            onClick={() => onOpenProject()}
+            className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <FolderOpen size={14} />
+            Open Project
+          </button>
+          <button
             onClick={() => useUiStore.getState().setOverlay('create-folder')}
             className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             <FolderPlus size={14} />
-            Create New Project
+            Create Project
+          </button>
+          <button
+            onClick={() => useUiStore.getState().setOverlay('connect-remote')}
+            className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <Wifi size={14} />
+            Open Remote
           </button>
           {!isGitRepo && cwd && (
             <InitGitButton cwd={cwd} />

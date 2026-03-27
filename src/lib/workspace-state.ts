@@ -1,4 +1,4 @@
-import { useUiStore, type RecentProject } from '../stores/ui';
+import { getActiveSshHost, useUiStore, type RecentProject } from '../stores/ui';
 import { useAgentStore, normalizeClaudeCodeModel } from '../stores/agent';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useChatStore } from '../stores/chat';
@@ -189,7 +189,7 @@ export async function createEmptyWorkspace(opts: {
   cwd: string;
   sshHost?: string;
 }): Promise<Workspace> {
-  const effectiveSshHost = opts.sshHost ?? useUiStore.getState().sshHost ?? undefined;
+  const effectiveSshHost = opts.sshHost ?? getActiveSshHost(useUiStore.getState()) ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
     agentId: opts.agentId,
@@ -440,7 +440,7 @@ export async function createWorkspaceAndChat(
   // The agent can still refine via `.context/state.json` workspace_name at completion.
   const branch = createFluxBranchName(prompt);
   const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
-  const effectiveSshHost = useUiStore.getState().sshHost ?? undefined;
+  const effectiveSshHost = getActiveSshHost(useUiStore.getState()) ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create', {
     name: deriveWorkspaceNameFromPrompt(prompt),

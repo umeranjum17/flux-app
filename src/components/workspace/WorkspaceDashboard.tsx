@@ -6,6 +6,7 @@ import { useChatStore } from '../../stores/chat';
 import { WorkspaceCard } from './WorkspaceCard';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { MergeDialog } from '../review/MergeDialog';
+import { CommitDialog } from '../review/CommitDialog';
 import type { Workspace } from '../../lib/ipc-api';
 import { archiveWorkspace } from '../../lib/workspace-operations';
 import { toast } from 'sonner';
@@ -19,6 +20,7 @@ export function WorkspaceDashboard() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
+  const [committingWorkspaceId, setCommittingWorkspaceId] = useState<string | null>(null);
 
   const workspaceList = Array.from(workspaces.values());
   const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
@@ -27,7 +29,7 @@ export function WorkspaceDashboard() {
 
   // Load workspaces on mount — across all open projects
   useEffect(() => {
-    const projects = openProjects.length > 0 ? openProjects : cwd ? [cwd] : [];
+    const projects = openProjects.length > 0 ? openProjects.map((p) => p.path) : cwd ? [cwd] : [];
     if (projects.length === 0) return;
 
     (async () => {
@@ -98,6 +100,13 @@ export function WorkspaceDashboard() {
   const mergingWorkspace = mergingWorkspaceId
     ? (() => {
         const workspace = workspaces.get(mergingWorkspaceId);
+        return workspace ? { ...workspace } : null;
+      })()
+    : null;
+
+  const committingWorkspace = committingWorkspaceId
+    ? (() => {
+        const workspace = workspaces.get(committingWorkspaceId);
         return workspace ? { ...workspace } : null;
       })()
     : null;
@@ -183,6 +192,12 @@ export function WorkspaceDashboard() {
         <MergeDialog
           workspace={mergingWorkspace}
           onClose={() => setMergingWorkspaceId(null)}
+        />
+      )}
+      {committingWorkspace && (
+        <CommitDialog
+          workspace={committingWorkspace}
+          onClose={() => setCommittingWorkspaceId(null)}
         />
       )}
     </div>

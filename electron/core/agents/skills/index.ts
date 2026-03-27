@@ -51,6 +51,7 @@ export interface ComposeSkillsOptions {
     worktreePath: string;
     parentRepo: string;
     outcome: WorkspaceOutcome;
+    direct?: boolean;
   };
   attachments?: {
     manifestPath: string;

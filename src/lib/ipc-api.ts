@@ -178,7 +178,7 @@ export interface IpcChannels {
   // Workspace single fetch & bulk operations
   'workspace:get': { args: [{ workspaceId: string }]; result: Workspace | null };
   'workspace:commit': {
-    args: [{ workspaceId: string; message?: string }];
+    args: [{ workspaceId: string; message?: string; files?: string[] }];
     result: { sha: string; message: string };
   };
   'workspace:pull-master': {
@@ -435,7 +435,7 @@ export interface FluxConfig {
 
   // Multi-project state
   lastActiveGroupId?: string;
-  openProjects?: string[];
+  openProjects?: Array<string | { path: string; name: string; isSSH?: boolean; sshHost?: string; environment: 'local' | 'ssh' }>;
   activeProjectPath?: string;
 }
 

@@ -28,8 +28,10 @@ export function StatusLine() {
 
   const gitBranch = useUiStore((s) => s.gitBranch);
   const gitDirty = useUiStore((s) => s.gitDirty);
-  const sshConnected = useUiStore((s) => s.sshConnected);
-  const sshHost = useUiStore((s) => s.sshHost);
+  // Derive SSH state from the active project
+  const activeProject = useUiStore((s) => s.openProjects.find((p) => p.path === s.cwd));
+  const sshConnected = activeProject?.isSSH ?? false;
+  const sshHost = activeProject?.sshHost ?? null;
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceOperation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
   const activeWorkspaceOperation = isWorkspaceArchiving(workspaceOperation) ? workspaceOperation : null;
@@ -115,10 +117,8 @@ export function StatusLine() {
 
   const handleSshClick = useCallback(() => {
     if (sshConnected) {
-      // One-click disconnect
-      window.api.invoke('ssh:disconnect').then((result: any) => {
-        useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
-      });
+      // Open connect-remote dialog for managing the connection
+      useUiStore.getState().setOverlay('connect-remote');
     } else {
       useUiStore.getState().setOverlay('connect-remote');
     }
@@ -131,7 +131,7 @@ export function StatusLine() {
           <button
             onClick={handleSshClick}
             className="premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r border-success/20 bg-success/8 px-2.5 text-[13px] font-medium text-success"
-            title={`Remote: ${sshHost} (click to disconnect)`}
+            title={`Remote: ${sshHost} (click to manage)`}
           >
             <Wifi size={12} />
             Remote: {sshHost}

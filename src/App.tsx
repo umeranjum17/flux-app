@@ -7,8 +7,7 @@ const AgentSelector = lazy(() => import('./components/dialogs/AgentSelector').th
 const CommandPalette = lazy(() => import('./components/dialogs/CommandPalette').then(m => ({ default: m.CommandPalette })));
 const SettingsPanel = lazy(() => import('./components/dialogs/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
 const SessionPicker = lazy(() => import('./components/dialogs/SessionPicker').then(m => ({ default: m.SessionPicker })));
-const SshConnectDialog = lazy(() => import('./components/dialogs/SshConnectDialog').then(m => ({ default: m.SshConnectDialog })));
-const RemoteFolderPicker = lazy(() => import('./components/dialogs/RemoteFolderPicker').then(m => ({ default: m.RemoteFolderPicker })));
+const ConnectRemoteDialog = lazy(() => import('./components/dialogs/ConnectRemoteDialog').then(m => ({ default: m.ConnectRemoteDialog })));
 const ContextSettings = lazy(() => import('./components/dialogs/ContextSettings').then(m => ({ default: m.ContextSettings })));
 const CreateFolderDialog = lazy(() => import('./components/dialogs/CreateFolderDialog').then(m => ({ default: m.CreateFolderDialog })));
 
@@ -21,8 +20,7 @@ export function App() {
         <CommandPalette />
         <SettingsPanel />
         <SessionPicker />
-        <SshConnectDialog />
-        <RemoteFolderPicker />
+        <ConnectRemoteDialog />
         <CreateFolderDialog />
         <ContextSettings />
       </Suspense>

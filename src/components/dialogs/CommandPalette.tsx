@@ -162,7 +162,8 @@ export function CommandPalette() {
           const picked = await window.api.invoke('cwd:pick') as string | null;
           if (picked) {
             const { useUiStore: ui } = await import('../../stores/ui');
-            ui.getState().setCwd(picked);
+            ui.getState().addOpenProject(picked);
+            ui.getState().setActiveProject(picked);
           }
         },
       },

@@ -27,6 +27,9 @@ interface WorkspaceState {
   // Merge state
   mergingWorkspaceId: string | null;
 
+  // Commit state
+  committingWorkspaceId: string | null;
+
   // Checkpoint state
   checkpoints: Map<string, Checkpoint[]>;
 
@@ -43,6 +46,8 @@ interface WorkspaceState {
   setActiveWorkspace(id: string | null): void;
   openMerge(workspaceId: string): void;
   closeMerge(): void;
+  openCommit(workspaceId: string): void;
+  closeCommit(): void;
   // Outcome actions
   setOutcome(id: string, outcome: WorkspaceOutcome): Promise<void>;
 
@@ -85,6 +90,7 @@ let changesPanelFileDiffVersion = 0;
 function clearWorkspaceUiState(state: {
   activeWorkspaceId: string | null;
   mergingWorkspaceId: string | null;
+  committingWorkspaceId: string | null;
   changesPanelOpen: boolean;
   changesPanelWorkspaceId: string | null;
   changesPanelFiles: DiffFile[];
@@ -98,6 +104,9 @@ function clearWorkspaceUiState(state: {
   }
   if (state.mergingWorkspaceId === workspaceId) {
     state.mergingWorkspaceId = null;
+  }
+  if (state.committingWorkspaceId === workspaceId) {
+    state.committingWorkspaceId = null;
   }
   if (state.changesPanelWorkspaceId === workspaceId) {
     changesPanelRequestVersion += 1;
@@ -117,6 +126,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     workspaces: new Map(),
     activeWorkspaceId: null,
     mergingWorkspaceId: null,
+    committingWorkspaceId: null,
     checkpoints: new Map(),
     workspaceActivities: new Map(),
     workspaceOperations: new Map(),
@@ -194,6 +204,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     closeMerge() {
       set((state) => {
         state.mergingWorkspaceId = null;
+      });
+    },
+
+    openCommit(workspaceId) {
+      set((state) => {
+        state.committingWorkspaceId = workspaceId;
+      });
+    },
+
+    closeCommit() {
+      set((state) => {
+        state.committingWorkspaceId = null;
       });
     },
 

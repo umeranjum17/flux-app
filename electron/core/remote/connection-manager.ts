@@ -14,9 +14,8 @@ const execFileAsync = promisify(execFile);
 /**
  * Centralised owner of all SSH remote-connection state.
  *
- * Replaces the scattered `_sshHost` in `tools/ssh.ts`,
- * `sshHost` in `ipc-handlers/index.ts`, and the
- * `getSshHost/setSshHost` context closures.
+ * Supports multiple concurrent SSH connections keyed by host.
+ * The "active" host is the most recently connected one (for backward compat).
  */
 export class RemoteConnectionManager {
   private static _instance: RemoteConnectionManager | null = null;
@@ -25,6 +24,9 @@ export class RemoteConnectionManager {
     return RemoteConnectionManager._instance;
   }
 
+  /** Active connections keyed by host */
+  private _connections = new Map<string, { connectedAt: number }>();
+  /** The most recently activated host (backward compat) */
   private _host: string | null = null;
   private _localCwd: string;
 
@@ -51,6 +53,16 @@ export class RemoteConnectionManager {
     return this._host !== null;
   }
 
+  /** Check if a specific host has an active connection */
+  isHostConnected(host: string): boolean {
+    return this._connections.has(host);
+  }
+
+  /** Get all currently connected hosts */
+  get connectedHosts(): string[] {
+    return Array.from(this._connections.keys());
+  }
+
   // ── Operations ─────────────────────────────────────────────
 
   async test(host: string): Promise<{ success: boolean; error: string | null }> {
@@ -71,13 +83,20 @@ export class RemoteConnectionManager {
   }
 
   /**
-   * Connect to a remote host. Updates internal state on success.
+   * Connect to a remote host. Reuses existing connection if already connected.
    * @param currentCwd the current local CWD (saved so we can restore on disconnect)
    */
   async connect(
     host: string,
     currentCwd: string,
   ): Promise<void> {
+    // Reuse existing connection
+    if (this._connections.has(host)) {
+      this._host = host;
+      this._localCwd = currentCwd;
+      return;
+    }
+
     try {
       await execFileAsync(
         resolveSshCommand(),
@@ -90,17 +109,38 @@ export class RemoteConnectionManager {
         `SSH connection failed: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`,
       );
     }
+    this._connections.set(host, { connectedAt: Date.now() });
     this._host = host;
     this._localCwd = currentCwd;
     await agentManager.detectAllRemote(host).catch(() => {});
   }
 
   /**
-   * Disconnect from the remote host. Returns the local CWD to restore.
+   * Disconnect from a specific host. If it was the active host, clears active.
+   */
+  disconnectHost(host: string): void {
+    this._connections.delete(host);
+    if (this._host === host) {
+      // Switch to another connected host or null
+      const remaining = Array.from(this._connections.keys());
+      this._host = remaining.length > 0 ? remaining[0] : null;
+    }
+    if (this._connections.size === 0) {
+      agentManager.detectAll().catch(() => {});
+    }
+  }
+
+  /**
+   * Disconnect from the active remote host. Returns the local CWD to restore.
    */
   disconnect(): string {
+    if (this._host) {
+      this._connections.delete(this._host);
+    }
     this._host = null;
-    agentManager.detectAll().catch(() => {});
+    if (this._connections.size === 0) {
+      agentManager.detectAll().catch(() => {});
+    }
     return this._localCwd;
   }
 

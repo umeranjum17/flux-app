@@ -28,6 +28,7 @@ import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { MergeDialog } from '../review/MergeDialog';
+import { CommitDialog } from '../review/CommitDialog';
 import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
 import { QuickOpen } from '../dialogs/QuickOpen';
 import { SearchFiles } from '../dialogs/SearchFiles';
@@ -84,6 +85,7 @@ export function AppShell() {
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
+  const committingWorkspaceId = useWorkspaceStore((s) => s.committingWorkspaceId);
   const changesPanelOpen = useWorkspaceStore((s) => s.changesPanelOpen);
   const linkingWorkspaceId = useUiStore((s) => s.linkingWorkspaceId);
   // Terminal actions are now exposed via useTerminalStore (no ref needed)
@@ -92,12 +94,16 @@ export function AppShell() {
   const sessionsLoading = useWorkspaceStore((s) =>
     s.activeWorkspaceId ? s.sessionsLoadingFor.has(s.activeWorkspaceId) : false,
   );
-  // Only subscribe to the specific workspace being merged — avoids re-rendering
-  // AppShell on every workspace update.
+  // Only subscribe to the specific workspace being merged/committed — avoids
+  // re-rendering AppShell on every workspace update.
   const mergingWorkspace = useWorkspaceStore((s) => {
     if (!mergingWorkspaceId) return null;
     const workspace = s.workspaces.get(mergingWorkspaceId);
     return workspace ?? null;
+  });
+  const committingWorkspace = useWorkspaceStore((s) => {
+    if (!committingWorkspaceId) return null;
+    return s.workspaces.get(committingWorkspaceId) ?? null;
   });
 
   const [appReady, setAppReady] = useState(false);
@@ -125,10 +131,17 @@ export function AppShell() {
             useUiStore.getState().setAutoApprove((config as any).autoApprove);
           }
           if (config.openProjects && config.openProjects.length > 0) {
-            useUiStore.getState().setOpenProjects(config.openProjects);
-            if (config.activeProjectPath && config.openProjects.includes(config.activeProjectPath)) {
-              restoredProjectPath = config.activeProjectPath;
-              useUiStore.getState().setActiveProject(config.activeProjectPath);
+            // Migrate from old string[] format to OpenProject[]
+            const normalized = config.openProjects.map((p) =>
+              typeof p === 'string'
+                ? { path: p, name: p.split('/').pop() || p, environment: 'local' as const }
+                : p,
+            );
+            useUiStore.getState().setOpenProjects(normalized);
+            const activePath = config.activeProjectPath;
+            if (activePath && normalized.some((p) => p.path === activePath)) {
+              restoredProjectPath = activePath;
+              useUiStore.getState().setActiveProject(activePath);
             }
           }
           if (config.lastActiveGroupId) {
@@ -194,7 +207,8 @@ export function AppShell() {
 
         // Apply environment
         if (envResult.status === 'fulfilled') {
-          if (envResult.value.runtime !== 'local') {
+          const activeProject = useUiStore.getState().openProjects.find((project) => project.path === useUiStore.getState().cwd);
+          if (!activeProject && envResult.value.runtime !== 'local') {
             useUiStore.setState({ environment: envResult.value.runtime });
           }
         } else {
@@ -218,7 +232,8 @@ export function AppShell() {
 
   // Load workspaces when CWD or openProjects change and listen for status updates
   useEffect(() => {
-    const projects = openProjects.length > 0 ? openProjects : cwd ? [cwd] : [];
+    const projectPaths = openProjects.length > 0 ? openProjects.map((p) => p.path) : cwd ? [cwd] : [];
+    const projects = projectPaths;
     if (projects.length === 0) return;
     let cancelled = false;
 
@@ -795,6 +810,7 @@ export function AppShell() {
         if (state.openProjects.length > 0) {
           partial.openProjects = state.openProjects;
         }
+
         if (state.cwd) {
           partial.activeProjectPath = state.cwd;
         }
@@ -836,6 +852,15 @@ export function AppShell() {
     if (options?.isSSH && options.sshHost && projectPath) {
       try {
         const { host, cwd: remoteCwd } = await connectToSshWorkspace(options.sshHost, projectPath);
+        // Add as unified open project
+        useUiStore.getState().addOpenProject({
+          path: remoteCwd,
+          name: remoteCwd.split('/').pop() || remoteCwd,
+          isSSH: true,
+          sshHost: host,
+          environment: 'ssh',
+        });
+        useUiStore.getState().setActiveProject(remoteCwd);
         const project = createRecentProject(remoteCwd, { isSSH: true, sshHost: host });
         await rememberRecentProject(project);
         return;
@@ -854,7 +879,8 @@ export function AppShell() {
       await window.api.invoke('cwd:set', { cwd: targetPath });
     }
 
-    useUiStore.getState().setCwd(targetPath);
+    useUiStore.getState().addOpenProject(targetPath);
+    useUiStore.getState().setActiveProject(targetPath);
     const project = createRecentProject(targetPath);
     await rememberRecentProject(project);
   }, []);
@@ -1118,6 +1144,12 @@ export function AppShell() {
         <MergeDialog
           workspace={mergingWorkspace}
           onClose={() => useWorkspaceStore.getState().closeMerge()}
+        />
+      )}
+      {committingWorkspace && (
+        <CommitDialog
+          workspace={committingWorkspace}
+          onClose={() => useWorkspaceStore.getState().closeCommit()}
         />
       )}
       <QuickOpen />

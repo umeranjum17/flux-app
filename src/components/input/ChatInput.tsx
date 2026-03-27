@@ -306,8 +306,9 @@ export function ChatInput({ focused }: ChatInputProps) {
         useWorkspaceStore.getState().setActiveWorkspace(null);
         task = useChatStore.getState().tasks.get(taskId)!;
       } else {
-      const sshConnected = useUiStore.getState().sshConnected;
-      if (!sshConnected) {
+      const activeProject = useUiStore.getState().openProjects.find((project) => project.path === cwd);
+      const activeProjectIsSsh = activeProject?.isSSH ?? false;
+      if (!activeProjectIsSsh) {
         const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
         const activeWorkspace = activeWorkspaceId
           ? useWorkspaceStore.getState().workspaces.get(activeWorkspaceId)

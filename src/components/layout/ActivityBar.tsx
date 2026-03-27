@@ -12,8 +12,10 @@ export function ActivityBar() {
   const handleOpenFolder = async () => {
     const picked = await window.api.invoke('cwd:pick') as string | null;
     if (picked) {
-      useUiStore.getState().setCwd(picked);
-      useUiStore.getState().setExplorerOpen(true);
+      const uiState = useUiStore.getState();
+      uiState.addOpenProject(picked);
+      uiState.setActiveProject(picked);
+      uiState.setExplorerOpen(true);
     }
   };
 

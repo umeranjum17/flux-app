@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
-import { GitMerge, Files, Eye, MessageSquare, Trash2, LoaderCircle } from 'lucide-react';
+import { GitMerge, GitCommit, Files, Eye, MessageSquare, Trash2, LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useUiStore } from '../../stores/ui';
@@ -60,6 +60,7 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
   const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr';
   const hasWorkspaceChanges = useWorkspaceHasChanges(workspace.id, { fallback: hasInlineDiff || outcomeImpliesChanges });
   const hasChanges = hasInlineDiff || hasWorkspaceChanges || outcomeImpliesChanges;
+  const isDirect = !!workspace.direct;
   const operation = useWorkspaceStore((state) => state.workspaceOperations.get(workspace.id));
   const isArchiving = isWorkspaceArchiving(operation);
   const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
@@ -79,6 +80,10 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
 
   const handleMerge = () => {
     useWorkspaceStore.getState().openMerge(workspace.id);
+  };
+
+  const handleCommit = () => {
+    useWorkspaceStore.getState().openCommit(workspace.id);
   };
 
   const handleArchive = async () => {
@@ -179,13 +184,24 @@ export function CompletionCard({ workspace, suggestedMergeTarget, onContinue, di
           </button>
         ) : (
           hasChanges && (
-            <button
-              onClick={handleMerge}
-              className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-success/35 bg-success/12 px-2.5 py-1.5 text-[12px] font-medium text-success hover:bg-success/16"
-            >
-              <GitMerge size={11} />
-              Merge to {mergeTarget}
-            </button>
+            <>
+              <button
+                onClick={handleCommit}
+                className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-success/35 bg-success/12 px-2.5 py-1.5 text-[12px] font-medium text-success hover:bg-success/16"
+              >
+                <GitCommit size={11} />
+                Commit
+              </button>
+              {!isDirect && (
+                <button
+                  onClick={handleMerge}
+                  className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-elevated/45 px-2.5 py-1.5 text-[12px] text-text-secondary hover:text-text-primary"
+                >
+                  <GitMerge size={11} />
+                  Merge
+                </button>
+              )}
+            </>
           )
         )}
       </div>

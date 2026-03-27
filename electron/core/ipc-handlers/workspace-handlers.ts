@@ -200,12 +200,6 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         });
       }
 
-      // Guard: only one direct workspace per repo at a time
-      const existing = workspaceStore.list(parentRepo).find((ws) => ws.direct);
-      if (existing) {
-        throw new Error(`A direct workspace already exists for this project: "${existing.name}"`);
-      }
-
       // Get current branch
       let currentBranch = 'main';
       try {
@@ -265,7 +259,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(
     'workspace:commit',
-    async (_event, { workspaceId, message }: { workspaceId: string; message?: string }) => {
+    async (_event, { workspaceId, message, files }: { workspaceId: string; message?: string; files?: string[] }) => {
       requireFields({ workspaceId }, 'workspaceId');
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
@@ -273,8 +267,12 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const wfs = createWorkspaceFs(workspace.sshHost);
       const commitMessage = message || 'checkpoint';
 
-      // Stage all changes
-      await wfs.git(workspace.worktreePath, ['add', '-A'], { timeout: 15000 });
+      // Stage selected files or all changes
+      if (files && files.length > 0) {
+        await wfs.git(workspace.worktreePath, ['add', '--', ...files], { timeout: 15000 });
+      } else {
+        await wfs.git(workspace.worktreePath, ['add', '-A'], { timeout: 15000 });
+      }
 
       // Check if there's anything to commit
       const { stdout: statusOut } = await wfs.git(workspace.worktreePath, ['status', '--porcelain'], { timeout: 5000 });
@@ -283,10 +281,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       }
 
       // Commit
-      const { stdout: commitOut } = await wfs.git(workspace.worktreePath, ['commit', '-m', commitMessage], { timeout: 15000 });
+      await wfs.git(workspace.worktreePath, ['commit', '-m', commitMessage], { timeout: 15000 });
 
       // Get the new SHA
       const { stdout: shaOut } = await wfs.git(workspace.worktreePath, ['rev-parse', '--short', 'HEAD'], { timeout: 5000 });
+
+      // A manual commit means work is now ready for review in Flux lifecycle terms.
+      lifecycleManager.setOutcome(workspaceId, 'ready_for_pr', { force: true });
 
       return { sha: shaOut.trim(), message: commitMessage };
     },

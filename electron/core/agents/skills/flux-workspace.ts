@@ -42,7 +42,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '',
         contextTable,
         '',
-        'Follow the plan steps. Commit changes with clear messages when done.',
+        'Follow the plan steps. Do NOT commit — leave changes for the user to review and commit via the Flux UI.',
         'Review `.context/plan.md` for the approved plan.',
         'If context was lost (e.g. after conversation compression), re-read `.context/` files to recover plan details and attachments.',
         'Do NOT push to remote or create pull requests.',
@@ -67,7 +67,7 @@ export const fluxWorkspaceSkill: FluxSkill = {
         contextTable,
         '',
         isChangesRequested
-          ? 'Make only the requested changes. Commit with clear messages when done.'
+          ? 'Make only the requested changes. Do NOT commit — leave changes for the user to review and commit via the Flux UI.'
           : 'Only make changes if the reviewer asks for them.',
         'Do NOT push to remote or create pull requests.',
         '',
@@ -129,9 +129,10 @@ export const fluxWorkspaceSkill: FluxSkill = {
         '## Work Rules',
         '',
         '1. Make changes directly in the workspace.',
-        '2. Commit with clear, descriptive messages when done.',
-        '3. Do NOT push to remote or create pull requests — the user merges via the Flux UI.',
-        '4. After committing, summarize what you changed.',
+        '2. Do NOT commit changes yourself — leave the final commit to the user.',
+        '3. Do NOT push to remote or create pull requests.',
+        '4. When your work is complete, set the outcome to `ready_for_pr` and summarize what you changed.',
+        '5. The user will review your changes and commit or merge via the Flux UI.',
       );
 
       if (ctx.hasNativeTodoTool) {
@@ -207,7 +208,7 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
     'Valid outcomes: `in_progress`, `planned`, `ready_for_pr`',
     '',
     'Guidelines:',
-    '- `ready_for_pr` — You have committed meaningful changes and the work is complete or at a review-ready checkpoint.',
+    '- `ready_for_pr` — Your changes are complete and ready for the user to review and commit.',
     '- `planned` — You produced a plan (plan mode only).',
     '- `in_progress` — Work is ongoing, not yet at a reviewable state.',
     '',
@@ -228,7 +229,7 @@ function buildOutcomeSection(ctx: SkillContext): string[] {
   } else {
     lines.push(
       '',
-      'When all work is finished and committed, set `outcome` to `ready_for_pr`:',
+      'When all work is finished and ready for review, set `outcome` to `ready_for_pr`:',
       '',
       '```json',
       '{ "outcome": "ready_for_pr", "workspace_name": "Fix Token Refresh Logic" }',

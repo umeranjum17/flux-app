@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, Loader2, Clock, X, FolderOpen, ChevronRight, ArrowUp, Home } from 'lucide-react';
-import { useUiStore } from '../../stores/ui';
+import { getActiveOpenProject, useUiStore } from '../../stores/ui';
 import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 
 interface RecentSshHost {
@@ -43,8 +43,9 @@ export function ConnectRemoteDialog() {
   useEffect(() => {
     if (open) {
       const ui = useUiStore.getState();
-      setHost(ui.sshConnected && ui.sshHost ? ui.sshHost : '');
-      setRemotePath(ui.sshConnected ? ui.cwd || '~' : '~');
+      const activeProject = getActiveOpenProject(ui);
+      setHost(activeProject?.isSSH ? activeProject.sshHost ?? '' : '');
+      setRemotePath(activeProject?.isSSH ? activeProject.path || '~' : '~');
       setError(null);
       setTesting(false);
       setConnecting(false);
@@ -104,6 +105,14 @@ export function ConnectRemoteDialog() {
       const resolvedPath = dirResult.path || remoteDir;
       await window.api.invoke('ssh:connect', { host: host.trim(), remoteCwd: resolvedPath });
       await saveRecentHost(host.trim(), remoteDir);
+      // Add as unified open project + connect SSH
+      useUiStore.getState().addOpenProject({
+        path: resolvedPath,
+        name: resolvedPath.split('/').pop() || resolvedPath,
+        isSSH: true,
+        sshHost: host.trim(),
+        environment: 'ssh',
+      });
       useUiStore.getState().connectSsh(host.trim(), resolvedPath);
       const project = createRecentProject(resolvedPath, { isSSH: true, sshHost: host.trim() });
       await rememberRecentProject(project);

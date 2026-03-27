@@ -76,7 +76,7 @@ beforeEach(() => {
 
   useUiStore.setState({
     cwd: '/repo',
-    openProjects: ['/repo'],
+    openProjects: [{ path: '/repo', name: 'repo', environment: 'local' as const }],
     collapsedProjects: new Set(),
     isGitRepo: true,
   } as any);

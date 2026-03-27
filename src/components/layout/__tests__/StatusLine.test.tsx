@@ -36,6 +36,8 @@ beforeEach(() => {
     sshConnected: false,
     environment: 'local',
     liveOverview: null,
+    openProjects: [],
+    cwd: '',
   } as any);
   useAgentStore.setState({
     agents: [

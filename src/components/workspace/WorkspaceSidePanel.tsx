@@ -86,7 +86,7 @@ function PanelFilesTab() {
   // When no workspace is active, show all open projects (like the old sidebar explorer).
   const projects = useMemo(() => {
     if (activeWorkspaceId && effectiveCwd) return [effectiveCwd];
-    if (openProjects.length > 0) return openProjects;
+    if (openProjects.length > 0) return openProjects.map((p) => p.path);
     if (globalCwd) return [globalCwd];
     return [];
   }, [activeWorkspaceId, effectiveCwd, openProjects, globalCwd]);
@@ -94,15 +94,16 @@ function PanelFilesTab() {
   const hasMultipleProjects = projects.length > 1;
 
   const handleOpenFolder = async () => {
-    const sshConnected = useUiStore.getState().sshConnected;
-    if (sshConnected) {
+    const uiState = useUiStore.getState();
+    const activeProject = uiState.openProjects.find((project) => project.path === uiState.cwd);
+    if (activeProject?.isSSH) {
       useUiStore.getState().setOverlay('connect-remote');
       return;
     }
     const picked = await window.api.invoke('cwd:pick') as string | null;
     if (picked) {
-      useUiStore.getState().addOpenProject(picked);
-      useUiStore.getState().setActiveProject(picked);
+      uiState.addOpenProject(picked);
+      uiState.setActiveProject(picked);
     }
   };
 

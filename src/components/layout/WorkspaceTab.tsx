@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap, ArrowDownToLine } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Wifi, Zap, ArrowDownToLine } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -35,8 +35,8 @@ export function WorkspaceTab() {
 
     // Initialize groups for all open projects (so empty projects still show)
     for (const project of openProjects) {
-      if (!groups.has(project)) {
-        groups.set(project, []);
+      if (!groups.has(project.path)) {
+        groups.set(project.path, []);
       }
     }
 
@@ -158,8 +158,12 @@ export function WorkspaceTab() {
     try {
       const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
       const mode = useUiStore.getState().mode;
+      const existingCount = Array.from(useWorkspaceStore.getState().workspaces.values()).filter(
+        (w: Workspace) => w.parentRepo === projectPath && w.direct,
+      ).length;
+      const name = existingCount === 0 ? 'Quick Task' : `Quick Task ${existingCount + 1}`;
       const ws = await window.api.invoke('workspace:create-direct', {
-        name: 'Quick Task',
+        name,
         parentRepo: projectPath,
         agentId,
         model,
@@ -197,7 +201,7 @@ export function WorkspaceTab() {
     const picked = await window.api.invoke('cwd:pick') as string | null;
     if (!picked) return;
     useUiStore.getState().addOpenProject(picked);
-    useUiStore.getState().setCwd(picked);
+    useUiStore.getState().setActiveProject(picked);
     const project = createRecentProject(picked);
     await rememberRecentProject(project);
   }, []);
@@ -228,7 +232,7 @@ export function WorkspaceTab() {
             }}
             disabled={creating}
             className="premium-toolbar-button rounded-md p-1.5 text-accent"
-            title="New workspace"
+            title="Quick task (direct, no worktree)"
           >
             {creating ? <LoaderCircle size={14} className="animate-spin" /> : <Zap size={14} />}
           </button>
@@ -253,6 +257,8 @@ export function WorkspaceTab() {
         {Array.from(groupedWorkspaces.entries()).map(([projectPath, projectWorkspaces]) => {
           const isCollapsed = collapsedProjects.has(projectPath);
           const isActiveProject = projectPath === cwd;
+          const openProject = openProjects.find((p) => p.path === projectPath);
+          const isSSHProject = openProject?.isSSH ?? false;
 
           return (
             <div key={projectPath}>
@@ -268,10 +274,10 @@ export function WorkspaceTab() {
                   className={`group mt-1.5 flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-bg-hover ${
                     isActiveProject ? 'text-accent' : 'text-text-secondary'
                   }`}
-                  title={`${projectPath}\nDouble-click to set as active project`}
+                  title={`${isSSHProject ? `SSH: ${openProject?.sshHost} · ` : ''}${projectPath}\nDouble-click to set as active project`}
                 >
                   {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                  <FolderOpen size={12} className="shrink-0 opacity-60" />
+                  {isSSHProject ? <Wifi size={12} className="shrink-0 text-success opacity-80" /> : <FolderOpen size={12} className="shrink-0 opacity-60" />}
                   <span className="truncate text-[11px] font-semibold uppercase tracking-[0.05em]">
                     {basename(projectPath)}
                   </span>
@@ -486,7 +492,7 @@ function WorkspaceListItem({
     if (committing) return;
     setCommitting(true);
     try {
-      const result = await window.api.invoke('workspace:commit', { workspaceId: workspace.id });
+      const result = await window.api.invoke('workspace:commit', { workspaceId: workspace.id }) as { sha: string; message: string };
       toast.success(`Committed ${result.sha}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Commit failed');
