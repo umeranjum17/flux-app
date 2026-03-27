@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { X, Send, Square, ExternalLink, Eye, GitMerge, Bot, User, Wrench, AlertCircle, CheckCircle, Clock, MessageSquare, ChevronDown, ChevronRight, Loader2, ArrowRight } from 'lucide-react';
+import { X, Send, Square, ExternalLink, Eye, GitMerge, Bot, User, Wrench, AlertCircle, CheckCircle, Clock, MessageSquare, ChevronDown, ChevronRight, Loader2, ArrowRight, ThumbsUp, RotateCcw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
+import { CodeBlock } from '../chat/MarkdownComponents';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -7,6 +11,34 @@ import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 import { workspaceOutcomeConfig, getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import type { AgentMessage } from '../../lib/types';
 import type { Workspace } from '../../lib/ipc-api';
+
+const remarkPlugins = [remarkGfm];
+
+/** Compact markdown components scaled for the 12px detail panel */
+const detailMarkdownComponents: Components = {
+  code({ className, children, ...props }) {
+    const match = /language-([A-Za-z0-9_-]+)/.exec(className || '');
+    const content = String(children).replace(/\n$/, '');
+    const language = match?.[1]?.toLowerCase();
+    const isBlock = Boolean(match) || content.includes('\n');
+    if (isBlock) return <CodeBlock language={language}>{content}</CodeBlock>;
+    return (
+      <code className="rounded border border-border/60 bg-bg-hover/80 px-1 py-0.5 font-mono text-[11px]" {...props}>
+        {children}
+      </code>
+    );
+  },
+  pre({ children }) { return <>{children}</>; },
+  p({ children }) { return <p className="my-1 leading-relaxed">{children}</p>; },
+  h1({ children }) { return <h1 className="text-[13px] font-bold mt-3 mb-1">{children}</h1>; },
+  h2({ children }) { return <h2 className="text-[12px] font-semibold mt-2.5 mb-1">{children}</h2>; },
+  h3({ children }) { return <h3 className="text-[12px] font-semibold mt-2 mb-0.5">{children}</h3>; },
+  ul({ children }) { return <ul className="list-disc pl-4 my-1 space-y-0.5">{children}</ul>; },
+  ol({ children }) { return <ol className="list-decimal pl-4 my-1 space-y-0.5">{children}</ol>; },
+  li({ children }) { return <li className="leading-relaxed">{children}</li>; },
+  a({ href, children }) { return <a href={href} className="text-accent underline underline-offset-2">{children}</a>; },
+  blockquote({ children }) { return <blockquote className="border-l-2 border-border-focus pl-3 italic text-text-secondary my-1.5">{children}</blockquote>; },
+};
 
 /** Filters agent messages into a comment-like activity thread */
 function buildActivityThread(messages: AgentMessage[]): AgentMessage[] {
@@ -138,9 +170,11 @@ function ActivityMessage({ message }: { message: AgentMessage }) {
           ? 'ml-8 border border-accent/15 bg-accent/5'
           : 'ml-8 border border-border/30 bg-bg-surface/50'
       }`}>
-        <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-text-primary">
-          {message.content.slice(0, 2000)}
-        </p>
+        <div className="markdown-prose text-[12px] leading-relaxed text-text-primary">
+          <ReactMarkdown remarkPlugins={remarkPlugins} components={detailMarkdownComponents}>
+            {message.content.slice(0, 2000)}
+          </ReactMarkdown>
+        </div>
       </div>
     </div>
   );
@@ -237,6 +271,27 @@ export function WorkspaceDetailPanel() {
 
   const activeTask = workspaceTasks.find((t) => t.status === 'running');
   const isRunning = !!activeTask || workspace?.status === 'running';
+  const isReadyForPr = workspace?.outcome === 'ready_for_pr' && !isRunning;
+
+  const handleApprove = useCallback(async () => {
+    if (!workspaceId) return;
+    await window.api.invoke('workspace:set-outcome', { workspaceId, outcome: 'ready_to_merge' });
+  }, [workspaceId]);
+
+  const handleRequestChanges = useCallback(async () => {
+    if (!workspaceId || !comment.trim()) return;
+    const trimmed = comment.trim();
+    setComment('');
+    setSending(true);
+    try {
+      await window.api.invoke('workspace:set-outcome', { workspaceId, outcome: 'in_progress' });
+      await window.api.invoke('workspace:spawn-chat', { workspaceId, prompt: trimmed });
+    } catch {
+      setComment(trimmed);
+    } finally {
+      setSending(false);
+    }
+  }, [workspaceId, comment]);
 
   const handleSendComment = useCallback(async () => {
     if (!comment.trim() || !workspaceId) return;
@@ -330,36 +385,80 @@ export function WorkspaceDetailPanel() {
         <div ref={threadEndRef} />
       </div>
 
-      {/* Comment input */}
-      <div className="shrink-0 border-t border-border/50 px-4 py-3">
-        {isRunning && (
-          <div className="mb-2 flex items-center gap-1.5 text-[10px] text-accent">
-            <Loader2 size={10} className="animate-spin" />
-            <span>Agent is working — your message will steer the current task</span>
+      {/* Action bar for ready_for_pr */}
+      {isReadyForPr && (
+        <div className="shrink-0 border-t border-border/50 px-4 py-3">
+          <p className="mb-2.5 text-[11px] font-medium text-text-secondary">
+            Agent finished — review the changes and decide:
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleApprove}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-success/90 px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-success"
+            >
+              <ThumbsUp size={13} />
+              Approve
+            </button>
+            <button
+              onClick={() => {
+                if (comment.trim()) {
+                  handleRequestChanges();
+                } else {
+                  textareaRef.current?.focus();
+                }
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[12px] font-medium text-warning transition-colors hover:bg-warning/20"
+            >
+              <RotateCcw size={13} />
+              Request Changes
+            </button>
           </div>
-        )}
-        <div className="flex gap-2">
-          <textarea
-            ref={textareaRef}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={isRunning ? 'Steer the agent...' : 'Send a message...'}
-            rows={2}
-            className="flex-1 resize-none rounded-lg border border-border/50 bg-bg-surface/50 px-3 py-2 text-[12px] text-text-primary placeholder:text-text-tertiary/40 focus:border-accent/40 focus:outline-none"
-          />
-          <button
-            onClick={handleSendComment}
-            disabled={!comment.trim() || sending}
-            className="flex h-9 w-9 shrink-0 items-center justify-center self-end rounded-lg bg-accent text-white transition-colors hover:bg-accent/80 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Send size={14} />
-          </button>
+          <div className="mt-2.5">
+            <textarea
+              ref={textareaRef}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Describe what needs to change (for Request Changes)..."
+              rows={2}
+              className="w-full resize-none rounded-lg border border-border/50 bg-bg-surface/50 px-3 py-2 text-[12px] text-text-primary placeholder:text-text-tertiary/40 focus:border-accent/40 focus:outline-none"
+            />
+          </div>
         </div>
-        <span className="mt-1 block text-[10px] text-text-tertiary/40">
-          {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to send
-        </span>
-      </div>
+      )}
+
+      {/* Comment input (normal mode) */}
+      {!isReadyForPr && (
+        <div className="shrink-0 border-t border-border/50 px-4 py-3">
+          {isRunning && (
+            <div className="mb-2 flex items-center gap-1.5 text-[10px] text-accent">
+              <Loader2 size={10} className="animate-spin" />
+              <span>Agent is working — your message will steer the current task</span>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <textarea
+              ref={textareaRef}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={isRunning ? 'Steer the agent...' : 'Send a message...'}
+              rows={2}
+              className="flex-1 resize-none rounded-lg border border-border/50 bg-bg-surface/50 px-3 py-2 text-[12px] text-text-primary placeholder:text-text-tertiary/40 focus:border-accent/40 focus:outline-none"
+            />
+            <button
+              onClick={handleSendComment}
+              disabled={!comment.trim() || sending}
+              className="flex h-9 w-9 shrink-0 items-center justify-center self-end rounded-lg bg-accent text-white transition-colors hover:bg-accent/80 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Send size={14} />
+            </button>
+          </div>
+          <span className="mt-1 block text-[10px] text-text-tertiary/40">
+            {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to send
+          </span>
+        </div>
+      )}
     </div>
   );
 }

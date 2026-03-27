@@ -110,6 +110,8 @@ export function WorkspaceDashboard() {
       .filter((task) => task.workspaceId === ws.id)
       .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];
     useChatStore.getState().setActiveTask(latestTask?.id ?? null);
+    // Open detail panel instead of switching away from kanban
+    useUiStore.getState().openDetailPanel(ws.id);
   }, []);
 
   // If merging, show merge dialog

@@ -46,8 +46,6 @@ const KANBAN_LANES: KanbanLane[] = [
   },
 ];
 
-const ALL_OUTCOMES = KANBAN_LANES.flatMap((l) => l.outcomes);
-
 interface KanbanBoardProps {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
@@ -270,15 +268,13 @@ function KanbanCard({
           onClick={onMerge}
           disabled={!canReview}
         />
-        {onArchive && (
-          <KanbanAction
-            icon={isArchiving ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}
-            label={isArchiving ? 'Archiving' : 'Archive'}
-            onClick={onArchive}
-            variant="danger"
-            disabled={isArchiving}
-          />
-        )}
+        <KanbanAction
+          icon={isArchiving ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}
+          label={isArchiving ? 'Archiving' : 'Archive'}
+          onClick={onArchive}
+          variant="danger"
+          disabled={isArchiving}
+        />
       </div>
     </button>
   );

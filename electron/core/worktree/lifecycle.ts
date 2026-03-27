@@ -334,10 +334,11 @@ export class WorkspaceLifecycleManager {
     this.workspaceStore.update(workspaceId, { outcome });
     this.sendToRenderer('workspace:outcome', { workspaceId, outcome });
 
-    // Emit phase-transition comment for the activity thread
-    if (current) {
+    // Emit phase-transition comment for the activity thread (skip no-op transitions)
+    if (current && current !== outcome) {
       const key = `${current}→${outcome}`;
-      const description = phaseTransitionMessages[key] ?? `Phase changed: ${current} → ${outcome}.`;
+      const description = phaseTransitionMessages[key];
+      if (!description) return; // No message for unmapped transitions — skip silently
       this.sendToRenderer('workspace:phase-comment', {
         workspaceId,
         fromOutcome: current,
