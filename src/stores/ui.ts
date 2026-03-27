@@ -2,51 +2,12 @@ import '../lib/immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { TaskMode } from '../lib/types';
-import type { LiveUsageOverview } from '../lib/ipc-api';
+import type { LiveUsageOverview, ProjectSource, RecentProject } from '../lib/ipc-api';
+import { basename } from '../lib/format';
+
+export type { ProjectSource, RecentProject } from '../lib/ipc-api';
 
 type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'connect-remote' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | 'quick-open' | 'search-files' | null;
-
-export interface RecentProject {
-  path: string;
-  name: string;
-  lastOpened: number;
-  isSSH?: boolean;
-  sshHost?: string;
-}
-
-export interface OpenProject {
-  path: string;
-  name: string;
-  isSSH?: boolean;
-  sshHost?: string;
-  environment: 'local' | 'ssh';
-}
-
-export function getRecentProjectKey(project: RecentProject): string {
-  return project.isSSH
-    ? `ssh:${project.sshHost ?? ''}:${project.path}`
-    : `local:${project.path}`;
-}
-
-export function getOpenProjectKey(project: OpenProject): string {
-  return project.isSSH
-    ? `ssh:${project.sshHost ?? ''}:${project.path}`
-    : `local:${project.path}`;
-}
-
-/** Get the active project's metadata from the openProjects list */
-export function getActiveOpenProject(state: { cwd: string; openProjects: OpenProject[] }): OpenProject | undefined {
-  return state.openProjects.find((p) => p.path === state.cwd);
-}
-
-export function getActiveSshHost(state: { cwd: string; openProjects: OpenProject[] }): string | null {
-  const activeProject = getActiveOpenProject(state);
-  return activeProject?.isSSH ? activeProject.sshHost ?? null : null;
-}
-
-export function isActiveProjectSsh(state: { cwd: string; openProjects: OpenProject[] }): boolean {
-  return getActiveSshHost(state) !== null;
-}
 
 interface UiState {
   sidebarOpen: boolean;
@@ -54,16 +15,16 @@ interface UiState {
   theme: 'dark' | 'light';
   sendKey: 'cmd+enter' | 'enter';
   mode: TaskMode;
-  viewMode: 'eng' | 'product';
   activeOverlay: Overlay;
 
   // CWD / Project
   cwd: string;
   projectName: string;
+  activeProject: ProjectSource | null;
 
   // Multi-project / Project Groups
   activeGroupId: string | null;
-  openProjects: OpenProject[];
+  openProjects: ProjectSource[];
   collapsedProjects: Set<string>;
 
   // Git
@@ -132,11 +93,11 @@ interface UiState {
   setOverlay(overlay: Overlay): void;
   setCwd(cwd: string): void;
   setActiveGroupId(id: string | null): void;
-  setOpenProjects(projects: OpenProject[]): void;
-  addOpenProject(project: string | OpenProject): void;
-  removeOpenProject(path: string): void;
-  setActiveProject(path: string): void;
-  toggleProjectCollapsed(path: string): void;
+  setOpenProjects(projects: Array<ProjectSource | string>): void;
+  addOpenProject(project: ProjectSource | string): void;
+  removeOpenProject(project: ProjectSource | string): void;
+  setActiveProject(project: ProjectSource | string): void;
+  toggleProjectCollapsed(project: ProjectSource | string): void;
   setIsGitRepo(isRepo: boolean): void;
   setGitBranch(branch: string | null): void;
   setGitUpstream(upstream: string | null): void;
@@ -169,10 +130,6 @@ interface UiState {
   addShellCommand(cmd: string): void;
   setCompletionModel(model: string): void;
 
-  // View mode
-  setViewMode(mode: 'eng' | 'product'): void;
-  toggleViewMode(): void;
-
   // Bottom panel
   toggleBottomPanel(): void;
   setBottomPanelOpen(open: boolean): void;
@@ -180,8 +137,103 @@ interface UiState {
   setPendingWorkspaceTerminalId(id: string | null): void;
 }
 
-function basename(p: string): string {
-  return p.split('/').pop() || p.split('\\').pop() || p;
+export function getProjectSourceKey(project: Pick<ProjectSource, 'path' | 'source'> & { sshHost?: string }): string {
+  return project.source === 'ssh'
+    ? `ssh:${project.sshHost ?? ''}:${project.path}`
+    : `local:${project.path}`;
+}
+
+export function getRecentProjectKey(project: RecentProject): string {
+  return getProjectSourceKey(project);
+}
+
+export function normalizeProjectSource(project: ProjectSource | string | null | undefined): ProjectSource | null {
+  if (typeof project === 'string') {
+    return { path: project, source: 'local' };
+  }
+
+  if (!project || typeof project.path !== 'string' || project.path.length === 0) {
+    return null;
+  }
+
+  if (project.source === 'ssh') {
+    return {
+      path: project.path,
+      source: 'ssh',
+      ...(project.sshHost ? { sshHost: project.sshHost } : {}),
+    };
+  }
+
+  return {
+    path: project.path,
+    source: 'local',
+  };
+}
+
+function normalizeLegacyProjectSource(value: unknown): ProjectSource | null {
+  if (typeof value === 'string') {
+    return normalizeProjectSource(value);
+  }
+
+  if (!value || typeof value !== 'object' || !('path' in value) || typeof value.path !== 'string') {
+    return null;
+  }
+
+  const source =
+    ('source' in value && value.source === 'ssh') || ('isSSH' in value && value.isSSH === true)
+      ? 'ssh'
+      : 'local';
+  const sshHost = 'sshHost' in value && typeof value.sshHost === 'string' ? value.sshHost : undefined;
+
+  return normalizeProjectSource({
+    path: value.path,
+    source,
+    sshHost,
+  });
+}
+
+export function normalizeProjectSources(projects: readonly unknown[] | null | undefined): ProjectSource[] {
+  if (!projects) return [];
+
+  const deduped = new Map<string, ProjectSource>();
+  for (const project of projects) {
+    const normalized = normalizeLegacyProjectSource(project);
+    if (!normalized) continue;
+    deduped.set(getProjectSourceKey(normalized), normalized);
+  }
+
+  return Array.from(deduped.values());
+}
+
+function findProjectSource(
+  openProjects: readonly ProjectSource[],
+  project: ProjectSource | string | null | undefined,
+  activeProject: ProjectSource | null,
+  sshHost: string | null,
+): ProjectSource | null {
+  const normalized = normalizeProjectSource(project);
+  if (!normalized) return null;
+
+  if (typeof project !== 'string') {
+    return normalized;
+  }
+
+  if (activeProject?.path === project) {
+    return activeProject;
+  }
+
+  if (sshHost) {
+    const sshProject = openProjects.find(
+      (candidate) => candidate.path === project && candidate.source === 'ssh' && candidate.sshHost === sshHost,
+    );
+    if (sshProject) return sshProject;
+  }
+
+  return (
+    openProjects.find((candidate) => candidate.path === project && candidate.source === 'local') ||
+    openProjects.find((candidate) => candidate.path === project) ||
+    normalized
+  );
 }
 
 export const useUiStore = create<UiState>()(
@@ -191,10 +243,10 @@ export const useUiStore = create<UiState>()(
     theme: 'dark',
     sendKey: 'cmd+enter',
     mode: 'act',
-    viewMode: 'eng',
     activeOverlay: null,
     cwd: '',
     projectName: '',
+    activeProject: null,
     activeGroupId: null,
     openProjects: [],
     collapsedProjects: new Set(),
@@ -278,7 +330,7 @@ export const useUiStore = create<UiState>()(
 
     toggleMode() {
       set((state) => {
-        const order: TaskMode[] = ['discovery', 'plan', 'act', 'ask', 'architect'];
+        const order: TaskMode[] = ['plan', 'act', 'ask', 'architect'];
         const idx = order.indexOf(state.mode);
         state.mode = order[(idx + 1) % order.length];
       });
@@ -295,6 +347,9 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
+        if (state.activeProject?.path !== cwd) {
+          state.activeProject = normalizeProjectSource(cwd);
+        }
       });
     },
 
@@ -306,82 +361,70 @@ export const useUiStore = create<UiState>()(
 
     setOpenProjects(projects) {
       set((state) => {
-        state.openProjects = projects;
+        state.openProjects = normalizeProjectSources(projects);
       });
     },
 
     addOpenProject(project) {
       set((state) => {
-        const entry: OpenProject = typeof project === 'string'
-          ? { path: project, name: basename(project), environment: 'local' }
-          : project;
-        if (!state.openProjects.some((p) => p.path === entry.path)) {
-          state.openProjects = [...state.openProjects, entry];
+        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        if (!normalized) return;
+
+        const key = getProjectSourceKey(normalized);
+        if (!state.openProjects.some((candidate) => getProjectSourceKey(candidate) === key)) {
+          state.openProjects = [...state.openProjects, normalized];
         }
       });
     },
 
-    removeOpenProject(path) {
+    removeOpenProject(project) {
       set((state) => {
-        const removed = state.openProjects.find((p) => p.path === path);
-        state.openProjects = state.openProjects.filter((p) => p.path !== path);
-        state.collapsedProjects.delete(path);
-        // If we removed an SSH project, remove it from connectedSshHosts if no other project uses that host
-        if (removed?.isSSH && removed.sshHost) {
-          const hostStillUsed = state.openProjects.some((p) => p.isSSH && p.sshHost === removed.sshHost);
-          if (!hostStillUsed) {
-            state.connectedSshHosts.delete(removed.sshHost);
-          }
-        }
+        const target = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        if (!target) return;
+
+        const targetKey = getProjectSourceKey(target);
+        state.openProjects = state.openProjects.filter((candidate) => getProjectSourceKey(candidate) !== targetKey);
+        state.collapsedProjects.delete(targetKey);
+
         // If we removed the active project, switch to the first remaining one
-        if (state.cwd === path && state.openProjects.length > 0) {
-          const next = state.openProjects[0];
-          state.cwd = next.path;
-          state.projectName = basename(next.path);
+        if (state.activeProject && getProjectSourceKey(state.activeProject) === targetKey && state.openProjects.length > 0) {
+          state.activeProject = state.openProjects[0];
+          state.cwd = state.openProjects[0].path;
+          state.projectName = basename(state.openProjects[0].path);
           state.activeFile = null;
-          // Derive SSH state from new active project
-          if (next.isSSH && next.sshHost) {
-            state.sshHost = next.sshHost;
-            state.sshConnected = true;
-            state.environment = 'ssh';
-          } else {
-            state.sshHost = null;
-            state.sshConnected = false;
-            state.environment = 'local';
-          }
+        } else if (state.activeProject && getProjectSourceKey(state.activeProject) === targetKey) {
+          state.activeProject = null;
         }
       });
     },
 
-    setActiveProject(path) {
+    setActiveProject(project) {
       set((state) => {
-        state.cwd = path;
-        state.projectName = basename(path);
+        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        if (!normalized) return;
+
+        state.activeProject = normalized;
+        state.cwd = normalized.path;
+        state.projectName = basename(normalized.path);
         state.activeFile = null;
-        const existing = state.openProjects.find((p) => p.path === path);
-        if (!existing) {
-          state.openProjects = [...state.openProjects, { path, name: basename(path), environment: 'local' }];
-        }
-        // Derive SSH state from the project we're switching to
-        const project = existing ?? state.openProjects[state.openProjects.length - 1];
-        if (project.isSSH && project.sshHost) {
-          state.sshHost = project.sshHost;
-          state.sshConnected = true;
-          state.environment = 'ssh';
-        } else {
-          state.sshHost = null;
-          state.sshConnected = false;
-          state.environment = 'local';
+
+        const key = getProjectSourceKey(normalized);
+        if (!state.openProjects.some((candidate) => getProjectSourceKey(candidate) === key)) {
+          state.openProjects = [...state.openProjects, normalized];
         }
       });
     },
 
-    toggleProjectCollapsed(path) {
+    toggleProjectCollapsed(project) {
       set((state) => {
-        if (state.collapsedProjects.has(path)) {
-          state.collapsedProjects.delete(path);
+        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        if (!normalized) return;
+
+        const key = getProjectSourceKey(normalized);
+        if (state.collapsedProjects.has(key)) {
+          state.collapsedProjects.delete(key);
         } else {
-          state.collapsedProjects.add(path);
+          state.collapsedProjects.add(key);
         }
       });
     },
@@ -502,6 +545,9 @@ export const useUiStore = create<UiState>()(
 
     connectSsh(host, cwd) {
       set((state) => {
+        const remoteProject = normalizeProjectSource({ path: cwd, source: 'ssh', sshHost: host });
+        if (!remoteProject) return;
+
         state.sshHost = host;
         state.sshConnected = true;
         state.connectedSshHosts.add(host);
@@ -509,15 +555,11 @@ export const useUiStore = create<UiState>()(
         state.cwd = cwd;
         state.projectName = basename(cwd);
         state.activeFile = null;
-        // Add as an open project if not already present
-        if (!state.openProjects.some((p) => p.path === cwd)) {
-          state.openProjects = [...state.openProjects, {
-            path: cwd,
-            name: basename(cwd),
-            isSSH: true,
-            sshHost: host,
-            environment: 'ssh',
-          }];
+        state.activeProject = remoteProject;
+
+        const key = getProjectSourceKey(remoteProject);
+        if (!state.openProjects.some((candidate) => getProjectSourceKey(candidate) === key)) {
+          state.openProjects = [...state.openProjects, remoteProject];
         }
       });
     },
@@ -529,7 +571,7 @@ export const useUiStore = create<UiState>()(
           state.connectedSshHosts.delete(disconnectedHost);
           // Remove SSH projects for this host from openProjects
           state.openProjects = state.openProjects.filter(
-            (p) => !(p.isSSH && p.sshHost === disconnectedHost),
+            (p) => !(p.source === 'ssh' && p.sshHost === disconnectedHost),
           );
         }
         state.sshHost = null;
@@ -538,6 +580,7 @@ export const useUiStore = create<UiState>()(
         state.cwd = localCwd;
         state.projectName = basename(localCwd);
         state.activeFile = null;
+        state.activeProject = findProjectSource(state.openProjects, localCwd, null, null);
       });
     },
 
@@ -631,18 +674,6 @@ export const useUiStore = create<UiState>()(
     setCompletionModel(model) {
       set((state) => {
         state.completionModel = model;
-      });
-    },
-
-    setViewMode(mode) {
-      set((state) => {
-        state.viewMode = mode;
-      });
-    },
-
-    toggleViewMode() {
-      set((state) => {
-        state.viewMode = state.viewMode === 'eng' ? 'product' : 'eng';
       });
     },
 

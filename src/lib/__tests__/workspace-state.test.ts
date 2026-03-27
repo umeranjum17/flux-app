@@ -4,7 +4,7 @@ import { useAgentStore } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { applyWorkspaceDeleted, deriveBranchSlugFromSeed, deriveWorkspaceNameFromPrompt, restoreWorkspaceChats, startWorkspaceChat } from '../workspace-state';
+import { applyWorkspaceDeleted, deriveBranchSlugFromSeed, deriveWorkspaceNameFromPrompt, restoreWorkspaceChats } from '../workspace-state';
 
 let mockApi: MockApi;
 
@@ -216,65 +216,5 @@ describe('workspace archive helpers', () => {
     expect(useChatStore.getState().activeTaskId).toBe('standalone');
     expect(useWorkspaceStore.getState().workspaceSessions.get('ws-1')).toEqual(workspaceSessions);
     expect(useSessionStore.getState().sessions[0]?.id).toBe('session-1');
-  });
-});
-
-describe('startWorkspaceChat', () => {
-  it('persists discovery mode as a discovered workspace outcome before spawning', async () => {
-    const workspace = {
-      id: 'ws-discovery',
-      name: 'Discovery workspace',
-      parentRepo: '/repo',
-      branch: 'flux/discovery',
-      status: 'idle' as const,
-      outcome: 'in_progress' as const,
-      createdAt: 1,
-      updatedAt: 1,
-      agentId: 'claude-code',
-      model: 'sonnet',
-      mode: 'act' as const,
-      worktreePath: '/repo/ws-discovery',
-    };
-
-    useWorkspaceStore.getState().addWorkspace(workspace);
-    mockApi.invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'workspace:update') return undefined;
-      if (channel === 'workspace:set-outcome') return undefined;
-      if (channel === 'workspace:spawn-chat') return {
-        taskId: 'task-discovery',
-        session: {
-          id: 'session-discovery',
-          title: 'Discovery',
-          cwd: '/repo/ws-discovery',
-          agentId: 'claude-code',
-          model: 'sonnet',
-          mode: 'discovery',
-          createdAt: 1,
-          updatedAt: 1,
-          metadata: {},
-        },
-      };
-      throw new Error(`Unexpected channel: ${channel}`);
-    });
-
-    await startWorkspaceChat({
-      workspace,
-      prompt: 'Research the product problem space',
-      agentId: 'claude-code',
-      model: 'sonnet',
-      mode: 'discovery',
-      thinking: 'medium',
-    });
-
-    expect(mockApi.invoke).toHaveBeenCalledWith('workspace:update', expect.objectContaining({
-      workspaceId: 'ws-discovery',
-      mode: 'discovery',
-    }));
-    expect(mockApi.invoke).toHaveBeenCalledWith('workspace:set-outcome', {
-      workspaceId: 'ws-discovery',
-      outcome: 'discovered',
-    });
-    expect(useWorkspaceStore.getState().workspaces.get('ws-discovery')?.outcome).toBe('discovered');
-    expect(useWorkspaceStore.getState().workspaces.get('ws-discovery')?.mode).toBe('discovery');
   });
 });

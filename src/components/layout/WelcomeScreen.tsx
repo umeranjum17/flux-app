@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Zap, FolderPlus, FolderOpen, Wifi, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal } from 'lucide-react';
+import { Zap, FolderPlus, FolderOpen, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal, Wifi } from 'lucide-react';
 import { getRecentProjectKey, useUiStore, type RecentProject } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -9,10 +9,12 @@ import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { toast } from 'sonner';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow } from '../../lib/ipc-api';
+import type { AgentId } from '../../lib/types';
 import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
+import { formatRelativeTime, formatTimeAgo } from '../../lib/format';
 
 interface WelcomeScreenProps {
-  onOpenProject: (path?: string, options?: { isSSH?: boolean; sshHost?: string }) => void;
+  onOpenProject: (project?: RecentProject) => void;
 }
 
 const STATUS_COLORS: Record<LiveUsageWindow['status'], string> = {
@@ -58,19 +60,23 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
             className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             <FolderPlus size={14} />
-            Create Project
+            Create Local Project
           </button>
           <button
             onClick={() => useUiStore.getState().setOverlay('connect-remote')}
             className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             <Wifi size={14} />
-            Open Remote
+            Connect SSH Project
           </button>
           {!isGitRepo && cwd && (
             <InitGitButton cwd={cwd} />
           )}
         </div>
+
+        <p className="mb-6 text-center text-[12px] text-text-tertiary">
+          Local projects use folders on this machine. SSH projects remember a host and remote path.
+        </p>
 
         {/* Workspaces grid */}
         {hasWorkspaces && (
@@ -101,7 +107,7 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
                 <RecentProjectRow
                   key={getRecentProjectKey(project)}
                   project={project}
-                  onClick={() => onOpenProject(project.path, project.isSSH ? { isSSH: true, sshHost: project.sshHost } : undefined)}
+                  onClick={() => onOpenProject(project)}
                 />
               ))}
             </div>
@@ -119,7 +125,11 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
     const wsStore = useWorkspaceStore.getState();
     const chatStore = useChatStore.getState();
     wsStore.setActiveWorkspace(workspace.id);
-    useUiStore.getState().setActiveProject(workspace.parentRepo);
+    useUiStore.getState().setActiveProject(
+      workspace.sshHost
+        ? { path: workspace.parentRepo, source: 'ssh', sshHost: workspace.sshHost }
+        : { path: workspace.parentRepo, source: 'local' },
+    );
 
     const wsTask = Array.from(chatStore.tasks.values())
       .filter((t) => t.workspaceId === workspace.id)
@@ -150,11 +160,20 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
             <GitBranch size={10} className="opacity-50" />
             <span className="truncate font-mono">{workspace.branch}</span>
           </div>
+          {workspace.direct && (
+            <div className="mt-2 flex items-center gap-1.5 text-[10px]">
+              <span className="rounded-full border border-warning/20 bg-warning/8 px-2 py-0.5 font-medium text-warning">
+                Direct
+              </span>
+            </div>
+          )}
         </div>
         <MessageSquare size={12} className="shrink-0 text-text-tertiary/40 mt-0.5" />
       </div>
       <div className="flex items-center justify-between text-[10px] text-text-tertiary">
-        <span className="truncate">{basename(workspace.parentRepo)}</span>
+        <span className="truncate">
+          {workspace.sshHost ? `${workspace.sshHost} · ${workspace.parentRepo}` : workspace.parentRepo}
+        </span>
         <span className="shrink-0">{formatTimeAgo(workspace.updatedAt)}</span>
       </div>
     </button>
@@ -199,7 +218,7 @@ function NewWorkspaceButton({ cwd, isGitRepo }: { cwd: string; isGitRepo: boolea
       useChatStore.getState().createTask({
         id: taskId,
         title: 'New chat',
-        agentId: ws.agentId as any,
+        agentId: ws.agentId as AgentId,
         model: ws.model,
         mode: ws.mode ?? mode,
         thinking: ws.thinking ?? selectedThinking,
@@ -394,45 +413,24 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
       <div className="flex-1 min-w-0">
         <span className="block truncate text-[14px] font-medium text-text-primary">{project.name}</span>
         <span className="mt-0.5 block truncate text-[12px] text-text-tertiary">
-          {project.isSSH && project.sshHost ? `${project.sshHost} · ` : ''}
+          {project.source === 'ssh' && project.sshHost ? `${project.sshHost} · ` : ''}
           {project.path}
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {project.isSSH && (
-          <span className="premium-pill border border-success/25 bg-success/8 px-2 py-1 text-[11px] text-success">SSH</span>
-        )}
+        <span className={`premium-pill px-2 py-1 text-[11px] ${
+          project.source === 'ssh'
+            ? 'border border-success/25 bg-success/8 text-success'
+            : 'border border-border/60 bg-bg-primary/60 text-text-secondary'
+        }`}>
+          {project.source === 'ssh' ? 'SSH' : 'Local'}
+        </span>
         <span className="text-[12px] text-text-tertiary">{timeAgo}</span>
       </div>
     </button>
   );
 }
 
-function basename(p: string): string {
-  return p.split('/').pop() || p.split('\\').pop() || p;
-}
-
-function formatTimeAgo(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return 'Yesterday';
-  return `${days}d ago`;
-}
-
-function formatRelativeTime(timestamp: number): string {
-  const diffMs = Math.max(0, Date.now() - timestamp);
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function formatTimeUntilShort(timestamp: number): string {
   const diffMs = Math.max(0, timestamp - Date.now());

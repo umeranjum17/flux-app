@@ -37,7 +37,9 @@ describe('WorkspaceStore', () => {
         updated_at INTEGER NOT NULL,
         session_id TEXT,
         archived_at INTEGER,
-        outcome TEXT NOT NULL DEFAULT 'in_progress'
+        outcome TEXT NOT NULL DEFAULT 'in_progress',
+        direct INTEGER NOT NULL DEFAULT 0,
+        ssh_host TEXT
       )
     `);
   });

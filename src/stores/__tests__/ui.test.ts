@@ -4,7 +4,7 @@ import { useUiStore } from '../ui';
 beforeEach(() => {
   useUiStore.setState({
     sidebarOpen: true, theme: 'dark', sendKey: 'cmd+enter', mode: 'act', activeOverlay: null,
-    cwd: '', projectName: '', gitBranch: null, gitDirty: false,
+    cwd: '', projectName: '', activeProject: null, openProjects: [], collapsedProjects: new Set(), gitBranch: null, gitDirty: false,
     explorerOpen: false, terminalOpen: false, activeTerminalId: null,
     bottomPanelMode: 'agent', bottomPanelOpen: false, bottomPanelTab: 'output', sshHost: null, sshConnected: false,
     environment: 'local', activeFile: null, pendingMention: null, recentProjects: [],
@@ -53,14 +53,14 @@ describe('setCwd', () => {
 
 describe('addRecentProject', () => {
   it('adds a project to the front of the list', () => {
-    const project = { path: '/a', name: 'a', lastOpened: 1 };
+    const project = { path: '/a', source: 'local' as const, name: 'a', lastOpened: 1 };
     useUiStore.getState().addRecentProject(project);
     expect(useUiStore.getState().recentProjects).toEqual([project]);
   });
 
   it('deduplicates by project identity, keeping the newer entry at front', () => {
-    const old = { path: '/a', name: 'a', lastOpened: 1 };
-    const updated = { path: '/a', name: 'a', lastOpened: 2 };
+    const old = { path: '/a', source: 'local' as const, name: 'a', lastOpened: 1 };
+    const updated = { path: '/a', source: 'local' as const, name: 'a', lastOpened: 2 };
     useUiStore.getState().addRecentProject(old);
     useUiStore.getState().addRecentProject(updated);
     const list = useUiStore.getState().recentProjects;
@@ -69,25 +69,24 @@ describe('addRecentProject', () => {
   });
 
   it('keeps local and SSH entries when they share the same path', () => {
-    useUiStore.getState().addRecentProject({ path: '/repo', name: 'repo', lastOpened: 1 });
+    useUiStore.getState().addRecentProject({ path: '/repo', source: 'local', name: 'repo', lastOpened: 1 });
     useUiStore.getState().addRecentProject({
       path: '/repo',
+      source: 'ssh',
       name: 'repo',
       lastOpened: 2,
-      isSSH: true,
       sshHost: 'user@host',
     });
 
     const list = useUiStore.getState().recentProjects;
     expect(list).toHaveLength(2);
-    expect(list[0]).toMatchObject({ path: '/repo', isSSH: true, sshHost: 'user@host' });
-    expect(list[1]?.path).toBe('/repo');
-    expect(list[1]).not.toHaveProperty('isSSH');
+    expect(list[0]).toMatchObject({ path: '/repo', source: 'ssh', sshHost: 'user@host' });
+    expect(list[1]).toMatchObject({ path: '/repo', source: 'local' });
   });
 
   it('caps the list at 10 entries', () => {
     for (let i = 0; i < 12; i++) {
-      useUiStore.getState().addRecentProject({ path: `/${i}`, name: `${i}`, lastOpened: i });
+      useUiStore.getState().addRecentProject({ path: `/${i}`, source: 'local', name: `${i}`, lastOpened: i });
     }
     expect(useUiStore.getState().recentProjects).toHaveLength(10);
     // Most recently added should be first
@@ -98,37 +97,36 @@ describe('addRecentProject', () => {
 describe('connectSsh / disconnectSsh', () => {
   it('connectSsh sets host, connected, environment, cwd, and adds to openProjects', () => {
     useUiStore.getState().connectSsh('user@host', '/remote/path');
-    const { sshHost, sshConnected, environment, cwd, openProjects } = useUiStore.getState();
+    const { sshHost, sshConnected, environment, cwd, activeProject, openProjects } = useUiStore.getState();
     expect(sshHost).toBe('user@host');
     expect(sshConnected).toBe(true);
     expect(environment).toBe('ssh');
     expect(cwd).toBe('/remote/path');
-    expect(openProjects).toHaveLength(1);
-    expect(openProjects[0]).toMatchObject({ path: '/remote/path', isSSH: true, sshHost: 'user@host' });
+    expect(activeProject).toMatchObject({ path: '/remote/path', source: 'ssh', sshHost: 'user@host' });
+    expect(openProjects).toContainEqual({ path: '/remote/path', source: 'ssh', sshHost: 'user@host' });
   });
 
-  it('disconnectSsh resets ssh state, restores local cwd, and removes SSH projects', () => {
+  it('disconnectSsh resets ssh state and restores local cwd', () => {
+    useUiStore.getState().addOpenProject('/local/path');
     useUiStore.getState().connectSsh('user@host', '/remote/path');
     useUiStore.getState().disconnectSsh('/local/path');
-    const { sshHost, sshConnected, environment, cwd, openProjects } = useUiStore.getState();
+    const { sshHost, sshConnected, environment, cwd, activeProject } = useUiStore.getState();
     expect(sshHost).toBeNull();
     expect(sshConnected).toBe(false);
     expect(environment).toBe('local');
     expect(cwd).toBe('/local/path');
-    expect(openProjects).toHaveLength(0);
+    expect(activeProject).toMatchObject({ path: '/local/path', source: 'local' });
   });
 
-  it('setActiveProject clears SSH state when switching from remote to local', () => {
-    useUiStore.getState().connectSsh('user@host', '/remote/path');
-    useUiStore.getState().addOpenProject('/local/path');
+  it('removes only the SSH project when local and SSH paths match', () => {
+    useUiStore.getState().addOpenProject('/repo');
+    useUiStore.getState().addOpenProject({ path: '/repo', source: 'ssh', sshHost: 'user@host' });
 
-    useUiStore.getState().setActiveProject('/local/path');
+    useUiStore.getState().removeOpenProject({ path: '/repo', source: 'ssh', sshHost: 'user@host' });
 
-    const { cwd, sshHost, sshConnected, environment } = useUiStore.getState();
-    expect(cwd).toBe('/local/path');
-    expect(sshHost).toBeNull();
-    expect(sshConnected).toBe(false);
-    expect(environment).toBe('local');
+    expect(useUiStore.getState().openProjects).toEqual([
+      { path: '/repo', source: 'local' },
+    ]);
   });
 });
 

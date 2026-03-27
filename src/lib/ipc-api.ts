@@ -10,6 +10,19 @@ export interface EnvironmentInfo {
   isWSL: boolean;
 }
 
+export type ProjectSourceKind = 'local' | 'ssh';
+
+export interface ProjectSource {
+  path: string;
+  source: ProjectSourceKind;
+  sshHost?: string;
+}
+
+export interface RecentProject extends ProjectSource {
+  name: string;
+  lastOpened: number;
+}
+
 // Channels the renderer can invoke on main
 export interface IpcChannels {
   'env:detect': { args: []; result: EnvironmentInfo };
@@ -88,7 +101,7 @@ export interface IpcChannels {
   'terminal:get-profiles': { args: []; result: Array<{ name: string; path: string; icon: string }> };
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
   'ssh:listdirs': { args: [{ host: string; dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
-  'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean } };
+  'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean; host?: string; cwd?: string } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
@@ -100,7 +113,7 @@ export interface IpcChannels {
     result: Workspace;
   };
   'workspace:create-direct': {
-    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel }];
+    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
     result: Workspace;
   };
   'workspace:rename-branch': {
@@ -419,13 +432,7 @@ export interface FluxConfig {
   qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;
   zoomLevel?: number;
-  recentProjects: Array<{
-    path: string;
-    name: string;
-    lastOpened: number;
-    isSSH?: boolean;
-    sshHost?: string;
-  }>;
+  recentProjects: RecentProject[];
   recentSshHosts: Array<{
     host: string;
     remotePath: string;
@@ -435,11 +442,9 @@ export interface FluxConfig {
 
   // Multi-project state
   lastActiveGroupId?: string;
-  openProjects?: Array<string | { path: string; name: string; isSSH?: boolean; sshHost?: string; environment: 'local' | 'ssh' }>;
+  openProjects?: ProjectSource[];
+  activeProject?: ProjectSource;
   activeProjectPath?: string;
-
-  // View mode
-  viewMode?: 'eng' | 'product';
 }
 
 export interface RemotePairingCode {
@@ -574,7 +579,7 @@ export interface WorkspaceGroupLookupResult {
 
 export type WorkspaceStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error' | 'merging';
 
-export type WorkspaceOutcome = 'in_progress' | 'discovered' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
+export type WorkspaceOutcome = 'in_progress' | 'planned' | 'ready_for_pr' | 'reviewing' | 'changes_requested' | 'ready_to_merge' | 'merged' | 'ready_to_archive';
 
 export type WorkspaceOperationKind = 'archive';
 

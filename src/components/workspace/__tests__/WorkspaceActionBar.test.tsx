@@ -15,6 +15,24 @@ vi.mock('../../../hooks/useWorkspaceHasChanges', () => ({
   useWorkspaceHasChanges: useWorkspaceHasChangesMock,
 }));
 
+function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
+  return {
+    id: 'ws-1',
+    name: 'Bugfix',
+    branch: 'flux/bugfix',
+    parentRepo: '/repo',
+    status: 'idle',
+    outcome: 'in_progress',
+    createdAt: 1,
+    updatedAt: 1,
+    agentId: 'codex',
+    model: 'gpt-5',
+    mode: 'act',
+    worktreePath: '/repo/.flux/bugfix',
+    ...overrides,
+  };
+}
+
 describe('WorkspaceActionBar', () => {
   beforeEach(() => {
     useWorkspaceHasChangesMock.mockReturnValue(false);
@@ -33,25 +51,14 @@ describe('WorkspaceActionBar', () => {
       terminalOpen: false,
       activeTerminalId: null,
       pendingWorkspaceTerminalId: null,
+      sshHost: null,
+      sshConnected: false,
+      connectedSshHosts: new Set(),
     } as any);
-    const workspace: Workspace = {
-      id: 'ws-1',
-      name: 'Bugfix',
-      branch: 'flux/bugfix',
-      parentRepo: '/repo',
-      status: 'idle',
-      outcome: 'in_progress',
-      createdAt: 1,
-      updatedAt: 1,
-      agentId: 'codex',
-      model: 'gpt-5',
-      mode: 'act',
-      worktreePath: '/repo/.flux/bugfix',
-    };
 
     useWorkspaceStore.setState({
       workspaces: new Map([
-        ['ws-1', workspace],
+        ['ws-1', makeWorkspace()],
       ]),
       activeWorkspaceId: 'ws-1',
       mergingWorkspaceId: null,
@@ -67,13 +74,13 @@ describe('WorkspaceActionBar', () => {
     });
   });
 
-  it('opens the terminal tab for the active workspace', async () => {
+  it('opens the terminal tab for the active local workspace', async () => {
     const user = userEvent.setup();
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
     render(<WorkspaceActionBar />);
 
-    await user.click(screen.getByTitle('Terminal'));
+    await user.click(screen.getByTitle('Open terminal'));
 
     const uiState = useUiStore.getState();
     expect(uiState.pendingWorkspaceTerminalId).toBe('ws-1');
@@ -83,6 +90,20 @@ describe('WorkspaceActionBar', () => {
     expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
       type: 'flux:open-workspace-terminal',
     }));
+  });
+
+  it('disables local-only IDE and live terminal actions for disconnected SSH workspaces', async () => {
+    useWorkspaceStore.setState({
+      workspaces: new Map([
+        ['ws-1', makeWorkspace({ sshHost: 'dev@example', parentRepo: '/srv/repo', worktreePath: '/srv/repo' })],
+      ]),
+    });
+
+    render(<WorkspaceActionBar />);
+
+    expect(screen.getAllByTitle('Reconnect SSH to open a terminal on dev@example').every((element) => (element as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByTitle('Open via Remote-SSH (dev@example)').every((element) => (element as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByText('disconnected · dev@example').length).toBeGreaterThan(0);
   });
 
   it('auto-opens the changes panel when review becomes available', async () => {
@@ -108,48 +129,6 @@ describe('WorkspaceActionBar', () => {
     });
 
     expect((window as any).api.invoke).toHaveBeenCalledWith('workspace:diff-files', { workspaceId: 'ws-1' });
-  });
-
-  it('disables archive while an archive operation is running', async () => {
-    useWorkspaceStore.setState((state) => {
-      state.workspaceOperations.set('ws-1', {
-        id: 'op-1',
-        workspaceId: 'ws-1',
-        kind: 'archive',
-        status: 'running',
-        stage: 'removing_git_worktree',
-        progress: 0.55,
-        message: 'Removing git worktree',
-        startedAt: Date.now(),
-        updatedAt: Date.now(),
-        cancellable: true,
-      });
-    });
-
-    render(<WorkspaceActionBar />);
-
-    expect(screen.getAllByTitle('Removing git worktree').every((element) => (element as HTMLButtonElement).disabled)).toBe(true);
-  });
-
-  it('disables archive while an archive operation is running', async () => {
-    useWorkspaceStore.setState((state) => {
-      state.workspaceOperations.set('ws-1', {
-        id: 'op-1',
-        workspaceId: 'ws-1',
-        kind: 'archive',
-        status: 'running',
-        stage: 'removing_git_worktree',
-        progress: 0.55,
-        message: 'Removing git worktree',
-        startedAt: Date.now(),
-        updatedAt: Date.now(),
-        cancellable: true,
-      });
-    });
-
-    render(<WorkspaceActionBar />);
-
-    expect(screen.getAllByTitle('Removing git worktree').every((element) => (element as HTMLButtonElement).disabled)).toBe(true);
   });
 
   it('disables archive while an archive operation is running', async () => {

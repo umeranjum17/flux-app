@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, Loader2, Clock, X, FolderOpen, ChevronRight, ArrowUp, Home } from 'lucide-react';
 import { getActiveOpenProject, useUiStore } from '../../stores/ui';
 import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import type { FluxConfig } from '../../lib/ipc-api';
 
 interface RecentSshHost {
   host: string;
@@ -53,14 +54,15 @@ export function ConnectRemoteDialog() {
       setBrowseEntries([]);
       setBrowseResolvedPath('');
       setBrowseError(null);
-      window.api.invoke('config:get').then((config: any) => {
+      window.api.invoke('config:get').then((raw) => {
+        const config = raw as FluxConfig;
         setRecentHosts(config?.recentSshHosts ?? []);
       });
     }
   }, [open]);
 
   const saveRecentHost = useCallback(async (h: string, path: string) => {
-    const config = await window.api.invoke('config:get') as any;
+    const config = await window.api.invoke('config:get') as FluxConfig;
     const existing: RecentSshHost[] = config?.recentSshHosts ?? [];
     const filtered = existing.filter((e) => !(e.host === h && e.remotePath === path));
     const updated = [{ host: h, remotePath: path, lastUsed: Date.now() }, ...filtered].slice(0, 10);
@@ -69,7 +71,7 @@ export function ConnectRemoteDialog() {
   }, []);
 
   const removeRecentHost = useCallback(async (h: string, path: string) => {
-    const config = await window.api.invoke('config:get') as any;
+    const config = await window.api.invoke('config:get') as FluxConfig;
     const existing: RecentSshHost[] = config?.recentSshHosts ?? [];
     const updated = existing.filter((e) => !(e.host === h && e.remotePath === path));
     await window.api.invoke('config:set', { recentSshHosts: updated });
@@ -83,8 +85,8 @@ export function ConnectRemoteDialog() {
     try {
       const result = await window.api.invoke('ssh:test', { host: host.trim() }) as { success: boolean; error: string | null };
       if (!result.success) setError(result.error || 'Connection failed');
-    } catch (err: any) {
-      setError(err.message || 'Test failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Test failed');
     }
     setTesting(false);
   }, [host]);
@@ -103,22 +105,20 @@ export function ConnectRemoteDialog() {
         throw new Error(dirResult.error);
       }
       const resolvedPath = dirResult.path || remoteDir;
-      await window.api.invoke('ssh:connect', { host: host.trim(), remoteCwd: resolvedPath });
-      await saveRecentHost(host.trim(), remoteDir);
-      // Add as unified open project + connect SSH
-      useUiStore.getState().addOpenProject({
-        path: resolvedPath,
-        name: resolvedPath.split('/').pop() || resolvedPath,
-        isSSH: true,
-        sshHost: host.trim(),
-        environment: 'ssh',
-      });
-      useUiStore.getState().connectSsh(host.trim(), resolvedPath);
-      const project = createRecentProject(resolvedPath, { isSSH: true, sshHost: host.trim() });
+      const connectResult = await window.api.invoke('ssh:connect', {
+        host: host.trim(),
+        remoteCwd: resolvedPath,
+      }) as { host?: string; cwd?: string };
+      const resolvedHost = connectResult.host ?? host.trim();
+      const finalPath = connectResult.cwd ?? resolvedPath;
+
+      await saveRecentHost(resolvedHost, finalPath);
+      useUiStore.getState().connectSsh(resolvedHost, finalPath);
+      const project = createRecentProject(finalPath, { source: 'ssh', sshHost: resolvedHost });
       await rememberRecentProject(project);
       setOverlay(null);
-    } catch (err: any) {
-      setError(err.message || 'Connection failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connection failed');
     }
     setConnecting(false);
   }, [host, remotePath, setOverlay, saveRecentHost]);
@@ -148,8 +148,8 @@ export function ConnectRemoteDialog() {
         setBrowseResolvedPath(result.path);
         setBrowseEntries(result.entries.filter((e) => e.isDirectory));
       }
-    } catch (err: any) {
-      setBrowseError(err.message || 'Failed to list directory');
+    } catch (err) {
+      setBrowseError(err instanceof Error ? err.message : 'Failed to list directory');
     }
     setBrowseLoading(false);
   }, [host]);
@@ -232,9 +232,9 @@ export function ConnectRemoteDialog() {
             <div className="px-5 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <Wifi size={16} className="text-text-secondary" />
-                Connect Remote
+                Add SSH Project
               </h2>
-              <p className="text-[11px] text-text-tertiary mt-0.5">Connect to a remote host over SSH to work on a project</p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">Enter the SSH host and project path to add. This project will appear in the sidebar alongside local projects.</p>
             </div>
 
             {browsing ? (
@@ -299,7 +299,7 @@ export function ConnectRemoteDialog() {
                 <div className="px-5 py-4 space-y-4">
                   {/* Host */}
                   <div>
-                    <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Host</label>
+                    <label className="block text-[12px] font-medium text-text-secondary mb-1.5">SSH Host</label>
                     <input
                       type="text"
                       value={host}
@@ -312,7 +312,7 @@ export function ConnectRemoteDialog() {
 
                   {/* Remote Path */}
                   <div>
-                    <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Remote Path</label>
+                    <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Project Path on Host</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
@@ -328,9 +328,13 @@ export function ConnectRemoteDialog() {
                         className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-xs text-text-secondary hover:bg-bg-hover transition-colors flex items-center gap-1.5 disabled:opacity-50"
                       >
                         <FolderOpen size={12} />
-                        Browse
+                        Browse SSH
                       </button>
                     </div>
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 bg-bg-primary/60 px-3 py-2 text-[11px] text-text-tertiary">
+                    Flux will add this SSH project source to the sidebar and remember the host/path for quick reopening.
                   </div>
 
                   {/* Recent hosts */}
@@ -338,7 +342,7 @@ export function ConnectRemoteDialog() {
                     <div>
                       <label className="block text-[12px] font-medium text-text-secondary mb-1.5 flex items-center gap-1">
                         <Clock size={11} />
-                        Recent
+                        Recent SSH Projects
                       </label>
                       <div className="space-y-1 max-h-28 overflow-y-auto">
                         {recentHosts.map((r) => (
@@ -377,7 +381,7 @@ export function ConnectRemoteDialog() {
                     className="px-3 py-1.5 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {testing && <Loader2 size={12} className="animate-spin" />}
-                    Test
+                    Test SSH
                   </button>
                   <button
                     onClick={() => setOverlay(null)}
@@ -391,7 +395,7 @@ export function ConnectRemoteDialog() {
                     className="px-4 py-1.5 rounded-lg bg-success text-white text-xs font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                   >
                     {connecting && <Loader2 size={12} className="animate-spin" />}
-                    Connect
+                    Connect & Add
                   </button>
                 </div>
               </>

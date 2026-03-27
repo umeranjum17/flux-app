@@ -1,15 +1,12 @@
-import { getActiveSshHost, useUiStore, type RecentProject } from '../stores/ui';
+import { normalizeProjectSource, useUiStore, type ProjectSource, type RecentProject } from '../stores/ui';
 import { useAgentStore, normalizeClaudeCodeModel } from '../stores/agent';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useChatStore } from '../stores/chat';
 import { useSessionStore } from '../stores/session';
-import type { Workspace, WorkspaceOutcome, Session, SessionMessage, WorkspaceSession } from './ipc-api';
+import type { Workspace, Session, SessionMessage, WorkspaceSession, WorkspaceOutcome } from './ipc-api';
 import type { AgentId, TaskMode, ThinkingLevel, FileAttachment } from './types';
 import { restoreSessionMessage } from './session-messages';
-
-function basename(value: string): string {
-  return value.split('/').pop() || value.split('\\').pop() || value;
-}
+import { basename } from './format';
 
 /** Returns true if a workspace's SSH host is connected (or it's a local workspace). */
 export function isWorkspaceSshAvailable(ws: Workspace): boolean {
@@ -17,21 +14,77 @@ export function isWorkspaceSshAvailable(ws: Workspace): boolean {
   return useUiStore.getState().connectedSshHosts.has(ws.sshHost);
 }
 
+const REVIEWABLE_OUTCOMES = new Set<WorkspaceOutcome>([
+  'ready_for_pr',
+  'reviewing',
+  'changes_requested',
+  'ready_to_merge',
+  'merged',
+  'ready_to_archive',
+]);
+
+export function workspaceOutcomeImpliesChanges(outcome?: WorkspaceOutcome | null): boolean {
+  return outcome ? REVIEWABLE_OUTCOMES.has(outcome) : false;
+}
+
+export function getWorkspaceTerminalTitle(workspace: Workspace): string {
+  if (!workspace.sshHost) {
+    return 'Open terminal';
+  }
+
+  return isWorkspaceSshAvailable(workspace)
+    ? `Open terminal on ${workspace.sshHost}`
+    : `Reconnect SSH to open a terminal on ${workspace.sshHost}`;
+}
+
+export function getWorkspaceIdeTitle(workspace: Workspace): string {
+  if (!workspace.sshHost) {
+    return 'Open in IDE';
+  }
+
+  return `Open via Remote-SSH (${workspace.sshHost})`;
+}
+
 export function createRecentProject(
   path: string,
-  options?: { isSSH?: boolean; sshHost?: string | null; lastOpened?: number },
+  options?: { source?: ProjectSource['source']; sshHost?: string | null; lastOpened?: number },
 ): RecentProject {
   return {
     path,
+    source: options?.source ?? 'local',
     name: basename(path),
     lastOpened: options?.lastOpened ?? Date.now(),
-    ...(options?.isSSH ? { isSSH: true, sshHost: options.sshHost ?? undefined } : {}),
+    ...(options?.source === 'ssh' ? { sshHost: options.sshHost ?? undefined } : {}),
   };
 }
 
 export async function rememberRecentProject(project: RecentProject): Promise<void> {
   useUiStore.getState().addRecentProject(project);
   await window.api.invoke('config:set', { recentProjects: useUiStore.getState().recentProjects });
+}
+
+export async function openLocalProject(projectPath?: string): Promise<ProjectSource | null> {
+  let targetPath = projectPath;
+  if (!targetPath) {
+    const picked = await window.api.invoke('cwd:pick') as string | null;
+    if (!picked) return null;
+    targetPath = picked;
+  } else {
+    await window.api.invoke('cwd:set', { cwd: targetPath });
+  }
+
+  const project: ProjectSource = { path: targetPath, source: 'local' };
+  useUiStore.getState().setActiveProject(project);
+  await rememberRecentProject(createRecentProject(targetPath));
+  return project;
+}
+
+export function getSelectedProjectSource(fallbackPath?: string): ProjectSource | null {
+  return normalizeProjectSource(
+    useUiStore.getState().activeProject
+      ?? fallbackPath
+      ?? useUiStore.getState().cwd,
+  );
 }
 
 export async function connectToSshWorkspace(
@@ -62,6 +115,8 @@ export interface CreateWorkspaceAndChatOptions {
   thinking: ThinkingLevel;
   cwd: string;
   parentRepo?: string;
+  project?: ProjectSource;
+  sshHost?: string;
   images?: string[];
   attachments?: FileAttachment[];
 }
@@ -85,19 +140,6 @@ export interface StartWorkspaceMergeOptions {
   agentId?: AgentId;
   model?: string;
   thinking?: ThinkingLevel;
-}
-
-function getPhaseOutcomeForMode(mode: TaskMode): WorkspaceOutcome | null {
-  switch (mode) {
-    case 'discovery':
-      return 'discovered';
-    case 'plan':
-      return 'planned';
-    case 'act':
-      return 'in_progress';
-    default:
-      return null;
-  }
 }
 
 function buildWorkspaceMergeTaskPrompt(
@@ -294,30 +336,6 @@ export async function startWorkspaceChat(
 ): Promise<{ taskId: string; session: Session }> {
   const taskId = opts.taskId ?? crypto.randomUUID();
   const title = opts.prompt.trim().slice(0, 80) || 'New chat';
-  const phaseOutcome = getPhaseOutcomeForMode(opts.mode);
-
-  await window.api.invoke('workspace:update', {
-    workspaceId: opts.workspace.id,
-    agentId: opts.agentId,
-    model: opts.model,
-    mode: opts.mode,
-    thinking: opts.thinking,
-  });
-  if (phaseOutcome && opts.workspace.outcome !== phaseOutcome) {
-    await window.api.invoke('workspace:set-outcome', {
-      workspaceId: opts.workspace.id,
-      outcome: phaseOutcome,
-    });
-  }
-
-  useWorkspaceStore.getState().updateWorkspace(opts.workspace.id, {
-    agentId: opts.agentId,
-    model: opts.model,
-    mode: opts.mode,
-    thinking: opts.thinking,
-    ...(phaseOutcome ? { outcome: phaseOutcome } : {}),
-  });
-
   primeWorkspaceTask({
     taskId,
     title,
@@ -476,8 +494,12 @@ export async function createWorkspaceAndChat(
   // Derive a meaningful branch name and workspace title from the prompt upfront.
   // The agent can still refine via `.context/state.json` workspace_name at completion.
   const branch = createFluxBranchName(prompt);
-  const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
-  const effectiveSshHost = getActiveSshHost(useUiStore.getState()) ?? undefined;
+  const effectiveProject = opts.project ?? getSelectedProjectSource(opts.parentRepo ?? opts.cwd);
+  const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
+  const effectiveSshHost = opts.sshHost
+    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
+    ?? useUiStore.getState().sshHost
+    ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create', {
     name: deriveWorkspaceNameFromPrompt(prompt),
@@ -511,7 +533,12 @@ export async function createDirectWorkspaceAndChat(
   prompt: string,
   opts: Omit<CreateWorkspaceAndChatOptions, 'parentRepo'> & { parentRepo?: string },
 ): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
-  const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
+  const effectiveProject = opts.project ?? getSelectedProjectSource(opts.parentRepo ?? opts.cwd);
+  const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
+  const effectiveSshHost = opts.sshHost
+    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
+    ?? useUiStore.getState().sshHost
+    ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create-direct', {
     name: deriveWorkspaceNameFromPrompt(prompt),
@@ -520,6 +547,7 @@ export async function createDirectWorkspaceAndChat(
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
+    sshHost: effectiveSshHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);

@@ -26,9 +26,19 @@ const workspace = {
   worktreePath: '/repo/.flux-worktrees/ws-1',
 };
 
+const defaultConfig = {
+  defaultMergeAgent: undefined,
+  defaultMergeModel: undefined,
+  defaultMergeThinking: undefined,
+};
+
 beforeEach(() => {
   cleanup();
   mockApi = createMockApi();
+  mockApi.invoke.mockImplementation(async (channel: string, ...rest: any[]) => {
+    if (channel === 'config:get') return defaultConfig;
+    return undefined;
+  });
   (window as any).api = mockApi;
 
   useUiStore.setState({
@@ -115,6 +125,7 @@ describe('MergeDialog', () => {
     const onClose = vi.fn();
     let spawnedTaskId: string | undefined;
     mockApi.invoke.mockImplementation(async (channel: string, args?: any) => {
+      if (channel === 'config:get') return defaultConfig;
       if (channel === 'task:spawn') {
         spawnedTaskId = args?.taskId;
         return {
@@ -185,6 +196,7 @@ describe('MergeDialog', () => {
   it('shows an error if the merge task cannot be started', async () => {
     const onClose = vi.fn();
     mockApi.invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'config:get') return defaultConfig;
       if (channel === 'task:spawn') {
         throw new Error('spawn failed');
       }
@@ -212,6 +224,7 @@ describe('MergeDialog', () => {
   it('lets the user pick a cheaper merge model before spawning', async () => {
     const user = userEvent.setup();
     mockApi.invoke.mockImplementation(async (channel: string, args?: any) => {
+      if (channel === 'config:get') return defaultConfig;
       if (channel === 'agents:list-models') {
         if (args?.agentId === 'claude-code') {
           return [
@@ -242,7 +255,8 @@ describe('MergeDialog', () => {
 
     render(<MergeDialog workspace={workspace} onClose={() => {}} />);
 
-    await user.click(screen.getByRole('button', { name: /Merge Agent/i }));
+    // Click the "Merge Agent" picker button (not the "Agent Merge" mode button)
+    await user.click(screen.getByRole('button', { name: /Merge Agent.*Pick a cheaper/i }));
     await user.click(screen.getByRole('button', { name: /Claude Code/i }));
     await waitFor(() => {
       expect(mockApi.invoke).toHaveBeenCalledWith('agents:list-models', { agentId: 'claude-code' });

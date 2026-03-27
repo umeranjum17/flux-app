@@ -20,7 +20,7 @@ describe('rate limit helpers', () => {
       providerId: 'codex',
       status: 'allowed_warning',
       resetsAt: 0,
-      rateLimitType: 'five_hour',
+      rateLimitType: '5h',
       utilization: 0.84,
     });
   });

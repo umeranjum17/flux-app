@@ -5,8 +5,8 @@ import { logDiagnostic } from '../diagnostics/logger';
 import type { RemoteClientInfo, RemotePairingCode } from './protocol';
 import { generateOpaqueSecret, maskSecret } from './secure-store';
 
-// ── DEV MODE: set to true to auto-accept any mobile connection ──
-const DEV_SKIP_AUTH = true;
+// ── DEV MODE: set DEV_SKIP_AUTH=true in env to auto-accept any mobile connection ──
+const DEV_SKIP_AUTH = process.env.DEV_SKIP_AUTH === 'true';
 
 const DEFAULT_PAIRING_TTL_MS = 10 * 60 * 1000;
 
@@ -168,7 +168,7 @@ export class RemoteAuthService {
     // Check if the token belongs to a revoked client
     const revokedClients = db
       .prepare(
-        `SELECT id, token_hash FROM remote_clients WHERE revoked_at IS NOT NULL`,
+        `SELECT id, token FROM remote_clients WHERE revoked_at IS NOT NULL`,
       )
       .all() as unknown as Pick<ClientRow, 'id' | 'token'>[];
 

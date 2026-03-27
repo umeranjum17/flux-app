@@ -276,7 +276,7 @@ describe('LiveUsageService', () => {
         provider_id: 'claude-code',
         window_key: 'five_hour',
         sampled_at: baseNow,
-        used_percent: 0.4,
+        used_percent: 0.004,
         resets_at: resetAt,
         used_value: null,
         limit_value: null,
@@ -288,7 +288,7 @@ describe('LiveUsageService', () => {
         provider_id: 'claude-code',
         window_key: 'seven_day',
         sampled_at: baseNow,
-        used_percent: 0.7,
+        used_percent: 0.007,
         resets_at: resetAt,
         used_value: null,
         limit_value: null,
@@ -368,7 +368,7 @@ describe('LiveUsageService', () => {
     await service.getOverview();
     expect(snapshotRows).toHaveLength(2);
 
-    dateSpy.mockReturnValue(baseNow + (6 * 60_000));
+    dateSpy.mockReturnValue(baseNow + (16 * 60_000));
     await service.getOverview();
     expect(snapshotRows).toHaveLength(4);
     dateSpy.mockRestore();

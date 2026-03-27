@@ -1,21 +1,64 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Wifi, Zap, ArrowDownToLine } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, FolderPlus, X, LoaderCircle, Link2, Monitor, Wifi, Zap } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
-import { useUiStore } from '../../stores/ui';
+import { getProjectSourceKey, normalizeProjectSource, useUiStore, type ProjectSource } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
-import { createRecentProject, rememberRecentProject, isWorkspaceSshAvailable } from '../../lib/workspace-state';
+import { createEmptyWorkspace, openLocalProject } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
+import type { AgentId } from '../../lib/types';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
+import { basename } from '../../lib/format';
 
-function basename(p: string): string {
-  return p.split('/').pop() || p.split('\\').pop() || p;
+function getProjectSourceLabel(project: ProjectSource | null | undefined): string {
+  return project?.source === 'ssh' ? 'SSH project' : 'Local project';
+}
+
+function getProjectSourceContext(project: ProjectSource | null | undefined): string {
+  if (!project) return 'No project selected';
+  return project.source === 'ssh'
+    ? `${project.sshHost ?? 'SSH host'} · ${project.path}`
+    : project.path;
+}
+
+function EntryActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  title,
+  tone = 'default',
+  disabled,
+}: {
+  icon: typeof FolderOpen;
+  label: string;
+  onClick: () => void | Promise<void>;
+  title: string;
+  tone?: 'default' | 'accent';
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={() => {
+        void onClick();
+      }}
+      disabled={disabled}
+      className={`premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+        tone === 'accent'
+          ? 'border-accent/20 bg-accent/8 text-accent hover:bg-accent/12'
+          : 'border-border/70 bg-bg-surface/60 text-text-secondary hover:text-text-primary'
+      } disabled:cursor-not-allowed disabled:opacity-50`}
+      title={title}
+    >
+      <Icon size={12} />
+      <span>{label}</span>
+    </button>
+  );
 }
 
 export function WorkspaceTab() {
@@ -23,36 +66,47 @@ export function WorkspaceTab() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const tasks = useChatStore((s) => s.tasks);
   const cwd = useUiStore((s) => s.cwd);
+  const activeProject = useUiStore((s) => s.activeProject);
   const openProjects = useUiStore((s) => s.openProjects);
   const collapsedProjects = useUiStore((s) => s.collapsedProjects);
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
+  const sshConnected = useUiStore((s) => s.sshConnected);
+  const sshHost = useUiStore((s) => s.sshHost);
   const [creating, setCreating] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
   // Group workspaces by parentRepo
   const groupedWorkspaces = useMemo(() => {
-    const groups = new Map<string, Workspace[]>();
+    const groups = new Map<string, { project: ProjectSource; workspaces: Workspace[] }>();
 
     // Initialize groups for all open projects (so empty projects still show)
     for (const project of openProjects) {
-      if (!groups.has(project.path)) {
-        groups.set(project.path, []);
+      const key = getProjectSourceKey(project);
+      if (!groups.has(key)) {
+        groups.set(key, { project, workspaces: [] });
       }
     }
 
     // Sort all workspaces into their project groups
     for (const ws of workspaces.values()) {
-      const existing = groups.get(ws.parentRepo) ?? [];
-      existing.push(ws);
-      groups.set(ws.parentRepo, existing);
+      const project: ProjectSource = ws.sshHost
+        ? { path: ws.parentRepo, source: 'ssh', sshHost: ws.sshHost }
+        : { path: ws.parentRepo, source: 'local' };
+      const key = getProjectSourceKey(project);
+      const existing = groups.get(key) ?? { project, workspaces: [] as Workspace[] };
+      existing.workspaces.push(ws);
+      groups.set(key, existing);
     }
 
     // Sort workspaces within each group by updatedAt
-    for (const [key, list] of groups) {
-      groups.set(key, list.sort((a, b) => b.updatedAt - a.updatedAt));
+    for (const [key, entry] of groups) {
+      groups.set(key, {
+        ...entry,
+        workspaces: entry.workspaces.sort((a, b) => b.updatedAt - a.updatedAt),
+      });
     }
 
-    return groups;
+    return Array.from(groups.values());
   }, [workspaces, openProjects]);
 
   const standaloneTasks = useMemo(
@@ -60,7 +114,19 @@ export function WorkspaceTab() {
     [tasks],
   );
 
-  const hasMultipleProjects = groupedWorkspaces.size > 1;
+  const hasMultipleProjects = groupedWorkspaces.length > 1;
+
+  // Precompute global workspace index for keyboard shortcuts (avoids mutable variable during render)
+  const workspaceIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let idx = 0;
+    for (const { workspaces: projectWorkspaces } of groupedWorkspaces) {
+      for (const ws of projectWorkspaces) {
+        map.set(ws.id, idx++);
+      }
+    }
+    return map;
+  }, [groupedWorkspaces]);
 
   const handleSelectWorkspace = useCallback((wsId: string) => {
     const wsStore = useWorkspaceStore.getState();
@@ -70,7 +136,11 @@ export function WorkspaceTab() {
     // Update active project to match workspace's parent repo
     const workspace = wsStore.workspaces.get(wsId);
     if (workspace) {
-      useUiStore.getState().setActiveProject(workspace.parentRepo);
+      useUiStore.getState().setActiveProject(
+        workspace.sshHost
+          ? { path: workspace.parentRepo, source: 'ssh', sshHost: workspace.sshHost }
+          : { path: workspace.parentRepo, source: 'local' },
+      );
     }
 
     const wsTask = Array.from(chatStore.tasks.values())
@@ -104,7 +174,7 @@ export function WorkspaceTab() {
         useChatStore.getState().createTask({
           id: taskId,
           title: 'New chat',
-          agentId: ws.agentId as any,
+          agentId: ws.agentId as AgentId,
           model: ws.model,
           mode: 'act',
           thinking: ws.thinking ?? useAgentStore.getState().selectedThinking,
@@ -152,23 +222,59 @@ export function WorkspaceTab() {
     }
   }, []);
 
-  const handleCreateQuickWorkspace = useCallback(async (projectPath: string) => {
+  const handleCreateWorkspace = useCallback(async (project: ProjectSource) => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
+      const mode = useUiStore.getState().mode;
+      const ws = await createEmptyWorkspace({
+        agentId,
+        model,
+        mode,
+        thinking: selectedThinking,
+        cwd: project.path,
+        sshHost: project.source === 'ssh' ? project.sshHost : undefined,
+      });
+      const taskId = crypto.randomUUID();
+      useChatStore.getState().createTask({
+        id: taskId,
+        title: 'New chat',
+        agentId: ws.agentId as AgentId,
+        model: ws.model,
+        mode: ws.mode ?? mode,
+        thinking: ws.thinking ?? selectedThinking,
+        cwd: ws.worktreePath,
+        workspaceId: ws.id,
+      });
+      useChatStore.getState().setActiveTask(taskId);
+      useUiStore.getState().setBottomPanelMode('agent');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message);
+    } finally {
+      setCreating(false);
+    }
+  }, [creating]);
+
+  const handleCreateQuickWorkspace = useCallback(async (project: ProjectSource) => {
     if (creating) return;
     setCreating(true);
     try {
       const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
       const mode = useUiStore.getState().mode;
       const existingCount = Array.from(useWorkspaceStore.getState().workspaces.values()).filter(
-        (w: Workspace) => w.parentRepo === projectPath && w.direct,
+        (w: Workspace) => w.parentRepo === project.path && w.direct,
       ).length;
       const name = existingCount === 0 ? 'Quick Task' : `Quick Task ${existingCount + 1}`;
       const ws = await window.api.invoke('workspace:create-direct', {
         name,
-        parentRepo: projectPath,
+        parentRepo: project.path,
         agentId,
         model,
         mode,
         thinking: selectedThinking,
+        sshHost: project.source === 'ssh' ? project.sshHost : undefined,
       }) as Workspace;
       useWorkspaceStore.getState().addWorkspace(ws);
       useWorkspaceStore.getState().setActiveWorkspace(ws.id);
@@ -176,7 +282,7 @@ export function WorkspaceTab() {
       useChatStore.getState().createTask({
         id: taskId,
         title: 'Quick task',
-        agentId: ws.agentId as any,
+        agentId: ws.agentId as AgentId,
         model: ws.model,
         mode: ws.mode ?? mode,
         thinking: ws.thinking ?? selectedThinking,
@@ -198,99 +304,137 @@ export function WorkspaceTab() {
   }, []);
 
   const handleOpenProject = useCallback(async () => {
-    const picked = await window.api.invoke('cwd:pick') as string | null;
-    if (!picked) return;
-    useUiStore.getState().addOpenProject(picked);
-    useUiStore.getState().setActiveProject(picked);
-    const project = createRecentProject(picked);
-    await rememberRecentProject(project);
+    await openLocalProject();
+  }, []);
+
+  const handleConnectSshProject = useCallback(() => {
+    useUiStore.getState().setOverlay('connect-remote');
   }, []);
 
   const isRunning = (ws: Workspace) =>
     ws.status === 'running' || ws.status === 'waiting_approval' || ws.status === 'waiting_input';
 
-  // Global workspace index for keyboard shortcuts
-  let globalIdx = 0;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 pt-3 pb-1">
+      <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
         <span className="classic-section-label">Workspaces</span>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <button
             onClick={handleOpenProject}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-            title="Open project"
+            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+            title="Open a local project"
           >
-            <FolderOpen size={14} />
-          </button>
-          <button
-            onClick={() => {
-              const projectPath = cwd || Array.from(groupedWorkspaces.keys())[0];
-              if (projectPath) handleCreateQuickWorkspace(projectPath);
-            }}
-            disabled={creating}
-            className="premium-toolbar-button rounded-md p-1.5 text-accent"
-            title="Quick task (direct, no worktree)"
-          >
-            {creating ? <LoaderCircle size={14} className="animate-spin" /> : <Zap size={14} />}
+            <FolderOpen size={13} />
           </button>
           <button
             onClick={handleAddProject}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-secondary"
-            title="New project"
+            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+            title="Create a new local project"
           >
-            <Plus size={14} />
+            <FolderPlus size={13} />
+          </button>
+          <button
+            onClick={handleConnectSshProject}
+            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
+            title={sshConnected && sshHost
+              ? `Add SSH project (connected: ${sshHost})`
+              : 'Connect an SSH project'}
+          >
+            <Wifi size={13} />
+          </button>
+          <button
+            onClick={() => {
+              const fallbackProject = activeProject
+                ?? groupedWorkspaces[0]?.project
+                ?? normalizeProjectSource(cwd);
+              if (fallbackProject) {
+                void handleCreateQuickWorkspace(fallbackProject);
+              }
+            }}
+            disabled={creating}
+            className="premium-toolbar-button inline-flex items-center gap-1 rounded-md border border-accent/20 bg-accent/8 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/12 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Start a direct quick task in the active project"
+          >
+            {creating ? <LoaderCircle size={11} className="animate-spin" /> : <Zap size={11} />}
+            Quick
           </button>
         </div>
       </div>
+      {/* Active project context — single compact line */}
+      <div className="flex items-center gap-1.5 px-3 pb-2 text-[11px] text-text-tertiary">
+        <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+          activeProject?.source === 'ssh' ? 'bg-accent' : 'bg-text-tertiary/40'
+        }`} />
+        <span className="truncate">
+          {getProjectSourceContext(activeProject ?? normalizeProjectSource(cwd))}
+        </span>
+      </div>
 
       <div className="flex-1 overflow-y-auto px-2">
-        {groupedWorkspaces.size === 0 && standaloneTasks.length === 0 && (
+        {groupedWorkspaces.length === 0 && standaloneTasks.length === 0 && (
           <div className="px-3 py-6 text-center">
             <p className="text-[13px] text-text-secondary">No workspaces</p>
-            <p className="mt-1 text-[11px] text-text-tertiary">Click + to add a project.</p>
+            <p className="mt-1 text-[11px] text-text-tertiary">Open a local project, create one, or connect an SSH project to get started.</p>
           </div>
         )}
 
-        {Array.from(groupedWorkspaces.entries()).map(([projectPath, projectWorkspaces]) => {
-          const isCollapsed = collapsedProjects.has(projectPath);
-          const isActiveProject = projectPath === cwd;
-          const openProject = openProjects.find((p) => p.path === projectPath);
-          const isSSHProject = openProject?.isSSH ?? false;
+        {groupedWorkspaces.map(({ project, workspaces: projectWorkspaces }) => {
+          const projectKey = getProjectSourceKey(project);
+          const projectPath = project.path;
+          const isCollapsed = collapsedProjects.has(projectKey);
+          const isActiveProject = activeProject
+            ? getProjectSourceKey(activeProject) === projectKey
+            : projectPath === cwd;
 
           return (
-            <div key={projectPath}>
+            <div key={projectKey}>
               {/* Project header — only show when multiple projects */}
               {hasMultipleProjects && (
                 <button
                   onClick={() => {
-                    useUiStore.getState().toggleProjectCollapsed(projectPath);
+                    useUiStore.getState().toggleProjectCollapsed(project);
                   }}
                   onDoubleClick={() => {
-                    useUiStore.getState().setActiveProject(projectPath);
+                    useUiStore.getState().setActiveProject(project);
                   }}
                   className={`group mt-1.5 flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-bg-hover ${
                     isActiveProject ? 'text-accent' : 'text-text-secondary'
                   }`}
-                  title={`${isSSHProject ? `SSH: ${openProject?.sshHost} · ` : ''}${projectPath}\nDouble-click to set as active project`}
+                  title={`${projectPath}${project.source === 'ssh' && project.sshHost ? `\nSSH: ${project.sshHost}` : ''}\nDouble-click to set as active project`}
                 >
                   {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                  {isSSHProject ? <Wifi size={12} className="shrink-0 text-success opacity-80" /> : <FolderOpen size={12} className="shrink-0 opacity-60" />}
+                  <FolderOpen size={12} className="shrink-0 opacity-60" />
                   <span className="truncate text-[11px] font-semibold uppercase tracking-[0.05em]">
                     {basename(projectPath)}
                   </span>
+                  {project.source === 'ssh' && (
+                    <span className="rounded-full border border-accent/20 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.06em] text-accent">
+                      SSH
+                    </span>
+                  )}
                   <span className="ml-auto text-[10px] text-text-tertiary">
                     {projectWorkspaces.length}
                   </span>
                   <span
                     role="button"
                     tabIndex={-1}
-                    title="New workspace"
+                    title={`Start a quick task in this ${project.source === 'ssh' ? 'SSH' : 'local'} project`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleCreateQuickWorkspace(projectPath);
+                      handleCreateQuickWorkspace(project);
+                    }}
+                    className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
+                  >
+                    <Zap size={11} />
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    title={`Create a separate workspace for this ${project.source === 'ssh' ? 'SSH' : 'local'} project`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCreateWorkspace(project);
                     }}
                     className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
                   >
@@ -299,10 +443,10 @@ export function WorkspaceTab() {
                   <span
                     role="button"
                     tabIndex={-1}
-                    title="Remove project from sidebar"
+                    title={`Remove this ${project.source === 'ssh' ? 'SSH' : 'local'} project from the sidebar`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      useUiStore.getState().removeOpenProject(projectPath);
+                      useUiStore.getState().removeOpenProject(project);
                     }}
                     className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-error"
                   >
@@ -315,7 +459,6 @@ export function WorkspaceTab() {
               {!isCollapsed && projectWorkspaces.map((ws) => {
                 const operation = workspaceOperations.get(ws.id);
                 const isActive = ws.id === activeWorkspaceId;
-                const wsGlobalIdx = globalIdx++;
 
                 return (
                   <WorkspaceListItem
@@ -323,7 +466,7 @@ export function WorkspaceTab() {
                     workspace={ws}
                     operation={operation}
                     isActive={isActive}
-                    shortcutIndex={wsGlobalIdx}
+                    shortcutIndex={workspaceIndexMap.get(ws.id) ?? -1}
                     onSelect={() => handleSelectWorkspace(ws.id)}
                     onOpenContextMenu={(event) => {
                       event.preventDefault();
@@ -477,7 +620,6 @@ function WorkspaceListItem({
     : undefined;
 
   const [committing, setCommitting] = useState(false);
-  const [pulling, setPulling] = useState(false);
   const isTerminal = workspace.status === 'done' || workspace.status === 'error';
   const showReviewAlways = workspace.outcome === 'ready_for_pr' || workspace.outcome === 'ready_to_merge';
   const showInlineActions = hasChanges && !isTerminal;
@@ -501,32 +643,18 @@ function WorkspaceListItem({
     }
   };
 
-  const handlePullMaster = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (pulling) return;
-    setPulling(true);
-    try {
-      const result = await window.api.invoke('workspace:pull-master', { workspaceId: workspace.id });
-      toast.success(result.message);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Pull failed');
-    } finally {
-      setPulling(false);
-    }
-  };
-
-  const sshDisabled = isSshWorkspace && !sshAvailable;
   const sshTooltip = isSshWorkspace
     ? (sshAvailable ? `SSH: ${workspace.sshHost}` : `SSH disconnected: ${workspace.sshHost}`)
     : undefined;
+  const rowTitle = [sshTooltip, signal.tooltip].filter(Boolean).join(' · ') || signal.tooltip;
 
   return (
     <button
-      onClick={sshDisabled ? undefined : onSelect}
-      onContextMenu={sshDisabled ? undefined : onOpenContextMenu}
-      title={sshDisabled ? sshTooltip : signal.tooltip}
+      onClick={onSelect}
+      onContextMenu={onOpenContextMenu}
+      title={rowTitle}
       aria-label={signal.ariaLabel}
-      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''} ${actionNeeded ? 'workspace-row-action-needed' : ''} ${sshDisabled ? 'opacity-40 pointer-events-none' : ''}`}
+      className={`group classic-list-button ${isActive ? 'classic-list-button-active' : ''} ${actionNeeded ? 'workspace-row-action-needed' : ''}`}
       style={actionNeeded ? { '--workspace-signal-color': `var(--color-${signal.state === 'awaiting_approval' ? 'warning' : signal.state === 'awaiting_input' ? 'info' : 'error'})` } as React.CSSProperties : undefined}
     >
       <div className="relative shrink-0" aria-hidden="true">
@@ -552,7 +680,7 @@ function WorkspaceListItem({
           <AnimatedWorkspaceName name={workspace.name} />
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-tertiary">
-          {sshDisabled ? (
+          {!sshAvailable && isSshWorkspace ? (
             <span className="font-medium text-text-tertiary">SSH disconnected</span>
           ) : actionNeeded ? (
             <span className={`font-medium ${signal.iconColor}`}>{signal.label}</span>
@@ -565,17 +693,6 @@ function WorkspaceListItem({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-0.5 self-start">
-        {!workspace.direct && (
-          <span
-            role="button"
-            tabIndex={-1}
-            title={`Pull from ${workspace.baseBranch || 'master'}`}
-            onClick={handlePullMaster}
-            className="rounded-lg p-1 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-accent"
-          >
-            {pulling ? <LoaderCircle size={12} className="animate-spin" /> : <ArrowDownToLine size={12} />}
-          </span>
-        )}
         {(showInlineActions || showReviewAlways) && (
           <span
             role="button"

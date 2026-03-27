@@ -6,10 +6,7 @@ import { useUiStore } from '../../stores/ui';
 import { getWorkspaceListSignal } from '../../lib/workspace-status';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 import type { Workspace } from '../../lib/ipc-api';
-
-function basename(value: string): string {
-  return value.split('/').pop() || value.split('\\').pop() || value;
-}
+import { basename } from '../../lib/format';
 
 export function LinkWorkspaceDialog() {
   const linkingWorkspaceId = useUiStore((s) => s.linkingWorkspaceId);

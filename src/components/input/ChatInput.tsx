@@ -14,7 +14,7 @@ import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
-import { createDirectWorkspaceAndChat, createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
+import { createDirectWorkspaceAndChat, createWorkspaceAndChat, getSelectedProjectSource, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
 import { getLatestPlanText, startPlanImplementation, syncSelectionToTask } from '../../lib/plan';
 import { ModeDropdown, nextTaskMode } from './ModeDropdown';
@@ -306,13 +306,11 @@ export function ChatInput({ focused }: ChatInputProps) {
         useWorkspaceStore.getState().setActiveWorkspace(null);
         task = useChatStore.getState().tasks.get(taskId)!;
       } else {
-      const activeProject = useUiStore.getState().openProjects.find((project) => project.path === cwd);
-      const activeProjectIsSsh = activeProject?.isSSH ?? false;
-      if (!activeProjectIsSsh) {
         const activeWorkspaceId = useWorkspaceStore.getState().activeWorkspaceId;
         const activeWorkspace = activeWorkspaceId
           ? useWorkspaceStore.getState().workspaces.get(activeWorkspaceId)
           : undefined;
+        const selectedProject = getSelectedProjectSource(cwd || '.');
         try {
           if (activeWorkspace) {
             await startWorkspaceChat({
@@ -326,8 +324,8 @@ export function ChatInput({ focused }: ChatInputProps) {
               attachments,
             });
           } else {
-            const config = await window.api.invoke('config:get') as FluxConfig;
-            const createWorkspace = config.quickCreateDirect
+            const config = await window.api.invoke('config:get') as FluxConfig | undefined;
+            const createWorkspace = config?.quickCreateDirect
               ? createDirectWorkspaceAndChat
               : createWorkspaceAndChat;
             await createWorkspace(text, {
@@ -336,6 +334,8 @@ export function ChatInput({ focused }: ChatInputProps) {
               mode: effectiveMode,
               thinking: effectiveThinking,
               cwd: cwd || '.',
+              project: selectedProject ?? undefined,
+              sshHost: selectedProject?.source === 'ssh' ? selectedProject.sshHost : undefined,
               images: images.length > 0 ? images : undefined,
               attachments,
             });
@@ -347,19 +347,6 @@ export function ChatInput({ focused }: ChatInputProps) {
         setImages([]);
         setAttachedFiles([]);
         return;
-      }
-      // SSH fallback: standalone task (no worktree support over SSH)
-      const taskId = crypto.randomUUID();
-      createTask({
-        id: taskId,
-        title: text.slice(0, 80),
-        agentId: currentSelectedAgentId,
-        model: currentSelectedModel,
-        mode: effectiveMode,
-        thinking: effectiveThinking,
-        cwd: cwd || '.',
-      });
-      task = useChatStore.getState().tasks.get(taskId)!;
       }
     }
 

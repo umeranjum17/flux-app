@@ -104,12 +104,13 @@ describe('AgentSelector', () => {
 
     render(<AgentSelector />);
 
-    const modelSelect = await screen.findByRole('combobox');
-    await user.selectOptions(modelSelect, 'opus');
+    const modelSelects = await screen.findAllByRole('combobox');
+    await user.selectOptions(modelSelects[0], 'opus');
 
     expect(useAgentStore.getState().selectedModel).toBe('sonnet');
 
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    const doneButtons = screen.getAllByRole('button', { name: 'Done' });
+    await user.click(doneButtons[0]);
 
     expect(useAgentStore.getState().selectedModel).toBe('opus');
   });

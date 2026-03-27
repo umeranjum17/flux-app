@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderPlus, FolderOpen, Loader2 } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
-import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { openLocalProject } from '../../lib/workspace-state';
 
 export function CreateFolderDialog() {
   const activeOverlay = useUiStore((s) => s.activeOverlay);
@@ -51,11 +51,7 @@ export function CreateFolderDialog() {
       }
 
       if (result.path) {
-        const uiState = useUiStore.getState();
-        uiState.addOpenProject(result.path);
-        uiState.setActiveProject(result.path);
-        const project = createRecentProject(result.path);
-        await rememberRecentProject(project);
+        await openLocalProject(result.path);
         setOverlay(null);
       }
     } catch (err: any) {
@@ -99,16 +95,16 @@ export function CreateFolderDialog() {
             <div className="px-5 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <FolderPlus size={16} className="text-text-secondary" />
-                Create New Project
+                Create Local Project
               </h2>
-              <p className="text-[11px] text-text-tertiary mt-0.5">Create a project directory with git initialized, ready for workspaces</p>
+              <p className="text-[11px] text-text-tertiary mt-0.5">Create a local project folder and optionally initialize git. For remote repos, use Connect SSH instead.</p>
             </div>
 
             {/* Form */}
             <div className="px-5 py-4 space-y-4">
               {/* Parent directory */}
               <div>
-                <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Parent Directory</label>
+                <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Local Parent Directory</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -117,19 +113,19 @@ export function CreateFolderDialog() {
                     placeholder="/path/to/parent"
                     className="flex-1 px-2.5 py-1.5 rounded-md bg-bg-primary border border-border text-xs text-text-primary font-mono placeholder:text-text-tertiary outline-none focus:border-border-focus transition-colors"
                   />
-                  <button
-                    onClick={handleBrowse}
-                    className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-xs text-text-secondary hover:bg-bg-hover transition-colors flex items-center gap-1.5"
-                  >
-                    <FolderOpen size={12} />
-                    Browse
-                  </button>
+                    <button
+                      onClick={handleBrowse}
+                      className="px-3 py-1.5 rounded-md border border-border bg-bg-secondary text-xs text-text-secondary hover:bg-bg-hover transition-colors flex items-center gap-1.5"
+                    >
+                      <FolderOpen size={12} />
+                      Browse Local
+                    </button>
                 </div>
               </div>
 
               {/* Folder name */}
               <div>
-                <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Folder Name</label>
+                <label className="block text-[12px] font-medium text-text-secondary mb-1.5">Local Project Name</label>
                 <input
                   type="text"
                   value={folderName}
@@ -152,6 +148,10 @@ export function CreateFolderDialog() {
                 <span className="text-xs text-text-secondary">Initialize as git repository</span>
               </label>
 
+              <div className="rounded-lg border border-border/60 bg-bg-primary/60 px-3 py-2 text-[11px] text-text-tertiary">
+                The new local project will be added to the sidebar and selected immediately.
+              </div>
+
               {/* Error */}
               {error && (
                 <p className="text-xs text-error">{error}</p>
@@ -172,7 +172,7 @@ export function CreateFolderDialog() {
                 className="px-4 py-1.5 rounded-lg bg-success text-white text-xs font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {creating && <Loader2 size={12} className="animate-spin" />}
-                Create
+                Create Local Project
               </button>
             </div>
           </motion.div>

@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { FileAttachment } from '../agents/types';
-import type { DiffScope } from '../worktree/types';
+import type { DiffScope, Workspace } from '../worktree/types';
 import { getChangedFiles, getFileDiff } from '../worktree/diff';
 import { createWorkspaceFs } from '../worktree/workspace-fs';
 import { escapeShell } from '../worktree/remote-manager';
@@ -30,6 +30,18 @@ import {
   extractLatestSessionAttachmentContext,
   writeAttachmentContextFile,
 } from './utils';
+
+export function wrapWorkspaceActionError(workspace: Workspace, action: string, error: unknown): Error {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (!workspace.sshHost) {
+    return new Error(`Failed to ${action}: ${detail}`);
+  }
+
+  return new Error(
+    `Failed to ${action} for SSH workspace ${workspace.sshHost}:${workspace.parentRepo}. `
+    + `Reconnect SSH or verify your host and credentials. ${detail}`,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Agent detection
@@ -215,7 +227,7 @@ export async function spawnWorkspaceChat(
     taskId?: string;
     workspaceId: string;
     prompt: string;
-    mode?: 'plan' | 'act' | 'ask' | 'architect' | 'discovery';
+    mode?: 'plan' | 'act' | 'ask' | 'architect';
     agentId?: string;
     model?: string;
     images?: string[];
@@ -405,8 +417,8 @@ export async function createPr(
 
   try {
     await wfs.git(workspace.worktreePath, ['push', '-u', 'origin', workspace.branch], { timeout: 60000 });
-  } catch (err: any) {
-    throw new Error(`Failed to push branch: ${err.message}`);
+  } catch (error) {
+    throw wrapWorkspaceActionError(workspace, 'push the workspace branch', error);
   }
 
   const ghArgs = ['pr', 'create',
@@ -440,8 +452,8 @@ export async function createPr(
     ctx.lifecycleManager.setOutcome(workspaceId, 'ready_to_merge', { force: true });
 
     return { url, number };
-  } catch (err: any) {
-    throw new Error(`Failed to create PR: ${err.message}`);
+  } catch (error) {
+    throw wrapWorkspaceActionError(workspace, 'create a pull request', error);
   }
 }
 

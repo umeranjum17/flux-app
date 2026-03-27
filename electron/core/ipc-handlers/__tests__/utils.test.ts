@@ -332,8 +332,8 @@ describe('buildWorkspaceSystemContext', () => {
     });
 
     expect(prompt).toContain('<flux-skill name="merge" mode="act">');
-    expect(prompt).toContain('git merge --squash flux-hardening');
-    expect(prompt).toContain('git push origin main');
+    expect(prompt).toContain('git pull --no-rebase origin main');
+    expect(prompt).toContain('git push origin HEAD:main');
     expect(prompt).toContain('<flux-skill name="todo">');
     expect(prompt).not.toContain('<flux-skill name="workspace"');
   });

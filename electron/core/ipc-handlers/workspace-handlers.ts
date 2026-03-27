@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
-import type { DiffScope, WorkspaceOperation, WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
+import type { DiffScope, Workspace, WorkspaceOperation, WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
 import { listWorktrees } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
 import { resolveGitState } from '../worktree/outcome';
@@ -17,6 +17,7 @@ import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
 import { requireFields, commandExists } from './utils';
 import * as ops from './operations';
+import { wrapWorkspaceActionError } from './operations';
 
 const execFileAsync = promisify(execFile);
 
@@ -171,6 +172,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking,
+        sshHost,
       }: {
         name: string;
         parentRepo: string;
@@ -178,33 +180,34 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model: string;
         mode?: SpawnOptions['mode'];
         thinking?: string;
+        sshHost?: string;
       },
     ) => {
       requireFields({ name, parentRepo, agentId, model }, 'name', 'parentRepo', 'agentId', 'model');
-      if (remoteConnection.host) {
-        throw new Error('Workspaces are only supported for local repositories right now');
-      }
+      const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
+      const wfs = createWorkspaceFs(effectiveSshHost);
 
-      if (!fs.existsSync(parentRepo)) {
+      if (!(await wfs.exists(parentRepo))) {
         throw new Error(`Directory "${parentRepo}" does not exist.`);
       }
 
       // Ensure git is initialized
       try {
-        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
+        await wfs.git(parentRepo, ['rev-parse', '--git-dir'], { timeout: 5000 });
       } catch {
-        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
-        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
-          cwd: parentRepo,
-          timeout: 10000,
-        });
+        await wfs.git(parentRepo, ['init'], { timeout: 10000 });
+        await wfs.git(parentRepo, ['commit', '--allow-empty', '-m', 'Initial commit'], { timeout: 10000 });
       }
 
       // Get current branch
       let currentBranch = 'main';
       try {
-        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
+        const { stdout } = await wfs.git(parentRepo, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 5000 });
         currentBranch = stdout.trim() || 'main';
+        if (!currentBranch || currentBranch === 'HEAD') {
+          const { stdout: symbolicRef } = await wfs.git(parentRepo, ['symbolic-ref', '--quiet', '--short', 'HEAD'], { timeout: 5000 });
+          currentBranch = symbolicRef.trim() || currentBranch || 'main';
+        }
       } catch { /* best-effort */ }
 
       const ws = workspaceStore.create({
@@ -218,6 +221,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode,
         thinking: thinking as any,
         direct: true,
+        sshHost: effectiveSshHost,
         status: 'idle',
       });
       sendToRenderer('workspace:created', { workspace: ws });
@@ -264,32 +268,36 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
-      const wfs = createWorkspaceFs(workspace.sshHost);
-      const commitMessage = message || 'checkpoint';
+      try {
+        const wfs = createWorkspaceFs(workspace.sshHost);
+        const commitMessage = message || 'checkpoint';
 
-      // Stage selected files or all changes
-      if (files && files.length > 0) {
-        await wfs.git(workspace.worktreePath, ['add', '--', ...files], { timeout: 15000 });
-      } else {
-        await wfs.git(workspace.worktreePath, ['add', '-A'], { timeout: 15000 });
+        // Stage selected files or all changes
+        if (files && files.length > 0) {
+          await wfs.git(workspace.worktreePath, ['add', '--', ...files], { timeout: 15000 });
+        } else {
+          await wfs.git(workspace.worktreePath, ['add', '-A'], { timeout: 15000 });
+        }
+
+        // Check if there's anything to commit
+        const { stdout: statusOut } = await wfs.git(workspace.worktreePath, ['status', '--porcelain'], { timeout: 5000 });
+        if (!statusOut.trim()) {
+          throw new Error('Nothing to commit — working tree is clean');
+        }
+
+        // Commit
+        await wfs.git(workspace.worktreePath, ['commit', '-m', commitMessage], { timeout: 15000 });
+
+        // Get the new SHA
+        const { stdout: shaOut } = await wfs.git(workspace.worktreePath, ['rev-parse', '--short', 'HEAD'], { timeout: 5000 });
+
+        // A manual commit means work is now ready for review in Flux lifecycle terms.
+        lifecycleManager.setOutcome(workspaceId, 'ready_for_pr', { force: true });
+
+        return { sha: shaOut.trim(), message: commitMessage };
+      } catch (error) {
+        throw wrapWorkspaceActionError(workspace, 'commit changes', error);
       }
-
-      // Check if there's anything to commit
-      const { stdout: statusOut } = await wfs.git(workspace.worktreePath, ['status', '--porcelain'], { timeout: 5000 });
-      if (!statusOut.trim()) {
-        throw new Error('Nothing to commit — working tree is clean');
-      }
-
-      // Commit
-      await wfs.git(workspace.worktreePath, ['commit', '-m', commitMessage], { timeout: 15000 });
-
-      // Get the new SHA
-      const { stdout: shaOut } = await wfs.git(workspace.worktreePath, ['rev-parse', '--short', 'HEAD'], { timeout: 5000 });
-
-      // A manual commit means work is now ready for review in Flux lifecycle terms.
-      lifecycleManager.setOutcome(workspaceId, 'ready_for_pr', { force: true });
-
-      return { sha: shaOut.trim(), message: commitMessage };
     },
   );
 
@@ -545,7 +553,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
       if (workspace.sshHost) {
-        throw new Error(`Cannot open IDE for remote workspace. Use VS Code Remote-SSH to connect to ${workspace.sshHost} and open ${workspace.worktreePath}`);
+        throw new Error(
+          `Open this SSH workspace through Remote-SSH instead. Connect to ${workspace.sshHost} `
+          + `in VS Code, Cursor, or Zed and open ${workspace.worktreePath}.`,
+        );
       }
 
       const configured = configManager.get().preferredIde;

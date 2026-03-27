@@ -22,10 +22,6 @@ describe('getWorkspaceLifecycleState', () => {
     expect(getWorkspaceLifecycleState({ status: 'idle', outcome: 'in_progress' })).toBe('idle');
   });
 
-  it('returns discovered for discovered outcome with idle status', () => {
-    expect(getWorkspaceLifecycleState({ status: 'idle', outcome: 'discovered' })).toBe('discovered');
-  });
-
   it('returns blocked for error status regardless of outcome', () => {
     expect(getWorkspaceLifecycleState({ status: 'error', outcome: 'ready_for_pr' })).toBe('blocked');
   });
@@ -44,13 +40,6 @@ describe('getWorkspaceListSignal', () => {
     expect(signal.state).toBe('merged');
     expect(signal.dotClassName).toContain('workspace-list-signal-complete');
     expect(signal.dotClassName).toContain('workspace-dot-settled');
-  });
-
-  it('returns discovered signal state for discovered outcome', () => {
-    const signal = getWorkspaceListSignal({ name: 'test', status: 'idle', outcome: 'discovered' });
-    expect(signal.state).toBe('discovered');
-    expect(signal.label).toBe('Discovered');
-    expect(signal.dotClassName).toContain('workspace-list-signal-planned');
   });
 
   it('uses a non-attention color for active coding state', () => {

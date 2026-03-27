@@ -42,9 +42,10 @@ describe('changes panel state', () => {
     };
 
     useWorkspaceStore.getState().addWorkspace(workspace);
+    const diffFile = { path: '/repo/ws-1/src/app.ts', status: 'modified', additions: 3, deletions: 1 };
     mockApi.invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'workspace:diff-files') {
-        return [{ path: '/repo/ws-1/src/app.ts', status: 'modified', additions: 3, deletions: 1 }];
+      if (channel === 'workspace:diff-files-separated') {
+        return { committed: [], uncommitted: [diffFile] };
       }
       throw new Error(`Unexpected channel: ${channel}`);
     });
@@ -54,12 +55,10 @@ describe('changes panel state', () => {
     const workspaceState = useWorkspaceStore.getState();
     expect(workspaceState.changesPanelOpen).toBe(true);
     expect(workspaceState.changesPanelWorkspaceId).toBe('ws-1');
-    expect(workspaceState.changesPanelFiles).toEqual([
-      { path: '/repo/ws-1/src/app.ts', status: 'modified', additions: 3, deletions: 1 },
-    ]);
+    expect(workspaceState.changesPanelFiles).toEqual([diffFile]);
     expect(workspaceState.changesPanelSelectedFile).toBeNull();
     expect(workspaceState.changesPanelFileDiff).toBeNull();
     expect(mockApi.invoke).toHaveBeenCalledTimes(1);
-    expect(mockApi.invoke).toHaveBeenCalledWith('workspace:diff-files', { workspaceId: 'ws-1' });
+    expect(mockApi.invoke).toHaveBeenCalledWith('workspace:diff-files-separated', { workspaceId: 'ws-1' });
   });
 });

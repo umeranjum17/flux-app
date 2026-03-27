@@ -1,16 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
-import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown, LoaderCircle } from 'lucide-react';
+import { Square, Eye, GitMerge, Trash2, MessageSquare, ExternalLink, ChevronDown, LoaderCircle, FolderOpen, Wifi } from 'lucide-react';
 import type { Workspace, WorkspaceOperation, WorkspaceOutcome } from '../../lib/ipc-api';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig, workspaceOutcomeConfig } from '../../lib/workspace-status';
 import type { WorkspaceLifecycleState } from '../../lib/workspace-status';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { AnimatedWorkspaceName } from './AnimatedWorkspaceName';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
+import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
+import {
+  getWorkspaceIdeTitle,
+  isWorkspaceSshAvailable,
+  workspaceOutcomeImpliesChanges,
+} from '../../lib/workspace-state';
 
-const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'discovered', 'planned', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
+const outcomeOptions: WorkspaceOutcome[] = ['in_progress', 'ready_for_pr', 'ready_to_merge', 'merged', 'ready_to_archive'];
 const outcomeIndicatorState = {
   in_progress: 'idle',
-  discovered: 'discovered',
   planned: 'planned',
   ready_for_pr: 'ready_for_review',
   reviewing: 'reviewing',
@@ -49,6 +54,24 @@ export function WorkspaceCard({
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
   const isRunning = workspace.status === 'running' || workspace.status === 'waiting_approval' || workspace.status === 'waiting_input';
   const isArchiving = archiveOperation?.kind === 'archive' && archiveOperation.status === 'running';
+  const sshAvailable = isWorkspaceSshAvailable(workspace);
+  const outcomeImpliesChanges = workspaceOutcomeImpliesChanges(workspace.outcome);
+  const hasChanges = useWorkspaceHasChanges(workspace.id, {
+    fallback: outcomeImpliesChanges,
+    pollMs: isActive ? 4000 : null,
+  });
+  const canReview = hasChanges && !isArchiving;
+  const ideDisabled = !!workspace.sshHost;
+  const sourceBadgeClass = workspace.sshHost
+    ? (sshAvailable
+        ? 'border-accent/20 bg-accent/8 text-accent'
+        : 'border-warning/20 bg-warning/10 text-warning')
+    : 'border-border/60 bg-bg-primary/60 text-text-secondary';
+  const sourceLabel = workspace.sshHost
+    ? (sshAvailable ? 'SSH project' : 'SSH disconnected')
+    : 'Local project';
+  const reviewTitle = canReview ? 'Review changes' : 'No workspace changes to review yet';
+  const mergeTitle = canReview ? 'Merge workspace' : 'Review changes before merging this workspace';
 
   return (
     <button
@@ -64,9 +87,18 @@ export function WorkspaceCard({
         </span>
 
         {/* Name */}
-        <span className="min-w-0 flex-1 truncate text-[12.5px] text-text-primary">
-          <AnimatedWorkspaceName name={workspace.name} />
-        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12.5px] text-text-primary">
+            <AnimatedWorkspaceName name={workspace.name} />
+          </div>
+          {workspace.direct && (
+            <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+              <span className="rounded-full border border-warning/20 bg-warning/8 px-2 py-0.5 font-medium text-warning">
+                Direct mode
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Hover actions — replace status text on hover */}
         <div
@@ -77,9 +109,27 @@ export function WorkspaceCard({
             <IconAction icon={<Square size={11} />} label="Stop" onClick={onStop} variant="warning" />
           )}
           <IconAction icon={<MessageSquare size={11} />} label="Chat" onClick={onSelect} />
-          <IconAction icon={<ExternalLink size={11} />} label="IDE" onClick={onOpenIde} />
-          <IconAction icon={<Eye size={11} />} label="Review" onClick={onReview} />
-          <IconAction icon={<GitMerge size={11} />} label="Merge" onClick={onMerge} />
+          <IconAction
+            icon={<ExternalLink size={11} />}
+            label="IDE"
+            title={getWorkspaceIdeTitle(workspace)}
+            onClick={onOpenIde}
+            disabled={ideDisabled}
+          />
+          <IconAction
+            icon={<Eye size={11} />}
+            label="Review"
+            title={reviewTitle}
+            onClick={onReview}
+            disabled={!canReview}
+          />
+          <IconAction
+            icon={<GitMerge size={11} />}
+            label="Merge"
+            title={mergeTitle}
+            onClick={onMerge}
+            disabled={!canReview}
+          />
           {onArchive && (
             <IconAction
               icon={isArchiving ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}
@@ -98,6 +148,18 @@ export function WorkspaceCard({
           </span>
           <OutcomeSelector workspaceId={workspace.id} outcome={workspace.outcome ?? 'in_progress'} />
         </div>
+      </div>
+      <div className="flex items-center gap-1.5 px-2.5 pb-[7px] text-[11px] text-text-tertiary">
+        {workspace.sshHost ? (
+          <Wifi size={11} className={`shrink-0 ${sshAvailable ? 'text-accent' : 'text-warning'}`} />
+        ) : (
+          <FolderOpen size={11} className="shrink-0 opacity-60" />
+        )}
+        <span className="truncate">
+          {workspace.sshHost
+            ? `${workspace.sshHost} · ${workspace.parentRepo}`
+            : workspace.parentRepo}
+        </span>
       </div>
     </button>
   );
@@ -157,12 +219,13 @@ function OutcomeSelector({ workspaceId, outcome }: { workspaceId: string; outcom
   );
 }
 
-function IconAction({ icon, label, onClick, variant, disabled }: {
+function IconAction({ icon, label, onClick, variant, disabled, title }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   variant?: 'danger' | 'warning';
   disabled?: boolean;
+  title?: string;
 }) {
   const colors = variant === 'danger'
     ? 'hover:bg-error/10 hover:text-error'
@@ -173,7 +236,7 @@ function IconAction({ icon, label, onClick, variant, disabled }: {
   return (
     <button
       onClick={onClick}
-      title={label}
+      title={title ?? label}
       disabled={disabled}
       className={`inline-flex items-center justify-center rounded-md p-1 text-text-tertiary transition-colors ${colors} ${
         disabled ? 'cursor-not-allowed opacity-60 hover:bg-transparent hover:text-text-tertiary' : ''

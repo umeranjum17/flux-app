@@ -13,7 +13,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { TabBar } from './TabBar';
 import { BottomPanel } from './BottomPanel';
 import { FileExplorer } from '../explorer/FileExplorer';
-import { useUiStore } from '../../stores/ui';
+import { getProjectSourceKey, normalizeProjectSource, useUiStore, type ProjectSource } from '../../stores/ui';
 import { useAgentStore, normalizeClaudeCodeModel } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
@@ -32,10 +32,9 @@ import { CommitDialog } from '../review/CommitDialog';
 import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
 import { QuickOpen } from '../dialogs/QuickOpen';
 import { SearchFiles } from '../dialogs/SearchFiles';
-import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
+import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, openLocalProject, rememberRecentProject } from '../../lib/workspace-state';
 import { restoreSessionMessage } from '../../lib/session-messages';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
-import { ProductView } from '../kanban/ProductView';
 
 
 type ModeSelection = {
@@ -83,7 +82,6 @@ export function AppShell() {
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
-  const viewMode = useUiStore((s) => s.viewMode);
   const tasks = useChatStore((s) => s.tasks);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const mergingWorkspaceId = useWorkspaceStore((s) => s.mergingWorkspaceId);
@@ -133,24 +131,21 @@ export function AppShell() {
             useUiStore.getState().setAutoApprove((config as any).autoApprove);
           }
           if (config.openProjects && config.openProjects.length > 0) {
-            // Migrate from old string[] format to OpenProject[]
-            const normalized = config.openProjects.map((p) =>
-              typeof p === 'string'
-                ? { path: p, name: p.split('/').pop() || p, environment: 'local' as const }
-                : p,
-            );
-            useUiStore.getState().setOpenProjects(normalized);
-            const activePath = config.activeProjectPath;
-            if (activePath && normalized.some((p) => p.path === activePath)) {
-              restoredProjectPath = activePath;
-              useUiStore.getState().setActiveProject(activePath);
+            useUiStore.getState().setOpenProjects(config.openProjects);
+            const restoredProject = config.activeProject
+              ?? normalizeProjectSource(config.activeProjectPath);
+            if (
+              restoredProject &&
+              config.openProjects.some((project) => getProjectSourceKey(project) === getProjectSourceKey(restoredProject))
+            ) {
+              if (restoredProject.source === 'local') {
+                restoredProjectPath = restoredProject.path;
+                useUiStore.getState().setActiveProject(restoredProject);
+              }
             }
           }
           if (config.lastActiveGroupId) {
             useUiStore.getState().setActiveGroupId(config.lastActiveGroupId);
-          }
-          if (config.viewMode) {
-            useUiStore.getState().setViewMode(config.viewMode);
           }
         } catch (err) {
           toast.error('Failed to load configuration');
@@ -237,8 +232,9 @@ export function AppShell() {
 
   // Load workspaces when CWD or openProjects change and listen for status updates
   useEffect(() => {
-    const projectPaths = openProjects.length > 0 ? openProjects.map((p) => p.path) : cwd ? [cwd] : [];
-    const projects = projectPaths;
+    const projects = openProjects.length > 0
+      ? Array.from(new Set(openProjects.map((project) => project.path)))
+      : cwd ? [cwd] : [];
     if (projects.length === 0) return;
     let cancelled = false;
 
@@ -798,33 +794,26 @@ export function AppShell() {
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
     let prevOpenProjects = useUiStore.getState().openProjects;
-    let prevCwd = useUiStore.getState().cwd;
+    let prevActiveProject = useUiStore.getState().activeProject;
     let prevGroupId = useUiStore.getState().activeGroupId;
     const unsub = useUiStore.subscribe((state) => {
       if (
         state.openProjects === prevOpenProjects &&
-        state.cwd === prevCwd &&
+        state.activeProject === prevActiveProject &&
         state.activeGroupId === prevGroupId
       ) return;
       prevOpenProjects = state.openProjects;
-      prevCwd = state.cwd;
+      prevActiveProject = state.activeProject;
       prevGroupId = state.activeGroupId;
       clearTimeout(timeout);
       timeout = setTimeout(() => {
-        const partial: Partial<FluxConfig> = {};
-        if (state.openProjects.length > 0) {
-          partial.openProjects = state.openProjects;
-        }
-
-        if (state.cwd) {
-          partial.activeProjectPath = state.cwd;
-        }
-        if (state.activeGroupId) {
-          partial.lastActiveGroupId = state.activeGroupId;
-        }
-        if (Object.keys(partial).length > 0) {
-          window.api.invoke('config:set', partial).catch(() => {});
-        }
+        const partial: Partial<FluxConfig> = {
+          openProjects: state.openProjects,
+          activeProject: state.activeProject ?? undefined,
+          activeProjectPath: state.activeProject?.source === 'local' ? state.activeProject.path : undefined,
+          lastActiveGroupId: state.activeGroupId ?? undefined,
+        };
+        window.api.invoke('config:set', partial).catch(() => {});
       }, 500);
     });
     return () => { clearTimeout(timeout); unsub(); };
@@ -852,34 +841,13 @@ export function AppShell() {
     return unsub;
   }, []);
 
-  // Auto-persist viewMode changes to config
-  useEffect(() => {
-    let prev = useUiStore.getState().viewMode;
-    const unsub = useUiStore.subscribe((state) => {
-      if (state.viewMode !== prev) {
-        prev = state.viewMode;
-        window.api.invoke('config:set', { viewMode: state.viewMode }).catch(() => {});
-      }
-    });
-    return unsub;
-  }, []);
-
   // Open project handler
-  const openProject = useCallback(async (projectPath?: string, options?: { isSSH?: boolean; sshHost?: string }) => {
-    if (options?.isSSH && options.sshHost && projectPath) {
+  const openProject = useCallback(async (project?: ProjectSource) => {
+    if (project?.source === 'ssh' && project.sshHost && project.path) {
       try {
-        const { host, cwd: remoteCwd } = await connectToSshWorkspace(options.sshHost, projectPath);
-        // Add as unified open project
-        useUiStore.getState().addOpenProject({
-          path: remoteCwd,
-          name: remoteCwd.split('/').pop() || remoteCwd,
-          isSSH: true,
-          sshHost: host,
-          environment: 'ssh',
-        });
-        useUiStore.getState().setActiveProject(remoteCwd);
-        const project = createRecentProject(remoteCwd, { isSSH: true, sshHost: host });
-        await rememberRecentProject(project);
+        const { host, cwd: remoteCwd } = await connectToSshWorkspace(project.sshHost, project.path);
+        const recentProject = createRecentProject(remoteCwd, { source: 'ssh', sshHost: host });
+        await rememberRecentProject(recentProject);
         return;
       } catch {
         useUiStore.getState().setOverlay('connect-remote');
@@ -887,19 +855,7 @@ export function AppShell() {
       }
     }
 
-    let targetPath = projectPath;
-    if (!targetPath) {
-      const picked = await window.api.invoke('cwd:pick') as string | null;
-      if (!picked) return;
-      targetPath = picked;
-    } else {
-      await window.api.invoke('cwd:set', { cwd: targetPath });
-    }
-
-    useUiStore.getState().addOpenProject(targetPath);
-    useUiStore.getState().setActiveProject(targetPath);
-    const project = createRecentProject(targetPath);
-    await rememberRecentProject(project);
+    await openLocalProject(project?.path);
   }, []);
 
   // Cycle helpers
@@ -945,8 +901,6 @@ export function AppShell() {
     function handleKeyDown(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key === 'b') { e.preventDefault(); useUiStore.getState().toggleSidebar(); }
-      // Toggle view mode: Cmd+Shift+B
-      if (meta && e.shiftKey && e.key === 'B') { e.preventDefault(); useUiStore.getState().toggleViewMode(); }
       if (meta && !e.shiftKey && e.key === 't') { e.preventDefault(); createNewTab(); }
       if (meta && e.key === 'w') { e.preventDefault(); const tid = useChatStore.getState().activeTaskId; if (tid) useChatStore.getState().closeTab(tid); }
       if (meta && e.shiftKey && e.key === 'D') { e.preventDefault(); useUiStore.getState().toggleTheme(); }
@@ -1073,10 +1027,6 @@ export function AppShell() {
             <div className="flex flex-1 overflow-hidden">
               <div className="relative flex min-w-0 flex-1 flex-col">
                   <div className="chrome-stage flex min-h-0 flex-1 flex-col overflow-hidden">
-                    {viewMode === 'product' ? (
-                      <ProductView />
-                    ) : (
-                    <>
                     <TabBar />
                     {activeWorkspaceId && <WorkspaceActionBar />}
 
@@ -1140,8 +1090,6 @@ export function AppShell() {
                       </div>
                       <WorkspaceSidePanel />
                     </div>
-                    </>
-                    )}
                   </div>
               </div>
             </div>

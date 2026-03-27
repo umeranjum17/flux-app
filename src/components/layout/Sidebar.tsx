@@ -1,4 +1,4 @@
-import { MessageSquare, Gauge, Terminal, EyeOff, LayoutGrid, Code } from 'lucide-react';
+import { MessageSquare, Gauge, Terminal, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../stores/ui';
 import { UsagePanel } from './UsagePanel';
@@ -17,7 +17,6 @@ export function Sidebar() {
   const sidebarTab = useUiStore((s) => s.sidebarTab);
   const setSidebarTab = useUiStore((s) => s.setSidebarTab);
   const terminalOpen = useUiStore((s) => s.bottomPanelOpen);
-  const viewMode = useUiStore((s) => s.viewMode);
 
   return (
     <motion.aside
@@ -46,10 +45,6 @@ export function Sidebar() {
           active={terminalOpen}
           onClick={() => useUiStore.getState().toggleTerminal()}
         />
-
-        <div className="mx-1 h-3.5 w-px bg-border/60" />
-
-        <ViewModeToggle viewMode={viewMode} />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -80,34 +75,5 @@ function NavIcon({
     >
       {icon}
     </button>
-  );
-}
-
-function ViewModeToggle({ viewMode }: { viewMode: 'eng' | 'product' }) {
-  return (
-    <div className="flex items-center rounded-md border border-border/60 bg-bg-primary/50">
-      <button
-        title="Engineering Mode"
-        onClick={() => useUiStore.getState().setViewMode('eng')}
-        className={`inline-flex items-center justify-center rounded-l-md px-1.5 py-1 transition-colors ${
-          viewMode === 'eng'
-            ? 'bg-bg-hover text-text-primary'
-            : 'text-text-tertiary hover:text-text-secondary'
-        }`}
-      >
-        <Code size={13} strokeWidth={2} />
-      </button>
-      <button
-        title="Product Mode (Kanban)"
-        onClick={() => useUiStore.getState().setViewMode('product')}
-        className={`inline-flex items-center justify-center rounded-r-md px-1.5 py-1 transition-colors ${
-          viewMode === 'product'
-            ? 'bg-bg-hover text-text-primary'
-            : 'text-text-tertiary hover:text-text-secondary'
-        }`}
-      >
-        <LayoutGrid size={13} strokeWidth={2} />
-      </button>
-    </div>
   );
 }

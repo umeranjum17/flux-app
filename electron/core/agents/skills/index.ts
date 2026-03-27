@@ -8,7 +8,6 @@ import { fluxWorkspaceSkill } from './flux-workspace';
 import { fluxPlanSkill } from './flux-plan';
 import { fluxAskSkill } from './flux-ask';
 import { fluxArchitectSkill } from './flux-architect';
-import { fluxDiscoverySkill } from './flux-discovery';
 import { fluxTodoSkill } from './flux-todo';
 import { fluxTerminalSkill } from './flux-terminal';
 import { fluxMultiWorkspaceSkill } from './flux-multi-workspace';
@@ -25,7 +24,6 @@ const ALL_SKILLS: FluxSkill[] = [
   fluxPlanSkill,
   fluxAskSkill,
   fluxArchitectSkill,
-  fluxDiscoverySkill,
   fluxTodoSkill,
   fluxTerminalSkill,
   fluxMultiWorkspaceSkill,

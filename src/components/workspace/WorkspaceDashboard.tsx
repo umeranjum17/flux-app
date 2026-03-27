@@ -29,7 +29,9 @@ export function WorkspaceDashboard() {
 
   // Load workspaces on mount — across all open projects
   useEffect(() => {
-    const projects = openProjects.length > 0 ? openProjects.map((p) => p.path) : cwd ? [cwd] : [];
+    const projects = openProjects.length > 0
+      ? Array.from(new Set(openProjects.map((project) => project.path)))
+      : cwd ? [cwd] : [];
     if (projects.length === 0) return;
 
     (async () => {
@@ -90,6 +92,11 @@ export function WorkspaceDashboard() {
 
   const handleSelect = useCallback((ws: Workspace) => {
     useWorkspaceStore.getState().setActiveWorkspace(ws.id);
+    useUiStore.getState().setActiveProject(
+      ws.sshHost
+        ? { path: ws.parentRepo, source: 'ssh', sshHost: ws.sshHost }
+        : { path: ws.parentRepo, source: 'local' },
+    );
     const latestTask = Array.from(useChatStore.getState().tasks.values())
       .filter((task) => task.workspaceId === ws.id)
       .sort((a, b) => (b.activeRun?.startedAt ?? 0) - (a.activeRun?.startedAt ?? 0))[0];

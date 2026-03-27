@@ -22,6 +22,7 @@ import { useChatStore } from '../../stores/chat';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import type { ThinkingLevel } from '../../lib/types';
+import { openLocalProject } from '../../lib/workspace-state';
 
 interface PaletteAction {
   id: string;
@@ -154,22 +155,17 @@ export function CommandPalette() {
         },
       },
       {
-        id: 'open-folder',
-        name: 'Open Folder',
+        id: 'open-local-project',
+        name: 'Open Local Project',
         icon: FolderOpen,
         handler: async () => {
           setOverlay(null);
-          const picked = await window.api.invoke('cwd:pick') as string | null;
-          if (picked) {
-            const { useUiStore: ui } = await import('../../stores/ui');
-            ui.getState().addOpenProject(picked);
-            ui.getState().setActiveProject(picked);
-          }
+          await openLocalProject();
         },
       },
       {
-        id: 'create-folder',
-        name: 'Create Folder',
+        id: 'create-local-project',
+        name: 'Create Local Project',
         icon: FolderPlus,
         handler: () => {
           setOverlay('create-folder');
@@ -206,8 +202,8 @@ export function CommandPalette() {
         },
       },
       {
-        id: 'connect-remote',
-        name: 'Connect Remote',
+        id: 'connect-ssh-project',
+        name: 'Connect SSH Project',
         icon: Wifi,
         handler: () => {
           setOverlay('connect-remote');
@@ -215,7 +211,7 @@ export function CommandPalette() {
       },
       {
         id: 'ssh-disconnect',
-        name: 'SSH Disconnect',
+        name: 'Disconnect SSH Project',
         icon: WifiOff,
         handler: async () => {
           setOverlay(null);

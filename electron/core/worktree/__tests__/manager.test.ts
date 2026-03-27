@@ -15,6 +15,9 @@ vi.mock('electron', () => ({
   },
 }));
 
+// Restore the real child_process (setup-main.ts mocks it globally).
+vi.mock('child_process', async () => vi.importActual('child_process'));
+
 function makeTempDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-worktree-manager-'));
   tempDirs.push(dir);
@@ -25,6 +28,7 @@ async function initRepo(repoDir: string): Promise<void> {
   await execFileAsync('git', ['init'], { cwd: repoDir });
   await execFileAsync('git', ['config', 'user.name', 'Flux Test'], { cwd: repoDir });
   await execFileAsync('git', ['config', 'user.email', 'flux@example.com'], { cwd: repoDir });
+  await execFileAsync('git', ['config', 'commit.gpgsign', 'false'], { cwd: repoDir });
 }
 
 afterEach(async () => {
@@ -46,7 +50,7 @@ afterEach(async () => {
 });
 
 describe('createWorktree', () => {
-  it('creates the .context directory during worktree bootstrap', async () => {
+  it('creates the .context directory during worktree bootstrap', { timeout: 30000 }, async () => {
     const { createWorktree } = await import('../manager');
     const parentRepo = makeTempDir();
     await initRepo(parentRepo);

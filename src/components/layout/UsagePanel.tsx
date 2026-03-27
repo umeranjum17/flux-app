@@ -2,6 +2,7 @@ import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useId, useM
 import { AlertCircle, BarChart3, RefreshCw, WifiOff } from 'lucide-react';
 import type { LiveUsageOverview, LiveUsageProvider, LiveUsageWindow, UsageHistoryPoint, UsageInfo } from '../../lib/ipc-api';
 import { useUiStore } from '../../stores/ui';
+import { formatRelativeTime } from '../../lib/format';
 
 const PROVIDER_COLORS: Record<'claude-code' | 'codex', string> = {
   'claude-code': 'var(--color-info)',
@@ -490,16 +491,6 @@ function formatCount(value: number): string {
   return String(value);
 }
 
-function formatRelativeTime(timestamp: number): string {
-  const diffMs = Math.max(0, Date.now() - timestamp);
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function formatTimeUntil(timestamp: number): string {
   const diffMs = timestamp - Date.now();

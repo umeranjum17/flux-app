@@ -1,10 +1,18 @@
 import type { ThinkingLevel } from '../agents/types';
 
+export type ProjectSourceKind = 'local' | 'ssh';
+
+export interface ProjectSource {
+  path: string;
+  source: ProjectSourceKind;
+  sshHost?: string;
+}
+
 export interface RecentProject {
   path: string;
   name: string;
   lastOpened: number;
-  isSSH?: boolean;
+  source: ProjectSourceKind;
   sshHost?: string;
 }
 
@@ -44,4 +52,8 @@ export interface FluxConfig {
   defaultMergeModel?: string;
   defaultMergeThinking?: ThinkingLevel;
   repoMap: RepoMapConfig;
+  lastActiveGroupId?: string;
+  openProjects?: ProjectSource[];
+  activeProject?: ProjectSource;
+  activeProjectPath?: string;
 }

@@ -20,7 +20,7 @@ describe('RemoteAuthService', () => {
       CREATE TABLE remote_clients (
         id TEXT PRIMARY KEY,
         client_name TEXT NOT NULL,
-        token_hash TEXT NOT NULL UNIQUE,
+        token TEXT NOT NULL UNIQUE,
         token_preview TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
@@ -31,7 +31,7 @@ describe('RemoteAuthService', () => {
 
       CREATE TABLE remote_pairing_sessions (
         id TEXT PRIMARY KEY,
-        code_hash TEXT NOT NULL UNIQUE,
+        code TEXT NOT NULL UNIQUE,
         created_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL,
         consumed_at INTEGER
@@ -77,6 +77,6 @@ describe('RemoteAuthService', () => {
     service.revokeClient(created.client.id);
 
     expect(() => service.authenticateToken(created.token, 'Flux Mobile', '192.168.0.10'))
-      .toThrow('Invalid or expired remote token');
+      .toThrow('Client has been revoked');
   });
 });

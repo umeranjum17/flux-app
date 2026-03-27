@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight } from 'lucide-react';
-import { useUiStore } from '../../stores/ui';
+import { X, Files, Search, FilePen, FolderOpen, FolderPlus, ChevronDown, ChevronRight, Wifi } from 'lucide-react';
+import { getProjectSourceKey, normalizeProjectSource, useUiStore, type ProjectSource } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { FileTree, type TreeNode } from '../explorer/FileTree';
 import { FileActivityPanel } from '../review/FileActivityPanel';
+import { openLocalProject } from '../../lib/workspace-state';
 
 type PanelTab = 'files' | 'search' | 'activity';
 
@@ -13,6 +14,31 @@ const PANEL_TABS: { id: PanelTab; icon: typeof Files; label: string }[] = [
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'activity', icon: FilePen, label: 'Activity' },
 ];
+
+function SourceActionButton({
+  icon: Icon,
+  label,
+  title,
+  onClick,
+}: {
+  icon: typeof FolderOpen;
+  label: string;
+  title: string;
+  onClick: () => void | Promise<void>;
+}) {
+  return (
+    <button
+      onClick={() => {
+        void onClick();
+      }}
+      className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-bg-surface/60 px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+      title={title}
+    >
+      <Icon size={12} />
+      <span>{label}</span>
+    </button>
+  );
+}
 
 /**
  * Resolve the effective cwd for the workspace side panel:
@@ -80,31 +106,36 @@ function PanelFilesTab() {
   const effectiveCwd = useEffectiveCwd();
   const globalCwd = useUiStore((s) => s.cwd);
   const openProjects = useUiStore((s) => s.openProjects);
+  const activeProject = useUiStore((s) => s.activeProject);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
 
   // When a workspace is active, show only the workspace worktree.
   // When no workspace is active, show all open projects (like the old sidebar explorer).
   const projects = useMemo(() => {
-    if (activeWorkspaceId && effectiveCwd) return [effectiveCwd];
-    if (openProjects.length > 0) return openProjects.map((p) => p.path);
-    if (globalCwd) return [globalCwd];
+    if (activeWorkspaceId && effectiveCwd) {
+      const currentWorkspace = useWorkspaceStore.getState().workspaces.get(activeWorkspaceId);
+      return [{
+        path: effectiveCwd,
+        source: currentWorkspace?.sshHost ? 'ssh' : 'local',
+        ...(currentWorkspace?.sshHost ? { sshHost: currentWorkspace.sshHost } : {}),
+      }] satisfies ProjectSource[];
+    }
+    if (openProjects.length > 0) return openProjects;
+    if (globalCwd) {
+      const project = normalizeProjectSource(globalCwd);
+      return project ? [project] : [];
+    }
     return [];
   }, [activeWorkspaceId, effectiveCwd, openProjects, globalCwd]);
 
   const hasMultipleProjects = projects.length > 1;
 
   const handleOpenFolder = async () => {
-    const uiState = useUiStore.getState();
-    const activeProject = uiState.openProjects.find((project) => project.path === uiState.cwd);
-    if (activeProject?.isSSH) {
-      useUiStore.getState().setOverlay('connect-remote');
-      return;
-    }
-    const picked = await window.api.invoke('cwd:pick') as string | null;
-    if (picked) {
-      uiState.addOpenProject(picked);
-      uiState.setActiveProject(picked);
-    }
+    await openLocalProject();
+  };
+
+  const handleConnectSshProject = () => {
+    useUiStore.getState().setOverlay('connect-remote');
   };
 
   return (
@@ -116,44 +147,56 @@ function PanelFilesTab() {
               ? 'No folder open'
               : hasMultipleProjects
                 ? `${projects.length} projects`
-                : (projects[0]?.split('/').pop() || 'Project')}
+                : (projects[0]?.path.split('/').pop() || 'Project')}
           </p>
         </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => useUiStore.getState().setOverlay('create-folder')}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
-            title="Create new folder"
-          >
-            <FolderPlus size={14} />
-          </button>
-          <button
-            onClick={handleOpenFolder}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
-            title="Open folder"
-          >
-            <FolderOpen size={14} />
-          </button>
-        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 border-b border-border/60 px-3 pb-2">
+        <SourceActionButton
+          icon={FolderOpen}
+          label="Open Local"
+          title="Open a local project in the files panel"
+          onClick={handleOpenFolder}
+        />
+        <SourceActionButton
+          icon={FolderPlus}
+          label="New Local"
+          title="Create a new local project folder"
+          onClick={() => useUiStore.getState().setOverlay('create-folder')}
+        />
+        <SourceActionButton
+          icon={Wifi}
+          label="Connect SSH"
+          title="Add or switch an SSH project source"
+          onClick={handleConnectSshProject}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {projects.length === 0 && (
-          <div className="px-2 py-6 text-center">
-            <button
-              onClick={handleOpenFolder}
-              className="premium-toolbar-button inline-flex items-center gap-2 rounded-md border border-border/70 bg-bg-surface/70 px-3 py-2 text-xs text-text-secondary"
-            >
-              <FolderOpen size={14} />
-              Open folder
-            </button>
+          <div className="space-y-3 px-2 py-6 text-center">
+            <p className="text-[11px] text-text-tertiary">Choose a local project or connect an SSH project source.</p>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              <SourceActionButton
+                icon={FolderOpen}
+                label="Open Local"
+                title="Open a local project"
+                onClick={handleOpenFolder}
+              />
+              <SourceActionButton
+                icon={Wifi}
+                label="Connect SSH"
+                title="Connect an SSH project source"
+                onClick={handleConnectSshProject}
+              />
+            </div>
           </div>
         )}
-        {projects.map((projectPath) => (
+        {projects.map((project) => (
           <ProjectFileTree
-            key={projectPath}
-            projectPath={projectPath}
-            isActive={projectPath === globalCwd}
+            key={getProjectSourceKey(project)}
+            project={project}
+            isActive={activeProject ? getProjectSourceKey(activeProject) === getProjectSourceKey(project) : project.path === globalCwd}
             showHeader={hasMultipleProjects}
           />
         ))}
@@ -162,11 +205,12 @@ function PanelFilesTab() {
   );
 }
 
-function ProjectFileTree({ projectPath, isActive, showHeader }: { projectPath: string; isActive: boolean; showHeader: boolean }) {
+function ProjectFileTree({ project, isActive, showHeader }: { project: ProjectSource; isActive: boolean; showHeader: boolean }) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+  const projectPath = project.path;
   const projectName = useMemo(() => projectPath.split('/').pop() || projectPath, [projectPath]);
 
   const loadTree = useCallback(async () => {
@@ -203,7 +247,7 @@ function ProjectFileTree({ projectPath, isActive, showHeader }: { projectPath: s
       {showHeader && (
         <button
           onClick={() => setCollapsed(!collapsed)}
-          onDoubleClick={() => useUiStore.getState().setActiveProject(projectPath)}
+          onDoubleClick={() => useUiStore.getState().setActiveProject(project)}
           className={`flex w-full items-center gap-1.5 px-1 py-1.5 text-left transition-colors hover:bg-bg-hover ${
             isActive ? 'text-accent' : 'text-text-secondary'
           }`}

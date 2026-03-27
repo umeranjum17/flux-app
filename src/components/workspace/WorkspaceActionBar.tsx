@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare, LoaderCircle, Link2 } from 'lucide-react';
+import { Eye, GitMerge, Square, Trash2, GitBranch, ExternalLink, Files, Search, Archive, TerminalSquare, LoaderCircle, Link2, FolderOpen, Monitor, WifiOff } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from './WorkspaceLifecycleIcon';
 import { toast } from 'sonner';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -10,6 +10,11 @@ import { getWorkspaceLifecycleState, isTerminalOutcome, workspaceLifecycleConfig
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
 import type { WorkspaceGroupMember } from '../../lib/ipc-api';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
+import {
+  getWorkspaceIdeTitle,
+  getWorkspaceTerminalTitle,
+  isWorkspaceSshAvailable,
+} from '../../lib/workspace-state';
 
 const EMPTY_SIBLINGS: WorkspaceGroupMember[] = [];
 
@@ -72,6 +77,12 @@ export function WorkspaceActionBar() {
   const lifecycle = workspaceLifecycleConfig[lifecycleState] ?? workspaceLifecycleConfig.idle;
   const isArchiving = isWorkspaceArchiving(operation);
   const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
+  const sshAvailable = isWorkspaceSshAvailable(workspace);
+  const terminalDisabled = !!workspace.sshHost && !sshAvailable;
+  const ideDisabled = !!workspace.sshHost;
+  const sourceLabel = workspace.sshHost
+    ? (sshAvailable ? workspace.sshHost : `disconnected · ${workspace.sshHost}`)
+    : 'Local';
 
   const handleStop = async () => {
     await window.api.invoke('workspace:stop', { workspaceId: workspace.id });
@@ -104,10 +115,12 @@ export function WorkspaceActionBar() {
   };
 
   const handleOpenIde = async () => {
+    if (ideDisabled) return;
     await window.api.invoke('workspace:open-ide', { workspaceId: workspace.id });
   };
 
   const handleOpenTerminal = () => {
+    if (terminalDisabled) return;
     const uiStore = useUiStore.getState();
     // Store the pending request so TerminalPanel picks it up even if it hasn't mounted yet
     uiStore.setPendingWorkspaceTerminalId(workspace.id);
@@ -129,6 +142,25 @@ export function WorkspaceActionBar() {
         <span className={`lifecycle-badge ${lifecycle.badgeClass}`}>
           <WorkspaceLifecycleIcon state={lifecycleState} size={12} />
           {lifecycle.label}
+        </span>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+            workspace.sshHost
+              ? (sshAvailable
+                  ? 'border-accent/20 bg-accent/8 text-accent'
+                  : 'border-warning/20 bg-warning/10 text-warning')
+              : 'border-border/60 bg-bg-primary/60 text-text-secondary'
+          }`}
+          title={workspace.sshHost
+            ? (sshAvailable
+                ? `Connected to ${workspace.sshHost}`
+                : `SSH disconnected — reconnect to ${workspace.sshHost} for terminal access`)
+            : 'Local repository'}
+        >
+          {workspace.sshHost
+            ? (sshAvailable ? <Monitor size={11} /> : <WifiOff size={11} />)
+            : <FolderOpen size={11} />}
+          <span>{sourceLabel}</span>
         </span>
       </div>
       <div className="flex items-center gap-1">
@@ -158,7 +190,11 @@ export function WorkspaceActionBar() {
 
                             const workspace = wsStore.workspaces.get(sibling.workspaceId);
                             if (workspace) {
-                              useUiStore.getState().setActiveProject(workspace.parentRepo);
+                              useUiStore.getState().setActiveProject(
+                                workspace.sshHost
+                                  ? { path: workspace.parentRepo, source: 'ssh', sshHost: workspace.sshHost }
+                                  : { path: workspace.parentRepo, source: 'local' },
+                              );
                             }
 
                             const wsTask = Array.from(chatStore.tasks.values())
@@ -209,8 +245,20 @@ export function WorkspaceActionBar() {
         {isRunning && (
           <ActionBtn icon={<Square size={12} />} label="Stop" onClick={handleStop} />
         )}
-        <ActionBtn icon={<TerminalSquare size={12} />} label="Terminal" onClick={handleOpenTerminal} />
-        <ActionBtn icon={<ExternalLink size={12} />} label="Open IDE" onClick={handleOpenIde} />
+        <ActionBtn
+          icon={<TerminalSquare size={12} />}
+          label="Terminal"
+          title={getWorkspaceTerminalTitle(workspace)}
+          onClick={handleOpenTerminal}
+          disabled={terminalDisabled}
+        />
+        <ActionBtn
+          icon={<ExternalLink size={12} />}
+          label="Open IDE"
+          title={getWorkspaceIdeTitle(workspace)}
+          onClick={handleOpenIde}
+          disabled={ideDisabled}
+        />
         {hasChanges && !isMerged && (
           <>
             <ActionBtn icon={<Eye size={12} />} label="Review Changes" onClick={() => useWorkspaceStore.getState().toggleChangesPanel(workspace.id)} />
