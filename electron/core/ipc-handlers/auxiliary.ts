@@ -25,6 +25,7 @@ import { executeBash } from '../tools/bash';
 import { suggestCompletion, availableCompletionProviders } from '../completion/service';
 import { getCheckpointDiff, listCheckpoints, revertToCheckpoint } from '../checkpoint/manager';
 import { registerTerminalIpcHandlers } from '../terminal/terminal-handlers';
+import { remoteExecGit } from '../worktree/remote-manager';
 
 const execFileAsync = promisify(execFile);
 
@@ -397,14 +398,22 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('git:init', async (_event, { dirPath }: { dirPath?: string } = {}) => {
     const target = dirPath ?? getCurrentCwd();
+    const host = remoteConnection.host;
     try {
-      await execFileAsync('git', ['init'], { cwd: target, timeout: 10000 });
-      await fs.promises.appendFile(path.join(target, '.gitignore'), '.context\n');
-      // Create an initial empty commit so worktrees work immediately
-      await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
-        cwd: target,
-        timeout: 10000,
-      });
+      if (host) {
+        await remoteExecGit(host, target, ['init'], 10000);
+        const { sshExec } = await import('../tools/ssh');
+        const escapedTarget = target.replace(/'/g, "'\\''");
+        await sshExec(host, `echo '.context' >> '${escapedTarget}/.gitignore'`, 5000);
+        await remoteExecGit(host, target, ['commit', '--allow-empty', '-m', 'Initial commit'], 10000);
+      } else {
+        await execFileAsync('git', ['init'], { cwd: target, timeout: 10000 });
+        await fs.promises.appendFile(path.join(target, '.gitignore'), '.context\n');
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+          cwd: target,
+          timeout: 10000,
+        });
+      }
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message ?? 'Failed to initialize git repository' };
@@ -413,11 +422,16 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
 
   ipcMain.handle('git:is-repo', async (_event, { dirPath }: { dirPath?: string } = {}) => {
     const target = dirPath ?? getCurrentCwd();
+    const host = remoteConnection.host;
     try {
-      await execFileAsync('git', ['rev-parse', '--git-dir'], {
-        cwd: target,
-        timeout: 5000,
-      });
+      if (host) {
+        await remoteExecGit(host, target, ['rev-parse', '--git-dir'], 5000);
+      } else {
+        await execFileAsync('git', ['rev-parse', '--git-dir'], {
+          cwd: target,
+          timeout: 5000,
+        });
+      }
       return true;
     } catch {
       return false;
@@ -425,8 +439,14 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   });
 
   ipcMain.handle('git:branch', async () => {
+    const cwd = getCurrentCwd();
+    const host = remoteConnection.host;
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: getCurrentCwd() });
+      if (host) {
+        const { stdout } = await remoteExecGit(host, cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 5000);
+        return stdout.trim();
+      }
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
       return stdout.trim();
     } catch {
       return null;
@@ -434,8 +454,14 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   });
 
   ipcMain.handle('git:upstream', async () => {
+    const cwd = getCurrentCwd();
+    const host = remoteConnection.host;
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd: getCurrentCwd() });
+      if (host) {
+        const { stdout } = await remoteExecGit(host, cwd, ['rev-parse', '--abbrev-ref', '@{upstream}'], 5000);
+        return stdout.trim() || null;
+      }
+      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd });
       return stdout.trim() || null;
     } catch {
       return null;
@@ -443,8 +469,14 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   });
 
   ipcMain.handle('git:status', async () => {
+    const cwd = getCurrentCwd();
+    const host = remoteConnection.host;
     try {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: getCurrentCwd() });
+      if (host) {
+        const { stdout } = await remoteExecGit(host, cwd, ['status', '--porcelain'], 5000);
+        return { dirty: stdout.trim().length > 0, files: stdout.trim() };
+      }
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd });
       return { dirty: stdout.trim().length > 0, files: stdout.trim() };
     } catch {
       return { dirty: false, files: '' };
@@ -454,15 +486,22 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
   // Combined git info — single IPC round trip instead of 4 sequential calls
   ipcMain.handle('git:info', async () => {
     const cwd = getCurrentCwd();
+    const host = remoteConnection.host;
+
+    const execGit = (args: string[], timeout = 5000) =>
+      host
+        ? remoteExecGit(host, cwd, args, timeout)
+        : execFileAsync('git', args, { cwd, timeout });
+
     try {
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd, timeout: 5000 });
+      await execGit(['rev-parse', '--git-dir']);
     } catch {
       return { isRepo: false, branch: null, upstream: null, dirty: false };
     }
     const [branchRes, upstreamRes, statusRes] = await Promise.allSettled([
-      execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd }),
-      execFileAsync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd }),
-      execFileAsync('git', ['status', '--porcelain'], { cwd }),
+      execGit(['rev-parse', '--abbrev-ref', 'HEAD']),
+      execGit(['rev-parse', '--abbrev-ref', '@{upstream}']),
+      execGit(['status', '--porcelain']),
     ]);
     return {
       isRepo: true,
