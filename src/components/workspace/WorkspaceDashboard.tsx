@@ -249,6 +249,26 @@ export function WorkspaceDashboard() {
                 useUiStore.getState().setMode(mode);
                 // Activate the workspace so the user lands in the new mode
                 handleSelect(ws);
+
+                // Spawn agent in the target mode with previous context
+                const modePrompts: Record<string, string> = {
+                  discovery: 'Re-run discovery on this workspace. Read `.context/session-context.md` for prior session state and any steering feedback. Produce an updated discovery brief.',
+                  plan: 'Create a plan for this workspace. Read `.context/session-context.md` for prior session state and any steering feedback. Produce a plan in `.context/plan.md`.',
+                  act: 'Implement the changes for this workspace. Read `.context/session-context.md` for prior session state and any steering feedback. Follow the plan in `.context/plan.md` if it exists.',
+                };
+                const prompt = modePrompts[mode] ?? `Continue working in ${mode} mode. Read \`.context/session-context.md\` for prior session state.`;
+
+                window.api.invoke('workspace:active-task', { workspaceId: ws.id })
+                  .then((taskIds: string[]) => {
+                    if (taskIds.length > 0) {
+                      // Running workspace: restart the active task in the new mode
+                      return window.api.invoke('task:restart', { taskId: taskIds[0], mode });
+                    } else {
+                      // Idle workspace: spawn a fresh session in the new mode
+                      return window.api.invoke('workspace:spawn-chat', { workspaceId: ws.id, prompt, mode });
+                    }
+                  })
+                  .catch((err) => toast.error(`Failed to start ${mode} agent: ${err instanceof Error ? err.message : String(err)}`));
               }
             }
           }}
