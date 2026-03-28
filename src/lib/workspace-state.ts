@@ -245,8 +245,12 @@ export async function createEmptyWorkspace(opts: {
   sshHost?: string;
 }): Promise<Workspace> {
   const effectiveProject = getSelectedProjectSource(opts.cwd);
+  // Only inherit SSH host from the active project if its path matches the workspace cwd,
+  // otherwise a stale SSH project could leak its host into a local workspace.
   const effectiveSshHost = opts.sshHost
-    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
+    ?? (effectiveProject?.source === 'ssh'
+        && effectiveProject.path?.replace(/\/+$/, '') === opts.cwd.replace(/\/+$/, '')
+      ? effectiveProject.sshHost : undefined)
     ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
@@ -497,7 +501,12 @@ export async function createWorkspaceAndChat(
   // Derive a meaningful branch name and workspace title from the prompt upfront.
   // The agent can still refine via `.context/state.json` workspace_name at completion.
   const branch = createFluxBranchName(prompt);
-  const effectiveProject = opts.project ?? getSelectedProjectSource(opts.parentRepo ?? opts.cwd);
+  const requestedPath = (opts.parentRepo ?? opts.cwd).replace(/\/+$/, '');
+  const inferredProject = getSelectedProjectSource(opts.parentRepo ?? opts.cwd);
+  // Only use the inferred project if its path matches the requested workspace path,
+  // otherwise the active project's SSH host could leak into a local workspace.
+  const effectiveProject = opts.project
+    ?? (inferredProject?.path?.replace(/\/+$/, '') === requestedPath ? inferredProject : null);
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
   const effectiveSshHost = opts.sshHost
     ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
@@ -535,7 +544,12 @@ export async function createDirectWorkspaceAndChat(
   prompt: string,
   opts: Omit<CreateWorkspaceAndChatOptions, 'parentRepo'> & { parentRepo?: string },
 ): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
-  const effectiveProject = opts.project ?? getSelectedProjectSource(opts.parentRepo ?? opts.cwd);
+  const requestedPath = (opts.parentRepo ?? opts.cwd).replace(/\/+$/, '');
+  const inferredProject = getSelectedProjectSource(opts.parentRepo ?? opts.cwd);
+  // Only use the inferred project if its path matches the requested workspace path,
+  // otherwise the active project's SSH host could leak into a local workspace.
+  const effectiveProject = opts.project
+    ?? (inferredProject?.path?.replace(/\/+$/, '') === requestedPath ? inferredProject : null);
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
   const effectiveSshHost = opts.sshHost
     ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
