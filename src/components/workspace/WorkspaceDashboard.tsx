@@ -359,6 +359,8 @@ export function WorkspaceDashboard() {
                     const result = res as { taskId: string; session: any } | undefined;
                     if (result?.session) {
                       chatStore.setTaskSessionId(result.taskId, result.session.id);
+                      // Keep renderer store in sync with the persisted sessionId
+                      useWorkspaceStore.getState().updateWorkspace(ws.id, { sessionId: result.session.id });
                       if (existingTask) {
                         chatStore.setTaskMode(result.taskId, mode!);
                         chatStore.setTaskStatus(result.taskId, 'running');

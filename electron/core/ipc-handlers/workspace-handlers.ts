@@ -392,6 +392,12 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         sessionId: workspace.sessionId,
         sshHost: workspace.sshHost,
       });
+
+      // Persist session ID back so subsequent runs resume the same session.
+      if (result.session?.id && result.session.id !== workspace.sessionId) {
+        workspaceStore.update(workspace.id, { sessionId: result.session.id });
+      }
+
       return { taskId, session: result.session };
     },
   );

@@ -270,6 +270,12 @@ export async function spawnWorkspaceChat(
     attachments: input.attachments,
   });
 
+  // Persist the session ID back to the workspace so subsequent steering/re-runs
+  // resume the same session instead of creating a new one each time.
+  if (result.session?.id && result.session.id !== workspace.sessionId) {
+    ctx.workspaceStore.update(workspace.id, { sessionId: result.session.id });
+  }
+
   return { taskId, session: result.session };
 }
 
