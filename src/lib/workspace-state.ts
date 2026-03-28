@@ -87,6 +87,28 @@ export function getSelectedProjectSource(fallbackPath?: string): ProjectSource |
   );
 }
 
+/**
+ * Resolve the SSH host for a given repo path by checking activeProject and openProjects.
+ * Returns undefined for local paths or when no matching SSH project is found.
+ */
+export function resolveHostForPath(path: string): string | undefined {
+  const { activeProject, openProjects } = useUiStore.getState();
+  const normalized = path.replace(/\/+$/, '');
+
+  // Check active project first
+  if (
+    activeProject?.source === 'ssh' && activeProject.host
+    && activeProject.path?.replace(/\/+$/, '') === normalized
+  ) {
+    return activeProject.host;
+  }
+
+  // Search open projects for a matching SSH entry with a host
+  return openProjects.find(
+    (p) => p.source === 'ssh' && p.host && p.path.replace(/\/+$/, '') === normalized,
+  )?.host;
+}
+
 export async function connectToSshWorkspace(
   host: string,
   remoteCwd?: string,
@@ -244,14 +266,7 @@ export async function createEmptyWorkspace(opts: {
   cwd: string;
   host?: string;
 }): Promise<Workspace> {
-  const effectiveProject = getSelectedProjectSource(opts.cwd);
-  // Only inherit SSH host from the active project if its path matches the workspace cwd,
-  // otherwise a stale SSH project could leak its host into a local workspace.
-  const effectiveHost = opts.host
-    ?? (effectiveProject?.source === 'ssh'
-        && effectiveProject.path?.replace(/\/+$/, '') === opts.cwd.replace(/\/+$/, '')
-      ? effectiveProject.host : undefined)
-    ?? undefined;
+  const effectiveHost = opts.host ?? resolveHostForPath(opts.cwd);
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
     agentId: opts.agentId,
@@ -512,7 +527,7 @@ export async function createWorkspaceAndChat(
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
   const effectiveHost = opts.host
     ?? (effectiveProject?.source === 'ssh' ? effectiveProject.host : undefined)
-    ?? undefined;
+    ?? resolveHostForPath(effectiveParentRepo);
 
   const workspace = await window.api.invoke('workspace:create', {
     name: deriveWorkspaceNameFromPrompt(prompt),
@@ -555,7 +570,7 @@ export async function createDirectWorkspaceAndChat(
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
   const effectiveHost = opts.host
     ?? (effectiveProject?.source === 'ssh' ? effectiveProject.host : undefined)
-    ?? undefined;
+    ?? resolveHostForPath(effectiveParentRepo);
 
   const workspace = await window.api.invoke('workspace:create-direct', {
     name: deriveWorkspaceNameFromPrompt(prompt),

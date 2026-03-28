@@ -582,7 +582,16 @@ export const useUiStore = create<UiState>()(
 
         const key = getProjectSourceKey(remoteProject);
         if (!state.openProjects.some((candidate) => getProjectSourceKey(candidate) === key)) {
-          state.openProjects = [...state.openProjects, remoteProject];
+          // Replace any existing SSH entry for the same path that's missing its host
+          // (can happen after config restore before reconnect completes)
+          const staleIdx = state.openProjects.findIndex(
+            (p) => p.source === 'ssh' && p.path === cwd && !p.host,
+          );
+          if (staleIdx >= 0) {
+            state.openProjects = state.openProjects.map((p, i) => i === staleIdx ? remoteProject : p);
+          } else {
+            state.openProjects = [...state.openProjects, remoteProject];
+          }
         }
       });
     },

@@ -8,7 +8,7 @@ import { useChatStore } from '../../stores/chat';
 import { getProjectSourceKey, normalizeProjectSource, useUiStore, type ProjectSource } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
-import { createEmptyWorkspace } from '../../lib/workspace-state';
+import { createEmptyWorkspace, resolveHostForPath } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import type { AgentId } from '../../lib/types';
 import { toast } from 'sonner';
@@ -235,7 +235,7 @@ export function WorkspaceTab() {
         mode,
         thinking: selectedThinking,
         cwd: project.path,
-        host: project.source === 'ssh' ? project.host : undefined,
+        host: project.source === 'ssh' ? (project.host ?? resolveHostForPath(project.path)) : undefined,
       });
       const taskId = crypto.randomUUID();
       useChatStore.getState().createTask({
@@ -275,7 +275,7 @@ export function WorkspaceTab() {
         model,
         mode,
         thinking: selectedThinking,
-        host: project.source === 'ssh' ? project.host : undefined,
+        host: project.source === 'ssh' ? (project.host ?? resolveHostForPath(project.path)) : undefined,
       }) as Workspace;
       useWorkspaceStore.getState().addWorkspace(ws);
       useWorkspaceStore.getState().setActiveWorkspace(ws.id);

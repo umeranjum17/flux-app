@@ -5,7 +5,7 @@ import { getRecentProjectKey, useUiStore, type RecentProject } from '../../store
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
-import { createEmptyWorkspace } from '../../lib/workspace-state';
+import { createEmptyWorkspace, resolveHostForPath } from '../../lib/workspace-state';
 import { getWorkspaceLifecycleState, workspaceLifecycleConfig } from '../../lib/workspace-status';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { toast } from 'sonner';
@@ -191,7 +191,9 @@ function NewWorkspaceButton({ cwd, isGitRepo }: { cwd: string; isGitRepo: boolea
       const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
       const mode = useUiStore.getState().mode;
       const activeProject = useUiStore.getState().activeProject;
-      const host = activeProject?.source === 'ssh' ? activeProject.host : undefined;
+      const host = activeProject?.source === 'ssh'
+        ? (activeProject.host ?? resolveHostForPath(cwd))
+        : resolveHostForPath(cwd);
       const ws = await createEmptyWorkspace({ agentId, model, mode, thinking: selectedThinking, cwd, host });
       const taskId = crypto.randomUUID();
       useChatStore.getState().createTask({
