@@ -285,7 +285,10 @@ export function WorkspaceDetailPanel() {
     setSending(true);
     try {
       await window.api.invoke('workspace:set-outcome', { workspaceId, outcome: 'in_progress' });
-      await window.api.invoke('workspace:spawn-chat', { workspaceId, prompt: trimmed });
+      // Switch mode back to act so the agent gets the build skill/prompt
+      await window.api.invoke('workspace:update', { workspaceId, mode: 'act' });
+      useWorkspaceStore.getState().updateWorkspace(workspaceId, { mode: 'act' });
+      await window.api.invoke('workspace:spawn-chat', { workspaceId, prompt: trimmed, mode: 'act' });
     } catch {
       setComment(trimmed);
     } finally {
