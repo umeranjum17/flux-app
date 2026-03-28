@@ -734,6 +734,21 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     }
   });
 
+  ipcMain.handle('ssh:mkdir', async (_event, { host, dirPath }: { host: string; dirPath: string }) => {
+    requireFields({ host, dirPath }, 'host', 'dirPath');
+    try {
+      const cmd = `mkdir -p ${toRemoteShellPath(dirPath)} && cd ${toRemoteShellPath(dirPath)} && pwd`;
+      const { stdout } = await execFileAsync(resolveSshCommand(), [host, cmd], {
+        timeout: 10000,
+        env: extendedEnv(),
+      });
+      const resolvedPath = stdout.trim().split('\n').pop() || dirPath;
+      return { path: resolvedPath, error: null };
+    } catch (err: any) {
+      return { path: dirPath, error: err.message };
+    }
+  });
+
   ipcMain.handle('ssh:test', async (_event, { host }: { host: string }) => {
     return remoteConnection.test(host);
   });

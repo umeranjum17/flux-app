@@ -42,6 +42,9 @@ export function ConnectRemoteDialog() {
   const [browseError, setBrowseError] = useState<string | null>(null);
   const [pathNotFound, setPathNotFound] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -58,6 +61,9 @@ export function ConnectRemoteDialog() {
       setBrowseError(null);
       setPathNotFound(false);
       setInitializing(false);
+      setShowNewFolder(false);
+      setNewFolderName('');
+      setCreatingFolder(false);
       window.api.invoke('config:get').then((raw) => {
         const config = raw as FluxConfig;
         setRecentHosts(config?.recentHosts ?? []);
@@ -198,6 +204,32 @@ export function ConnectRemoteDialog() {
     loadBrowseDir('~');
   }, [loadBrowseDir]);
 
+  const handleCreateFolder = useCallback(async () => {
+    const name = newFolderName.trim();
+    if (!name || !host.trim()) return;
+    setCreatingFolder(true);
+    setBrowseError(null);
+    try {
+      const base = browseResolvedPath || remotePath || '~';
+      const newPath = base.endsWith('/') ? `${base}${name}` : `${base}/${name}`;
+      const result = await window.api.invoke('ssh:mkdir', {
+        host: host.trim(),
+        dirPath: newPath,
+      }) as { path: string; error: string | null };
+      if (result.error) {
+        setBrowseError(result.error);
+      } else {
+        setShowNewFolder(false);
+        setNewFolderName('');
+        // Navigate into the newly created folder
+        loadBrowseDir(result.path);
+      }
+    } catch (err) {
+      setBrowseError(err instanceof Error ? err.message : 'Failed to create folder');
+    }
+    setCreatingFolder(false);
+  }, [newFolderName, host, browseResolvedPath, remotePath, loadBrowseDir]);
+
   const handleInitProject = useCallback(async () => {
     if (!host.trim() || !remotePath.trim()) return;
     setInitializing(true);
@@ -320,20 +352,62 @@ export function ConnectRemoteDialog() {
                   ))}
                 </div>
 
+                {/* New folder inline input */}
+                {showNewFolder && (
+                  <div className="px-5 py-2 border-t border-border flex items-center gap-2">
+                    <FolderPlus size={14} className="text-text-secondary shrink-0" />
+                    <input
+                      type="text"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newFolderName.trim()) handleCreateFolder();
+                        if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); }
+                      }}
+                      placeholder="Folder name"
+                      autoFocus
+                      className="flex-1 px-2 py-1 rounded-md bg-bg-primary border border-border text-xs text-text-primary font-mono placeholder:text-text-tertiary outline-none focus:border-border-focus transition-colors"
+                    />
+                    <button
+                      onClick={handleCreateFolder}
+                      disabled={!newFolderName.trim() || creatingFolder}
+                      className="px-2.5 py-1 rounded-md bg-success text-white text-[11px] font-medium hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {creatingFolder && <Loader2 size={10} className="animate-spin" />}
+                      Create
+                    </button>
+                    <button
+                      onClick={() => { setShowNewFolder(false); setNewFolderName(''); }}
+                      className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+
                 {/* Browse footer */}
-                <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2">
+                <div className="px-5 py-3 border-t border-border flex items-center justify-between">
                   <button
-                    onClick={handleBrowseCancel}
-                    className="px-3 py-1.5 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                    onClick={() => setShowNewFolder(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors flex items-center gap-1.5"
                   >
-                    Cancel
+                    <FolderPlus size={12} />
+                    New Folder
                   </button>
-                  <button
-                    onClick={handleBrowseSelect}
-                    className="px-4 py-1.5 rounded-lg bg-success text-white text-xs font-medium hover:opacity-90 transition-colors"
-                  >
-                    Select
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleBrowseCancel}
+                      className="px-3 py-1.5 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleBrowseSelect}
+                      className="px-4 py-1.5 rounded-lg bg-success text-white text-xs font-medium hover:opacity-90 transition-colors"
+                    >
+                      Select
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
