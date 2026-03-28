@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Zap, FolderPlus, FolderOpen, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal, Wifi } from 'lucide-react';
+import { Zap, GitBranch, MessageSquare, Plus, RefreshCw, GitCommitHorizontal } from 'lucide-react';
+import { ProjectMenu } from '../common/ProjectMenu';
 import { getRecentProjectKey, useUiStore, type RecentProject } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -48,35 +49,11 @@ export function WelcomeScreen({ onOpenProject }: WelcomeScreenProps) {
         </div>
 
         <div className="mb-6 flex justify-center gap-2">
-          <button
-            onClick={() => onOpenProject()}
-            className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <FolderOpen size={14} />
-            Open Project
-          </button>
-          <button
-            onClick={() => useUiStore.getState().setOverlay('create-folder')}
-            className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <FolderPlus size={14} />
-            Create Local Project
-          </button>
-          <button
-            onClick={() => useUiStore.getState().setOverlay('connect-remote')}
-            className="premium-toolbar-button inline-flex items-center gap-2 rounded-lg border border-border/70 bg-bg-surface/70 px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <Wifi size={14} />
-            Connect SSH Project
-          </button>
+          <ProjectMenu onOpenProject={() => onOpenProject()} />
           {!isGitRepo && cwd && (
             <InitGitButton cwd={cwd} />
           )}
         </div>
-
-        <p className="mb-6 text-center text-[12px] text-text-tertiary">
-          Local projects use folders on this machine. SSH projects remember a host and remote path.
-        </p>
 
         {/* Workspaces grid */}
         {hasWorkspaces && (

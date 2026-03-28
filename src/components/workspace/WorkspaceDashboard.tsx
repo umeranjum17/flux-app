@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Plus, LayoutGrid, FolderOpen, FolderPlus, Wifi } from 'lucide-react';
+import { Plus, LayoutGrid } from 'lucide-react';
+import { ProjectMenu } from '../common/ProjectMenu';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { getProjectSourceKey, useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
@@ -192,27 +193,7 @@ export function WorkspaceDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => openLocalProject()}
-            className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
-            title="Open a local project"
-          >
-            <FolderOpen size={14} />
-          </button>
-          <button
-            onClick={() => useUiStore.getState().setOverlay('create-folder')}
-            className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
-            title="Create a new local project"
-          >
-            <FolderPlus size={14} />
-          </button>
-          <button
-            onClick={() => useUiStore.getState().setOverlay('connect-remote')}
-            className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
-            title="Connect SSH project"
-          >
-            <Wifi size={14} />
-          </button>
+          <ProjectMenu onOpenProject={() => openLocalProject()} compact />
           <button
             onClick={() => setShowCreate(true)}
             disabled={!canCreateWorkspace}
