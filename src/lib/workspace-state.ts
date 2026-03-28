@@ -244,7 +244,10 @@ export async function createEmptyWorkspace(opts: {
   cwd: string;
   sshHost?: string;
 }): Promise<Workspace> {
-  const effectiveSshHost = opts.sshHost ?? useUiStore.getState().sshHost ?? undefined;
+  const effectiveProject = getSelectedProjectSource(opts.cwd);
+  const effectiveSshHost = opts.sshHost
+    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
+    ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
     agentId: opts.agentId,
@@ -498,7 +501,6 @@ export async function createWorkspaceAndChat(
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
   const effectiveSshHost = opts.sshHost
     ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
-    ?? useUiStore.getState().sshHost
     ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create', {
@@ -537,7 +539,6 @@ export async function createDirectWorkspaceAndChat(
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
   const effectiveSshHost = opts.sshHost
     ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
-    ?? useUiStore.getState().sshHost
     ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create-direct', {
