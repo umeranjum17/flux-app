@@ -95,7 +95,14 @@ export async function createRemoteWorktree(
   try {
     await remoteExecGit(host, parentRepo, ['rev-parse', 'HEAD']);
   } catch {
-    await sshExec(host, `cd '${escapeShell(parentRepo)}' && git init && git commit --allow-empty -m 'Initial commit'`);
+    const esc = escapeShell(parentRepo);
+    const initResult = await sshExec(
+      host,
+      `cd '${esc}' && git init && git -c user.name=Flux -c user.email=flux@local commit --allow-empty -m 'Initial commit'`,
+    );
+    if (initResult.exitCode !== 0) {
+      throw new Error(`Failed to initialize git in ${parentRepo}: ${initResult.stderr || initResult.stdout}`);
+    }
   }
 
   // Create the worktree

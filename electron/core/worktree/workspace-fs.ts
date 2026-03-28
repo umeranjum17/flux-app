@@ -281,7 +281,7 @@ export async function createWorktreeAny(
         throw new Error(`Directory "${parentRepo}" does not exist.`);
       }
       await wfs.git(parentRepo, ['init'], { timeout: 10000 });
-      await wfs.git(parentRepo, ['commit', '--allow-empty', '-m', 'Initial commit'], { timeout: 10000 });
+      await wfs.git(parentRepo, ['-c', 'user.name=Flux', '-c', 'user.email=flux@local', 'commit', '--allow-empty', '-m', 'Initial commit'], { timeout: 10000 });
     }
     const { createWorktree } = await import('./manager');
     worktree = await createWorktree(parentRepo, branch, name);
