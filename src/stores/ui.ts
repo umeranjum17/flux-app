@@ -87,6 +87,9 @@ interface UiState {
   // Workspace detail panel (ticket view)
   detailPanelWorkspaceId: string | null;
 
+  // Kanban project filter (null = all projects)
+  kanbanProjectFilter: string | null;
+
   // Kanban usage panel (inline rate-limit view for kanban mode)
   kanbanUsagePanelOpen: boolean;
 
@@ -142,6 +145,7 @@ interface UiState {
   toggleWorkspaceViewMode(): void;
   openDetailPanel(workspaceId: string): void;
   closeDetailPanel(): void;
+  setKanbanProjectFilter(key: string | null): void;
   setKanbanUsagePanelOpen(open: boolean): void;
   toggleKanbanUsagePanel(): void;
 
@@ -295,6 +299,7 @@ export const useUiStore = create<UiState>()(
     completionModel: 'haiku',
     workspaceViewMode: 'list',
     detailPanelWorkspaceId: null,
+    kanbanProjectFilter: null,
     kanbanUsagePanelOpen: false,
 
     setLiveOverview(overview) {
@@ -716,6 +721,12 @@ export const useUiStore = create<UiState>()(
     closeDetailPanel() {
       set((state) => {
         state.detailPanelWorkspaceId = null;
+      });
+    },
+
+    setKanbanProjectFilter(key) {
+      set((state) => {
+        state.kanbanProjectFilter = key;
       });
     },
 

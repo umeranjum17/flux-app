@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Plus, LayoutGrid, FolderOpen, FolderPlus, Wifi } from 'lucide-react';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { useUiStore } from '../../stores/ui';
+import { getProjectSourceKey, useUiStore } from '../../stores/ui';
 import { useChatStore } from '../../stores/chat';
 import { WorkspaceCard } from './WorkspaceCard';
 import { KanbanBoard } from './KanbanBoard';
@@ -21,6 +21,7 @@ export function WorkspaceDashboard() {
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
   const viewMode = useUiStore((s) => s.workspaceViewMode);
+  const kanbanProjectFilter = useUiStore((s) => s.kanbanProjectFilter);
 
   const [showCreate, setShowCreate] = useState(false);
   const [mergingWorkspaceId, setMergingWorkspaceId] = useState<string | null>(null);
@@ -30,6 +31,43 @@ export function WorkspaceDashboard() {
   const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
 
   const openProjects = useUiStore((s) => s.openProjects);
+
+  // Build unique project list from workspaces + open projects for filter pills
+  const projectOptions = useMemo(() => {
+    const seen = new Map<string, { key: string; label: string; count: number }>();
+    for (const p of openProjects) {
+      const key = getProjectSourceKey(p);
+      if (!seen.has(key)) {
+        seen.set(key, { key, label: p.path.split('/').filter(Boolean).pop() || p.path, count: 0 });
+      }
+    }
+    for (const ws of workspaceList) {
+      const src = ws.sshHost
+        ? { path: ws.parentRepo, source: 'ssh' as const, sshHost: ws.sshHost }
+        : { path: ws.parentRepo, source: 'local' as const };
+      const key = getProjectSourceKey(src);
+      const existing = seen.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        seen.set(key, { key, label: ws.parentRepo.split('/').filter(Boolean).pop() || ws.parentRepo, count: 1 });
+      }
+    }
+    return Array.from(seen.values());
+  }, [openProjects, workspaceList]);
+
+  const hasMultipleProjects = projectOptions.length > 1;
+
+  // Filter workspaces by selected project
+  const filteredWorkspaceList = useMemo(() => {
+    if (!kanbanProjectFilter) return workspaceList;
+    return workspaceList.filter((ws) => {
+      const src = ws.sshHost
+        ? { path: ws.parentRepo, source: 'ssh' as const, sshHost: ws.sshHost }
+        : { path: ws.parentRepo, source: 'local' as const };
+      return getProjectSourceKey(src) === kanbanProjectFilter;
+    });
+  }, [workspaceList, kanbanProjectFilter]);
 
   // Load workspaces on mount — across all open projects
   useEffect(() => {
@@ -134,16 +172,21 @@ export function WorkspaceDashboard() {
     <div className="chrome-stage flex flex-1 overflow-hidden">
     <div className={`flex min-w-0 flex-1 flex-col overflow-hidden`}>
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-6 py-5">
+      <div className="flex shrink-0 flex-col border-b border-border/70 px-6 py-5">
+        <div className="flex items-center justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-bg-elevated/80 text-text-secondary">
               <LayoutGrid size={18} />
             </div>
             <div>
-              <h2 className="truncate text-lg font-semibold tracking-[-0.02em] text-text-primary">{repositoryName}</h2>
+              <h2 className="truncate text-lg font-semibold tracking-[-0.02em] text-text-primary">
+                {hasMultipleProjects ? 'All Projects' : repositoryName}
+              </h2>
               <p className="text-[12px] text-text-tertiary">
-                {workspaceList.length} workspace{workspaceList.length !== 1 ? 's' : ''} · Isolated branches for parallel agent work
+                {hasMultipleProjects
+                  ? `${projectOptions.length} projects · ${workspaceList.length} workspace${workspaceList.length !== 1 ? 's' : ''}`
+                  : `${workspaceList.length} workspace${workspaceList.length !== 1 ? 's' : ''} · Isolated branches for parallel agent work`}
               </p>
             </div>
           </div>
@@ -180,10 +223,44 @@ export function WorkspaceDashboard() {
             New Workspace
           </button>
         </div>
+        </div>
+
+        {/* Project filter pills — only show when multiple projects exist */}
+        {hasMultipleProjects && (
+          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto">
+            <button
+              onClick={() => useUiStore.getState().setKanbanProjectFilter(null)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                !kanbanProjectFilter
+                  ? 'border-accent/30 bg-accent/10 text-accent'
+                  : 'border-border/50 bg-bg-elevated/40 text-text-tertiary hover:text-text-secondary hover:border-border/70'
+              }`}
+            >
+              All
+              <span className="text-[10px] opacity-70">{workspaceList.length}</span>
+            </button>
+            {projectOptions.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => useUiStore.getState().setKanbanProjectFilter(
+                  kanbanProjectFilter === p.key ? null : p.key,
+                )}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                  kanbanProjectFilter === p.key
+                    ? 'border-accent/30 bg-accent/10 text-accent'
+                    : 'border-border/50 bg-bg-elevated/40 text-text-tertiary hover:text-text-secondary hover:border-border/70'
+                }`}
+              >
+                {p.label}
+                <span className="text-[10px] opacity-70">{p.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Workspace list / kanban */}
-      {workspaceList.length === 0 ? (
+      {filteredWorkspaceList.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated/60">
             <LayoutGrid size={28} className="text-text-tertiary/50" />
@@ -208,7 +285,7 @@ export function WorkspaceDashboard() {
         </div>
       ) : viewMode === 'kanban' ? (
         <KanbanBoard
-          workspaces={workspaceList}
+          workspaces={filteredWorkspaceList}
           activeWorkspaceId={activeWorkspaceId}
           workspaceOperations={workspaceOperations}
           onSelect={handleSelect}
@@ -275,7 +352,7 @@ export function WorkspaceDashboard() {
       ) : (
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-px">
-            {workspaceList.map((ws) => (
+            {filteredWorkspaceList.map((ws) => (
               <WorkspaceCard
                 key={ws.id}
                 workspace={ws}
