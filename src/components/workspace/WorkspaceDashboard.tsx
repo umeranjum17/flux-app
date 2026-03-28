@@ -20,6 +20,7 @@ export function WorkspaceDashboard() {
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
+  const canCreateWorkspace = isGitRepo || openProjects.length > 0;
   const viewMode = useUiStore((s) => s.workspaceViewMode);
   const kanbanProjectFilter = useUiStore((s) => s.kanbanProjectFilter);
 
@@ -215,8 +216,8 @@ export function WorkspaceDashboard() {
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            disabled={!isGitRepo}
-            title={isGitRepo ? undefined : 'Not a git repository — run "git init" first'}
+            disabled={!canCreateWorkspace}
+            title={canCreateWorkspace ? undefined : 'Not a git repository — run "git init" first'}
             className="premium-toolbar-button inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2 text-xs font-medium text-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={13} />
@@ -266,14 +267,14 @@ export function WorkspaceDashboard() {
             <LayoutGrid size={28} className="text-text-tertiary/50" />
           </div>
           <p className="mt-4 text-sm font-medium text-text-secondary">
-            {isGitRepo ? 'No workspaces yet' : 'Not a git repository'}
+            {canCreateWorkspace ? 'No workspaces yet' : 'Not a git repository'}
           </p>
           <p className="mt-1.5 max-w-[280px] text-[13px] leading-relaxed text-text-tertiary">
-            {isGitRepo
+            {canCreateWorkspace
               ? 'Create a workspace to run agents on isolated branches.'
               : 'Workspaces require a git repository. Run "git init" to get started.'}
           </p>
-          {isGitRepo && (
+          {canCreateWorkspace && (
             <button
               onClick={() => setShowCreate(true)}
               className="premium-toolbar-button mt-5 inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated/50 px-4 py-2.5 text-xs font-medium text-text-secondary"
