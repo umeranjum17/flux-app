@@ -40,6 +40,19 @@ const phaseTransitionMessages: Record<string, string> = {
   'ready_to_merge→merged': 'Changes merged.',
   'ready_to_merge→in_progress': 'Returning to implementation.',
   'merged→ready_to_archive': 'Merged — ready to clean up.',
+  // Backward transitions — restarting from an earlier phase
+  'planned→discovery': 'Returning to discovery.',
+  'in_progress→discovery': 'Returning to discovery.',
+  'in_progress→backlog': 'Moved back to backlog.',
+  'ready_for_pr→discovery': 'Returning to discovery.',
+  'ready_for_pr→planned': 'Returning to planning.',
+  'reviewing→discovery': 'Returning to discovery.',
+  'reviewing→planned': 'Returning to planning.',
+  'reviewing→in_progress': 'Returning to implementation.',
+  'changes_requested→discovery': 'Returning to discovery.',
+  'changes_requested→planned': 'Returning to planning.',
+  'ready_to_merge→discovery': 'Returning to discovery.',
+  'ready_to_merge→planned': 'Returning to planning.',
 };
 
 // ---------------------------------------------------------------------------
@@ -48,13 +61,13 @@ const phaseTransitionMessages: Record<string, string> = {
 
 const validOutcomeTransitions: Record<WorkspaceOutcome, WorkspaceOutcome[]> = {
   backlog: ['discovery', 'in_progress', 'planned'],
-  discovery: ['in_progress', 'planned'],
-  in_progress: ['planned', 'ready_for_pr'],
-  planned: ['in_progress', 'ready_for_pr'],
-  ready_for_pr: ['reviewing', 'in_progress', 'ready_to_merge', 'merged'],
-  reviewing: ['changes_requested', 'ready_to_merge', 'merged'],
-  changes_requested: ['in_progress', 'ready_for_pr', 'reviewing'],
-  ready_to_merge: ['merged', 'in_progress'],
+  discovery: ['backlog', 'in_progress', 'planned'],
+  in_progress: ['backlog', 'discovery', 'planned', 'ready_for_pr'],
+  planned: ['backlog', 'discovery', 'in_progress', 'ready_for_pr'],
+  ready_for_pr: ['backlog', 'discovery', 'planned', 'reviewing', 'in_progress', 'ready_to_merge', 'merged'],
+  reviewing: ['backlog', 'discovery', 'planned', 'in_progress', 'changes_requested', 'ready_to_merge', 'merged'],
+  changes_requested: ['backlog', 'discovery', 'planned', 'in_progress', 'ready_for_pr', 'reviewing'],
+  ready_to_merge: ['backlog', 'discovery', 'planned', 'in_progress', 'merged'],
   merged: ['ready_to_archive'],
   ready_to_archive: [],
 };

@@ -1732,6 +1732,17 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   ipcMain.handle('task:stop', async (_event, { taskId }: { taskId: string }) => {
     requireFields({ taskId }, 'taskId');
     if (!lifecycleManager.isTaskActive(taskId) && !activeTasks.has(taskId)) return;
+
+    // Flush session context before releasing so the next phase gets up-to-date context
+    const sessionId = taskSessions.get(taskId);
+    const wsId = lifecycleManager.getWorkspaceForTask(taskId);
+    if (sessionId && wsId) {
+      const ws = workspaceStore.get(wsId);
+      if (ws) {
+        await writeSessionContextFile(ws.worktreePath, sessionId, sessionStore, ws.sshHost).catch(() => {});
+      }
+    }
+
     releaseTask(taskId);
     sendToRenderer('agent:done', { taskId, error: undefined });
     lifecycleManager.taskReleasedWithStatus(taskId, 'done');

@@ -250,24 +250,23 @@ export function WorkspaceDashboard() {
                 // Activate the workspace so the user lands in the new mode
                 handleSelect(ws);
 
-                // Spawn agent in the target mode with previous context
+                // Spawn agent in the target mode — start a fresh session
+                // so dropping to an earlier phase proceeds exactly like the first time.
                 const modePrompts: Record<string, string> = {
-                  discovery: 'Re-run discovery on this workspace. Read `.context/session-context.md` for prior session state and any steering feedback. Produce an updated discovery brief.',
-                  plan: 'Create a plan for this workspace. Read `.context/session-context.md` for prior session state and any steering feedback. Produce a plan in `.context/plan.md`.',
-                  act: 'Implement the changes for this workspace. Read `.context/session-context.md` for prior session state and any steering feedback. Follow the plan in `.context/plan.md` if it exists.',
+                  discovery: 'Run discovery on this workspace.',
+                  plan: 'Create a plan for this workspace.',
+                  act: 'Implement the changes for this workspace.',
                 };
-                const prompt = modePrompts[mode] ?? `Continue working in ${mode} mode. Read \`.context/session-context.md\` for prior session state.`;
+                const prompt = modePrompts[mode] ?? `Work on this workspace in ${mode} mode.`;
 
+                // Stop any running task first, then spawn fresh in the new mode
                 window.api.invoke('workspace:active-task', { workspaceId: ws.id })
                   .then((taskIds: string[]) => {
                     if (taskIds.length > 0) {
-                      // Running workspace: restart the active task in the new mode
-                      return window.api.invoke('task:restart', { taskId: taskIds[0], mode });
-                    } else {
-                      // Idle workspace: spawn a fresh session in the new mode
-                      return window.api.invoke('workspace:spawn-chat', { workspaceId: ws.id, prompt, mode });
+                      return window.api.invoke('task:stop', { taskId: taskIds[0] });
                     }
                   })
+                  .then(() => window.api.invoke('workspace:spawn-chat', { workspaceId: ws.id, prompt, mode }))
                   .catch((err) => toast.error(`Failed to start ${mode} agent: ${err instanceof Error ? err.message : String(err)}`));
               }
             }
