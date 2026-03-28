@@ -13,7 +13,7 @@ import type { FileAttachment, TaskMode } from '../agents/types';
 import type { DiffScope, Workspace } from '../worktree/types';
 import { getChangedFiles, getFileDiff } from '../worktree/diff';
 import { createWorkspaceFs } from '../worktree/workspace-fs';
-import { escapeShell } from '../worktree/remote-manager';
+import { escapeShell } from '../shell-escape';
 import { agentManager } from '../agents/manager';
 import { extendedEnv } from '../process-utils';
 import { logDiagnostic } from '../diagnostics/logger';

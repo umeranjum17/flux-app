@@ -1,12 +1,11 @@
-import { execFile, spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import {
   extendedEnv,
   resolveSshCommand,
   classifySpawnError,
-  attachChildStdinErrorHandler,
-  safeWriteToChildStdin,
 } from '../process-utils';
+import { sshExec, sshWriteFile } from '../tools/ssh';
 import { agentManager } from '../agents/manager';
 import { log } from '../log';
 
@@ -160,7 +159,7 @@ export class RemoteConnectionManager {
     return this._localCwd;
   }
 
-  // ── SSH primitives (moved from tools/ssh.ts) ──────────────
+  // ── SSH primitives (delegated to tools/ssh.ts) ─────────────
 
   async exec(
     command: string,
@@ -168,20 +167,7 @@ export class RemoteConnectionManager {
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const host = this._host;
     if (!host) throw new Error('Not connected to SSH host');
-    try {
-      const { stdout, stderr } = await execFileAsync(
-        resolveSshCommand(),
-        [host, command],
-        { timeout, env: extendedEnv() },
-      );
-      return { stdout, stderr, exitCode: 0 };
-    } catch (err: any) {
-      return {
-        stdout: err.stdout ?? '',
-        stderr: err.stderr ?? err.message ?? '',
-        exitCode: err.code ?? 1,
-      };
-    }
+    return sshExec(host, command, timeout);
   }
 
   async writeFile(
@@ -191,24 +177,6 @@ export class RemoteConnectionManager {
   ): Promise<{ success: boolean; error?: string }> {
     const host = this._host;
     if (!host) throw new Error('Not connected to SSH host');
-    const escaped = remotePath.replace(/'/g, "'\\''");
-    const proc = spawn(resolveSshCommand(), [host, `cat > '${escaped}'`], {
-      timeout,
-      env: extendedEnv(),
-      stdio: ['pipe', 'pipe', 'pipe'],
-    } as any);
-    attachChildStdinErrorHandler(proc, 'sshWriteFile');
-
-    return new Promise((resolve) => {
-      let stderr = '';
-      proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
-      safeWriteToChildStdin(proc, content, 'sshWriteFile');
-      proc.stdin?.end();
-      proc.on('close', (code: number) => {
-        if (code === 0) resolve({ success: true });
-        else resolve({ success: false, error: stderr || `Exit code ${code}` });
-      });
-      proc.on('error', (e: Error) => resolve({ success: false, error: e.message }));
-    });
+    return sshWriteFile(host, remotePath, content, timeout);
   }
 }

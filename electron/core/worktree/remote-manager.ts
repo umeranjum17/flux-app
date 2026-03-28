@@ -1,11 +1,9 @@
 import crypto from 'crypto';
 import path from 'path';
 import { sshExec, sshWriteFile } from '../tools/ssh';
+import { escapeShell } from '../shell-escape';
+export { escapeShell } from '../shell-escape';
 import type { WorktreeInfo } from './types';
-
-export function escapeShell(s: string): string {
-  return s.replace(/'/g, "'\\''");
-}
 
 /** Cache resolved $HOME per host to avoid repeated SSH round-trips. */
 const remoteHomeCache = new Map<string, string>();

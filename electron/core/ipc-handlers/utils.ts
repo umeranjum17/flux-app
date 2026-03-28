@@ -30,19 +30,7 @@ export function requireFields(obj: Record<string, unknown>, ...fields: string[])
   }
 }
 
-export function escapeShellArg(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
-export function toRemoteShellPath(value: string): string {
-  const trimmed = value.trim() || '~';
-  if (trimmed === '~') return '"$HOME"';
-  if (trimmed.startsWith('~/')) {
-    const rest = trimmed.slice(2);
-    return rest ? `"${'$'}HOME"/${escapeShellArg(rest)}` : '"$HOME"';
-  }
-  return escapeShellArg(trimmed);
-}
+export { escapeShellArg, toRemoteShellPath } from '../shell-escape';
 
 export function expandLocalHomePath(value: string): string {
   const trimmed = value.trim() || '~';

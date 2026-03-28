@@ -15,6 +15,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { extendedEnv } from '../process-utils';
+import { escapeShell } from '../shell-escape';
 
 const execFileAsync = promisify(execFile);
 
@@ -207,12 +208,12 @@ class RemoteWorkspaceFs implements WorkspaceFs {
   }
 
   async mkdirp(dirPath: string): Promise<void> {
-    const { remoteExec, escapeShell } = await this.remote;
+    const { remoteExec } = await this.remote;
     await remoteExec(this.sshHost, '/', `mkdir -p '${escapeShell(dirPath)}'`);
   }
 
   async rmrf(targetPath: string): Promise<void> {
-    const { remoteExec, escapeShell } = await this.remote;
+    const { remoteExec } = await this.remote;
     await remoteExec(this.sshHost, '/', `rm -rf '${escapeShell(targetPath)}'`);
   }
 
@@ -223,7 +224,6 @@ class RemoteWorkspaceFs implements WorkspaceFs {
 
   async diskUsage(dirPath: string): Promise<number> {
     try {
-      const { escapeShell } = await this.remote;
       const result = await this.exec('/', `du -sk '${escapeShell(dirPath)}'`);
       if (result.exitCode === 0) {
         return (parseInt(result.stdout.split('\t')[0], 10) || 0) * 1024;

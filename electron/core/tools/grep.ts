@@ -2,10 +2,7 @@ import fs from 'fs';
 import readline from 'readline';
 import fg from 'fast-glob';
 import { RemoteConnectionManager } from '../remote/connection-manager';
-
-function escapeShellArg(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
+import { escapeShellArg } from '../shell-escape';
 
 export async function grepFiles(
   pattern: string,
