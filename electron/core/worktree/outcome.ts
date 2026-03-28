@@ -61,7 +61,7 @@ export interface WorkspaceGitState {
  * Works identically for local and remote (SSH) workspaces via WorkspaceFs.
  */
 export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGitState> {
-  const wfs = createWorkspaceFs(workspace.sshHost);
+  const wfs = createWorkspaceFs(workspace.host);
 
   let hasCommits = false;
   let hasUncommittedChanges = false;

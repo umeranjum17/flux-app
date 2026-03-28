@@ -60,7 +60,7 @@ describe('process-utils', () => {
       command: '/opt/Flux Tools/claude',
       args: ['--model', 'sonnet'],
       cwd: '/tmp/flux-local',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
       env: { PATH: '/custom/bin' },
     });
@@ -140,15 +140,15 @@ describe('process-utils', () => {
 });
 
 describe('classifySpawnError', () => {
-  it('classifies ENOENT with sshHost as SSH_NOT_FOUND', () => {
+  it('classifies ENOENT with host as SSH_NOT_FOUND', () => {
     const err = Object.assign(new Error('spawn /usr/bin/ssh ENOENT'), { code: 'ENOENT' });
-    const info = classifySpawnError(err, { command: 'claude', sshHost: 'user@host' });
+    const info = classifySpawnError(err, { command: 'claude', host: 'user@host' });
     expect(info.code).toBe('SSH_NOT_FOUND');
     expect(info.userMessage).toContain('SSH binary not found');
     expect(info.suggestion).toContain('OpenSSH');
   });
 
-  it('classifies ENOENT without sshHost as COMMAND_NOT_FOUND', () => {
+  it('classifies ENOENT without host as COMMAND_NOT_FOUND', () => {
     const err = Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' });
     const info = classifySpawnError(err, { command: 'claude' });
     expect(info.code).toBe('COMMAND_NOT_FOUND');
@@ -173,7 +173,7 @@ describe('classifySpawnError', () => {
 
   it('classifies host key verification failure', () => {
     const err = new Error('Host key verification failed');
-    const info = classifySpawnError(err, { command: 'ssh', sshHost: 'myhost' });
+    const info = classifySpawnError(err, { command: 'ssh', host: 'myhost' });
     expect(info.code).toBe('SSH_HOST_KEY');
     expect(info.suggestion).toContain('ssh-keyscan');
     expect(info.suggestion).toContain('myhost');
@@ -181,21 +181,21 @@ describe('classifySpawnError', () => {
 
   it('classifies connection timeout', () => {
     const err = new Error('Connection timed out');
-    const info = classifySpawnError(err, { command: 'ssh', sshHost: 'myhost' });
+    const info = classifySpawnError(err, { command: 'ssh', host: 'myhost' });
     expect(info.code).toBe('SSH_TIMEOUT');
     expect(info.userMessage).toContain('myhost');
   });
 
   it('classifies connection refused', () => {
     const err = new Error('Connection refused');
-    const info = classifySpawnError(err, { command: 'ssh', sshHost: 'myhost' });
+    const info = classifySpawnError(err, { command: 'ssh', host: 'myhost' });
     expect(info.code).toBe('SSH_REFUSED');
     expect(info.suggestion).toContain('SSH daemon');
   });
 
   it('classifies SSH publickey auth failure', () => {
     const err = new Error('Permission denied (publickey)');
-    const info = classifySpawnError(err, { command: 'ssh', sshHost: 'myhost' });
+    const info = classifySpawnError(err, { command: 'ssh', host: 'myhost' });
     expect(info.code).toBe('SSH_AUTH');
     expect(info.suggestion).toContain('ssh-add');
   });
@@ -238,7 +238,7 @@ describe('createStartupWatchdog', () => {
     createStartupWatchdog({
       timeoutMs: 10000,
       label: 'Claude',
-      sshHost: 'user@remote',
+      host: 'user@remote',
       remoteCwd: '/remote/dir',
       cwd: '/local',
       onTimeout,

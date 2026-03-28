@@ -15,7 +15,7 @@ export type ProjectSourceKind = 'local' | 'ssh';
 export interface ProjectSource {
   path: string;
   source: ProjectSourceKind;
-  sshHost?: string;
+  host?: string;
 }
 
 export interface RecentProject extends ProjectSource {
@@ -93,7 +93,7 @@ export interface IpcChannels {
   'fs:listdirs': { args: [{ dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
   'fs:grep': { args: [{ pattern: string; cwd: string }]; result: Array<{ file: string; line: number; text: string }> };
   'fs:glob': { args: [{ cwd: string; limit?: number }]; result: Array<{ path: string; name: string }> };
-  'terminal:create': { args: [{ id: string; cwd?: string; workspaceId?: string; sshHost?: string; shell?: string; command?: string }]; result: { id: string; shellName: string } };
+  'terminal:create': { args: [{ id: string; cwd?: string; workspaceId?: string; host?: string; shell?: string; command?: string }]; result: { id: string; shellName: string } };
   'terminal:write': { args: [{ id: string; data: string }]; result: void };
   'terminal:resize': { args: [{ id: string; cols: number; rows: number }]; result: void };
   'terminal:kill': { args: [{ id: string }]; result: void };
@@ -106,15 +106,15 @@ export interface IpcChannels {
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {
-    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
+    args: [{ name: string; parentRepo: string; branch: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; host?: string; outcome?: WorkspaceOutcome }];
     result: Workspace;
   };
   'workspace:create-quick': {
-    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string }];
+    args: [{ parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; host?: string }];
     result: Workspace;
   };
   'workspace:create-direct': {
-    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; sshHost?: string; outcome?: WorkspaceOutcome }];
+    args: [{ name: string; parentRepo: string; agentId: string; model: string; mode?: TaskMode; thinking?: ThinkingLevel; host?: string; outcome?: WorkspaceOutcome }];
     result: Workspace;
   };
   'workspace:rename-branch': {
@@ -410,7 +410,7 @@ export interface FluxConfig {
   customAgentPaths: Record<string, string>;
   zoomLevel?: number;
   recentProjects: RecentProject[];
-  recentSshHosts: Array<{
+  recentHosts: Array<{
     host: string;
     remotePath: string;
     lastUsed: number;
@@ -502,7 +502,7 @@ export interface Workspace {
   actModel?: string;
   actThinking?: ThinkingLevel;
   /** SSH host for remote workspaces. Undefined = local workspace. */
-  sshHost?: string;
+  host?: string;
   worktreePath: string;
   /** When true, the workspace operates directly on the parent repo (no worktree/branch). */
   direct?: boolean;

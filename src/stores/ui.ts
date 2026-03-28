@@ -47,9 +47,9 @@ interface UiState {
   pendingWorkspaceTerminalId: string | null;
 
   // SSH
-  sshHost: string | null;
+  host: string | null;
   sshConnected: boolean;
-  connectedSshHosts: Set<string>;
+  connectedRemoteHosts: Set<string>;
   environment: 'local' | 'ssh' | 'wsl';
 
   // Active file preview
@@ -156,9 +156,9 @@ interface UiState {
   setPendingWorkspaceTerminalId(id: string | null): void;
 }
 
-export function getProjectSourceKey(project: Pick<ProjectSource, 'path' | 'source'> & { sshHost?: string }): string {
+export function getProjectSourceKey(project: Pick<ProjectSource, 'path' | 'source'> & { host?: string }): string {
   return project.source === 'ssh'
-    ? `ssh:${project.sshHost ?? ''}:${project.path}`
+    ? `ssh:${project.host ?? ''}:${project.path}`
     : `local:${project.path}`;
 }
 
@@ -179,7 +179,7 @@ export function normalizeProjectSource(project: ProjectSource | string | null | 
     return {
       path: project.path,
       source: 'ssh',
-      ...(project.sshHost ? { sshHost: project.sshHost } : {}),
+      ...(project.host ? { host: project.host } : {}),
     };
   }
 
@@ -202,12 +202,12 @@ function normalizeLegacyProjectSource(value: unknown): ProjectSource | null {
     ('source' in value && value.source === 'ssh') || ('isSSH' in value && value.isSSH === true)
       ? 'ssh'
       : 'local';
-  const sshHost = 'sshHost' in value && typeof value.sshHost === 'string' ? value.sshHost : undefined;
+  const host = 'host' in value && typeof value.host === 'string' ? value.host : undefined;
 
   return normalizeProjectSource({
     path: value.path,
     source,
-    sshHost,
+    host,
   });
 }
 
@@ -228,7 +228,7 @@ function findProjectSource(
   openProjects: readonly ProjectSource[],
   project: ProjectSource | string | null | undefined,
   activeProject: ProjectSource | null,
-  sshHost: string | null,
+  host: string | null,
 ): ProjectSource | null {
   const normalized = normalizeProjectSource(project);
   if (!normalized) return null;
@@ -241,9 +241,9 @@ function findProjectSource(
     return activeProject;
   }
 
-  if (sshHost) {
+  if (host) {
     const sshProject = openProjects.find(
-      (candidate) => candidate.path === project && candidate.source === 'ssh' && candidate.sshHost === sshHost,
+      (candidate) => candidate.path === project && candidate.source === 'ssh' && candidate.host === host,
     );
     if (sshProject) return sshProject;
   }
@@ -280,9 +280,9 @@ export const useUiStore = create<UiState>()(
     bottomPanelOpen: false,
     bottomPanelTab: 'terminal',
     pendingWorkspaceTerminalId: null,
-    sshHost: null,
+    host: null,
     sshConnected: false,
-    connectedSshHosts: new Set(),
+    connectedRemoteHosts: new Set(),
     environment: 'local',
     activeFile: null,
     pendingMention: null,
@@ -390,7 +390,7 @@ export const useUiStore = create<UiState>()(
 
     addOpenProject(project) {
       set((state) => {
-        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.host);
         if (!normalized) return;
 
         const key = getProjectSourceKey(normalized);
@@ -402,7 +402,7 @@ export const useUiStore = create<UiState>()(
 
     removeOpenProject(project) {
       set((state) => {
-        const target = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        const target = findProjectSource(state.openProjects, project, state.activeProject, state.host);
         if (!target) return;
 
         const targetKey = getProjectSourceKey(target);
@@ -423,7 +423,7 @@ export const useUiStore = create<UiState>()(
 
     setActiveProject(project) {
       set((state) => {
-        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.host);
         if (!normalized) return;
 
         state.activeProject = normalized;
@@ -440,7 +440,7 @@ export const useUiStore = create<UiState>()(
 
     toggleProjectCollapsed(project) {
       set((state) => {
-        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.sshHost);
+        const normalized = findProjectSource(state.openProjects, project, state.activeProject, state.host);
         if (!normalized) return;
 
         const key = getProjectSourceKey(normalized);
@@ -568,12 +568,12 @@ export const useUiStore = create<UiState>()(
 
     connectSsh(host, cwd) {
       set((state) => {
-        const remoteProject = normalizeProjectSource({ path: cwd, source: 'ssh', sshHost: host });
+        const remoteProject = normalizeProjectSource({ path: cwd, source: 'ssh', host: host });
         if (!remoteProject) return;
 
-        state.sshHost = host;
+        state.host = host;
         state.sshConnected = true;
-        state.connectedSshHosts.add(host);
+        state.connectedRemoteHosts.add(host);
         state.environment = 'ssh';
         state.cwd = cwd;
         state.projectName = basename(cwd);
@@ -589,15 +589,15 @@ export const useUiStore = create<UiState>()(
 
     disconnectSsh(localCwd) {
       set((state) => {
-        const disconnectedHost = state.sshHost;
+        const disconnectedHost = state.host;
         if (disconnectedHost) {
-          state.connectedSshHosts.delete(disconnectedHost);
+          state.connectedRemoteHosts.delete(disconnectedHost);
           // Remove SSH projects for this host from openProjects
           state.openProjects = state.openProjects.filter(
-            (p) => !(p.source === 'ssh' && p.sshHost === disconnectedHost),
+            (p) => !(p.source === 'ssh' && p.host === disconnectedHost),
           );
         }
-        state.sshHost = null;
+        state.host = null;
         state.sshConnected = false;
         state.environment = 'local';
         state.cwd = localCwd;

@@ -150,15 +150,15 @@ export function AppShell() {
           }
           // Auto-reconnect SSH hosts from restored projects (fire-and-forget)
           if (config.openProjects && config.openProjects.length > 0) {
-            const sshHosts = new Map<string, string>();
+            const hosts = new Map<string, string>();
             for (const project of config.openProjects) {
-              if (project.source === 'ssh' && project.sshHost && project.path) {
-                if (!sshHosts.has(project.sshHost)) {
-                  sshHosts.set(project.sshHost, project.path);
+              if (project.source === 'ssh' && project.host && project.path) {
+                if (!hosts.has(project.host)) {
+                  hosts.set(project.host, project.path);
                 }
               }
             }
-            for (const [host, remoteCwd] of sshHosts) {
+            for (const [host, remoteCwd] of hosts) {
               connectToSshWorkspace(host, remoteCwd).catch((err) => {
                 console.warn(`[ssh] Auto-reconnect to ${host} failed:`, err);
               });
@@ -905,10 +905,10 @@ export function AppShell() {
 
   // Open project handler
   const openProject = useCallback(async (project?: ProjectSource) => {
-    if (project?.source === 'ssh' && project.sshHost && project.path) {
+    if (project?.source === 'ssh' && project.host && project.path) {
       try {
-        const { host, cwd: remoteCwd } = await connectToSshWorkspace(project.sshHost, project.path);
-        const recentProject = createRecentProject(remoteCwd, { source: 'ssh', sshHost: host });
+        const { host, cwd: remoteCwd } = await connectToSshWorkspace(project.host, project.path);
+        const recentProject = createRecentProject(remoteCwd, { source: 'ssh', host: host });
         await rememberRecentProject(recentProject);
         return;
       } catch {

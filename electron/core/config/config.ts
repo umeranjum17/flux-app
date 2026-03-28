@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: FluxConfig = {
   customAgentPaths: {},
   zoomLevel: 1.0,
   recentProjects: [],
-  recentSshHosts: [],
+  recentHosts: [],
 };
 
 function normalizeProjectSource(value: unknown): NonNullable<FluxConfig['openProjects']>[number] | null {
@@ -35,10 +35,10 @@ function normalizeProjectSource(value: unknown): NonNullable<FluxConfig['openPro
     ('source' in value && value.source === 'ssh') || ('isSSH' in value && value.isSSH === true)
       ? 'ssh'
       : 'local';
-  const sshHost = 'sshHost' in value && typeof value.sshHost === 'string' ? value.sshHost : undefined;
+  const host = 'host' in value && typeof value.host === 'string' ? value.host : undefined;
 
   return source === 'ssh'
-    ? { path: value.path, source, ...(sshHost ? { sshHost } : {}) }
+    ? { path: value.path, source, ...(host ? { host } : {}) }
     : { path: value.path, source };
 }
 
@@ -52,7 +52,7 @@ function normalizeProjectSources(value: unknown): FluxConfig['openProjects'] {
     const normalized = normalizeProjectSource(item);
     if (!normalized) continue;
     const key = normalized.source === 'ssh'
-      ? `ssh:${normalized.sshHost ?? ''}:${normalized.path}`
+      ? `ssh:${normalized.host ?? ''}:${normalized.path}`
       : `local:${normalized.path}`;
     deduped.set(key, normalized);
   }
@@ -118,9 +118,9 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
         ? raw.customAgentPaths as FluxConfig['customAgentPaths']
         : DEFAULT_CONFIG.customAgentPaths,
     recentProjects: normalizeRecentProjects(raw.recentProjects),
-    recentSshHosts: Array.isArray(raw.recentSshHosts)
-      ? raw.recentSshHosts as FluxConfig['recentSshHosts']
-      : DEFAULT_CONFIG.recentSshHosts,
+    recentHosts: Array.isArray(raw.recentHosts)
+      ? raw.recentHosts as FluxConfig['recentHosts']
+      : DEFAULT_CONFIG.recentHosts,
     openProjects: normalizeProjectSources(raw.openProjects),
     activeProject: normalizeProjectSource(raw.activeProject)
       ?? (typeof raw.activeProjectPath === 'string' ? { path: raw.activeProjectPath, source: 'local' } : undefined),

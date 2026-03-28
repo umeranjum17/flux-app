@@ -110,7 +110,7 @@ export interface SpawnOptions {
   attachments?: FileAttachment[];
   contextBlock?: string; // Injected repo map context (for logging/diagnostics)
   binaryPath?: string; // Resolved absolute path to the agent binary
-  sshHost?: string;      // e.g., "umera@extreme" — spawn agent over SSH
+  host?: string;      // e.g., "umera@extreme" — spawn agent over SSH
   remoteCwd?: string;    // Remote working directory for SSH mode
   dangerouslyBypassPermissions?: boolean; // Disable agent sandboxing for externally sandboxed runs
   parentTaskId?: string;

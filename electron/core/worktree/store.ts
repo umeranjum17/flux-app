@@ -23,7 +23,7 @@ interface CreateWorkspaceInput {
   actModel?: string;
   actThinking?: ThinkingLevel;
   direct?: boolean;
-  sshHost?: string;
+  host?: string;
   status?: WorkspaceStatus;
   outcome?: WorkspaceOutcome;
   sessionId?: string;
@@ -39,7 +39,7 @@ export class WorkspaceStore {
       : db.prepare('SELECT * FROM workspaces ORDER BY updated_at DESC').all();
 
     const workspaces = (rows as any[]).map(rowToWorkspace);
-    log.dim('workspace-store', `list(${parentRepo ?? 'all'}): ${workspaces.length} workspace(s)`, workspaces.map(w => `${w.name}[${w.id}] ssh=${w.sshHost ?? 'local'}`).join(', '));
+    log.dim('workspace-store', `list(${parentRepo ?? 'all'}): ${workspaces.length} workspace(s)`, workspaces.map(w => `${w.name}[${w.id}] host=${w.host ?? 'local'}`).join(', '));
     return workspaces;
   }
 
@@ -49,7 +49,7 @@ export class WorkspaceStore {
 
     const workspace = rowToWorkspace(row);
     // Remote worktree paths don't exist locally — skip fs check for SSH workspaces
-    if (workspace.sshHost) {
+    if (workspace.host) {
       return workspace;
     }
     if (!fs.existsSync(workspace.worktreePath)) {
@@ -86,7 +86,7 @@ export class WorkspaceStore {
       actModel: input.actModel ?? input.model,
       actThinking: input.actThinking ?? input.thinking,
       direct: input.direct ?? false,
-      sshHost: input.sshHost,
+      host: input.host,
       status: input.status ?? 'idle',
       outcome: input.outcome ?? 'in_progress',
       createdAt: now,
@@ -118,7 +118,7 @@ export class WorkspaceStore {
       workspace.actModel ?? null,
       workspace.actThinking ?? null,
       workspace.direct ? 1 : 0,
-      workspace.sshHost ?? null,
+      workspace.host ?? null,
       workspace.status,
       workspace.outcome,
       workspace.createdAt,
@@ -165,7 +165,7 @@ export class WorkspaceStore {
       next.actModel ?? null,
       next.actThinking ?? null,
       next.direct ? 1 : 0,
-      next.sshHost ?? null,
+      next.host ?? null,
       next.status,
       next.outcome,
       next.updatedAt,
@@ -266,7 +266,7 @@ function rowToWorkspace(row: any): Workspace {
     actModel: row.act_model ?? undefined,
     actThinking: row.act_thinking ?? undefined,
     direct: row.direct === 1 ? true : undefined,
-    sshHost: row.ssh_host ?? undefined,
+    host: row.ssh_host ?? undefined,
     status: row.status,
     outcome: row.outcome ?? 'in_progress',
     createdAt: row.created_at,

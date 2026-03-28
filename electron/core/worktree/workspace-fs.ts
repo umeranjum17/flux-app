@@ -1,11 +1,11 @@
 /**
  * WorkspaceFs — Strategy pattern for workspace filesystem operations.
  *
- * Eliminates scattered `if (sshHost)` conditionals by providing a single
+ * Eliminates scattered `if (host)` conditionals by providing a single
  * interface that works identically for local and remote workspaces.
  *
  * Usage:
- *   const wfs = createWorkspaceFs(workspace.sshHost);
+ *   const wfs = createWorkspaceFs(workspace.host);
  *   await wfs.git(workspace.worktreePath, ['status']);
  *   await wfs.readFile(`${workspace.worktreePath}/package.json`);
  */
@@ -64,7 +64,7 @@ export interface WorkspaceFs {
   readonly isRemote: boolean;
 
   /** SSH host string, or undefined for local. */
-  readonly sshHost: string | undefined;
+  readonly host: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ export interface WorkspaceFs {
 
 class LocalWorkspaceFs implements WorkspaceFs {
   readonly isRemote = false;
-  readonly sshHost = undefined;
+  readonly host = undefined;
 
   async git(cwd: string, args: string[], opts?: { timeout?: number }): Promise<{ stdout: string; stderr: string }> {
     const { stdout, stderr } = await execFileAsync('git', args, {
@@ -164,12 +164,12 @@ class LocalWorkspaceFs implements WorkspaceFs {
 
 class RemoteWorkspaceFs implements WorkspaceFs {
   readonly isRemote = true;
-  readonly sshHost: string;
+  readonly host: string;
 
   private _remote?: Promise<typeof import('./remote-manager')>;
 
   constructor(host: string) {
-    this.sshHost = host;
+    this.host = host;
   }
 
   private get remote() {
@@ -179,47 +179,47 @@ class RemoteWorkspaceFs implements WorkspaceFs {
 
   async git(cwd: string, args: string[], opts?: { timeout?: number }): Promise<{ stdout: string; stderr: string }> {
     const { remoteExecGit } = await this.remote;
-    return remoteExecGit(this.sshHost, cwd, args, opts?.timeout);
+    return remoteExecGit(this.host, cwd, args, opts?.timeout);
   }
 
   async readFile(filePath: string): Promise<string | null> {
     const { remoteReadFile } = await this.remote;
-    return remoteReadFile(this.sshHost, filePath);
+    return remoteReadFile(this.host, filePath);
   }
 
   async writeFile(filePath: string, content: string): Promise<void> {
     const { remoteWriteFile } = await this.remote;
-    return remoteWriteFile(this.sshHost, filePath, content);
+    return remoteWriteFile(this.host, filePath, content);
   }
 
   async writeBuffer(filePath: string, content: Uint8Array): Promise<void> {
     const { remoteWriteBuffer } = await this.remote;
-    return remoteWriteBuffer(this.sshHost, filePath, content);
+    return remoteWriteBuffer(this.host, filePath, content);
   }
 
   async exists(filePath: string): Promise<boolean> {
     const { remotePathExists } = await this.remote;
-    return remotePathExists(this.sshHost, filePath);
+    return remotePathExists(this.host, filePath);
   }
 
   async listDir(dirPath: string): Promise<string[]> {
     const { remoteListDir } = await this.remote;
-    return remoteListDir(this.sshHost, dirPath);
+    return remoteListDir(this.host, dirPath);
   }
 
   async mkdirp(dirPath: string): Promise<void> {
     const { remoteExec } = await this.remote;
-    await remoteExec(this.sshHost, '/', `mkdir -p '${escapeShell(dirPath)}'`);
+    await remoteExec(this.host, '/', `mkdir -p '${escapeShell(dirPath)}'`);
   }
 
   async rmrf(targetPath: string): Promise<void> {
     const { remoteExec } = await this.remote;
-    await remoteExec(this.sshHost, '/', `rm -rf '${escapeShell(targetPath)}'`);
+    await remoteExec(this.host, '/', `rm -rf '${escapeShell(targetPath)}'`);
   }
 
   async exec(cwd: string, command: string, opts?: { timeout?: number }): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const { remoteExec } = await this.remote;
-    return remoteExec(this.sshHost, cwd, command, opts?.timeout);
+    return remoteExec(this.host, cwd, command, opts?.timeout);
   }
 
   async diskUsage(dirPath: string): Promise<number> {
@@ -242,8 +242,8 @@ class RemoteWorkspaceFs implements WorkspaceFs {
 const localInstance = new LocalWorkspaceFs();
 
 /** Create a WorkspaceFs for the given SSH host (remote) or local (undefined). */
-export function createWorkspaceFs(sshHost?: string): WorkspaceFs {
-  if (sshHost) return new RemoteWorkspaceFs(sshHost);
+export function createWorkspaceFs(host?: string): WorkspaceFs {
+  if (host) return new RemoteWorkspaceFs(host);
   return localInstance;
 }
 
@@ -261,17 +261,17 @@ export interface WorktreeCreateResult {
  * Encapsulates the local/remote branching so callers don't need to.
  */
 export async function createWorktreeAny(
-  sshHost: string | undefined,
+  host: string | undefined,
   parentRepo: string,
   branch: string,
   name: string,
 ): Promise<WorktreeCreateResult> {
-  const wfs = createWorkspaceFs(sshHost);
+  const wfs = createWorkspaceFs(host);
   let worktree: import('./types').WorktreeInfo;
 
-  if (sshHost) {
+  if (host) {
     const { createRemoteWorktree } = await import('./remote-manager');
-    worktree = await createRemoteWorktree(sshHost, parentRepo, branch, name);
+    worktree = await createRemoteWorktree(host, parentRepo, branch, name);
   } else {
     // Auto-initialize git if needed
     try {
@@ -307,14 +307,14 @@ export interface RemoveWorktreeOptions {
  * Encapsulates the local/remote branching so callers don't need to.
  */
 export async function removeWorktreeAny(
-  sshHost: string | undefined,
+  host: string | undefined,
   parentRepo: string,
   worktreePath: string,
   options: RemoveWorktreeOptions = {},
 ): Promise<void> {
-  if (sshHost) {
+  if (host) {
     const { removeRemoteWorktree } = await import('./remote-manager');
-    await removeRemoteWorktree(sshHost, parentRepo, worktreePath, { onStage: options.onStage });
+    await removeRemoteWorktree(host, parentRepo, worktreePath, { onStage: options.onStage });
   } else {
     const { removeWorktree } = await import('./manager');
     await removeWorktree(parentRepo, worktreePath, {

@@ -24,7 +24,7 @@ function getProjectSourceLabel(project: ProjectSource | null | undefined): strin
 function getProjectSourceContext(project: ProjectSource | null | undefined): string {
   if (!project) return 'No project selected';
   return project.source === 'ssh'
-    ? `${project.sshHost ?? 'SSH host'} · ${project.path}`
+    ? `${project.host ?? 'SSH host'} · ${project.path}`
     : project.path;
 }
 
@@ -72,7 +72,7 @@ export function WorkspaceTab() {
   const collapsedProjects = useUiStore((s) => s.collapsedProjects);
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const sshConnected = useUiStore((s) => s.sshConnected);
-  const sshHost = useUiStore((s) => s.sshHost);
+  const host = useUiStore((s) => s.host);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [createProjectKey, setCreateProjectKey] = useState<string | null>(null);
@@ -92,8 +92,8 @@ export function WorkspaceTab() {
 
     // Sort all workspaces into their project groups
     for (const ws of workspaces.values()) {
-      const project: ProjectSource = ws.sshHost
-        ? { path: ws.parentRepo, source: 'ssh', sshHost: ws.sshHost }
+      const project: ProjectSource = ws.host
+        ? { path: ws.parentRepo, source: 'ssh', host: ws.host }
         : { path: ws.parentRepo, source: 'local' };
       const key = getProjectSourceKey(project);
       const existing = groups.get(key) ?? { project, workspaces: [] as Workspace[] };
@@ -140,8 +140,8 @@ export function WorkspaceTab() {
     const workspace = wsStore.workspaces.get(wsId);
     if (workspace) {
       useUiStore.getState().setActiveProject(
-        workspace.sshHost
-          ? { path: workspace.parentRepo, source: 'ssh', sshHost: workspace.sshHost }
+        workspace.host
+          ? { path: workspace.parentRepo, source: 'ssh', host: workspace.host }
           : { path: workspace.parentRepo, source: 'local' },
       );
     }
@@ -237,7 +237,7 @@ export function WorkspaceTab() {
         mode,
         thinking: selectedThinking,
         cwd: project.path,
-        sshHost: project.source === 'ssh' ? project.sshHost : undefined,
+        host: project.source === 'ssh' ? project.host : undefined,
       });
       const taskId = crypto.randomUUID();
       useChatStore.getState().createTask({
@@ -277,7 +277,7 @@ export function WorkspaceTab() {
         model,
         mode,
         thinking: selectedThinking,
-        sshHost: project.source === 'ssh' ? project.sshHost : undefined,
+        host: project.source === 'ssh' ? project.host : undefined,
       }) as Workspace;
       useWorkspaceStore.getState().addWorkspace(ws);
       useWorkspaceStore.getState().setActiveWorkspace(ws.id);
@@ -340,8 +340,8 @@ export function WorkspaceTab() {
           <button
             onClick={handleConnectSshProject}
             className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-            title={sshConnected && sshHost
-              ? `Connect another SSH project (connected: ${sshHost})`
+            title={sshConnected && host
+              ? `Connect another SSH project (connected: ${host})`
               : 'Connect SSH project'}
           >
             <Wifi size={13} />
@@ -415,7 +415,7 @@ export function WorkspaceTab() {
                   className={`group mt-1.5 flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-bg-hover ${
                     isActiveProject ? 'text-accent' : 'text-text-secondary'
                   }`}
-                  title={`${projectPath}${project.source === 'ssh' && project.sshHost ? `\nSSH: ${project.sshHost}` : ''}\nDouble-click to set as active project`}
+                  title={`${projectPath}${project.source === 'ssh' && project.host ? `\nSSH: ${project.host}` : ''}\nDouble-click to set as active project`}
                 >
                   {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                   <FolderOpen size={12} className="shrink-0 opacity-60" />
@@ -612,9 +612,9 @@ function WorkspaceListItem({
   onOpenContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onArchive: () => void | Promise<void>;
 }) {
-  const connectedSshHosts = useUiStore((s) => s.connectedSshHosts);
-  const isSshWorkspace = !!workspace.sshHost;
-  const sshAvailable = isSshWorkspace ? connectedSshHosts.has(workspace.sshHost!) : true;
+  const connectedRemoteHosts = useUiStore((s) => s.connectedRemoteHosts);
+  const isSshWorkspace = !!workspace.host;
+  const sshAvailable = isSshWorkspace ? connectedRemoteHosts.has(workspace.host!) : true;
   const isArchiving = isWorkspaceArchiving(operation);
   const outcomeImpliesChanges = workspace.outcome === 'ready_for_pr'
     || workspace.outcome === 'reviewing'
@@ -667,7 +667,7 @@ function WorkspaceListItem({
   };
 
   const sshTooltip = isSshWorkspace
-    ? (sshAvailable ? `SSH: ${workspace.sshHost}` : `SSH disconnected: ${workspace.sshHost}`)
+    ? (sshAvailable ? `SSH: ${workspace.host}` : `SSH disconnected: ${workspace.host}`)
     : undefined;
   const rowTitle = [sshTooltip, signal.tooltip].filter(Boolean).join(' · ') || signal.tooltip;
 

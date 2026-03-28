@@ -100,7 +100,7 @@ export interface Workspace {
   /** When true, the workspace operates directly on the parent repo (no worktree/branch). */
   direct?: boolean;
   /** SSH host for remote workspaces. Undefined = local workspace. */
-  sshHost?: string;
+  host?: string;
   status: WorkspaceStatus;
   outcome: WorkspaceOutcome;
   createdAt: number;

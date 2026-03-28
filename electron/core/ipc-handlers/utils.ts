@@ -939,7 +939,7 @@ export async function writeAttachmentContextFile(
   options: {
     images?: string[];
     attachments?: FileAttachment[];
-    sshHost: string | null;
+    host: string | null;
   },
 ): Promise<AttachmentContextArtifacts | null> {
   const imageInputs = options.images?.length ? dedupeImages(options.images) : [];
@@ -947,7 +947,7 @@ export async function writeAttachmentContextFile(
   if (imageInputs.length === 0 && attachments.length === 0) return null;
 
   try {
-    const wfs = createWorkspaceFs(options.sshHost ?? undefined);
+    const wfs = createWorkspaceFs(options.host ?? undefined);
     const joinPath = wfs.isRemote ? path.posix.join : path.join;
     const contextDir = joinPath(cwd, '.context');
     const attachmentDir = joinPath(contextDir, 'attachments');
@@ -1488,7 +1488,7 @@ export async function writeSessionContextFile(
   cwd: string,
   sessionId: string,
   sessionStore: SessionStore,
-  sshHost?: string | null,
+  host?: string | null,
 ): Promise<string | null> {
   try {
     const session = sessionStore.get(sessionId);
@@ -1584,7 +1584,7 @@ export async function writeSessionContextFile(
     const content = sections.join('\n') + '\n';
     const contextFilePath = `${cwd}/.context/session-context.md`;
 
-    const wfs = createWorkspaceFs(sshHost ?? undefined);
+    const wfs = createWorkspaceFs(host ?? undefined);
     await wfs.writeFile(contextFilePath, content);
     return contextFilePath;
   } catch {

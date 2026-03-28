@@ -43,8 +43,8 @@ export function WorkspaceDashboard() {
       }
     }
     for (const ws of workspaceList) {
-      const src = ws.sshHost
-        ? { path: ws.parentRepo, source: 'ssh' as const, sshHost: ws.sshHost }
+      const src = ws.host
+        ? { path: ws.parentRepo, source: 'ssh' as const, host: ws.host }
         : { path: ws.parentRepo, source: 'local' as const };
       const key = getProjectSourceKey(src);
       const existing = seen.get(key);
@@ -63,8 +63,8 @@ export function WorkspaceDashboard() {
   const filteredWorkspaceList = useMemo(() => {
     if (!kanbanProjectFilter) return workspaceList;
     return workspaceList.filter((ws) => {
-      const src = ws.sshHost
-        ? { path: ws.parentRepo, source: 'ssh' as const, sshHost: ws.sshHost }
+      const src = ws.host
+        ? { path: ws.parentRepo, source: 'ssh' as const, host: ws.host }
         : { path: ws.parentRepo, source: 'local' as const };
       return getProjectSourceKey(src) === kanbanProjectFilter;
     });
@@ -142,8 +142,8 @@ export function WorkspaceDashboard() {
   const handleSelect = useCallback((ws: Workspace) => {
     useWorkspaceStore.getState().setActiveWorkspace(ws.id);
     useUiStore.getState().setActiveProject(
-      ws.sshHost
-        ? { path: ws.parentRepo, source: 'ssh', sshHost: ws.sshHost }
+      ws.host
+        ? { path: ws.parentRepo, source: 'ssh', host: ws.host }
         : { path: ws.parentRepo, source: 'local' },
     );
     const latestTask = Array.from(useChatStore.getState().tasks.values())

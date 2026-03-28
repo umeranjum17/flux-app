@@ -5,7 +5,7 @@ export type ProjectSourceKind = 'local' | 'ssh';
 export interface ProjectSource {
   path: string;
   source: ProjectSourceKind;
-  sshHost?: string;
+  host?: string;
 }
 
 export interface RecentProject {
@@ -13,10 +13,10 @@ export interface RecentProject {
   name: string;
   lastOpened: number;
   source: ProjectSourceKind;
-  sshHost?: string;
+  host?: string;
 }
 
-export interface RecentSshHost {
+export interface RecentHost {
   host: string;
   remotePath: string;
   lastUsed: number;
@@ -37,7 +37,7 @@ export interface FluxConfig {
   qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;
   recentProjects: RecentProject[];
-  recentSshHosts: RecentSshHost[];
+  recentHosts: RecentHost[];
   zoomLevel?: number;
   defaultMergeAgent?: string;
   defaultMergeModel?: string;

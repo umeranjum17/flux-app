@@ -103,8 +103,8 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
     const chatStore = useChatStore.getState();
     wsStore.setActiveWorkspace(workspace.id);
     useUiStore.getState().setActiveProject(
-      workspace.sshHost
-        ? { path: workspace.parentRepo, source: 'ssh', sshHost: workspace.sshHost }
+      workspace.host
+        ? { path: workspace.parentRepo, source: 'ssh', host: workspace.host }
         : { path: workspace.parentRepo, source: 'local' },
     );
 
@@ -149,7 +149,7 @@ function WorkspaceCard({ workspace }: { workspace: import('../../lib/ipc-api').W
       </div>
       <div className="flex items-center justify-between text-[10px] text-text-tertiary">
         <span className="truncate">
-          {workspace.sshHost ? `${workspace.sshHost} · ${workspace.parentRepo}` : workspace.parentRepo}
+          {workspace.host ? `${workspace.host} · ${workspace.parentRepo}` : workspace.parentRepo}
         </span>
         <span className="shrink-0">{formatTimeAgo(workspace.updatedAt)}</span>
       </div>
@@ -390,7 +390,7 @@ function RecentProjectRow({ project, onClick }: { project: RecentProject; onClic
       <div className="flex-1 min-w-0">
         <span className="block truncate text-[14px] font-medium text-text-primary">{project.name}</span>
         <span className="mt-0.5 block truncate text-[12px] text-text-tertiary">
-          {project.source === 'ssh' && project.sshHost ? `${project.sshHost} · ` : ''}
+          {project.source === 'ssh' && project.host ? `${project.host} · ` : ''}
           {project.path}
         </span>
       </div>

@@ -36,7 +36,7 @@ export interface TerminalHandlerDeps {
   toRemoteShellPath: (value: string) => string;
   requireFields: (obj: Record<string, unknown>, ...fields: string[]) => void;
   getWorkspacePath: (workspaceId: string) => string | undefined;
-  getWorkspaceSshHost: (workspaceId: string) => string | undefined;
+  getWorkspaceHost: (workspaceId: string) => string | undefined;
 }
 
 // ── Data batching buffer with UTF-8 boundary safety ────────────────
@@ -134,7 +134,7 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
     toRemoteShellPath,
     requireFields,
     getWorkspacePath,
-    getWorkspaceSshHost,
+    getWorkspaceHost,
   } = deps;
 
   const activePtys = new Map<string, ptyTypes.IPty>();
@@ -173,12 +173,12 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
 
   // ── terminal:create ──────────────────────────────────────────────
 
-  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId, sshHost: explicitSshHost, shell: requestedShell, command }: { id: string; cwd?: string; workspaceId?: string; sshHost?: string; shell?: string; command?: string }) => {
+  ipcMain.handle('terminal:create', async (_event, { id, cwd: termCwd, workspaceId, host: explicitHost, shell: requestedShell, command }: { id: string; cwd?: string; workspaceId?: string; host?: string; shell?: string; command?: string }) => {
     requireFields({ id }, 'id');
 
-    // Determine SSH host: workspace sshHost > explicit sshHost from caller > none.
+    // Determine SSH host: workspace host > explicit host from caller > none.
     // Never fall back to the global remoteConnection — local terminals must stay local.
-    const sshHost = workspaceId ? getWorkspaceSshHost(workspaceId) : explicitSshHost;
+    const host = workspaceId ? getWorkspaceHost(workspaceId) : explicitHost;
 
     // Resolve cwd: workspace worktree path > explicit cwd > current cwd
     let spawnCwd: string;
@@ -192,9 +192,9 @@ export function registerTerminalIpcHandlers(deps: TerminalHandlerDeps): { dispos
     // Initialize flow control state
     flowStates.set(id, { unackedChars: 0, paused: false });
 
-    if (sshHost) {
+    if (host) {
       // SSH: fall back to child_process with pseudo-tty allocation
-      const proc = spawn(resolveSshCommand(), ['-tt', sshHost], {
+      const proc = spawn(resolveSshCommand(), ['-tt', host], {
         cwd: remoteConnection.isConnected() ? remoteConnection.localCwd : process.cwd(),
         env: extendedEnv({ TERM: 'xterm-256color' }),
         stdio: ['pipe', 'pipe', 'pipe'],

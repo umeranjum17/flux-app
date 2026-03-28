@@ -122,9 +122,9 @@ class AgentManager {
    * Get a detected agent. For SSH workspaces, pass the host to get remote detection.
    * Falls back to local detection if no host-specific result exists.
    */
-  get(id: AgentId, sshHost?: string): DetectedAgent | undefined {
-    if (sshHost) {
-      const remote = this.remoteAgents.get(sshHost)?.get(id);
+  get(id: AgentId, host?: string): DetectedAgent | undefined {
+    if (host) {
+      const remote = this.remoteAgents.get(host)?.get(id);
       if (remote) return remote;
     }
     return this.agents.get(id);
@@ -184,13 +184,13 @@ class AgentManager {
   }
 
   async spawn(id: AgentId, options: SpawnOptions, resumeMessages?: SessionMessage[]): Promise<AgentHandle> {
-    const agent = this.get(id, options.sshHost);
+    const agent = this.get(id, options.host);
     if (!agent || !agent.available) {
-      log.error('agent-manager', `Agent ${id} not available (sshHost=${options.sshHost ?? 'local'}). Local: ${this.agents.get(id)?.available}, Remote hosts: ${[...this.remoteAgents.keys()].join(', ')}`);
+      log.error('agent-manager', `Agent ${id} not available (host=${options.host ?? 'local'}). Local: ${this.agents.get(id)?.available}, Remote hosts: ${[...this.remoteAgents.keys()].join(', ')}`);
       throw new Error(`Agent ${id} is not available`);
     }
 
-    log.ok('agent-manager', `Spawning ${id} (sshHost=${options.sshHost ?? 'local'}, path=${agent.path})`);
+    log.ok('agent-manager', `Spawning ${id} (host=${options.host ?? 'local'}, path=${agent.path})`);
     const opts = { ...options, binaryPath: agent.path || undefined };
     const mcpServers = (id === 'claude-code' || id === 'codex')
       ? loadMcpServers(options.cwd)

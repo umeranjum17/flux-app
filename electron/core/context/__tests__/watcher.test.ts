@@ -185,7 +185,7 @@ describe('ContextWatcher', () => {
     const seenRequests: string[] = [];
     const fakeWfs: WorkspaceFs = {
       isRemote: true,
-      sshHost: 'dev@example',
+      host: 'dev@example',
       git: async () => ({ stdout: '', stderr: '' }),
       readFile: async (filePath) => {
         if (filePath.endsWith('/state.json')) {
@@ -220,7 +220,7 @@ describe('ContextWatcher', () => {
     try {
       const watcher = new ContextWatcher({
         cwd,
-        sshHost: 'dev@example',
+        host: 'dev@example',
         onStateChange: () => {},
         onRequest: (request) => {
           seenRequests.push(request.id);

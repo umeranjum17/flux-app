@@ -83,7 +83,7 @@ export function CreateWorkspaceDialog({ onClose, defaultProjectKey }: CreateWork
   const selectedProject = projectOptions.find((project) => getProjectSourceKey(project) === selectedProjectKey) ?? projectOptions[0] ?? null;
   const parentRepo = selectedProject?.path ?? cwd;
   const sourceContext = selectedProject?.source === 'ssh'
-    ? `${selectedProject.sshHost ?? 'SSH host'} · ${selectedProject.path}`
+    ? `${selectedProject.host ?? 'SSH host'} · ${selectedProject.path}`
     : selectedProject?.path ?? 'No project selected';
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export function CreateWorkspaceDialog({ onClose, defaultProjectKey }: CreateWork
         agentId,
         model,
         thinking: selectedThinking,
-        sshHost: selectedProject?.source === 'ssh' ? selectedProject.sshHost : undefined,
+        host: selectedProject?.source === 'ssh' ? selectedProject.host : undefined,
         outcome: startingOutcome,
       }) as Workspace;
 
@@ -272,8 +272,8 @@ export function CreateWorkspaceDialog({ onClose, defaultProjectKey }: CreateWork
               >
                 {projectOptions.map((project) => (
                   <option key={getProjectSourceKey(project)} value={getProjectSourceKey(project)}>
-                    {project.source === 'ssh' && project.sshHost
-                      ? `${project.sshHost} · ${project.path.split('/').pop() || project.path}`
+                    {project.source === 'ssh' && project.host
+                      ? `${project.host} · ${project.path.split('/').pop() || project.path}`
                       : project.path.split('/').pop() || project.path}
                   </option>
                 ))}

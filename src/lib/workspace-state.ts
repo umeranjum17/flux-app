@@ -10,8 +10,8 @@ import { basename } from './format';
 
 /** Returns true if a workspace's SSH host is connected (or it's a local workspace). */
 export function isWorkspaceSshAvailable(ws: Workspace): boolean {
-  if (!ws.sshHost) return true;
-  return useUiStore.getState().connectedSshHosts.has(ws.sshHost);
+  if (!ws.host) return true;
+  return useUiStore.getState().connectedRemoteHosts.has(ws.host);
 }
 
 const REVIEWABLE_OUTCOMES = new Set<WorkspaceOutcome>([
@@ -28,33 +28,33 @@ export function workspaceOutcomeImpliesChanges(outcome?: WorkspaceOutcome | null
 }
 
 export function getWorkspaceTerminalTitle(workspace: Workspace): string {
-  if (!workspace.sshHost) {
+  if (!workspace.host) {
     return 'Open terminal';
   }
 
   return isWorkspaceSshAvailable(workspace)
-    ? `Open terminal on ${workspace.sshHost}`
-    : `Reconnect SSH to open a terminal on ${workspace.sshHost}`;
+    ? `Open terminal on ${workspace.host}`
+    : `Reconnect SSH to open a terminal on ${workspace.host}`;
 }
 
 export function getWorkspaceIdeTitle(workspace: Workspace): string {
-  if (!workspace.sshHost) {
+  if (!workspace.host) {
     return 'Open in IDE';
   }
 
-  return `Open via Remote-SSH (${workspace.sshHost})`;
+  return `Open via Remote-SSH (${workspace.host})`;
 }
 
 export function createRecentProject(
   path: string,
-  options?: { source?: ProjectSource['source']; sshHost?: string | null; lastOpened?: number },
+  options?: { source?: ProjectSource['source']; host?: string | null; lastOpened?: number },
 ): RecentProject {
   return {
     path,
     source: options?.source ?? 'local',
     name: basename(path),
     lastOpened: options?.lastOpened ?? Date.now(),
-    ...(options?.source === 'ssh' ? { sshHost: options.sshHost ?? undefined } : {}),
+    ...(options?.source === 'ssh' ? { host: options.host ?? undefined } : {}),
   };
 }
 
@@ -116,7 +116,7 @@ export interface CreateWorkspaceAndChatOptions {
   cwd: string;
   parentRepo?: string;
   project?: ProjectSource;
-  sshHost?: string;
+  host?: string;
   images?: string[];
   attachments?: FileAttachment[];
 }
@@ -242,15 +242,15 @@ export async function createEmptyWorkspace(opts: {
   mode?: TaskMode;
   thinking?: ThinkingLevel;
   cwd: string;
-  sshHost?: string;
+  host?: string;
 }): Promise<Workspace> {
   const effectiveProject = getSelectedProjectSource(opts.cwd);
   // Only inherit SSH host from the active project if its path matches the workspace cwd,
   // otherwise a stale SSH project could leak its host into a local workspace.
-  const effectiveSshHost = opts.sshHost
+  const effectiveHost = opts.host
     ?? (effectiveProject?.source === 'ssh'
         && effectiveProject.path?.replace(/\/+$/, '') === opts.cwd.replace(/\/+$/, '')
-      ? effectiveProject.sshHost : undefined)
+      ? effectiveProject.host : undefined)
     ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
@@ -258,7 +258,7 @@ export async function createEmptyWorkspace(opts: {
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
-    sshHost: effectiveSshHost,
+    host: effectiveHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);
@@ -385,7 +385,7 @@ export async function startWorkspaceChat(
         mode: opts.mode,
         thinking: opts.thinking,
         cwd: opts.workspace.worktreePath,
-        sshHost: opts.workspace.sshHost,
+        host: opts.workspace.host,
         images: opts.images,
         attachments: opts.attachments,
       }) as { taskId?: string; session: Session };
@@ -469,7 +469,7 @@ export async function startWorkspaceMerge(
       mode: 'act',
       thinking,
       cwd: workspace.worktreePath,
-      sshHost: workspace.sshHost,
+      host: workspace.host,
       autoApprovePermissions: true,
       workspaceAction: 'merge',
       mergeContext: {
@@ -510,8 +510,8 @@ export async function createWorkspaceAndChat(
   const effectiveProject = opts.project
     ?? (inferredProject?.path?.replace(/\/+$/, '') === requestedPath ? inferredProject : null);
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
-  const effectiveSshHost = opts.sshHost
-    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
+  const effectiveHost = opts.host
+    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.host : undefined)
     ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create', {
@@ -522,7 +522,7 @@ export async function createWorkspaceAndChat(
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
-    sshHost: effectiveSshHost,
+    host: effectiveHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);
@@ -553,8 +553,8 @@ export async function createDirectWorkspaceAndChat(
   const effectiveProject = opts.project
     ?? (inferredProject?.path?.replace(/\/+$/, '') === requestedPath ? inferredProject : null);
   const effectiveParentRepo = opts.parentRepo ?? effectiveProject?.path ?? opts.cwd;
-  const effectiveSshHost = opts.sshHost
-    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.sshHost : undefined)
+  const effectiveHost = opts.host
+    ?? (effectiveProject?.source === 'ssh' ? effectiveProject.host : undefined)
     ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create-direct', {
@@ -564,7 +564,7 @@ export async function createDirectWorkspaceAndChat(
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
-    sshHost: effectiveSshHost,
+    host: effectiveHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);

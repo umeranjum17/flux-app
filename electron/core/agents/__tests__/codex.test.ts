@@ -217,14 +217,14 @@ describe('spawnCodex', () => {
       prompt: 'ship it',
       mode: 'act',
       cwd: '/tmp/flux-local',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
       binaryPath: '/opt/tools/codex',
     });
 
     expect(mockedSpawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       command: '/opt/tools/codex',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
     }));
   });
@@ -318,7 +318,7 @@ describe('spawnCodex', () => {
         prompt: 'ship it',
         mode: 'act',
         cwd: '/tmp/flux-local',
-        sshHost: 'umera@extreme',
+        host: 'umera@extreme',
         remoteCwd: '/remote/workspace',
         images: ['data:image/png;base64,aGVsbG8='],
       });

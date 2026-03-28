@@ -82,7 +82,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
               message: 'Checking worktree state',
             });
 
-            await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, {
+            await removeWorktreeAny(workspace.host, workspace.parentRepo, workspace.worktreePath, {
               signal,
               onStage: (stage) => update(archiveStageDetails[stage as keyof typeof archiveStageDetails]),
             });
@@ -107,7 +107,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   };
 
   ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
-    // Always return all workspaces — remote ones are stored locally with sshHost set
+    // Always return all workspaces — remote ones are stored locally with host set
     return workspaceStore.list(parentRepo);
   });
 
@@ -127,7 +127,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking,
-        sshHost,
+        host,
         outcome,
       }: {
         name?: string;
@@ -137,14 +137,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model: string;
         mode?: SpawnOptions['mode'];
         thinking?: string;
-        sshHost?: string;
+        host?: string;
         outcome?: import('../worktree/types').WorkspaceOutcome;
       },
     ) => {
       requireFields({ parentRepo, branch, agentId, model }, 'parentRepo', 'branch', 'agentId', 'model');
-      // sshHost is already resolved by the renderer — do not fall back to the global
+      // host is already resolved by the renderer — do not fall back to the global
       // SSH connection or local workspaces get routed through SSH.
-      const { worktree, baseBranch } = await createWorktreeAny(sshHost, parentRepo, branch, branch);
+      const { worktree, baseBranch } = await createWorktreeAny(host, parentRepo, branch, branch);
 
       const ws = workspaceStore.create({
         id: worktree.id,
@@ -157,7 +157,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking: thinking as any,
-        sshHost,
+        host,
         status: 'idle',
         outcome,
       });
@@ -177,7 +177,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking,
-        sshHost,
+        host,
         outcome,
       }: {
         name?: string;
@@ -186,12 +186,12 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model: string;
         mode?: SpawnOptions['mode'];
         thinking?: string;
-        sshHost?: string;
+        host?: string;
         outcome?: import('../worktree/types').WorkspaceOutcome;
       },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
-      const wfs = createWorkspaceFs(sshHost);
+      const wfs = createWorkspaceFs(host);
 
       if (!(await wfs.exists(parentRepo))) {
         throw new Error(`Directory "${parentRepo}" does not exist.`);
@@ -227,7 +227,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode,
         thinking: thinking as any,
         direct: true,
-        sshHost,
+        host,
         status: 'idle',
         outcome,
       });
@@ -240,13 +240,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:create-quick',
     async (
       _event,
-      { parentRepo, agentId, model, mode, thinking, sshHost }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string; sshHost?: string },
+      { parentRepo, agentId, model, mode, thinking, host }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string; host?: string },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
 
       const workspaceName = generateWorkspaceName();
       const branch = `flux/${workspaceName}`;
-      const { worktree, baseBranch } = await createWorktreeAny(sshHost, parentRepo, branch, workspaceName);
+      const { worktree, baseBranch } = await createWorktreeAny(host, parentRepo, branch, workspaceName);
 
       const ws = workspaceStore.create({
         id: worktree.id,
@@ -259,7 +259,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking: thinking as any,
-        sshHost,
+        host,
         status: 'idle',
       });
       sendToRenderer('workspace:created', { workspace: ws });
@@ -275,7 +275,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
       try {
-        const wfs = createWorkspaceFs(workspace.sshHost);
+        const wfs = createWorkspaceFs(workspace.host);
         const commitMessage = message || 'checkpoint';
 
         // Stage selected files or all changes
@@ -314,7 +314,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
-      const wfs = createWorkspaceFs(workspace.sshHost);
+      const wfs = createWorkspaceFs(workspace.host);
       const targetBranch = workspace.baseBranch || 'master';
 
       // Fetch latest from remote
@@ -338,7 +338,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) return null;
       try {
-        const wfs = createWorkspaceFs(workspace.sshHost);
+        const wfs = createWorkspaceFs(workspace.host);
         const { stdout } = await wfs.git(workspace.worktreePath, ['log', '-1', '--format=%s'], { timeout: 5000 });
         const subject = stdout.trim();
         return subject && !subject.startsWith('[flux]') ? subject : null;
@@ -375,14 +375,14 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) {
         // Log extra context for debugging — check if workspace exists in DB but was filtered out
         const raw = workspaceStore.getIncludingMissing(workspaceId);
-        log.error('workspace:spawn', `Workspace ${workspaceId} not found. In DB: ${!!raw}, worktreePath: ${raw?.worktreePath ?? 'n/a'}, sshHost: ${raw?.sshHost ?? 'local'}`);
+        log.error('workspace:spawn', `Workspace ${workspaceId} not found. In DB: ${!!raw}, worktreePath: ${raw?.worktreePath ?? 'n/a'}, host: ${raw?.host ?? 'local'}`);
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      log.info('workspace:spawn', `${workspaceId} (${workspace.name}) sshHost=${workspace.sshHost ?? 'local'} path=${workspace.worktreePath}`);
-      const wfs = createWorkspaceFs(workspace.sshHost);
+      log.info('workspace:spawn', `${workspaceId} (${workspace.name}) host=${workspace.host ?? 'local'} path=${workspace.worktreePath}`);
+      const wfs = createWorkspaceFs(workspace.host);
       if (!(await wfs.exists(workspace.worktreePath))) {
-        log.error('workspace:spawn', `Worktree missing: ${workspace.worktreePath} (sshHost=${workspace.sshHost ?? 'local'})`);
+        log.error('workspace:spawn', `Worktree missing: ${workspace.worktreePath} (host=${workspace.host ?? 'local'})`);
 
         throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
       }
@@ -397,7 +397,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode: mode ?? workspace.mode,
         cwd: workspace.worktreePath,
         sessionId: workspace.sessionId,
-        sshHost: workspace.sshHost,
+        host: workspace.host,
       });
 
       // Persist session ID back so subsequent runs resume the same session.
@@ -448,7 +448,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       }
 
       if (!workspace.direct) {
-        await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath);
+        await removeWorktreeAny(workspace.host, workspace.parentRepo, workspace.worktreePath);
       }
       workspaceStore.delete(workspaceId);
       sendToRenderer('workspace:deleted', { workspaceId });
@@ -570,9 +570,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      if (workspace.sshHost) {
+      if (workspace.host) {
         throw new Error(
-          `Open this SSH workspace through Remote-SSH instead. Connect to ${workspace.sshHost} `
+          `Open this SSH workspace through Remote-SSH instead. Connect to ${workspace.host} `
           + `in VS Code, Cursor, or Zed and open ${workspace.worktreePath}.`,
         );
       }
@@ -612,7 +612,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) return { staged: [], unstaged: [], committed: [] };
-    return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
+    return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo, workspace.host);
   });
 
   ipcMain.handle(
@@ -630,7 +630,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     ) => {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) return;
-      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.sshHost);
+      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.host);
     },
   );
 
@@ -646,7 +646,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
       const scripts: Array<{ name: string; command: string; source: 'package.json' | 'detected' }> = [];
 
-      const wfs = createWorkspaceFs(workspace.sshHost);
+      const wfs = createWorkspaceFs(workspace.host);
       const pkgContent = await wfs.readFile(`${workspace.worktreePath}/package.json`);
       if (pkgContent) {
         try {
@@ -735,7 +735,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       }> = [];
 
       for (const ws of workspaces) {
-        const wfs = createWorkspaceFs(ws.sshHost);
+        const wfs = createWorkspaceFs(ws.host);
         const sizeBytes = await wfs.diskUsage(ws.worktreePath);
 
         const lastActivity = ws.updatedAt || ws.createdAt;
@@ -792,13 +792,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle('workspace:discard-all', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) return;
-    await discardAll(workspace.worktreePath, workspace.sshHost);
+    await discardAll(workspace.worktreePath, workspace.host);
   });
 
   ipcMain.handle('workspace:full-diff', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) return null;
-    return getFullDiff(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
+    return getFullDiff(workspace.worktreePath, workspace.parentRepo, workspace.host);
   });
 
   ipcMain.handle('workspace:git-state', async (_event, { workspaceId }: { workspaceId: string }) => {

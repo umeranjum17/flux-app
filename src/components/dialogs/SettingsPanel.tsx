@@ -22,7 +22,7 @@ const defaultConfig: FluxConfig = {
   qualityGateMaxRetries: 2,
   customAgentPaths: {},
   recentProjects: [],
-  recentSshHosts: [],
+  recentHosts: [],
 };
 
 const thinkingOptions: { value: ThinkingLevel; label: string }[] = [

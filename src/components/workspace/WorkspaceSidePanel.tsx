@@ -116,8 +116,8 @@ function PanelFilesTab() {
       const currentWorkspace = useWorkspaceStore.getState().workspaces.get(activeWorkspaceId);
       return [{
         path: effectiveCwd,
-        source: currentWorkspace?.sshHost ? 'ssh' : 'local',
-        ...(currentWorkspace?.sshHost ? { sshHost: currentWorkspace.sshHost } : {}),
+        source: currentWorkspace?.host ? 'ssh' : 'local',
+        ...(currentWorkspace?.host ? { host: currentWorkspace.host } : {}),
       }] satisfies ProjectSource[];
     }
     if (openProjects.length > 0) return openProjects;

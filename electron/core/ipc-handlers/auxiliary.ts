@@ -189,7 +189,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
       customAgentPaths: {},
       zoomLevel: 1.0,
       recentProjects: [],
-      recentSshHosts: [],
+      recentHosts: [],
     } as Record<string, unknown>);
     sendToRenderer('config:changed', { config: configManager.get() });
   });
@@ -715,7 +715,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     toRemoteShellPath,
     requireFields,
     getWorkspacePath: (workspaceId: string) => workspaceStore.get(workspaceId)?.worktreePath,
-    getWorkspaceSshHost: (workspaceId: string) => workspaceStore.get(workspaceId)?.sshHost,
+    getWorkspaceHost: (workspaceId: string) => workspaceStore.get(workspaceId)?.host,
   });
 
   ipcMain.handle('ssh:init-project', async (_event, { host, dirPath }: { host: string; dirPath: string }) => {

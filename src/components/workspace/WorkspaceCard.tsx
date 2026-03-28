@@ -63,13 +63,13 @@ export function WorkspaceCard({
     pollMs: isActive ? 4000 : null,
   });
   const canReview = hasChanges && !isArchiving;
-  const ideDisabled = !!workspace.sshHost;
-  const sourceBadgeClass = workspace.sshHost
+  const ideDisabled = !!workspace.host;
+  const sourceBadgeClass = workspace.host
     ? (sshAvailable
         ? 'border-accent/20 bg-accent/8 text-accent'
         : 'border-warning/20 bg-warning/10 text-warning')
     : 'border-border/60 bg-bg-primary/60 text-text-secondary';
-  const sourceLabel = workspace.sshHost
+  const sourceLabel = workspace.host
     ? (sshAvailable ? 'SSH project' : 'SSH disconnected')
     : 'Local project';
   const reviewTitle = canReview ? 'Review changes' : 'No workspace changes to review yet';
@@ -152,14 +152,14 @@ export function WorkspaceCard({
         </div>
       </div>
       <div className="flex items-center gap-1.5 px-2.5 pb-[7px] text-[11px] text-text-tertiary">
-        {workspace.sshHost ? (
+        {workspace.host ? (
           <Wifi size={11} className={`shrink-0 ${sshAvailable ? 'text-accent' : 'text-warning'}`} />
         ) : (
           <FolderOpen size={11} className="shrink-0 opacity-60" />
         )}
         <span className="truncate">
-          {workspace.sshHost
-            ? `${workspace.sshHost} · ${workspace.parentRepo}`
+          {workspace.host
+            ? `${workspace.host} · ${workspace.parentRepo}`
             : workspace.parentRepo}
         </span>
       </div>

@@ -247,7 +247,7 @@ function KanbanCard({
     pollMs: isActive ? 4000 : null,
   });
   const canReview = hasChanges && !isArchiving;
-  const ideDisabled = !!workspace.sshHost;
+  const ideDisabled = !!workspace.host;
 
   const projectName = workspace.parentRepo.split('/').pop() ?? workspace.parentRepo;
 
@@ -288,7 +288,7 @@ function KanbanCard({
         {/* Project + outcome + mode */}
         <div className="mt-2 flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[10px] text-text-tertiary">
-            {workspace.sshHost ? (
+            {workspace.host ? (
               <Wifi size={9} className={`shrink-0 ${sshAvailable ? 'text-accent' : 'text-warning'}`} />
             ) : (
               <FolderOpen size={9} className="shrink-0 opacity-50" />

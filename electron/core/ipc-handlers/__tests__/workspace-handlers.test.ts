@@ -95,7 +95,7 @@ describe('registerWorkspaceHandlers', () => {
       parentRepo: '/srv/app',
       agentId: 'codex',
       model: 'gpt-5.4',
-      sshHost: 'dev@example',
+      host: 'dev@example',
     });
 
     expect(createWorkspaceFsMock).toHaveBeenCalledWith('dev@example');
@@ -106,7 +106,7 @@ describe('registerWorkspaceHandlers', () => {
       worktreePath: '/srv/app',
       branch: 'main',
       direct: true,
-      sshHost: 'dev@example',
+      host: 'dev@example',
     }));
     expect(ctx.sendToRenderer).toHaveBeenCalledWith('workspace:created', { workspace: created });
   });
@@ -149,7 +149,7 @@ describe('registerWorkspaceHandlers', () => {
     expect(ctx.workspaceStore.create).toHaveBeenCalledWith(expect.objectContaining({
       branch: 'trunk',
       direct: true,
-      sshHost: undefined,
+      host: undefined,
     }));
     expect(created).toMatchObject({
       branch: 'trunk',
@@ -170,7 +170,7 @@ describe('registerWorkspaceHandlers', () => {
       mode: 'act',
       status: 'idle',
       outcome: 'in_progress',
-      sshHost: 'dev@example',
+      host: 'dev@example',
       createdAt: 1,
       updatedAt: 1,
     } as any);

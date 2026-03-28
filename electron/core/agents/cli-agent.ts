@@ -108,7 +108,7 @@ export function createCliAgentHandle(
     command: options.binaryPath || config.defaultCommand,
     args,
     cwd: options.cwd,
-    sshHost: options.sshHost,
+    host: options.host,
     remoteCwd: options.remoteCwd,
   });
   attachChildStdinErrorHandler(proc, config.defaultCommand);
@@ -142,7 +142,7 @@ export function createCliAgentHandle(
   const watchdog = createStartupWatchdog({
     timeoutMs: config.startupTimeoutMs,
     label: config.label,
-    sshHost: options.sshHost,
+    host: options.host,
     remoteCwd: options.remoteCwd,
     cwd: options.cwd,
     onTimeout: (error) => {
@@ -181,13 +181,13 @@ export function createCliAgentHandle(
   };
 
   // SSH spawn notification
-  if (options.sshHost) {
+  if (options.host) {
     setTimeout(() => {
       emitMessage({
         type: 'status',
         role: 'system',
         statusKind: 'spawn',
-        content: `[SSH] Spawning ${config.defaultCommand} on ${options.sshHost} (cwd: ${options.remoteCwd ?? options.cwd})`,
+        content: `[SSH] Spawning ${config.defaultCommand} on ${options.host} (cwd: ${options.remoteCwd ?? options.cwd})`,
         timestamp: Date.now(),
       } satisfies AgentMessage);
     }, 0);
@@ -319,7 +319,7 @@ export function createCliAgentHandle(
   // Process spawn error
   proc.on('error', (err: Error) => {
     try { proc.kill(); } catch {}
-    const info = classifySpawnError(err, { command: config.defaultCommand, sshHost: options.sshHost, cwd: options.cwd });
+    const info = classifySpawnError(err, { command: config.defaultCommand, host: options.host, cwd: options.cwd });
     const content = `Failed to start ${config.label}: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`;
     emitMessage({
       type: 'error',

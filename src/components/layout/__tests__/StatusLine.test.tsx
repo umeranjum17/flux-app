@@ -32,7 +32,7 @@ beforeEach(() => {
   useUiStore.setState({
     gitBranch: null,
     gitDirty: false,
-    sshHost: null,
+    host: null,
     sshConnected: false,
     environment: 'local',
     liveOverview: null,

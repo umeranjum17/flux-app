@@ -7,18 +7,18 @@ export interface SpawnAgentProcessOptions {
   args: string[];
   cwd: string;
   env?: NodeJS.ProcessEnv;
-  sshHost?: string;
+  host?: string;
   remoteCwd?: string;
 }
 
 import { escapeShellArg, toRemoteShellPath } from '../shell-escape';
 
 export function spawnAgentProcess(options: SpawnAgentProcessOptions): ChildProcess {
-  const { command, args, cwd, env, sshHost, remoteCwd } = options;
+  const { command, args, cwd, env, host, remoteCwd } = options;
   const spawnEnv = extendedEnv(env);
   const resolvedCommand = resolveExecutable(command, spawnEnv) ?? command;
 
-  if (!sshHost) {
+  if (!host) {
     return spawn(resolvedCommand, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -33,7 +33,7 @@ export function spawnAgentProcess(options: SpawnAgentProcessOptions): ChildProce
   const commandPart = escapedArgs ? `${escapedCommand} ${escapedArgs}` : escapedCommand;
   const shellCommand = `${cdPart}${commandPart}`;
 
-  return spawn(resolveSshCommand(spawnEnv), [sshHost, shellCommand], {
+  return spawn(resolveSshCommand(spawnEnv), [host, shellCommand], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: spawnEnv,
@@ -95,7 +95,7 @@ export function createStartupWatchdog(opts: {
   timeoutMs: number;
   maxTimeoutMs?: number;
   label: string;
-  sshHost?: string;
+  host?: string;
   remoteCwd?: string;
   cwd: string;
   onTimeout: (error: string) => void;
@@ -103,7 +103,7 @@ export function createStartupWatchdog(opts: {
   let fired = false;
   let cleared = false;
 
-  const effectiveTimeout = opts.sshHost ? opts.timeoutMs * 2 : opts.timeoutMs;
+  const effectiveTimeout = opts.host ? opts.timeoutMs * 2 : opts.timeoutMs;
   const hardTimeout = opts.maxTimeoutMs ?? effectiveTimeout * 3;
 
   const fireTimeout = (isHard: boolean) => {
@@ -113,10 +113,10 @@ export function createStartupWatchdog(opts: {
     clearTimeout(hardTimer);
 
     const timeoutSec = Math.round((isHard ? hardTimeout : effectiveTimeout) / 1000);
-    const target = opts.sshHost
-      ? `${opts.sshHost} (cwd: ${opts.remoteCwd ?? opts.cwd})`
+    const target = opts.host
+      ? `${opts.host} (cwd: ${opts.remoteCwd ?? opts.cwd})`
       : `cwd: ${opts.cwd}`;
-    const error = opts.sshHost
+    const error = opts.host
       ? `${opts.label} startup timed out over SSH after ${timeoutSec}s on ${target}`
       : `${opts.label} startup timed out after ${timeoutSec}s (${target})`;
 

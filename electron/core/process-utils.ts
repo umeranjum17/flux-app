@@ -316,7 +316,7 @@ export interface SpawnErrorInfo {
 
 export function classifySpawnError(
   err: Error,
-  context: { command: string; sshHost?: string; cwd?: string },
+  context: { command: string; host?: string; cwd?: string },
 ): SpawnErrorInfo {
   const msg = err.message ?? '';
   const code = (err as NodeJS.ErrnoException).code ?? '';
@@ -337,7 +337,7 @@ export function classifySpawnError(
       }
     }
 
-    if (context.sshHost) {
+    if (context.host) {
       return {
         code: 'SSH_NOT_FOUND',
         userMessage: 'SSH binary not found',
@@ -364,7 +364,7 @@ export function classifySpawnError(
   }
 
   if (/Host key verification failed/i.test(msg)) {
-    const host = context.sshHost ?? 'HOST';
+    const host = context.host ?? 'HOST';
     return {
       code: 'SSH_HOST_KEY',
       userMessage: 'SSH host key verification failed',
@@ -377,7 +377,7 @@ export function classifySpawnError(
   if (/Connection timed out/i.test(msg)) {
     return {
       code: 'SSH_TIMEOUT',
-      userMessage: `SSH connection timed out${context.sshHost ? ` to ${context.sshHost}` : ''}`,
+      userMessage: `SSH connection timed out${context.host ? ` to ${context.host}` : ''}`,
       suggestion: 'Verify the host is reachable (ping or ssh -v)',
     };
   }
@@ -385,7 +385,7 @@ export function classifySpawnError(
   if (/Connection refused/i.test(msg)) {
     return {
       code: 'SSH_REFUSED',
-      userMessage: `SSH connection refused${context.sshHost ? ` by ${context.sshHost}` : ''}`,
+      userMessage: `SSH connection refused${context.host ? ` by ${context.host}` : ''}`,
       suggestion: 'Verify the SSH daemon is running on the remote host',
     };
   }

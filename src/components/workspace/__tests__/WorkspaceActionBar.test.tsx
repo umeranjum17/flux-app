@@ -51,9 +51,9 @@ describe('WorkspaceActionBar', () => {
       terminalOpen: false,
       activeTerminalId: null,
       pendingWorkspaceTerminalId: null,
-      sshHost: null,
+      host: null,
       sshConnected: false,
-      connectedSshHosts: new Set(),
+      connectedRemoteHosts: new Set(),
     } as any);
 
     useWorkspaceStore.setState({
@@ -95,7 +95,7 @@ describe('WorkspaceActionBar', () => {
   it('disables local-only IDE and live terminal actions for disconnected SSH workspaces', async () => {
     useWorkspaceStore.setState({
       workspaces: new Map([
-        ['ws-1', makeWorkspace({ sshHost: 'dev@example', parentRepo: '/srv/repo', worktreePath: '/srv/repo' })],
+        ['ws-1', makeWorkspace({ host: 'dev@example', parentRepo: '/srv/repo', worktreePath: '/srv/repo' })],
       ]),
     });
 

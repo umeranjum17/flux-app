@@ -11,7 +11,7 @@ export interface ContextWatcherOptions {
   /** Workspace root directory containing .context/. */
   cwd: string;
   /** SSH host for remote workspaces. When set, polls via SSH instead of local fs. */
-  sshHost?: string;
+  host?: string;
   /** Poll interval in ms (default 500 local, 2000 SSH). */
   pollIntervalMs?: number;
   /** Called when .context/state.json changes with valid data. */
@@ -46,13 +46,13 @@ export class ContextWatcher {
   private polling = false;
 
   constructor(options: ContextWatcherOptions) {
-    this.wfs = createWorkspaceFs(options.sshHost);
-    this.joinPath = options.sshHost ? path.posix.join : path.join;
+    this.wfs = createWorkspaceFs(options.host);
+    this.joinPath = options.host ? path.posix.join : path.join;
     this.statePath = this.joinPath(options.cwd, '.context', 'state.json');
     this.requestsDir = this.joinPath(options.cwd, '.context', 'requests');
     this.responsesDir = this.joinPath(options.cwd, '.context', 'responses');
     this.pollIntervalMs = options.pollIntervalMs
-      ?? (options.sshHost ? DEFAULT_SSH_POLL_INTERVAL_MS : DEFAULT_POLL_INTERVAL_MS);
+      ?? (options.host ? DEFAULT_SSH_POLL_INTERVAL_MS : DEFAULT_POLL_INTERVAL_MS);
     this.onStateChange = options.onStateChange;
     this.onRequest = options.onRequest;
     this.shouldProcessRequest = options.shouldProcessRequest;

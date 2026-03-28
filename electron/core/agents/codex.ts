@@ -62,7 +62,7 @@ export function spawnCodex(
 
   // Prepare images
   if (options.images?.length) {
-    if (options.sshHost) {
+    if (options.host) {
       imageWarning = 'Codex image attachments are not supported over SSH yet. They were skipped.';
     } else {
       try {
@@ -110,7 +110,7 @@ export function spawnCodex(
 
       args.push('--skip-git-repo-check');
 
-      if (!isResume && !opts.sshHost && hasCodexProfile(inferredProfile)) {
+      if (!isResume && !opts.host && hasCodexProfile(inferredProfile)) {
         args.push('--profile', inferredProfile);
       }
 

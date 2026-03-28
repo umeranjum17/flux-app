@@ -97,7 +97,7 @@ describe('spawnClaude', () => {
       prompt: 'hi',
       mode: 'act',
       cwd: '/tmp/flux-local',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
     });
 
@@ -109,7 +109,7 @@ describe('spawnClaude', () => {
     expect(mockedSpawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       command: 'claude',
       cwd: '/tmp/flux-local',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
     }));
     expect(messages).toContainEqual(expect.objectContaining({
@@ -128,14 +128,14 @@ describe('spawnClaude', () => {
       prompt: 'hi',
       mode: 'act',
       cwd: '/tmp/flux-local',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
       binaryPath: '/opt/tools/claude',
     });
 
     expect(mockedSpawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       command: '/opt/tools/claude',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
     }));
   });
@@ -588,7 +588,7 @@ describe('spawnClaude', () => {
       prompt: 'hi',
       mode: 'act',
       cwd: '/workspace',
-      sshHost: 'umera@extreme',
+      host: 'umera@extreme',
       remoteCwd: '/remote/workspace',
     });
 

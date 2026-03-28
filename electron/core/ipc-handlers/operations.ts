@@ -34,12 +34,12 @@ import {
 
 export function wrapWorkspaceActionError(workspace: Workspace, action: string, error: unknown): Error {
   const detail = error instanceof Error ? error.message : String(error);
-  if (!workspace.sshHost) {
+  if (!workspace.host) {
     return new Error(`Failed to ${action}: ${detail}`);
   }
 
   return new Error(
-    `Failed to ${action} for SSH workspace ${workspace.sshHost}:${workspace.parentRepo}. `
+    `Failed to ${action} for SSH workspace ${workspace.host}:${workspace.parentRepo}. `
     + `Reconnect SSH or verify your host and credentials. ${detail}`,
   );
 }
@@ -156,16 +156,16 @@ export async function steerTask(
     ? extractLatestSessionAttachmentContext(ctx.sessionStore, sessionId)
     : null;
 
-  // Derive sshHost from the workspace record only — no global fallback
+  // Derive host from the workspace record only — no global fallback
   const workspaceId = ctx.lifecycleManager.getWorkspaceForTask(taskId);
   const workspace = workspaceId ? ctx.workspaceStore.get(workspaceId) : null;
-  const effectiveSshHost = workspace?.sshHost ?? undefined;
-  logDiagnostic('task-handlers', '[task:steer] sshHost resolution', {
+  const effectiveHost = workspace?.host ?? undefined;
+  logDiagnostic('task-handlers', '[task:steer] host resolution', {
     taskId,
     workspaceId: workspaceId ?? null,
     workspaceName: workspace?.name ?? null,
-    workspaceSshHost: workspace?.sshHost ?? null,
-    effectiveSshHost: effectiveSshHost ?? null,
+    workspaceHost: workspace?.host ?? null,
+    effectiveHost: effectiveHost ?? null,
     handleAlive: handle.isAlive(),
     sessionCwd: activeSession?.cwd ?? null,
   });
@@ -175,7 +175,7 @@ export async function steerTask(
     {
       images: images?.length ? images : previousAttachmentContext?.images,
       attachments: attachments?.length ? attachments : previousAttachmentContext?.attachments,
-      sshHost: effectiveSshHost ?? null,
+      host: effectiveHost ?? null,
     },
   );
   let effectivePrompt = await buildPromptWithAttachments(prompt, attachments);
@@ -260,7 +260,7 @@ export async function spawnWorkspaceChat(
   if (!workspace) {
     throw new Error(`Workspace ${input.workspaceId} not found`);
   }
-  const wfs = createWorkspaceFs(workspace.sshHost);
+  const wfs = createWorkspaceFs(workspace.host);
   if (!(await wfs.exists(workspace.worktreePath))) {
     throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}`);
   }
@@ -274,7 +274,7 @@ export async function spawnWorkspaceChat(
     model: input.model ?? workspace.model,
     mode: input.mode ?? workspace.mode,
     cwd: workspace.worktreePath,
-    sshHost: workspace.sshHost,
+    host: workspace.host,
     sessionId: workspace.sessionId,
     images: input.images,
     attachments: input.attachments,
@@ -316,7 +316,7 @@ export async function diffFiles(ctx: IpcContext, workspaceId: string) {
   requireFields({ workspaceId }, 'workspaceId');
   const workspace = ctx.workspaceStore.get(workspaceId);
   if (!workspace) return [];
-  return getChangedFiles(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
+  return getChangedFiles(workspace.worktreePath, workspace.parentRepo, workspace.host);
 }
 
 export async function fileDiff(
@@ -328,7 +328,7 @@ export async function fileDiff(
   requireFields({ workspaceId, filePath }, 'workspaceId', 'filePath');
   const workspace = ctx.workspaceStore.get(workspaceId);
   if (!workspace) return null;
-  return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.sshHost);
+  return getFileDiff(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.host);
 }
 
 // ---------------------------------------------------------------------------
@@ -348,7 +348,7 @@ export async function renameBranch(
   let nextBranch = workspace.branch;
   if (newBranch.trim() && newBranch !== workspace.branch) {
     try {
-      const wfs = createWorkspaceFs(workspace.sshHost);
+      const wfs = createWorkspaceFs(workspace.host);
       await wfs.git(workspace.worktreePath, ['branch', '-m', workspace.branch, newBranch], { timeout: 10000 });
       nextBranch = newBranch;
     } catch { /* best-effort */ }
@@ -370,7 +370,7 @@ export async function mergePreview(
   const workspace = ctx.workspaceStore.get(workspaceId);
   if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
-  const wfs = createWorkspaceFs(workspace.sshHost);
+  const wfs = createWorkspaceFs(workspace.host);
   const { worktreePath, parentRepo } = workspace;
 
   let mergeBase = '';
@@ -440,7 +440,7 @@ export async function createPr(
   const workspace = ctx.workspaceStore.get(workspaceId);
   if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
 
-  const wfs = createWorkspaceFs(workspace.sshHost);
+  const wfs = createWorkspaceFs(workspace.host);
 
   try {
     await wfs.git(workspace.worktreePath, ['push', '-u', 'origin', workspace.branch], { timeout: 60000 });

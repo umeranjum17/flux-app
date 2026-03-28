@@ -53,7 +53,7 @@ function classifyClaudeExit(code: number | null, stderr: string): string {
  */
 export function spawnClaude(options: SpawnOptions): AgentHandle {
   // Proactively repair orphaned queue entries before spawning
-  if (options.resumeSessionId && !options.sshHost) {
+  if (options.resumeSessionId && !options.host) {
     repairSessionQueue(options.resumeSessionId, options.cwd);
   }
 

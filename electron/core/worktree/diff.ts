@@ -2,7 +2,7 @@
  * Diff operations for worktrees — works identically for local and remote (SSH).
  *
  * All functions use the WorkspaceFs abstraction internally, so callers never
- * need to branch on `sshHost`.  Pass the workspace's `sshHost` (or omit it
+ * need to branch on `host`.  Pass the workspace's `host` (or omit it
  * for local) and the right strategy is selected automatically.
  */
 import path from 'path';
@@ -33,8 +33,8 @@ function countFromUnifiedDiff(diff: string): { additions: number; deletions: num
   return { additions, deletions };
 }
 
-function resolveWorktreeFilePath(worktreePath: string, filePath: string, sshHost?: string): string {
-  const pathApi = sshHost ? path.posix : path;
+function resolveWorktreeFilePath(worktreePath: string, filePath: string, host?: string): string {
+  const pathApi = host ? path.posix : path;
   const root = pathApi.resolve(worktreePath);
   const resolved = pathApi.resolve(worktreePath, filePath);
   if (resolved === root || resolved.startsWith(`${root}${pathApi.sep}`)) {
@@ -50,9 +50,9 @@ function resolveWorktreeFilePath(worktreePath: string, filePath: string, sshHost
 export async function resolveDiffBase(
   worktreePath: string,
   parentRepo?: string,
-  sshHost?: string,
+  host?: string,
 ): Promise<string> {
-  const wfs = createWorkspaceFs(sshHost);
+  const wfs = createWorkspaceFs(host);
   const candidates: string[] = [];
 
   if (parentRepo) {
@@ -194,20 +194,20 @@ async function collectChangedFiles(
 export async function getChangedFiles(
   worktreePath: string,
   parentRepo?: string,
-  sshHost?: string,
+  host?: string,
 ): Promise<DiffFile[]> {
-  const wfs = createWorkspaceFs(sshHost);
-  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const wfs = createWorkspaceFs(host);
+  const base = await resolveDiffBase(worktreePath, parentRepo, host);
   return collectChangedFiles(wfs, worktreePath, base, true);
 }
 
 export async function getChangedFilesSeparated(
   worktreePath: string,
   parentRepo?: string,
-  sshHost?: string,
+  host?: string,
 ): Promise<DiffFileSections> {
-  const wfs = createWorkspaceFs(sshHost);
-  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const wfs = createWorkspaceFs(host);
+  const base = await resolveDiffBase(worktreePath, parentRepo, host);
 
   const [committed, uncommitted] = await Promise.all([
     collectChangedFiles(wfs, worktreePath, `${base}..HEAD`, false),
@@ -222,11 +222,11 @@ export async function getFileDiff(
   filePath: string,
   parentRepo?: string,
   scope: DiffScope = 'all',
-  sshHost?: string,
+  host?: string,
 ): Promise<{ oldContent: string; newContent: string; unified: string }> {
-  const wfs = createWorkspaceFs(sshHost);
-  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
-  const absoluteFilePath = resolveWorktreeFilePath(worktreePath, filePath, sshHost);
+  const wfs = createWorkspaceFs(host);
+  const base = await resolveDiffBase(worktreePath, parentRepo, host);
+  const absoluteFilePath = resolveWorktreeFilePath(worktreePath, filePath, host);
 
   const readAtRef = async (ref: string) => {
     try {
@@ -261,10 +261,10 @@ export async function getFileDiff(
 export async function getFullDiff(
   worktreePath: string,
   parentRepo?: string,
-  sshHost?: string,
+  host?: string,
 ): Promise<string> {
-  const wfs = createWorkspaceFs(sshHost);
-  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const wfs = createWorkspaceFs(host);
+  const base = await resolveDiffBase(worktreePath, parentRepo, host);
   const { stdout } = await wfs.git(worktreePath, ['diff', base]);
   return stdout;
 }
@@ -274,12 +274,12 @@ export async function discardFile(
   filePath: string,
   parentRepo?: string,
   scope: Exclude<DiffScope, 'committed'> = 'all',
-  sshHost?: string,
+  host?: string,
 ): Promise<void> {
-  const wfs = createWorkspaceFs(sshHost);
-  const base = await resolveDiffBase(worktreePath, parentRepo, sshHost);
+  const wfs = createWorkspaceFs(host);
+  const base = await resolveDiffBase(worktreePath, parentRepo, host);
   const restoreRef = scope === 'uncommitted' ? 'HEAD' : base;
-  const absoluteFilePath = resolveWorktreeFilePath(worktreePath, filePath, sshHost);
+  const absoluteFilePath = resolveWorktreeFilePath(worktreePath, filePath, host);
 
   // Check if the file exists at the restore ref
   let fileExistsInBase = false;
@@ -305,9 +305,9 @@ export async function discardFile(
 
 export async function discardAll(
   worktreePath: string,
-  sshHost?: string,
+  host?: string,
 ): Promise<void> {
-  const wfs = createWorkspaceFs(sshHost);
+  const wfs = createWorkspaceFs(host);
   await wfs.git(worktreePath, ['checkout', '.']);
   await wfs.git(worktreePath, ['clean', '-fd']);
 }

@@ -78,10 +78,10 @@ export function WorkspaceActionBar() {
   const isArchiving = isWorkspaceArchiving(operation);
   const archiveLabel = formatWorkspaceOperationLabel(operation) ?? 'Archive';
   const sshAvailable = isWorkspaceSshAvailable(workspace);
-  const terminalDisabled = !!workspace.sshHost && !sshAvailable;
-  const ideDisabled = !!workspace.sshHost;
-  const sourceLabel = workspace.sshHost
-    ? (sshAvailable ? workspace.sshHost : `disconnected · ${workspace.sshHost}`)
+  const terminalDisabled = !!workspace.host && !sshAvailable;
+  const ideDisabled = !!workspace.host;
+  const sourceLabel = workspace.host
+    ? (sshAvailable ? workspace.host : `disconnected · ${workspace.host}`)
     : 'Local';
 
   const handleStop = async () => {
@@ -145,19 +145,19 @@ export function WorkspaceActionBar() {
         </span>
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
-            workspace.sshHost
+            workspace.host
               ? (sshAvailable
                   ? 'border-accent/20 bg-accent/8 text-accent'
                   : 'border-warning/20 bg-warning/10 text-warning')
               : 'border-border/60 bg-bg-primary/60 text-text-secondary'
           }`}
-          title={workspace.sshHost
+          title={workspace.host
             ? (sshAvailable
-                ? `Connected to ${workspace.sshHost}`
-                : `SSH disconnected — reconnect to ${workspace.sshHost} for terminal access`)
+                ? `Connected to ${workspace.host}`
+                : `SSH disconnected — reconnect to ${workspace.host} for terminal access`)
             : 'Local repository'}
         >
-          {workspace.sshHost
+          {workspace.host
             ? (sshAvailable ? <Monitor size={11} /> : <WifiOff size={11} />)
             : <FolderOpen size={11} />}
           <span>{sourceLabel}</span>
@@ -191,8 +191,8 @@ export function WorkspaceActionBar() {
                             const workspace = wsStore.workspaces.get(sibling.workspaceId);
                             if (workspace) {
                               useUiStore.getState().setActiveProject(
-                                workspace.sshHost
-                                  ? { path: workspace.parentRepo, source: 'ssh', sshHost: workspace.sshHost }
+                                workspace.host
+                                  ? { path: workspace.parentRepo, source: 'ssh', host: workspace.host }
                                   : { path: workspace.parentRepo, source: 'local' },
                               );
                             }

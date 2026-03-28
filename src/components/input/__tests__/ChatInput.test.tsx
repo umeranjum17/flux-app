@@ -52,7 +52,7 @@ beforeEach(() => {
     bottomPanelMode: 'agent',
     bottomPanelOpen: false,
     bottomPanelTab: 'output',
-    sshHost: null,
+    host: null,
     sshConnected: false,
     environment: 'local',
     activeFile: null,

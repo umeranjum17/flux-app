@@ -335,7 +335,7 @@ export function ChatInput({ focused }: ChatInputProps) {
               thinking: effectiveThinking,
               cwd: cwd || '.',
               project: selectedProject ?? undefined,
-              sshHost: selectedProject?.source === 'ssh' ? selectedProject.sshHost : undefined,
+              host: selectedProject?.source === 'ssh' ? selectedProject.host : undefined,
               images: images.length > 0 ? images : undefined,
               attachments,
             });

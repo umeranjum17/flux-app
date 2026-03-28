@@ -198,7 +198,7 @@ export class WorkspaceLifecycleManager {
 
             // Validate worktree directory exists on disk (skip for direct workspaces)
             // Remote worktree paths don't exist locally — skip fs check for SSH workspaces
-            if (fresh.sshHost) {
+            if (fresh.host) {
               // Cannot validate remote worktree on startup (host may be offline).
               // Skip sync — outcome will be validated when the host is reconnected.
               return;
@@ -238,7 +238,7 @@ export class WorkspaceLifecycleManager {
     }
 
     // Phase 4: Git worktree prune to clean up dead references (local repos only)
-    const localWorkspaces = allWorkspaces.filter(ws => !ws.sshHost);
+    const localWorkspaces = allWorkspaces.filter(ws => !ws.host);
     const parentRepos = new Set(localWorkspaces.map(ws => ws.parentRepo));
     for (const repo of parentRepos) {
       try {

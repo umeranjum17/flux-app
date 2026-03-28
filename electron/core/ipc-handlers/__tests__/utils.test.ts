@@ -362,7 +362,7 @@ describe('attachment context helpers', () => {
     fs.writeFileSync(sourceFile, 'first line\nsecond line\n', 'utf-8');
 
     const result = await writeAttachmentContextFile(cwd, {
-      sshHost: null,
+      host: null,
       images: ['data:image/png;base64,aGVsbG8='],
       attachments: [{ path: sourceFile, name: 'notes.txt' }],
     });
@@ -397,7 +397,7 @@ describe('attachment context helpers', () => {
     tempDirs.push(cwd);
 
     const result = await writeAttachmentContextFile(cwd, {
-      sshHost: null,
+      host: null,
       images: ['data:image/png;base64,aGVsbG8=', 'not-a-data-url'],
       attachments: [],
     });
@@ -412,7 +412,7 @@ describe('attachment context helpers', () => {
     const writeBufferCalls: Array<{ filePath: string; content: Uint8Array }> = [];
     const fakeWfs: WorkspaceFs = {
       isRemote: true,
-      sshHost: 'dev@example',
+      host: 'dev@example',
       git: async () => ({ stdout: '', stderr: '' }),
       readFile: async () => null,
       writeFile: async (filePath, content) => {
@@ -441,7 +441,7 @@ describe('attachment context helpers', () => {
       fs.writeFileSync(sourceFile, 'remote preview text\n', 'utf-8');
 
       const result = await writeAttachmentContextFile(cwd, {
-        sshHost: 'dev@example',
+        host: 'dev@example',
         images: ['data:image/png;base64,aGVsbG8='],
         attachments: [{ path: sourceFile, name: 'notes.txt' }],
       });

@@ -5,7 +5,7 @@ import { useUiStore } from '../../stores/ui';
 import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import type { FluxConfig } from '../../lib/ipc-api';
 
-interface RecentSshHost {
+interface RecentHost {
   host: string;
   remotePath: string;
   lastUsed: number;
@@ -32,7 +32,7 @@ export function ConnectRemoteDialog() {
   const [testing, setTesting] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [recentHosts, setRecentHosts] = useState<RecentSshHost[]>([]);
+  const [recentHosts, setRecentHosts] = useState<RecentHost[]>([]);
 
   // Inline folder browser state
   const [browsing, setBrowsing] = useState(false);
@@ -47,7 +47,7 @@ export function ConnectRemoteDialog() {
     if (open) {
       const ui = useUiStore.getState();
       const activeProject = ui.activeProject;
-      setHost(activeProject?.source === 'ssh' ? activeProject.sshHost ?? '' : '');
+      setHost(activeProject?.source === 'ssh' ? activeProject.host ?? '' : '');
       setRemotePath(activeProject?.source === 'ssh' ? activeProject.path || '~' : '~');
       setError(null);
       setTesting(false);
@@ -60,25 +60,25 @@ export function ConnectRemoteDialog() {
       setInitializing(false);
       window.api.invoke('config:get').then((raw) => {
         const config = raw as FluxConfig;
-        setRecentHosts(config?.recentSshHosts ?? []);
+        setRecentHosts(config?.recentHosts ?? []);
       });
     }
   }, [open]);
 
   const saveRecentHost = useCallback(async (h: string, path: string) => {
     const config = await window.api.invoke('config:get') as FluxConfig;
-    const existing: RecentSshHost[] = config?.recentSshHosts ?? [];
+    const existing: RecentHost[] = config?.recentHosts ?? [];
     const filtered = existing.filter((e) => !(e.host === h && e.remotePath === path));
     const updated = [{ host: h, remotePath: path, lastUsed: Date.now() }, ...filtered].slice(0, 10);
-    await window.api.invoke('config:set', { recentSshHosts: updated });
+    await window.api.invoke('config:set', { recentHosts: updated });
     setRecentHosts(updated);
   }, []);
 
   const removeRecentHost = useCallback(async (h: string, path: string) => {
     const config = await window.api.invoke('config:get') as FluxConfig;
-    const existing: RecentSshHost[] = config?.recentSshHosts ?? [];
+    const existing: RecentHost[] = config?.recentHosts ?? [];
     const updated = existing.filter((e) => !(e.host === h && e.remotePath === path));
-    await window.api.invoke('config:set', { recentSshHosts: updated });
+    await window.api.invoke('config:set', { recentHosts: updated });
     setRecentHosts(updated);
   }, []);
 
@@ -120,7 +120,7 @@ export function ConnectRemoteDialog() {
 
       await saveRecentHost(resolvedHost, finalPath);
       useUiStore.getState().connectSsh(resolvedHost, finalPath);
-      const project = createRecentProject(finalPath, { source: 'ssh', sshHost: resolvedHost });
+      const project = createRecentProject(finalPath, { source: 'ssh', host: resolvedHost });
       await rememberRecentProject(project);
       setOverlay(null);
     } catch (err) {
@@ -129,7 +129,7 @@ export function ConnectRemoteDialog() {
     setConnecting(false);
   }, [host, remotePath, setOverlay, saveRecentHost]);
 
-  const selectRecent = useCallback((r: RecentSshHost) => {
+  const selectRecent = useCallback((r: RecentHost) => {
     setHost(r.host);
     setRemotePath(r.remotePath);
   }, []);
@@ -225,7 +225,7 @@ export function ConnectRemoteDialog() {
       const finalPath = connectResult.cwd ?? result.path;
       await saveRecentHost(resolvedHost, finalPath);
       useUiStore.getState().connectSsh(resolvedHost, finalPath);
-      const project = createRecentProject(finalPath, { source: 'ssh', sshHost: resolvedHost });
+      const project = createRecentProject(finalPath, { source: 'ssh', host: resolvedHost });
       await rememberRecentProject(project);
       setOverlay(null);
     } catch (err) {

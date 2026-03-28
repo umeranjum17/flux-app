@@ -128,7 +128,7 @@ export class RemoteControlService {
       mode: input.mode ?? workspace.mode,
       thinking: input.thinking as any,
       cwd: input.cwd ?? workspace.worktreePath,
-      sshHost: workspace.sshHost,
+      host: workspace.host,
       autoApprovePermissions: input.autoApprovePermissions,
       workspaceAction: input.workspaceAction,
       mergeContext: input.mergeContext,
@@ -155,10 +155,10 @@ export class RemoteControlService {
     model: string;
     mode?: SpawnOptions['mode'];
     thinking?: string;
-    sshHost?: string;
+    host?: string;
   }) {
     const { name, parentRepo, branch, agentId, model, mode, thinking } = input;
-    const { worktree, baseBranch } = await createWorktreeAny(input.sshHost, parentRepo, branch, branch);
+    const { worktree, baseBranch } = await createWorktreeAny(input.host, parentRepo, branch, branch);
 
     const ws = this.ctx.workspaceStore.create({
       id: worktree.id,
@@ -171,7 +171,7 @@ export class RemoteControlService {
       model,
       mode,
       thinking: thinking as any,
-      sshHost: input.sshHost,
+      host: input.host,
       status: 'idle',
     });
     this.ctx.sendToRenderer('workspace:created', { workspace: ws });
@@ -184,12 +184,12 @@ export class RemoteControlService {
     model: string;
     mode?: SpawnOptions['mode'];
     thinking?: string;
-    sshHost?: string;
+    host?: string;
   }) {
     const { parentRepo, agentId, model, mode, thinking } = input;
     const workspaceName = generateWorkspaceName();
     const branch = `flux/${workspaceName}`;
-    const { worktree, baseBranch } = await createWorktreeAny(input.sshHost, parentRepo, branch, workspaceName);
+    const { worktree, baseBranch } = await createWorktreeAny(input.host, parentRepo, branch, workspaceName);
 
     const ws = this.ctx.workspaceStore.create({
       id: worktree.id,
@@ -202,7 +202,7 @@ export class RemoteControlService {
       model,
       mode,
       thinking: thinking as any,
-      sshHost: input.sshHost,
+      host: input.host,
       status: 'idle',
     });
     this.ctx.sendToRenderer('workspace:created', { workspace: ws });
@@ -221,7 +221,7 @@ export class RemoteControlService {
         lifecycleManager.clearTask(taskId);
       }
 
-      await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath);
+      await removeWorktreeAny(workspace.host, workspace.parentRepo, workspace.worktreePath);
       workspaceStore.delete(workspaceId);
       sendToRenderer('workspace:deleted', { workspaceId });
     });
@@ -251,7 +251,7 @@ export class RemoteControlService {
               lifecycleManager.clearTask(taskId);
             }
             update({ stage: 'checking_repo', progress: 0.22, message: 'Checking worktree state' });
-            await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, { signal });
+            await removeWorktreeAny(workspace.host, workspace.parentRepo, workspace.worktreePath, { signal });
             update({ stage: 'cleaning_db', progress: 0.88, message: 'Cleaning workspace records', cancellable: false });
             workspaceStore.delete(workspaceId);
             sendToRenderer('workspace:deleted', { workspaceId });

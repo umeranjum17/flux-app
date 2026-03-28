@@ -74,7 +74,7 @@ export class RemoteConnectionManager {
       );
       return { success: true, error: null };
     } catch (err: any) {
-      const info = classifySpawnError(err as Error, { command: 'ssh', sshHost: host });
+      const info = classifySpawnError(err as Error, { command: 'ssh', host: host });
       return {
         success: false,
         error: `${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`,
@@ -106,7 +106,7 @@ export class RemoteConnectionManager {
         { timeout: 10000, env: extendedEnv() },
       );
     } catch (err: any) {
-      const info = classifySpawnError(err as Error, { command: 'ssh', sshHost: host });
+      const info = classifySpawnError(err as Error, { command: 'ssh', host: host });
       throw new Error(
         `SSH connection failed: ${info.userMessage}${info.suggestion ? `. ${info.suggestion}` : ''}`,
       );

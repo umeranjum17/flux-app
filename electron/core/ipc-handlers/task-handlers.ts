@@ -311,7 +311,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         taskId,
         sessionId,
         agentId,
-        originalSshHost: originalOptions.sshHost ?? null,
+        originalHost: originalOptions.host ?? null,
         originalWorkspaceId: originalOptions.workspaceId ?? null,
         cwd: originalOptions.cwd,
       });
@@ -336,19 +336,19 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   ): Promise<{ taskId: string; session: any }> => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
-    // Resolve sshHost: prefer explicit option, then fall back to the workspace
+    // Resolve host: prefer explicit option, then fall back to the workspace
     // record.  Do NOT fall back to the global SSH connection or local workspaces
     // break when SSH is active.
     const workspace = options.workspaceId
       ? workspaceStore.get(options.workspaceId)
       : workspaceStore.get(options.taskId);
-    const sshHost = options.sshHost ?? workspace?.sshHost ?? undefined;
-    logDiagnostic('task-handlers', '[task:spawn] sshHost resolution', {
+    const host = options.host ?? workspace?.host ?? undefined;
+    logDiagnostic('task-handlers', '[task:spawn] host resolution', {
       taskId: options.taskId,
       workspaceId: options.workspaceId ?? options.taskId,
-      optionsSshHost: options.sshHost ?? null,
-      workspaceSshHost: workspace?.sshHost ?? null,
-      resolvedSshHost: sshHost ?? null,
+      optionsHost: options.host ?? null,
+      workspaceHost: workspace?.host ?? null,
+      resolvedHost: host ?? null,
       workspaceName: workspace?.name ?? null,
       cwd: options.cwd,
     });
@@ -377,21 +377,21 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     });
     const startedAt = Date.now();
     const existingAgentSessionId = readAgentSessionId(existingSession?.metadata, agentId);
-    let spawnCwd = sshHost ? localCwd : options.cwd;
+    let spawnCwd = host ? localCwd : options.cwd;
     const previousAttachmentContext = existingSession
       ? extractLatestSessionAttachmentContext(sessionStore, session.id)
       : null;
     // Ensure .context/ exists for both local and remote workspaces
-    const wfs = (await import('../worktree/workspace-fs')).createWorkspaceFs(sshHost ?? undefined);
+    const wfs = (await import('../worktree/workspace-fs')).createWorkspaceFs(host ?? undefined);
     await wfs.mkdirp(`${options.cwd}/.context`);
     const attachmentContext = await writeAttachmentContextFile(options.cwd, {
       images: options.images?.length ? options.images : previousAttachmentContext?.images,
       attachments: options.attachments?.length ? options.attachments : previousAttachmentContext?.attachments,
-      sshHost: sshHost ?? null,
+      host: host ?? null,
     });
 
     // Write initial session context to disk for crash/compression recovery
-    await writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost);
+    await writeSessionContextFile(options.cwd, session.id, sessionStore, host);
 
     let effectivePrompt = await buildPromptWithAttachments(options.prompt, options.attachments);
 
@@ -401,7 +401,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       spawnCwd = os.homedir();
     }
 
-    const claudeResumeId = sshHost
+    const claudeResumeId = host
       ? existingAgentSessionId
       : session.id;
 
@@ -474,8 +474,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       taskId: options.taskId,
       agentId,
       spawnCwd,
-      remoteCwd: sshHost ? options.cwd : undefined,
-      sshHost: sshHost ?? null,
+      remoteCwd: host ? options.cwd : undefined,
+      host: host ?? null,
       sessionId: session.id,
       existingAgentSessionId: existingAgentSessionId ?? null,
       isExistingSession: !!existingSession,
@@ -483,8 +483,8 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const spawnOptions: SpawnOptions = {
       ...options,
       cwd: spawnCwd,
-      remoteCwd: sshHost ? options.cwd : undefined,
-      sshHost: sshHost ?? undefined,
+      remoteCwd: host ? options.cwd : undefined,
+      host: host ?? undefined,
       dangerouslyBypassPermissions: !options.contextless && (
         (agentId === 'claude-code' && options.mode !== 'plan')
         || (agentId === 'codex' && options.mode === 'act')
@@ -513,15 +513,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     }
     let detectedCodexSessionId: string | undefined = existingAgentSessionId;
 
-    if (sshHost) {
+    if (host) {
       try {
         await execFileAsync(
           resolveSshCommand(),
-          ['-o', 'ConnectTimeout=3', '-o', 'BatchMode=yes', sshHost, 'echo', 'ok'],
+          ['-o', 'ConnectTimeout=3', '-o', 'BatchMode=yes', host, 'echo', 'ok'],
           { timeout: 5000, env: extendedEnv() },
         );
       } catch (err: any) {
-        const info = classifySpawnError(err as Error, { command: 'ssh', sshHost });
+        const info = classifySpawnError(err as Error, { command: 'ssh', host });
         if (!existingSession) {
           sessionStore.delete(session.id);
         }
@@ -646,10 +646,10 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const preRunRef = await captureGitSnapshot(options.cwd);
 
     const qualityGateBaseline = new Map<string, boolean>();
-    if (options.mode === 'act' && !sshHost) {
+    if (options.mode === 'act' && !host) {
       const baselineCommands = await resolveQualityGateCommands(options.cwd);
       for (const cmd of baselineCommands) {
-        const baseResult = await runShellCommand(cmd, options.cwd, sshHost ?? null);
+        const baseResult = await runShellCommand(cmd, options.cwd, host ?? null);
         qualityGateBaseline.set(cmd, baseResult.exitCode === 0);
       }
     }
@@ -657,7 +657,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     logDiagnostic('task-handlers', '[task:spawn] spawning agent', {
       taskId: options.taskId,
       agentId,
-      spawnSshHost: spawnOptions.sshHost ?? null,
+      spawnHost: spawnOptions.host ?? null,
       spawnCwd: spawnOptions.cwd,
       spawnRemoteCwd: spawnOptions.remoteCwd ?? null,
       resumeSessionId: spawnOptions.resumeSessionId ?? null,
@@ -766,7 +766,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
       const contextWatcher = new ContextWatcher({
         cwd: options.cwd,
-        sshHost: sshHost ?? undefined,
+        host: host ?? undefined,
         onStateChange: (state: ContextState) => {
           // Todos
           if (state.todos) {
@@ -1075,12 +1075,12 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       const now = Date.now();
       if (now - lastSessionContextWrite >= SESSION_CONTEXT_INTERVAL_MS) {
         lastSessionContextWrite = now;
-        writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost).catch(() => {});
+        writeSessionContextFile(options.cwd, session.id, sessionStore, host).catch(() => {});
       } else if (!sessionContextTimer) {
         sessionContextTimer = setTimeout(() => {
           sessionContextTimer = null;
           lastSessionContextWrite = Date.now();
-          writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost).catch(() => {});
+          writeSessionContextFile(options.cwd, session.id, sessionStore, host).catch(() => {});
         }, SESSION_CONTEXT_INTERVAL_MS - (now - lastSessionContextWrite));
       }
 
@@ -1377,7 +1377,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       toolHeartbeats.clear();
       if (sessionContextTimer) { clearTimeout(sessionContextTimer); sessionContextTimer = null; }
       // Final session-context write on completion
-      writeSessionContextFile(options.cwd, session.id, sessionStore, sshHost).catch(() => {});
+      writeSessionContextFile(options.cwd, session.id, sessionStore, host).catch(() => {});
 
       void (async () => {
         // ── Guard: bail if task was already cleaned up by stop/cleanup ──
@@ -1417,7 +1417,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           logDiagnostic('task-handlers', '[crash-retry] respawning after crash', {
             taskId: options.taskId,
             retryCount: retryCount + 1,
-            sshHost: options.sshHost ?? null,
+            host: options.host ?? null,
             workspaceId: options.workspaceId ?? null,
             cwd: options.cwd,
             error: result?.error?.slice(0, 200),
@@ -1478,7 +1478,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 if (!lifecycleManager.isTaskActive(options.taskId)) return;
 
-                const gateResult = await runShellCommand(command, options.cwd, sshHost ?? null);
+                const gateResult = await runShellCommand(command, options.cwd, host ?? null);
                 passed = gateResult.exitCode === 0;
                 lastResult = gateResult;
 
@@ -1518,7 +1518,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                   mode: 'act',
                   model: spawnOptions.model,
                   binaryPath: spawnOptions.binaryPath,
-                  sshHost: spawnOptions.sshHost,
+                  host: spawnOptions.host,
                   remoteCwd: spawnOptions.remoteCwd,
                 }, undefined);
 
@@ -1572,7 +1572,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           if (!lifecycleManager.isTaskActive(options.taskId)) return;
 
           // ── Diff capture ──
-          if (preRunRef && !sshHost) {
+          if (preRunRef && !host) {
             try {
               const diffData = await captureGitDiff(options.cwd, preRunRef);
               if (diffData && diffData.files.length > 0) {
@@ -1775,11 +1775,11 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         sessionId,
         wsId,
         wsName: ws?.name ?? null,
-        wsSshHost: ws?.sshHost ?? null,
+        wsHost: ws?.host ?? null,
         worktreePath: ws?.worktreePath ?? null,
       });
       if (ws) {
-        await writeSessionContextFile(ws.worktreePath, sessionId, sessionStore, ws.sshHost).catch(() => {});
+        await writeSessionContextFile(ws.worktreePath, sessionId, sessionStore, ws.host).catch(() => {});
       }
     }
 
@@ -1836,14 +1836,14 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         || nextModel !== session.model
         || nextMode !== session.mode
         || thinking !== undefined;
-      // Resolve workspace so sshHost is carried through the restart
+      // Resolve workspace so host is carried through the restart
       const wsId = lifecycleManager.getWorkspaceForTask(taskId);
       const ws = wsId ? workspaceStore.get(wsId) : undefined;
-      logDiagnostic('task-handlers', '[task:restart] resolving workspace for sshHost', {
+      logDiagnostic('task-handlers', '[task:restart] resolving workspace for host', {
         taskId,
         wsId: wsId ?? null,
         wsName: ws?.name ?? null,
-        wsSshHost: ws?.sshHost ?? null,
+        wsHost: ws?.host ?? null,
         sessionCwd: cwd ?? session.cwd,
         selectionChanged,
       });
@@ -1851,7 +1851,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         taskId,
         sessionId,
         workspaceId: wsId ?? undefined,
-        sshHost: ws?.sshHost ?? undefined,
+        host: ws?.host ?? undefined,
         prompt: `${selectionChanged ? APPLY_SELECTION_PROMPT : RESUME_PROMPT}\nIf \`.context/session-context.md\` exists, read it for prior session state.`,
         cwd: cwd ?? session.cwd,
         mode: nextMode,
