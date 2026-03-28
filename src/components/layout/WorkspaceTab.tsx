@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, FolderPlus, X, LoaderCircle, Link2, Monitor, Wifi, Zap } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
+import { CreateWorkspaceDialog } from '../workspace/CreateWorkspaceDialog';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { getProjectSourceKey, normalizeProjectSource, useUiStore, type ProjectSource } from '../../stores/ui';
@@ -73,6 +74,8 @@ export function WorkspaceTab() {
   const sshConnected = useUiStore((s) => s.sshConnected);
   const sshHost = useUiStore((s) => s.sshHost);
   const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createProjectKey, setCreateProjectKey] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
   // Group workspaces by parentRepo
@@ -345,6 +348,17 @@ export function WorkspaceTab() {
           </button>
           <button
             onClick={() => {
+              setCreateProjectKey(null);
+              setShowCreate(true);
+            }}
+            className="premium-toolbar-button inline-flex items-center gap-1 rounded-md border border-border/60 bg-bg-elevated/50 px-2 py-1 text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+            title="Create a new workspace"
+          >
+            <Plus size={11} />
+            New
+          </button>
+          <button
+            onClick={() => {
               const fallbackProject = activeProject
                 ?? groupedWorkspaces[0]?.project
                 ?? normalizeProjectSource(cwd);
@@ -431,10 +445,11 @@ export function WorkspaceTab() {
                   <span
                     role="button"
                     tabIndex={-1}
-                    title={`Create a separate workspace for this ${project.source === 'ssh' ? 'SSH' : 'local'} project`}
+                    title={`Create a new workspace in this ${project.source === 'ssh' ? 'SSH' : 'local'} project`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleCreateWorkspace(project);
+                      setCreateProjectKey(getProjectSourceKey(project));
+                      setShowCreate(true);
                     }}
                     className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
                   >
@@ -505,6 +520,14 @@ export function WorkspaceTab() {
         )}
 
       </div>
+
+      {/* Create workspace dialog */}
+      {showCreate && (
+        <CreateWorkspaceDialog
+          onClose={() => setShowCreate(false)}
+          defaultProjectKey={createProjectKey}
+        />
+      )}
 
       {/* Context menu */}
       {contextMenu && (
