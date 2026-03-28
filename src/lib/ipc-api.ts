@@ -164,11 +164,6 @@ export interface IpcChannels {
   'checkpoint:list': { args: [{ workspaceId: string }]; result: Checkpoint[] };
   'checkpoint:diff': { args: [{ checkpointId: string; workspaceId: string }]; result: string };
   'checkpoint:revert': { args: [{ checkpointId: string; workspaceId: string }]; result: void };
-  'repomap:get-config': { args: []; result: RepoMapIpcConfig };
-  'repomap:set-config': { args: [RepoMapIpcConfig]; result: void };
-  'repomap:get-status': { args: []; result: RepoMapIpcStatus };
-  'repomap:rebuild': { args: []; result: void };
-  'repomap:preview': { args: [{ prompt: string }]; result: string };
   'diff:get': { args: [{ taskId: string; sessionId: string }]; result: DiffData | null };
   'shell:exec': { args: [{ command: string; cwd: string; timeout?: number }]; result: { stdout: string; stderr: string; exitCode: number; durationMs: number } };
   'completion:suggest': { args: [{ prefix: string; cwd: string; recentCommands: string[]; model?: string }]; result: { suggestion: string; error?: string } };
@@ -341,7 +336,6 @@ export interface IpcEvents {
   'terminal:agent-kill': { id: string };
   'config:changed': { config: FluxConfig };
   'window:fullscreen-changed': { isFullscreen: boolean };
-  'repomap:status': RepoMapIpcStatus;
   'usage:live-update': LiveUsageOverview;
   'ipc:activity': IpcActivity;
 }
@@ -360,24 +354,6 @@ export interface IpcActivity {
   terminalId?: string;
   summary?: string;
   payloadPreview?: string;
-}
-
-export interface RepoMapIpcConfig {
-  enabled: boolean;
-  maxTokens: number;
-  indexedFilePatterns: string[];
-  excludePatterns: string[];
-  perAgentEnabled: Record<string, boolean>;
-  autoRefresh: boolean;
-}
-
-export interface RepoMapIpcStatus {
-  state: 'idle' | 'building' | 'ready' | 'error';
-  totalFiles: number;
-  parsedFiles: number;
-  totalTags: number;
-  lastBuiltAt: number | null;
-  errorMessage?: string;
 }
 
 export interface SessionSummary {
@@ -438,8 +414,6 @@ export interface FluxConfig {
     remotePath: string;
     lastUsed: number;
   }>;
-  repoMap: RepoMapIpcConfig;
-
   // Multi-project state
   lastActiveGroupId?: string;
   openProjects?: ProjectSource[];

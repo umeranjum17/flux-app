@@ -58,7 +58,6 @@ describe('useAgentStream', () => {
     expect(subscribedChannels).toContain('workspace:checkpoint');
     expect(subscribedChannels).toContain('workspace:updated');
     expect(subscribedChannels).toContain('workspace:operation');
-    expect(subscribedChannels).toContain('repomap:status');
     expect(subscribedChannels).toContain('ipc:activity');
   });
 
@@ -75,7 +74,6 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('workspace:checkpoint')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:updated')?.size).toBe(1);
     expect(mockApi._listeners.get('workspace:operation')?.size).toBe(1);
-    expect(mockApi._listeners.get('repomap:status')?.size).toBe(1);
     expect(mockApi._listeners.get('ipc:activity')?.size).toBe(1);
 
     unmount();
@@ -90,7 +88,6 @@ describe('useAgentStream', () => {
     expect(mockApi._listeners.get('workspace:checkpoint')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:updated')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('workspace:operation')?.size ?? 0).toBe(0);
-    expect(mockApi._listeners.get('repomap:status')?.size ?? 0).toBe(0);
     expect(mockApi._listeners.get('ipc:activity')?.size ?? 0).toBe(0);
   });
 
@@ -433,45 +430,6 @@ describe('useAgentStream', () => {
 
     await pendingStart;
     expect(useChatStore.getState().tasks.get('task-1')?.sessionId).toBe('session-1');
-  });
-
-  it('repomap state changes are surfaced on the active task without duplicate states', () => {
-    createTestTask('task-1');
-    renderHook(() => useAgentStream());
-
-    mockApi._emit('repomap:status', {
-      state: 'building',
-      totalFiles: 12,
-      parsedFiles: 3,
-      totalTags: 0,
-      lastBuiltAt: null,
-    });
-    mockApi._emit('repomap:status', {
-      state: 'building',
-      totalFiles: 12,
-      parsedFiles: 7,
-      totalTags: 0,
-      lastBuiltAt: null,
-    });
-    mockApi._emit('repomap:status', {
-      state: 'ready',
-      totalFiles: 12,
-      parsedFiles: 12,
-      totalTags: 42,
-      lastBuiltAt: Date.now(),
-    });
-
-    const task = useChatStore.getState().tasks.get('task-1');
-    expect(task?.systemActivities).toHaveLength(2);
-    expect(task?.systemActivities[0]).toEqual(expect.objectContaining({
-      category: 'repomap',
-      label: 'Repo map indexing started',
-    }));
-    expect(task?.systemActivities[1]).toEqual(expect.objectContaining({
-      category: 'repomap',
-      label: 'Repo map ready',
-      detail: '12 files · 42 tags indexed',
-    }));
   });
 
   it('ignores ipc activity traces for task-scoped invoke traces', () => {

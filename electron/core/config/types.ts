@@ -22,15 +22,6 @@ export interface RecentSshHost {
   lastUsed: number;
 }
 
-export interface RepoMapConfig {
-  enabled: boolean;
-  maxTokens: number;
-  indexedFilePatterns: string[];
-  excludePatterns: string[];
-  perAgentEnabled: Record<string, boolean>;
-  autoRefresh: boolean;
-}
-
 export interface FluxConfig {
   theme: 'light' | 'dark';
   fontSize: number;
@@ -51,7 +42,6 @@ export interface FluxConfig {
   defaultMergeAgent?: string;
   defaultMergeModel?: string;
   defaultMergeThinking?: ThinkingLevel;
-  repoMap: RepoMapConfig;
   lastActiveGroupId?: string;
   openProjects?: ProjectSource[];
   activeProject?: ProjectSource;

@@ -3,15 +3,6 @@ import path from 'path';
 import { app } from 'electron';
 import { FluxConfig } from './types';
 
-const DEFAULT_REPOMAP_CONFIG: FluxConfig['repoMap'] = {
-  enabled: false,
-  maxTokens: 2048,
-  indexedFilePatterns: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'],
-  excludePatterns: ['node_modules/**', '.git/**', 'dist/**', 'build/**', '.vite/**', '__pycache__/**'],
-  perAgentEnabled: {},
-  autoRefresh: true,
-};
-
 const DEFAULT_CONFIG: FluxConfig = {
   theme: 'dark',
   fontSize: 14,
@@ -29,7 +20,6 @@ const DEFAULT_CONFIG: FluxConfig = {
   zoomLevel: 1.0,
   recentProjects: [],
   recentSshHosts: [],
-  repoMap: DEFAULT_REPOMAP_CONFIG,
 };
 
 function normalizeProjectSource(value: unknown): NonNullable<FluxConfig['openProjects']>[number] | null {
@@ -143,9 +133,6 @@ function normalizeConfig(raw: Record<string, unknown>): FluxConfig {
     zoomLevel: typeof raw.zoomLevel === 'number'
       ? Math.max(0.5, Math.min(2.5, raw.zoomLevel))
       : DEFAULT_CONFIG.zoomLevel,
-    repoMap: raw.repoMap && typeof raw.repoMap === 'object' && !Array.isArray(raw.repoMap)
-      ? { ...DEFAULT_REPOMAP_CONFIG, ...(raw.repoMap as Record<string, unknown>) } as FluxConfig['repoMap']
-      : DEFAULT_REPOMAP_CONFIG,
   };
 }
 
@@ -165,13 +152,6 @@ function mergeConfig(current: FluxConfig, partial: Partial<FluxConfig>): FluxCon
             ...partial.customAgentPaths,
           }
         : current.customAgentPaths,
-    repoMap:
-      partial.repoMap && typeof partial.repoMap === 'object' && !Array.isArray(partial.repoMap)
-        ? {
-            ...current.repoMap,
-            ...partial.repoMap,
-          }
-        : current.repoMap,
   } satisfies Record<string, unknown>;
 
   return normalizeConfig(merged);

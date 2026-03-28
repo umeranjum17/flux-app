@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, ArrowRightLeft, GitBranch, GitCommitHorizontal, RefreshCw, Activity, ChevronDown, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, GitBranch, GitCommitHorizontal, RefreshCw, ChevronDown, Sparkles } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import type { SystemActivity } from '../../lib/types';
 
@@ -18,12 +18,6 @@ const CATEGORY_META: Record<
     accent: 'text-text-tertiary',
     accentBg: 'bg-bg-hover/50',
     label: 'Checkpoint',
-  },
-  repomap: {
-    Icon: Activity,
-    accent: 'text-text-tertiary',
-    accentBg: 'bg-bg-hover/50',
-    label: 'Repo map',
   },
   stall: {
     Icon: AlertTriangle,

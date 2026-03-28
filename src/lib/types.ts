@@ -216,7 +216,7 @@ export interface PlanData {
 
 export type TaskStatus = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'done' | 'error';
 
-export type SystemActivityCategory = 'workspace' | 'checkpoint' | 'repomap' | 'stall' | 'sync' | 'ipc' | 'skill';
+export type SystemActivityCategory = 'workspace' | 'checkpoint' | 'stall' | 'sync' | 'ipc' | 'skill';
 
 export interface SystemActivity {
   id: string;

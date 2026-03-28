@@ -4,7 +4,7 @@ import type { IpcActivity } from '../src/lib/ipc-api';
 type Listener = (...args: any[]) => void;
 
 const IPC_ACTIVITY_CHANNEL = 'ipc:activity';
-const TRACKED_INVOKE_PREFIXES = ['task:', 'subagent:', 'workspace:', 'checkpoint:', 'repomap:', 'mcp:'];
+const TRACKED_INVOKE_PREFIXES = ['task:', 'subagent:', 'workspace:', 'checkpoint:', 'mcp:'];
 
 const listenerMap = new Map<string, Map<Listener, Listener>>();
 const internalListeners = new Map<string, Set<Listener>>();

@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
 import { useWorkspaceStore } from '../stores/workspace';
-import type { Checkpoint, IpcActivity, RepoMapIpcStatus, WorkspaceOperation, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
+import type { Checkpoint, IpcActivity, WorkspaceOperation, WorkspaceOutcome, WorkspaceStatus } from '../lib/ipc-api';
 import type { AgentMessage, DiffData, SystemActivity, TodoItem } from '../lib/types';
 import { shouldRenderIpcActivity, toSystemActivity } from '../lib/ipc-activity';
 import { normalizeTrackedFilePath } from '../lib/path-utils';
@@ -33,7 +33,6 @@ export function useAgentStream() {
     const autoOpenedForTask = new Set<string>();
     const lastWorkspaceStatus = new Map<string, WorkspaceStatus>();
     const lastWorkspaceOutcome = new Map<string, WorkspaceOutcome>();
-    let lastRepoMapState: RepoMapIpcStatus['state'] | null = null;
 
     const unsubMessage = window.api.on('agent:message', (data: unknown) => {
       const { taskId, message } = data as { taskId: string; message: AgentMessage };
@@ -212,21 +211,6 @@ export function useAgentStream() {
       );
     });
 
-    const unsubRepoMapStatus = window.api.on('repomap:status', (data: unknown) => {
-      const status = data as RepoMapIpcStatus;
-      if (status.state === lastRepoMapState) {
-        return;
-      }
-      lastRepoMapState = status.state;
-
-      const activeTaskId = useChatStore.getState().activeTaskId;
-      if (!activeTaskId) {
-        return;
-      }
-
-      useChatStore.getState().addSystemActivity(activeTaskId, buildRepoMapActivity(status));
-    });
-
     // Phase-transition comments — inject lifecycle messages into the workspace's task stream
     const unsubPhaseComment = window.api.on('workspace:phase-comment', (data: unknown) => {
       const { workspaceId, fromOutcome, toOutcome, description, timestamp } = data as {
@@ -278,7 +262,6 @@ export function useAgentStream() {
       unsubCheckpoint();
       unsubWorkspaceUpdated();
       unsubWorkspaceOperation();
-      unsubRepoMapStatus();
       unsubPhaseComment();
       unsubIpcActivity();
     };
@@ -348,32 +331,6 @@ function buildWorkspaceOperationActivity(operation: WorkspaceOperation): SystemA
     return makeActivity('workspace', 'Archive complete');
   }
   return makeActivity('workspace', 'Archive in progress', operation.message);
-}
-
-function buildRepoMapActivity(status: RepoMapIpcStatus): SystemActivity {
-  switch (status.state) {
-    case 'building':
-      return makeActivity(
-        'repomap',
-        'Repo map indexing started',
-        `${status.parsedFiles}/${status.totalFiles} files parsed`,
-      );
-    case 'ready':
-      return makeActivity(
-        'repomap',
-        'Repo map ready',
-        `${status.totalFiles} files · ${status.totalTags} tags indexed`,
-      );
-    case 'error':
-      return makeActivity(
-        'repomap',
-        'Repo map failed',
-        status.errorMessage || 'Indexer reported an error',
-      );
-    case 'idle':
-    default:
-      return makeActivity('sync', 'Repo map idle');
-  }
 }
 
 function formatWorkspaceStatus(status: WorkspaceStatus): string {

@@ -7,7 +7,7 @@ import { basename } from '../lib/format';
 
 export type { ProjectSource, RecentProject } from '../lib/ipc-api';
 
-type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'connect-remote' | 'create-folder' | 'context-settings' | 'diagnostics' | 'help' | 'quick-open' | 'search-files' | null;
+type Overlay = 'settings' | 'agent-selector' | 'session-picker' | 'command-palette' | 'connect-remote' | 'create-folder' | 'diagnostics' | 'help' | 'quick-open' | 'search-files' | null;
 
 interface UiState {
   sidebarOpen: boolean;

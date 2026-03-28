@@ -13,7 +13,6 @@ const DUPLICATE_RENDERED_EVENT_CHANNELS = new Set([
   'workspace:outcome',
   'workspace:checkpoint',
   'workspace:updated',
-  'repomap:status',
 ]);
 
 const HIGH_VOLUME_EVENT_CHANNELS = new Set([

@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
-import { useIntelligenceStore } from '../../stores/intelligence';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { GitBranch, Brain, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
+import { GitBranch, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
 import type { LiveUsageOverview, RateLimitInfo } from '../../lib/ipc-api';
 import { isWorkspaceArchiving } from '../../lib/workspace-operations';
 import { formatRelativeTime } from '../../lib/format';
@@ -32,9 +31,6 @@ export function StatusLine() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceOperation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
   const activeWorkspaceOperation = isWorkspaceArchiving(workspaceOperation) ? workspaceOperation : null;
-
-  const repoMapConfig = useIntelligenceStore((s) => s.config);
-  const repoMapStatus = useIntelligenceStore((s) => s.status);
 
   // Rate limits state
   const [showRateLimits, setShowRateLimits] = useState(false);
@@ -123,28 +119,6 @@ export function StatusLine() {
           </span>
         )}
 
-        <button
-          onClick={() => useUiStore.getState().setOverlay('context-settings')}
-          className={`premium-toolbar-button flex h-[30px] items-center gap-1 rounded-none border-y-0 border-l-0 border-r border-border px-2.5 text-[13px] ${
-            !repoMapConfig.enabled
-              ? 'text-text-tertiary'
-            : repoMapStatus.state === 'ready'
-                ? 'text-success'
-                : repoMapStatus.state === 'building'
-                  ? 'text-warning'
-                  : repoMapStatus.state === 'error'
-                    ? 'text-error'
-                    : 'text-text-tertiary'
-          }`}
-          title={
-            !repoMapConfig.enabled
-              ? 'Repo map: off (click to configure)'
-              : `Repo map: ${repoMapStatus.state} (${repoMapStatus.totalTags} tags)`
-          }
-        >
-          <Brain size={12} className={repoMapStatus.state === 'building' ? 'animate-pulse' : ''} />
-          {repoMapConfig.enabled && <span>{repoMapStatus.state === 'building' ? 'indexing' : 'map'}</span>}
-        </button>
         {activeWorkspaceOperation && (
           <span
             className="flex h-[30px] items-center gap-1.5 border-r border-border bg-warning/10 px-2.5 text-[13px] text-warning"

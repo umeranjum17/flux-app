@@ -8,7 +8,6 @@ import fg from 'fast-glob';
 import type { AgentHandle } from '../agents/types';
 import { logDiagnostic, tailDiagnostics, getDiagnosticsLogPath } from '../diagnostics/logger';
 import { ConfigManager } from '../config/config';
-import type { RepoMapConfig } from '../config/types';
 import { WorkspaceStore } from '../worktree/store';
 import type { WorkspaceLifecycleManager } from '../worktree/lifecycle';
 import { SessionStore } from '../session/store';
@@ -16,7 +15,6 @@ import { UsageTracker } from '../usage/tracker';
 import { LiveUsageService, type LiveUsageOverview } from '../usage/live';
 import type { RemoteConnectionManager } from '../remote/connection-manager';
 import { grepFiles } from '../tools/grep';
-import { repoMapService } from '../intelligence/repomap';
 import {
   extendedEnv,
   resolveSshCommand,
@@ -756,32 +754,6 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     if (!workspace) return;
     await revertToCheckpoint(workspace.worktreePath, checkpointId);
     lifecycleManager.setStatus(workspaceId, 'done');
-  });
-
-  ipcMain.handle('repomap:get-config', async () => {
-    return repoMapService.getConfig();
-  });
-
-  ipcMain.handle('repomap:set-config', async (_event, config: RepoMapConfig) => {
-    const fullConfig = configManager.get();
-    configManager.set({ repoMap: config });
-    repoMapService.setConfig(config);
-    if (config.enabled !== fullConfig.repoMap.enabled || config.enabled) {
-      await repoMapService.init(getCurrentCwd(), config);
-    }
-  });
-
-  ipcMain.handle('repomap:get-status', async () => {
-    return repoMapService.getStatus();
-  });
-
-  ipcMain.handle('repomap:rebuild', async () => {
-    await repoMapService.rebuild();
-  });
-
-  ipcMain.handle('repomap:preview', async (_event, { prompt }: { prompt: string }) => {
-    const config = configManager.get().repoMap;
-    return repoMapService.getMap(prompt, config.maxTokens);
   });
 
   ipcMain.handle('diff:get', async (_event, { taskId: _taskId, sessionId }: { taskId: string; sessionId: string }) => {

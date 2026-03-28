@@ -8,7 +8,6 @@ const CommandPalette = lazy(() => import('./components/dialogs/CommandPalette').
 const SettingsPanel = lazy(() => import('./components/dialogs/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
 const SessionPicker = lazy(() => import('./components/dialogs/SessionPicker').then(m => ({ default: m.SessionPicker })));
 const ConnectRemoteDialog = lazy(() => import('./components/dialogs/ConnectRemoteDialog').then(m => ({ default: m.ConnectRemoteDialog })));
-const ContextSettings = lazy(() => import('./components/dialogs/ContextSettings').then(m => ({ default: m.ContextSettings })));
 const CreateFolderDialog = lazy(() => import('./components/dialogs/CreateFolderDialog').then(m => ({ default: m.CreateFolderDialog })));
 
 export function App() {
@@ -22,7 +21,6 @@ export function App() {
         <SessionPicker />
         <ConnectRemoteDialog />
         <CreateFolderDialog />
-        <ContextSettings />
       </Suspense>
       <Toaster position="top-right" theme="dark" />
     </ErrorBoundary>

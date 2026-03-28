@@ -10,7 +10,6 @@ import type { AgentHandle, AgentId, AgentMessage, FileAttachment, SpawnOptions, 
 import { isInteractiveToolName } from '../agents/claude';
 import { logDiagnostic } from '../diagnostics/logger';
 import { StallMonitor } from '../agents/stall-monitor';
-import { repoMapService } from '../intelligence/repomap';
 import { createCheckpoint, listCheckpoints } from '../checkpoint/manager';
 import { extendedEnv, resolveSshCommand, classifySpawnError } from '../process-utils';
 import type { WorkspaceStatus } from '../worktree/types';
@@ -400,19 +399,6 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     // so no project-specific CLAUDE.md or context leaks in.
     if (options.contextless) {
       spawnCwd = os.homedir();
-    } else {
-    const repoMapConfig = configManager.get().repoMap;
-    if (repoMapConfig.enabled && repoMapConfig.perAgentEnabled[agentId] !== false) {
-      try {
-        const repoMap = await repoMapService.getMap(effectivePrompt, repoMapConfig.maxTokens);
-        if (repoMap) {
-          options.contextBlock = repoMap;
-          effectivePrompt = repoMap + '\n\n' + effectivePrompt;
-        }
-      } catch {
-        // Repo map generation failed — continue without it
-      }
-    }
     }
 
     const claudeResumeId = sshHost

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Brain, RefreshCw, Copy, Smartphone, Shield } from 'lucide-react';
+import { X, Plus, Trash2, RefreshCw, Copy, Smartphone, Shield } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import type { FluxConfig, RemoteClientInfo, RemotePairingCode, RemoteServerStatus } from '../../lib/ipc-api';
@@ -23,14 +23,6 @@ const defaultConfig: FluxConfig = {
   customAgentPaths: {},
   recentProjects: [],
   recentSshHosts: [],
-  repoMap: {
-    enabled: false,
-    maxTokens: 2048,
-    indexedFilePatterns: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'],
-    excludePatterns: ['node_modules/**', '.git/**', 'dist/**', 'build/**'],
-    perAgentEnabled: {},
-    autoRefresh: true,
-  },
 };
 
 const thinkingOptions: { value: ThinkingLevel; label: string }[] = [
@@ -508,24 +500,6 @@ export function SettingsPanel() {
                       )}
                     </div>
                   </div>
-                </section>
-
-                {/* Context Intelligence */}
-                <section>
-                  <h3 className="text-sm font-medium text-text-secondary mb-3">Context Intelligence</h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOverlay('context-settings');
-                    }}
-                    className="flex items-center gap-2 w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm text-text-primary hover:bg-bg-hover transition-colors"
-                  >
-                    <Brain size={14} />
-                    Configure Repo Map
-                    <span className="ml-auto text-xs text-text-tertiary">
-                      {config.repoMap?.enabled ? 'On' : 'Off'}
-                    </span>
-                  </button>
                 </section>
 
                 {/* Quality Gates */}

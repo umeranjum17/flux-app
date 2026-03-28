@@ -14,7 +14,6 @@ import { LiveUsageService } from '../usage/live';
 import { WorkspaceStore } from '../worktree/store';
 import { WorkspaceLifecycleManager } from '../worktree/lifecycle';
 import { WorkspaceOperationManager } from '../worktree/operation-manager';
-import { repoMapService } from '../intelligence/repomap';
 import { detectEnvironment } from '../process-utils';
 import { StallMonitor } from '../agents/stall-monitor';
 import type { BaseIpcContext, SubagentEntry } from './types';
@@ -507,21 +506,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     globalContextWatcher?.stop();
     globalRequestDispatcher?.dispose();
     operationManager.cancelAll();
-  });
-
-  // Initialize repo map if enabled — deferred to avoid blocking startup
-  setTimeout(() => {
-    const initialConfig = configManager.get().repoMap;
-    if (initialConfig.enabled) {
-      repoMapService.init(currentCwd, initialConfig).catch(() => {
-        // Initialization error is non-fatal
-      });
-    }
-  }, 5000);
-
-  // Push status updates to renderer
-  repoMapService.onStatusChange((status) => {
-    sendToRenderer('repomap:status', status);
   });
 
   // Start background usage poller — independent of any agent or chat activity.
