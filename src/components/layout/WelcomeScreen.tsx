@@ -190,7 +190,9 @@ function NewWorkspaceButton({ cwd, isGitRepo }: { cwd: string; isGitRepo: boolea
     try {
       const { selectedAgentId: agentId, selectedModel: model, selectedThinking } = useAgentStore.getState();
       const mode = useUiStore.getState().mode;
-      const ws = await createEmptyWorkspace({ agentId, model, mode, thinking: selectedThinking, cwd });
+      const activeProject = useUiStore.getState().activeProject;
+      const host = activeProject?.source === 'ssh' ? activeProject.host : undefined;
+      const ws = await createEmptyWorkspace({ agentId, model, mode, thinking: selectedThinking, cwd, host });
       const taskId = crypto.randomUUID();
       useChatStore.getState().createTask({
         id: taskId,

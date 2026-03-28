@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FolderOpen, FolderPlus, Monitor, Server, ChevronDown } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 
@@ -6,6 +7,8 @@ interface ProjectMenuProps {
   onOpenProject: () => void;
   /** Render as compact icon-only trigger (kanban toolbar) vs labeled button */
   compact?: boolean;
+  /** Which edge to align the dropdown to (default: 'right') */
+  align?: 'left' | 'right';
 }
 
 const ITEMS = [
@@ -32,17 +35,33 @@ const ITEMS = [
   },
 ] as const;
 
-export function ProjectMenu({ onOpenProject, compact }: ProjectMenuProps) {
+export function ProjectMenu({ onOpenProject, compact, align = 'right' }: ProjectMenuProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // Compute dropdown position from trigger button rect
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const dropdownWidth = 260;
+    const left = align === 'left'
+      ? rect.left
+      : rect.right - dropdownWidth;
+    setPos({ top: rect.bottom + 6, left });
+  }, [open, align]);
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (
+        triggerRef.current?.contains(target) ||
+        dropdownRef.current?.contains(target)
+      ) return;
+      setOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -77,8 +96,9 @@ export function ProjectMenu({ onOpenProject, compact }: ProjectMenuProps) {
   );
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         className={
           compact
@@ -92,8 +112,12 @@ export function ProjectMenu({ onOpenProject, compact }: ProjectMenuProps) {
         <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''} ${compact ? 'ml-[-2px]' : ''}`} />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-[260px] overflow-hidden rounded-xl border border-border/70 bg-bg-elevated shadow-xl shadow-black/20 backdrop-blur-xl">
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] w-[260px] overflow-hidden rounded-xl border border-border/70 bg-bg-elevated shadow-xl shadow-black/20 backdrop-blur-xl"
+          style={{ top: pos.top, left: pos.left }}
+        >
           {/* Local group */}
           <div className="px-2 pt-2 pb-1">
             <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary/60">
@@ -139,8 +163,9 @@ export function ProjectMenu({ onOpenProject, compact }: ProjectMenuProps) {
               </div>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }

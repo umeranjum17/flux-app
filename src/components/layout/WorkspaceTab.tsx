@@ -310,7 +310,7 @@ export function WorkspaceTab() {
       <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
         <span className="classic-section-label">Workspaces</span>
         <div className="flex items-center gap-1">
-          <ProjectMenu onOpenProject={() => openLocalProject()} compact />
+          <ProjectMenu onOpenProject={() => openLocalProject()} compact align="left" />
           <button
             onClick={() => {
               const fallbackProject = activeProject

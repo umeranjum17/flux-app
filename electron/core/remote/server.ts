@@ -354,14 +354,14 @@ export class RemoteControlServer {
       case 'workspace:create': {
         const p = this.requireParam<{
           name: string; parentRepo: string; branch: string; agentId: string; model: string;
-          mode?: string; thinking?: string;
+          mode?: string; thinking?: string; host?: string;
         }>(params, 'name', 'parentRepo', 'branch', 'agentId', 'model');
         return this.options.controlService.createWorkspace(p as any);
       }
       case 'workspace:create-quick': {
         const p = this.requireParam<{
           parentRepo: string; agentId: string; model: string;
-          mode?: string; thinking?: string;
+          mode?: string; thinking?: string; host?: string;
         }>(params, 'parentRepo', 'agentId', 'model');
         return this.options.controlService.createQuickWorkspace(p as any);
       }
