@@ -170,10 +170,20 @@ export async function steerTask(
   );
   let effectivePrompt = await buildPromptWithAttachments(prompt, attachments);
 
+  // When the user steers a workspace, move it back to "in_progress" so the
+  // kanban board reflects that the agent is actively building again.
+  // This must happen BEFORE building skill context so the agent sees the
+  // updated outcome in its skill prompt and moves forward organically.
+  if (workspaceId && workspace && workspace.outcome !== 'in_progress') {
+    ctx.lifecycleManager.setOutcome(workspaceId, 'in_progress', { force: true });
+  }
+
   // Inject workspace skills on follow-up messages so the agent retains
   // lifecycle protocol context across the full conversation.
   if (workspaceId && workspace) {
-    const siblingContext = workspaceGroupStore.getGroupForWorkspace(workspace.id)?.siblings;
+    // Re-read workspace to pick up the outcome reset above
+    const freshWorkspace = ctx.workspaceStore.get(workspaceId) ?? workspace;
+    const siblingContext = workspaceGroupStore.getGroupForWorkspace(freshWorkspace.id)?.siblings;
     const attachmentsForSkills = attachmentContext
       ? {
           manifestPath: attachmentContext.manifestPath,
@@ -181,8 +191,8 @@ export async function steerTask(
           fileCount: attachmentContext.attachmentCount,
         }
       : undefined;
-    const wsContext = buildWorkspaceSystemContext(workspace, workspace.mode, {
-      agentId: workspace.agentId,
+    const wsContext = buildWorkspaceSystemContext(freshWorkspace, freshWorkspace.mode, {
+      agentId: freshWorkspace.agentId,
       isExistingSession: true,
       attachments: attachmentsForSkills,
       siblingWorkspaces: siblingContext,
@@ -190,12 +200,6 @@ export async function steerTask(
     if (wsContext) {
       effectivePrompt = `${wsContext}\n\n${effectivePrompt}`;
     }
-  }
-
-  // When the user steers a workspace, move it back to "in_progress" so the
-  // kanban board reflects that the agent is actively building again.
-  if (workspaceId && workspace && workspace.outcome !== 'in_progress') {
-    ctx.lifecycleManager.setOutcome(workspaceId, 'in_progress', { force: true });
   }
 
   handle.steer(effectivePrompt, images);
@@ -261,6 +265,7 @@ export async function spawnWorkspaceChat(
     mode: input.mode ?? workspace.mode,
     cwd: workspace.worktreePath,
     sshHost: workspace.sshHost,
+    sessionId: workspace.sessionId,
     images: input.images,
     attachments: input.attachments,
   });

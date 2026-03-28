@@ -336,14 +336,35 @@ export function WorkspaceDashboard() {
                 };
                 const prompt = modePrompts[mode] ?? `Work on this workspace in ${mode} mode.`;
 
-                // Stop any running task first, then spawn fresh in the new mode
+                // Stop any running task first, then spawn fresh in the new mode.
+                // Reuse the existing taskId so the chat store receives messages.
+                const chatStore = useChatStore.getState();
+                const existingTask = Array.from(chatStore.tasks.values()).find(
+                  (t) => t.workspaceId === ws.id,
+                );
                 window.api.invoke('workspace:active-task', { workspaceId: ws.id })
-                  .then((taskIds: string[]) => {
+                  .then((res) => {
+                    const taskIds = res as string[];
                     if (taskIds.length > 0) {
                       return window.api.invoke('task:stop', { taskId: taskIds[0] });
                     }
                   })
-                  .then(() => window.api.invoke('workspace:spawn-chat', { workspaceId: ws.id, prompt, mode }))
+                  .then(() => window.api.invoke('workspace:spawn-chat', {
+                    taskId: existingTask?.id,
+                    workspaceId: ws.id,
+                    prompt,
+                    mode,
+                  }))
+                  .then((res) => {
+                    const result = res as { taskId: string; session: any } | undefined;
+                    if (result?.session) {
+                      chatStore.setTaskSessionId(result.taskId, result.session.id);
+                      if (existingTask) {
+                        chatStore.setTaskMode(result.taskId, mode!);
+                        chatStore.setTaskStatus(result.taskId, 'running');
+                      }
+                    }
+                  })
                   .catch((err) => toast.error(`Failed to start ${mode} agent: ${err instanceof Error ? err.message : String(err)}`));
               }
             }
