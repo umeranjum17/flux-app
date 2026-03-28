@@ -20,6 +20,7 @@ export function WorkspaceDashboard() {
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const cwd = useUiStore((s) => s.cwd);
   const isGitRepo = useUiStore((s) => s.isGitRepo);
+  const openProjects = useUiStore((s) => s.openProjects);
   const canCreateWorkspace = isGitRepo || openProjects.length > 0;
   const viewMode = useUiStore((s) => s.workspaceViewMode);
   const kanbanProjectFilter = useUiStore((s) => s.kanbanProjectFilter);
@@ -30,8 +31,6 @@ export function WorkspaceDashboard() {
 
   const workspaceList = Array.from(workspaces.values());
   const repositoryName = cwd?.split('/').filter(Boolean).pop() || 'Repository';
-
-  const openProjects = useUiStore((s) => s.openProjects);
 
   // Build unique project list from workspaces + open projects for filter pills
   const projectOptions = useMemo(() => {
