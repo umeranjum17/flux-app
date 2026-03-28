@@ -307,6 +307,14 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
 
     try {
       const context = buildConversationContext(sessionId, sessionStore);
+      logDiagnostic('task-handlers', '[auto-recovery] respawning task', {
+        taskId,
+        sessionId,
+        agentId,
+        originalSshHost: originalOptions.sshHost ?? null,
+        originalWorkspaceId: originalOptions.workspaceId ?? null,
+        cwd: originalOptions.cwd,
+      });
       await spawnTaskRun({
         ...originalOptions,
         sessionId,
@@ -328,13 +336,23 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   ): Promise<{ taskId: string; session: any }> => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
-    // Use only the explicit sshHost from the workspace record — do not fall back
-    // to the global SSH connection or local workspaces break when SSH is active.
-    const sshHost = options.sshHost ?? undefined;
-    const localCwd = remoteConnection.localCwd;
+    // Resolve sshHost: prefer explicit option, then fall back to the workspace
+    // record.  Do NOT fall back to the global SSH connection or local workspaces
+    // break when SSH is active.
     const workspace = options.workspaceId
       ? workspaceStore.get(options.workspaceId)
       : workspaceStore.get(options.taskId);
+    const sshHost = options.sshHost ?? workspace?.sshHost ?? undefined;
+    logDiagnostic('task-handlers', '[task:spawn] sshHost resolution', {
+      taskId: options.taskId,
+      workspaceId: options.workspaceId ?? options.taskId,
+      optionsSshHost: options.sshHost ?? null,
+      workspaceSshHost: workspace?.sshHost ?? null,
+      resolvedSshHost: sshHost ?? null,
+      workspaceName: workspace?.name ?? null,
+      cwd: options.cwd,
+    });
+    const localCwd = remoteConnection.localCwd;
     if (activeTasks.has(options.taskId)) {
       // Capture before releaseTask removes it from the map
       const priorHandle = activeTasks.get(options.taskId);
@@ -465,6 +483,16 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
     }
 
+    logDiagnostic('task-handlers', '[task:spawn] building spawn options', {
+      taskId: options.taskId,
+      agentId,
+      spawnCwd,
+      remoteCwd: sshHost ? options.cwd : undefined,
+      sshHost: sshHost ?? null,
+      sessionId: session.id,
+      existingAgentSessionId: existingAgentSessionId ?? null,
+      isExistingSession: !!existingSession,
+    });
     const spawnOptions: SpawnOptions = {
       ...options,
       cwd: spawnCwd,
@@ -639,6 +667,15 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
       }
     }
 
+    logDiagnostic('task-handlers', '[task:spawn] spawning agent', {
+      taskId: options.taskId,
+      agentId,
+      spawnSshHost: spawnOptions.sshHost ?? null,
+      spawnCwd: spawnOptions.cwd,
+      spawnRemoteCwd: spawnOptions.remoteCwd ?? null,
+      resumeSessionId: spawnOptions.resumeSessionId ?? null,
+      hasResumeMessages: !!resumeMessages?.length,
+    });
     let handle: AgentHandle;
     try {
       handle = await agentManager.spawn(agentId, spawnOptions, resumeMessages);
@@ -1390,6 +1427,14 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
           });
         }
         if (shouldAutoRetry) {
+          logDiagnostic('task-handlers', '[crash-retry] respawning after crash', {
+            taskId: options.taskId,
+            retryCount: retryCount + 1,
+            sshHost: options.sshHost ?? null,
+            workspaceId: options.workspaceId ?? null,
+            cwd: options.cwd,
+            error: result?.error?.slice(0, 200),
+          });
           taskRetryCounts.set(options.taskId, retryCount + 1);
           emitTaskMessage(options.taskId, session.id, {
             type: 'status',
@@ -1738,6 +1783,14 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
     const wsId = lifecycleManager.getWorkspaceForTask(taskId);
     if (sessionId && wsId) {
       const ws = workspaceStore.get(wsId);
+      logDiagnostic('task-handlers', '[task:stop] flushing session context', {
+        taskId,
+        sessionId,
+        wsId,
+        wsName: ws?.name ?? null,
+        wsSshHost: ws?.sshHost ?? null,
+        worktreePath: ws?.worktreePath ?? null,
+      });
       if (ws) {
         await writeSessionContextFile(ws.worktreePath, sessionId, sessionStore, ws.sshHost).catch(() => {});
       }
@@ -1796,9 +1849,22 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
         || nextModel !== session.model
         || nextMode !== session.mode
         || thinking !== undefined;
+      // Resolve workspace so sshHost is carried through the restart
+      const wsId = lifecycleManager.getWorkspaceForTask(taskId);
+      const ws = wsId ? workspaceStore.get(wsId) : undefined;
+      logDiagnostic('task-handlers', '[task:restart] resolving workspace for sshHost', {
+        taskId,
+        wsId: wsId ?? null,
+        wsName: ws?.name ?? null,
+        wsSshHost: ws?.sshHost ?? null,
+        sessionCwd: cwd ?? session.cwd,
+        selectionChanged,
+      });
       return await spawnTaskRun({
         taskId,
         sessionId,
+        workspaceId: wsId ?? undefined,
+        sshHost: ws?.sshHost ?? undefined,
         prompt: `${selectionChanged ? APPLY_SELECTION_PROMPT : RESUME_PROMPT}\nIf \`.context/session-context.md\` exists, read it for prior session state.`,
         cwd: cwd ?? session.cwd,
         mode: nextMode,

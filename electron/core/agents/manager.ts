@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { extendedEnv, resolveExecutable, resolveSshCommand } from '../process-utils';
+import { log } from '../log';
 
 const execFileAsync = promisify(execFile);
 import {
@@ -92,9 +93,13 @@ async function versionAsync(command: string): Promise<string> {
 }
 
 class AgentManager {
+  /** Local agent detection results — never overwritten by remote detection. */
   private agents: Map<AgentId, DetectedAgent> = new Map();
+  /** Remote agent detection results keyed by host, then agent id. */
+  private remoteAgents: Map<string, Map<AgentId, DetectedAgent>> = new Map();
 
   async detectAll(): Promise<DetectedAgent[]> {
+    log.info('agent-manager', 'Running local agent detection…');
     const ids = Object.keys(AGENT_DEFS) as AgentId[];
 
     const results = await Promise.allSettled(
@@ -109,11 +114,26 @@ class AgentManager {
       }
     }
 
+    log.ok('agent-manager', 'Local detection complete:', detected.map(a => `${a.id}=${a.available ? a.path : 'unavailable'}`).join(', '));
     return detected;
   }
 
-  get(id: AgentId): DetectedAgent | undefined {
+  /**
+   * Get a detected agent. For SSH workspaces, pass the host to get remote detection.
+   * Falls back to local detection if no host-specific result exists.
+   */
+  get(id: AgentId, sshHost?: string): DetectedAgent | undefined {
+    if (sshHost) {
+      const remote = this.remoteAgents.get(sshHost)?.get(id);
+      if (remote) return remote;
+    }
     return this.agents.get(id);
+  }
+
+  /** Clear cached remote agent detection for a specific host. */
+  clearRemoteAgents(host: string): void {
+    log.info('agent-manager', `Clearing remote agent cache for ${host}`);
+    this.remoteAgents.delete(host);
   }
 
   async checkAuth(agentId: string): Promise<AuthResult> {
@@ -164,11 +184,13 @@ class AgentManager {
   }
 
   async spawn(id: AgentId, options: SpawnOptions, resumeMessages?: SessionMessage[]): Promise<AgentHandle> {
-    const agent = this.agents.get(id);
+    const agent = this.get(id, options.sshHost);
     if (!agent || !agent.available) {
+      log.error('agent-manager', `Agent ${id} not available (sshHost=${options.sshHost ?? 'local'}). Local: ${this.agents.get(id)?.available}, Remote hosts: ${[...this.remoteAgents.keys()].join(', ')}`);
       throw new Error(`Agent ${id} is not available`);
     }
 
+    log.ok('agent-manager', `Spawning ${id} (sshHost=${options.sshHost ?? 'local'}, path=${agent.path})`);
     const opts = { ...options, binaryPath: agent.path || undefined };
     const mcpServers = (id === 'claude-code' || id === 'codex')
       ? loadMcpServers(options.cwd)
@@ -188,6 +210,7 @@ class AgentManager {
   }
 
   async detectAllRemote(remoteHost: string): Promise<DetectedAgent[]> {
+    log.info('agent-manager', `Running remote agent detection for ${remoteHost}…`);
     const ids = Object.keys(AGENT_DEFS) as AgentId[];
     const detected: DetectedAgent[] = [];
 
@@ -196,6 +219,7 @@ class AgentManager {
       const def = AGENT_DEFS[id];
 
       if (!def.cmd) {
+        // API-only agents: return local detection result (not host-specific)
         const existing = this.agents.get(id);
         return existing ?? null;
       }
@@ -219,8 +243,8 @@ class AgentManager {
             version = lines[1];
           }
         }
-      } catch {
-        // Remote detection failed — mark unavailable
+      } catch (err) {
+        log.warn('agent-manager', `Remote detection failed for ${id} on ${remoteHost}:`, err);
       }
 
       return {
@@ -237,13 +261,17 @@ class AgentManager {
     });
 
     const results = await Promise.allSettled(promises);
+    // Store remote results in a separate per-host map — never overwrite local agents
+    const hostMap = new Map<AgentId, DetectedAgent>();
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
-        this.agents.set(result.value.id, result.value);
+        hostMap.set(result.value.id, result.value);
         detected.push(result.value);
       }
     }
+    this.remoteAgents.set(remoteHost, hostMap);
 
+    log.ok('agent-manager', `Remote detection complete for ${remoteHost}:`, detected.map(a => `${a.id}=${a.available ? a.path : 'unavailable'}`).join(', '));
     return detected;
   }
 

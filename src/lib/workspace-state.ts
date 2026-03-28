@@ -385,6 +385,7 @@ export async function startWorkspaceChat(
         mode: opts.mode,
         thinking: opts.thinking,
         cwd: opts.workspace.worktreePath,
+        sshHost: opts.workspace.sshHost,
         images: opts.images,
         attachments: opts.attachments,
       }) as { taskId?: string; session: Session };
@@ -468,6 +469,7 @@ export async function startWorkspaceMerge(
       mode: 'act',
       thinking,
       cwd: workspace.worktreePath,
+      sshHost: workspace.sshHost,
       autoApprovePermissions: true,
       workspaceAction: 'merge',
       mergeContext: {

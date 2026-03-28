@@ -148,6 +148,23 @@ export function AppShell() {
               }
             }
           }
+          // Auto-reconnect SSH hosts from restored projects (fire-and-forget)
+          if (config.openProjects && config.openProjects.length > 0) {
+            const sshHosts = new Map<string, string>();
+            for (const project of config.openProjects) {
+              if (project.source === 'ssh' && project.sshHost && project.path) {
+                if (!sshHosts.has(project.sshHost)) {
+                  sshHosts.set(project.sshHost, project.path);
+                }
+              }
+            }
+            for (const [host, remoteCwd] of sshHosts) {
+              connectToSshWorkspace(host, remoteCwd).catch((err) => {
+                console.warn(`[ssh] Auto-reconnect to ${host} failed:`, err);
+              });
+            }
+          }
+
           if (config.lastActiveGroupId) {
             useUiStore.getState().setActiveGroupId(config.lastActiveGroupId);
           }

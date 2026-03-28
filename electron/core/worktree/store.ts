@@ -3,6 +3,7 @@ import { getDb } from '../db/connection';
 import type { Workspace, WorkspaceOutcome, WorkspaceSession, WorkspaceStatus } from './types';
 import type { TaskMode, ThinkingLevel } from '../agents/types';
 import { WorkspaceGroupStore } from '../workspace-group/store';
+import { log } from '../log';
 
 interface CreateWorkspaceInput {
   id: string;
@@ -37,7 +38,9 @@ export class WorkspaceStore {
           .all(parentRepo)
       : db.prepare('SELECT * FROM workspaces ORDER BY updated_at DESC').all();
 
-    return (rows as any[]).map(rowToWorkspace);
+    const workspaces = (rows as any[]).map(rowToWorkspace);
+    log.dim('workspace-store', `list(${parentRepo ?? 'all'}): ${workspaces.length} workspace(s)`, workspaces.map(w => `${w.name}[${w.id}] ssh=${w.sshHost ?? 'local'}`).join(', '));
+    return workspaces;
   }
 
   get(id: string): Workspace | null {
@@ -46,7 +49,14 @@ export class WorkspaceStore {
 
     const workspace = rowToWorkspace(row);
     // Remote worktree paths don't exist locally — skip fs check for SSH workspaces
-    return (workspace.sshHost || fs.existsSync(workspace.worktreePath)) ? workspace : null;
+    if (workspace.sshHost) {
+      return workspace;
+    }
+    if (!fs.existsSync(workspace.worktreePath)) {
+      log.warn('workspace-store', `Workspace ${id} (${workspace.name}) worktree path missing: ${workspace.worktreePath}`);
+      return null;
+    }
+    return workspace;
   }
 
   getIncludingMissing(id: string): Workspace | null {

@@ -13,6 +13,7 @@ import fs from 'fs';
 
 import type { Workspace, WorkspaceOutcome, WorkspaceStatus } from './types';
 import { resolveGitState, computeNextOutcome } from './outcome';
+import { log } from '../log';
 import type { WorkspaceOutcomeTrigger } from './outcome';
 import type { WorkspaceStore } from './store';
 
@@ -171,7 +172,7 @@ export class WorkspaceLifecycleManager {
       const { killOrphanedAgents } = await import('../agents/pid-tracker');
       killOrphanedAgents();
     } catch (err) {
-      console.warn('[lifecycle:reconcile] Failed to kill orphaned agents:', err);
+      log.warn('lifecycle:reconcile', 'Failed to kill orphaned agents:', err);
     }
 
     const allWorkspaces = this.workspaceStore.list();
@@ -182,7 +183,7 @@ export class WorkspaceLifecycleManager {
     for (const ws of allWorkspaces) {
       if (activeStatuses.includes(ws.status)) {
         const resetStatus = ws.outcome === 'in_progress' || ws.outcome === 'discovery' ? 'idle' : 'done';
-        console.log(`[lifecycle:reconcile] ${ws.id}: status ${ws.status} → ${resetStatus} (no active task)`);
+        log.info('lifecycle:reconcile', `${ws.id}: status ${ws.status} → ${resetStatus} (no active task)`);
         this.workspaceStore.update(ws.id, { status: resetStatus });
       }
     }
@@ -205,10 +206,10 @@ export class WorkspaceLifecycleManager {
 
             // Validate worktree directory exists on disk (skip for direct workspaces)
             if (!fresh.direct && !fs.existsSync(fresh.worktreePath)) {
-              console.warn(`[lifecycle:reconcile] Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
+              log.warn('lifecycle:reconcile', `Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
               if (fresh.outcome === 'in_progress') {
                 // No commits and worktree gone — auto-archive
-                console.log(`[lifecycle:reconcile] Auto-deleting ${ws.id} (worktree deleted, no commits)`);
+                log.info('lifecycle:reconcile', `Auto-deleting ${ws.id} (worktree deleted, no commits)`);
                 this.workspaceStore.delete(ws.id);
                 this.sendToRenderer('workspace:deleted', { workspaceId: ws.id });
               }
@@ -219,7 +220,7 @@ export class WorkspaceLifecycleManager {
 
             await this.transitionOutcome(fresh, 'sync');
           } catch (err) {
-            console.warn(`[lifecycle:reconcile] Failed to sync outcome for ${ws.id}:`, err);
+            log.warn('lifecycle:reconcile', `Failed to sync outcome for ${ws.id}:`, err);
           }
         }))
     );
@@ -231,8 +232,7 @@ export class WorkspaceLifecycleManager {
       (now - (ws.updatedAt || ws.createdAt)) > STALE_THRESHOLD_MS
     );
     if (staleWorkspaces.length > 0) {
-      console.log(
-        `[lifecycle:reconcile] ${staleWorkspaces.length} stale workspace(s) detected:`,
+      log.warn('lifecycle:reconcile', `${staleWorkspaces.length} stale workspace(s) detected:`,
         staleWorkspaces.map(ws => `${ws.name} (${Math.round((now - ws.updatedAt) / (24 * 60 * 60 * 1000))}d idle)`).join(', '),
       );
     }
@@ -340,11 +340,11 @@ export class WorkspaceLifecycleManager {
     if (opts?.force) {
       getLogDiagnostic()('outcome', 'forced outcome override', { workspaceId, from: current, to: outcome });
     } else if (current && !validOutcomeTransitions[current]?.includes(outcome)) {
-      console.error(`[outcome] Blocked invalid outcome transition: ${current} → ${outcome} for ${workspaceId}`);
+      log.error('outcome', `Blocked invalid outcome transition: ${current} → ${outcome} for ${workspaceId}`);
       return;
     }
 
-    console.log(`[outcome] ${workspaceId}: ${current} → ${outcome}`);
+    log.info('outcome', `${workspaceId}: ${current} → ${outcome}`);
     this.workspaceStore.update(workspaceId, { outcome });
     this.sendToRenderer('workspace:outcome', { workspaceId, outcome });
 
@@ -476,7 +476,7 @@ export class WorkspaceLifecycleManager {
         return;
       }
       if (from !== status && !validStatusTransitions[from]?.includes(status)) {
-        console.error(`[workspace] Blocked invalid status transition: ${from} → ${status} for ${workspaceId}`);
+        log.error('workspace', `Blocked invalid status transition: ${from} → ${status} for ${workspaceId}`);
         return; // Don't corrupt the DB
       }
     }

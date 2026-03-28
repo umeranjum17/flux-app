@@ -16,6 +16,7 @@ import { createWorkspaceFs } from '../worktree/workspace-fs';
 import { escapeShell } from '../worktree/remote-manager';
 import { agentManager } from '../agents/manager';
 import { extendedEnv } from '../process-utils';
+import { logDiagnostic } from '../diagnostics/logger';
 import type { IpcContext, SpawnTaskRunOptions } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -159,6 +160,15 @@ export async function steerTask(
   const workspaceId = ctx.lifecycleManager.getWorkspaceForTask(taskId);
   const workspace = workspaceId ? ctx.workspaceStore.get(workspaceId) : null;
   const effectiveSshHost = workspace?.sshHost ?? undefined;
+  logDiagnostic('task-handlers', '[task:steer] sshHost resolution', {
+    taskId,
+    workspaceId: workspaceId ?? null,
+    workspaceName: workspace?.name ?? null,
+    workspaceSshHost: workspace?.sshHost ?? null,
+    effectiveSshHost: effectiveSshHost ?? null,
+    handleAlive: handle.isAlive(),
+    sessionCwd: activeSession?.cwd ?? null,
+  });
 
   const attachmentContext = await writeAttachmentContextFile(
     activeSession?.cwd ?? ctx.getCurrentCwd(),

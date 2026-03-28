@@ -92,10 +92,12 @@ export class RemoteConnectionManager {
   ): Promise<void> {
     // Reuse existing connection
     if (this._connections.has(host)) {
+      console.log(`[ssh] Reusing existing connection to ${host}`);
       this._host = host;
       this._localCwd = currentCwd;
       return;
     }
+    console.log(`[ssh] Connecting to ${host}…`);
 
     try {
       await execFileAsync(
@@ -112,19 +114,29 @@ export class RemoteConnectionManager {
     this._connections.set(host, { connectedAt: Date.now() });
     this._host = host;
     this._localCwd = currentCwd;
-    await agentManager.detectAllRemote(host).catch(() => {});
+    console.log(`[ssh] Connected to ${host}. Running remote agent detection…`);
+    await agentManager.detectAllRemote(host).catch((err) => {
+      console.warn(`[ssh] Remote agent detection failed for ${host}:`, err);
+    });
   }
 
   /**
    * Disconnect from a specific host. If it was the active host, clears active.
    */
   disconnectHost(host: string): void {
+    console.log(`[ssh] Disconnecting host: ${host}`);
     this._connections.delete(host);
     if (this._host === host) {
-      // Switch to another connected host or null
       const remaining = Array.from(this._connections.keys());
       this._host = remaining.length > 0 ? remaining[0] : null;
+      console.log(`[ssh] Active host changed to: ${this._host ?? 'none'}`);
     }
+    // Clear cached remote state for this host
+    agentManager.clearRemoteAgents(host);
+    // clearRemoteHomeCache is imported lazily to avoid circular deps
+    import('../worktree/remote-manager').then(({ clearRemoteHomeCache }) => {
+      clearRemoteHomeCache(host);
+    }).catch(() => {});
     if (this._connections.size === 0) {
       agentManager.detectAll().catch(() => {});
     }
@@ -134,8 +146,11 @@ export class RemoteConnectionManager {
    * Disconnect from the active remote host. Returns the local CWD to restore.
    */
   disconnect(): string {
+    const previousHost = this._host;
+    console.log(`[ssh] Disconnecting active host: ${previousHost ?? 'none'}`);
     if (this._host) {
       this._connections.delete(this._host);
+      agentManager.clearRemoteAgents(this._host);
     }
     this._host = null;
     if (this._connections.size === 0) {

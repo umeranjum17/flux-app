@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useChatStore } from '../../stores/chat';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useIntelligenceStore } from '../../stores/intelligence';
 import { useWorkspaceStore } from '../../stores/workspace';
-import { GitBranch, Wifi, Brain, LoaderCircle, Gauge, RefreshCw, WifiOff } from 'lucide-react';
+import { GitBranch, Brain, LoaderCircle, Gauge, RefreshCw } from 'lucide-react';
 import type { LiveUsageOverview, RateLimitInfo } from '../../lib/ipc-api';
 import { isWorkspaceArchiving } from '../../lib/workspace-operations';
 import { formatRelativeTime } from '../../lib/format';
@@ -29,10 +29,6 @@ export function StatusLine() {
 
   const gitBranch = useUiStore((s) => s.gitBranch);
   const gitDirty = useUiStore((s) => s.gitDirty);
-  // Derive SSH state from the active project
-  const activeProject = useUiStore((s) => s.openProjects.find((p) => p.path === s.cwd));
-  const sshConnected = activeProject?.source === 'ssh';
-  const sshHost = activeProject?.sshHost ?? null;
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceOperation = useWorkspaceStore((s) => (activeWorkspaceId ? s.workspaceOperations.get(activeWorkspaceId) : undefined));
   const activeWorkspaceOperation = isWorkspaceArchiving(workspaceOperation) ? workspaceOperation : null;
@@ -116,84 +112,9 @@ export function StatusLine() {
   const cost = activeTask?.costUsd ?? 0;
   const qualityGate = activeTask?.lastQualityGate;
 
-  const [sshPopoverOpen, setSshPopoverOpen] = useState(false);
-  const sshPopoverRef = useRef<HTMLDivElement>(null);
-
-  // Close SSH popover on outside click
-  useEffect(() => {
-    if (!sshPopoverOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (sshPopoverRef.current && !sshPopoverRef.current.contains(e.target as Node)) {
-        setSshPopoverOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [sshPopoverOpen]);
-
-  const handleSshClick = useCallback(() => {
-    if (sshConnected) {
-      setSshPopoverOpen((open) => !open);
-    } else {
-      useUiStore.getState().setOverlay('connect-remote');
-    }
-  }, [sshConnected]);
-
-  const handleSshDisconnect = useCallback(() => {
-    setSshPopoverOpen(false);
-    window.api.invoke('ssh:disconnect').then((raw) => {
-      const result = raw as { cwd?: string } | undefined;
-      useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
-    });
-  }, []);
-
   return (
     <div className="relative flex h-[30px] min-h-[30px] select-none items-center border-t border-border bg-bg-secondary">
       <div className="flex items-center shrink-0">
-        <div className="relative" ref={sshPopoverRef}>
-          <button
-            onClick={handleSshClick}
-            className={`premium-toolbar-button flex h-[30px] items-center gap-1.5 rounded-none border-y-0 border-l-0 border-r px-2.5 text-[13px] font-medium ${
-              sshConnected
-                ? 'border-success/20 bg-success/8 text-success'
-                : 'border-border text-text-tertiary hover:text-text-secondary'
-            }`}
-            title={sshConnected && sshHost
-              ? `SSH: ${sshHost} — click for options`
-              : 'Connect SSH project'}
-          >
-            {sshConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-            {sshConnected && sshHost ? `SSH: ${sshHost}` : 'SSH'}
-          </button>
-          {sshPopoverOpen && sshConnected && (
-            <div className="absolute bottom-full left-0 z-50 mb-1 w-[220px] rounded-xl border border-border/70 bg-bg-elevated p-2 shadow-2xl">
-              <p className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                SSH Connection
-              </p>
-              <p className="px-2 pb-2 text-[11px] text-text-secondary truncate">
-                {sshHost}
-              </p>
-              <button
-                onClick={() => {
-                  setSshPopoverOpen(false);
-                  useUiStore.getState().setOverlay('connect-remote');
-                }}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
-              >
-                <Wifi size={11} />
-                Connect another SSH project
-              </button>
-              <button
-                onClick={handleSshDisconnect}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-error hover:bg-error/10 transition-colors"
-              >
-                <WifiOff size={11} />
-                Disconnect
-              </button>
-            </div>
-          )}
-        </div>
-
         {gitBranch && (
           <span className="flex h-[30px] items-center gap-1.5 border-r border-border px-2.5 text-[13px] text-text-tertiary">
             <GitBranch size={12} />
