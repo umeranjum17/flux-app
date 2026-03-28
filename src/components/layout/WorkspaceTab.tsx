@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
-import { CreateWorkspaceDialog } from '../workspace/CreateWorkspaceDialog';
+import { ProjectMenu } from '../common/ProjectMenu';
 
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
@@ -13,6 +13,7 @@ import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import type { AgentId } from '../../lib/types';
 import { toast } from 'sonner';
 import { archiveWorkspace, formatWorkspaceOperationLabel, isWorkspaceArchiving } from '../../lib/workspace-operations';
+import { openLocalProject } from '../../lib/workspace-state';
 import { useWorkspaceHasChanges } from '../../hooks/useWorkspaceHasChanges';
 import { AnimatedWorkspaceName } from '../workspace/AnimatedWorkspaceName';
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
@@ -73,7 +74,6 @@ export function WorkspaceTab() {
   const collapsedProjects = useUiStore((s) => s.collapsedProjects);
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
   const [creating, setCreating] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
   // Group workspaces by parentRepo
@@ -310,14 +310,7 @@ export function WorkspaceTab() {
       <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
         <span className="classic-section-label">Workspaces</span>
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="premium-toolbar-button inline-flex items-center gap-1 rounded-md border border-border/60 bg-bg-elevated/50 px-2 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
-            title="Create a new workspace"
-          >
-            <Plus size={11} />
-            New
-          </button>
+          <ProjectMenu onOpenProject={() => openLocalProject()} compact />
           <button
             onClick={() => {
               const fallbackProject = activeProject
@@ -480,9 +473,6 @@ export function WorkspaceTab() {
         )}
 
       </div>
-
-      {/* Create workspace dialog */}
-      {showCreate && <CreateWorkspaceDialog onClose={() => setShowCreate(false)} />}
 
       {/* Context menu */}
       {contextMenu && (
