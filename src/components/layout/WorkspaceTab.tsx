@@ -1,13 +1,14 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, FolderPlus, X, LoaderCircle, Link2, Monitor, Wifi, Zap } from 'lucide-react';
+import { Plus, GitBranch, Eye, GitMerge, GitCommit, Square, Trash2, MessageSquare, ChevronDown, ChevronRight, FolderOpen, X, LoaderCircle, Link2, Monitor, Zap } from 'lucide-react';
 import { WorkspaceLifecycleIcon } from '../workspace/WorkspaceLifecycleIcon';
 import { CreateWorkspaceDialog } from '../workspace/CreateWorkspaceDialog';
+
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useChatStore } from '../../stores/chat';
 import { getProjectSourceKey, normalizeProjectSource, useUiStore, type ProjectSource } from '../../stores/ui';
 import { useAgentStore } from '../../stores/agent';
 import { getWorkspaceListSignal, isActionNeededState } from '../../lib/workspace-status';
-import { createEmptyWorkspace, openLocalProject } from '../../lib/workspace-state';
+import { createEmptyWorkspace } from '../../lib/workspace-state';
 import type { Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import type { AgentId } from '../../lib/types';
 import { toast } from 'sonner';
@@ -71,11 +72,8 @@ export function WorkspaceTab() {
   const openProjects = useUiStore((s) => s.openProjects);
   const collapsedProjects = useUiStore((s) => s.collapsedProjects);
   const workspaceOperations = useWorkspaceStore((s) => s.workspaceOperations);
-  const sshConnected = useUiStore((s) => s.sshConnected);
-  const host = useUiStore((s) => s.host);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [createProjectKey, setCreateProjectKey] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ws: Workspace } | null>(null);
 
   // Group workspaces by parentRepo
@@ -302,17 +300,6 @@ export function WorkspaceTab() {
     }
   }, [creating]);
 
-  const handleAddProject = useCallback(() => {
-    useUiStore.getState().setOverlay('create-folder');
-  }, []);
-
-  const handleOpenProject = useCallback(async () => {
-    await openLocalProject();
-  }, []);
-
-  const handleConnectSshProject = useCallback(() => {
-    useUiStore.getState().setOverlay('connect-remote');
-  }, []);
 
   const isRunning = (ws: Workspace) =>
     ws.status === 'running' || ws.status === 'waiting_approval' || ws.status === 'waiting_input';
@@ -324,34 +311,8 @@ export function WorkspaceTab() {
         <span className="classic-section-label">Workspaces</span>
         <div className="flex items-center gap-1">
           <button
-            onClick={handleOpenProject}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-            title="Open a local project"
-          >
-            <FolderOpen size={13} />
-          </button>
-          <button
-            onClick={handleAddProject}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-            title="Create a new local project"
-          >
-            <FolderPlus size={13} />
-          </button>
-          <button
-            onClick={handleConnectSshProject}
-            className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
-            title={sshConnected && host
-              ? `Connect another SSH project (connected: ${host})`
-              : 'Connect SSH project'}
-          >
-            <Wifi size={13} />
-          </button>
-          <button
-            onClick={() => {
-              setCreateProjectKey(null);
-              setShowCreate(true);
-            }}
-            className="premium-toolbar-button inline-flex items-center gap-1 rounded-md border border-border/60 bg-bg-elevated/50 px-2 py-1 text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+            onClick={() => setShowCreate(true)}
+            className="premium-toolbar-button inline-flex items-center gap-1 rounded-md border border-border/60 bg-bg-elevated/50 px-2 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
             title="Create a new workspace"
           >
             <Plus size={11} />
@@ -445,11 +406,10 @@ export function WorkspaceTab() {
                   <span
                     role="button"
                     tabIndex={-1}
-                    title={`Create a new workspace in this ${project.source === 'ssh' ? 'SSH' : 'local'} project`}
+                    title={`Create a separate workspace for this ${project.source === 'ssh' ? 'SSH' : 'local'} project`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCreateProjectKey(getProjectSourceKey(project));
-                      setShowCreate(true);
+                      handleCreateWorkspace(project);
                     }}
                     className="shrink-0 rounded p-0.5 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100 hover:text-text-primary"
                   >
@@ -522,12 +482,7 @@ export function WorkspaceTab() {
       </div>
 
       {/* Create workspace dialog */}
-      {showCreate && (
-        <CreateWorkspaceDialog
-          onClose={() => setShowCreate(false)}
-          defaultProjectKey={createProjectKey}
-        />
-      )}
+      {showCreate && <CreateWorkspaceDialog onClose={() => setShowCreate(false)} />}
 
       {/* Context menu */}
       {contextMenu && (
