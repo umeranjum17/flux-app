@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
+import { log } from '../log';
 
 const execAsync = promisify(exec);
 
@@ -82,7 +83,7 @@ async function completeWithAnthropic(
   });
 
   if (!res.ok) {
-    console.error(`[completion] Anthropic API ${res.status}: ${await res.text().catch(() => '')}`);
+    log.error('completion', `Anthropic API ${res.status}: ${await res.text().catch(() => '')}`);
     return '';
   }
 
@@ -117,7 +118,7 @@ async function completeWithGoogle(
   );
 
   if (!res.ok) {
-    console.error(`[completion] Google API ${res.status}: ${await res.text().catch(() => '')}`);
+    log.error('completion', `Google API ${res.status}: ${await res.text().catch(() => '')}`);
     return '';
   }
 
@@ -223,7 +224,7 @@ export async function suggestCompletion(
     return { suggestion };
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') return { suggestion: '' };
-    console.error('[completion] API error:', err);
+    log.error('completion', 'API error:', err);
     return { suggestion: '', error: 'api_error' };
   } finally {
     if (activeAbort?.signal === signal) activeAbort = null;

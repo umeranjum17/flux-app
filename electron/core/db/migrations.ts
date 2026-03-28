@@ -1,4 +1,5 @@
 import { getDb } from './connection';
+import { log } from '../log';
 import {
   CREATE_SESSIONS_TABLE,
   CREATE_MESSAGES_TABLE,
@@ -236,7 +237,7 @@ export function runMigrations(): void {
       try {
         db.exec('VACUUM');
       } catch (err) {
-        console.warn('[migrations] VACUUM failed (non-fatal):', err);
+        log.warn('migrations', 'VACUUM failed (non-fatal):', err);
       }
     }
   }

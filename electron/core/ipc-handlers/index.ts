@@ -41,8 +41,9 @@ import { RemoteControlService } from '../remote/control-service';
 import { MdnsAdvertiser } from '../remote/mdns';
 import { PROTOCOL_VERSION, REMOTE_SERVER_PORT, RemoteControlServer } from '../remote/server';
 import { RemoteConnectionManager } from '../remote/connection-manager';
+import { log } from '../log';
 
-console.log('[ipc-handlers] module loaded');
+log.dim('ipc-handlers', 'Module loaded');
 
 const activeTasks = new Map<string, AgentHandle>();
 const taskSessions = new Map<string, string>();
@@ -173,7 +174,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       }
       return true;
     } catch (error) {
-      console.warn(`[ipc-handlers] Failed to send ${channel}`, error);
+      log.warn('ipc-handlers', `Failed to send ${channel}`, error);
       return false;
     }
   };
@@ -494,7 +495,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Fire-and-forget but log errors.
   setTimeout(() => {
     lifecycleManager.reconcileOnStartup().catch(err => {
-      console.error('[lifecycle] Startup reconciliation failed:', err);
+      log.error('lifecycle', 'Startup reconciliation failed:', err);
     });
   }, 2000);
 
@@ -548,7 +549,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         // Reset to normal interval on success
         usagePollCurrentInterval = USAGE_POLL_INTERVAL_MS;
       } catch (err) {
-        console.warn('[usage-poller] fetch failed:', err instanceof Error ? err.message : String(err));
+        log.warn('usage-poller', 'fetch failed:', err instanceof Error ? err.message : String(err));
         // Back off: double the interval on failure, capped at max
         usagePollCurrentInterval = Math.min(usagePollCurrentInterval * 2, USAGE_POLL_MAX_INTERVAL_MS);
         logDiagnostic('usage', 'usage-poller: backing off', { nextIntervalMs: usagePollCurrentInterval });

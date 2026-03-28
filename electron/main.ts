@@ -4,13 +4,14 @@ import { registerIpcHandlers, cleanupProcesses } from './core/ipc-handlers/index
 import { runMigrations } from './core/db/migrations';
 import { ConfigManager } from './core/config/config';
 import { isIgnorableStreamWriteError } from './core/process-utils';
+import { log } from './core/log';
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection:', reason);
+  log.error('main', 'Unhandled rejection:', reason);
 });
 process.on('uncaughtException', (err) => {
   if (isIgnorableStreamWriteError(err)) return;
-  console.error('Uncaught exception:', err);
+  log.error('main', 'Uncaught exception:', err);
 });
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -79,12 +80,12 @@ function createWindow(): void {
 }
 
 app.on('ready', () => {
-  console.info('[main] Electron app ready; starting initialization');
+  log.ok('main', 'Electron app ready — starting initialization');
   try {
     // Create window first so renderer starts loading in parallel with migrations
     createWindow();
   } catch (error) {
-    console.error('[main] Failed to initialize application', error);
+    log.error('main', 'Failed to initialize application', error);
     dialog.showErrorBox(
       'Flux failed to start',
       error instanceof Error ? error.message : String(error),

@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { log } from '../log';
 
 export interface AgentPidEntry {
   pid: number;
@@ -36,7 +37,7 @@ function writePidFile(entries: AgentPidEntry[]): void {
     }
     fs.writeFileSync(PID_FILE, JSON.stringify(entries, null, 2));
   } catch (err) {
-    console.warn('[pid-tracker] Failed to write PID file:', err);
+    log.warn('pid-tracker', 'Failed to write PID file:', err);
   }
 }
 
@@ -75,8 +76,9 @@ export function killOrphanedAgents(): void {
 
   for (const entry of entries) {
     if (isProcessAlive(entry.pid)) {
-      console.log(
-        `[pid-tracker] Killing orphaned agent process: pid=${entry.pid} task=${entry.taskId} agent=${entry.agentId}`,
+      log.info(
+        'pid-tracker',
+        `Killing orphaned agent process: pid=${entry.pid} task=${entry.taskId} agent=${entry.agentId}`,
       );
       try {
         process.kill(entry.pid, 'SIGTERM');

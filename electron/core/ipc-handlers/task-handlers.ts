@@ -15,6 +15,7 @@ import { createCheckpoint, listCheckpoints } from '../checkpoint/manager';
 import { extendedEnv, resolveSshCommand, classifySpawnError } from '../process-utils';
 import type { WorkspaceStatus } from '../worktree/types';
 import type { BaseIpcContext, SpawnTaskRunOptions } from './types';
+import { log } from '../log';
 import {
   MAX_AUTO_RETRIES,
   RECOVERY_DELAY_MS,
@@ -1308,7 +1309,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
               lifecycleManager.taskCompleted(options.taskId, 'done', { sessionId: session.id });
             }
           } catch (err) {
-            console.error('[result-handler] Post-completion workspace ops failed:', err);
+            log.error('result-handler', 'Post-completion workspace ops failed:', err);
           }
         })();
       }
@@ -1648,7 +1649,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                 try {
                   lifecycleManager.setOutcome(workspace.id, 'merged', { force: true });
                 } catch (err) {
-                  console.error('[done-handler] Merge outcome retry failed:', err);
+                  log.error('done-handler', 'Merge outcome retry failed:', err);
                 }
               }
               // Skip remaining post-completion ops — already handled
@@ -1703,7 +1704,7 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
                   }
                 }
               } catch (err) {
-                console.error('[done-handler] Outcome transition failed:', err);
+                log.error('done-handler', 'Outcome transition failed:', err);
               }
 
               // 3. Fallback workspace display name from latest commit (context watcher is primary)

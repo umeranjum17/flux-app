@@ -1,3 +1,5 @@
+import { log } from '../log';
+
 export const DEFAULT_INITIAL_COMMAND_FALLBACK_DELAY_MS = 1_000;
 
 export interface InitialTerminalCommandController {
@@ -40,7 +42,7 @@ export function createInitialTerminalCommandController({
     try {
       write(`${command}\n`);
     } catch (error) {
-      console.error(`[terminal ${id}] Failed to write initial command`, error);
+      log.error(`terminal ${id}`, 'Failed to write initial command', error);
     }
   };
 

@@ -8,6 +8,7 @@ import {
   safeWriteToChildStdin,
 } from '../process-utils';
 import { agentManager } from '../agents/manager';
+import { log } from '../log';
 
 const execFileAsync = promisify(execFile);
 
@@ -92,12 +93,12 @@ export class RemoteConnectionManager {
   ): Promise<void> {
     // Reuse existing connection
     if (this._connections.has(host)) {
-      console.log(`[ssh] Reusing existing connection to ${host}`);
+      log.dim('ssh', `Reusing existing connection to ${host}`);
       this._host = host;
       this._localCwd = currentCwd;
       return;
     }
-    console.log(`[ssh] Connecting to ${host}…`);
+    log.info('ssh', `Connecting to ${host}…`);
 
     try {
       await execFileAsync(
@@ -114,9 +115,9 @@ export class RemoteConnectionManager {
     this._connections.set(host, { connectedAt: Date.now() });
     this._host = host;
     this._localCwd = currentCwd;
-    console.log(`[ssh] Connected to ${host}. Running remote agent detection…`);
+    log.ok('ssh', `Connected to ${host}. Running remote agent detection…`);
     await agentManager.detectAllRemote(host).catch((err) => {
-      console.warn(`[ssh] Remote agent detection failed for ${host}:`, err);
+      log.warn('ssh', `Remote agent detection failed for ${host}:`, err);
     });
   }
 
@@ -124,12 +125,12 @@ export class RemoteConnectionManager {
    * Disconnect from a specific host. If it was the active host, clears active.
    */
   disconnectHost(host: string): void {
-    console.log(`[ssh] Disconnecting host: ${host}`);
+    log.dim('ssh', `Disconnecting host: ${host}`);
     this._connections.delete(host);
     if (this._host === host) {
       const remaining = Array.from(this._connections.keys());
       this._host = remaining.length > 0 ? remaining[0] : null;
-      console.log(`[ssh] Active host changed to: ${this._host ?? 'none'}`);
+      log.dim('ssh', `Active host changed to: ${this._host ?? 'none'}`);
     }
     // Clear cached remote state for this host
     agentManager.clearRemoteAgents(host);
@@ -147,7 +148,7 @@ export class RemoteConnectionManager {
    */
   disconnect(): string {
     const previousHost = this._host;
-    console.log(`[ssh] Disconnecting active host: ${previousHost ?? 'none'}`);
+    log.dim('ssh', `Disconnecting active host: ${previousHost ?? 'none'}`);
     if (this._host) {
       this._connections.delete(this._host);
       agentManager.clearRemoteAgents(this._host);

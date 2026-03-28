@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { ChildProcess } from 'child_process';
 import type { Writable } from 'stream';
+import { log } from './log';
 
 export type RuntimeEnvironment = 'local' | 'ssh' | 'wsl';
 
@@ -429,7 +430,7 @@ export function attachStreamErrorHandler(stream: Writable | null | undefined, co
   candidate[STREAM_ERROR_HANDLER_ATTACHED] = true;
   candidate.on('error', (err: Error) => {
     if (isIgnorableStreamWriteError(err)) return;
-    console.warn(`[${context}] stream error`, err);
+    log.warn(context, 'stream error', err);
   });
 }
 
@@ -443,12 +444,12 @@ export function safeWriteToStream(
   try {
     writable.write(data, (err?: Error | null) => {
       if (!err || isIgnorableStreamWriteError(err)) return;
-      console.warn(`[${context}] stream write failed`, err);
+      log.warn(context, 'stream write failed', err);
     });
     return true;
   } catch (err) {
     if (!isIgnorableStreamWriteError(err)) {
-      console.warn(`[${context}] stream write threw`, err);
+      log.warn(context, 'stream write threw', err);
     }
     return false;
   }

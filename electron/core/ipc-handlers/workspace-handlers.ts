@@ -18,6 +18,7 @@ import type { IpcContext } from './types';
 import { requireFields, commandExists } from './utils';
 import * as ops from './operations';
 import { wrapWorkspaceActionError } from './operations';
+import { log } from '../log';
 
 const execFileAsync = promisify(execFile);
 
@@ -374,14 +375,15 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) {
         // Log extra context for debugging — check if workspace exists in DB but was filtered out
         const raw = workspaceStore.getIncludingMissing(workspaceId);
-        console.error(`[workspace:spawn] Workspace ${workspaceId} not found. In DB: ${!!raw}, worktreePath: ${raw?.worktreePath ?? 'n/a'}, sshHost: ${raw?.sshHost ?? 'local'}`);
+        log.error('workspace:spawn', `Workspace ${workspaceId} not found. In DB: ${!!raw}, worktreePath: ${raw?.worktreePath ?? 'n/a'}, sshHost: ${raw?.sshHost ?? 'local'}`);
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      console.log(`[workspace:spawn] ${workspaceId} (${workspace.name}) sshHost=${workspace.sshHost ?? 'local'} path=${workspace.worktreePath}`);
+      log.info('workspace:spawn', `${workspaceId} (${workspace.name}) sshHost=${workspace.sshHost ?? 'local'} path=${workspace.worktreePath}`);
       const wfs = createWorkspaceFs(workspace.sshHost);
       if (!(await wfs.exists(workspace.worktreePath))) {
-        console.error(`[workspace:spawn] Worktree missing: ${workspace.worktreePath} (sshHost=${workspace.sshHost ?? 'local'})`);
+        log.error('workspace:spawn', `Worktree missing: ${workspace.worktreePath} (sshHost=${workspace.sshHost ?? 'local'})`);
+
         throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
       }
 
@@ -495,7 +497,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
             try {
               await lifecycleManager.transitionOutcome(ws, 'sync');
             } catch (err) {
-              console.error(`[sync-outcomes] Failed for workspace ${ws.id}:`, err);
+              log.error('sync-outcomes', `Failed for workspace ${ws.id}:`, err);
             }
           });
         }),
