@@ -376,7 +376,7 @@ export function WorkspaceDashboard() {
       )}
 
       {/* Dialogs */}
-      {showCreate && <CreateWorkspaceDialog onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateWorkspaceDialog onClose={() => setShowCreate(false)} defaultProjectKey={kanbanProjectFilter} />}
       {mergingWorkspace && (
         <MergeDialog
           workspace={mergingWorkspace}

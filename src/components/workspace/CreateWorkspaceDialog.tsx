@@ -9,6 +9,7 @@ import { ImageAttach } from '../input/ImageAttach';
 
 interface CreateWorkspaceDialogProps {
   onClose: () => void;
+  defaultProjectKey?: string | null;
 }
 
 function createDefaultBranchName(): string {
@@ -16,7 +17,7 @@ function createDefaultBranchName(): string {
   return createFluxBranchName(`workspace-${dateCode}`);
 }
 
-export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
+export function CreateWorkspaceDialog({ onClose, defaultProjectKey }: CreateWorkspaceDialogProps) {
   const agents = useAgentStore((s) => s.agents);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const selectedModel = useAgentStore((s) => s.selectedModel);
@@ -32,12 +33,16 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
     return fallbackProject ? [fallbackProject] : [];
   }, [activeProject, cwd, openProjects]);
   const initialProjectKey = useMemo(() => {
+    if (defaultProjectKey) {
+      const match = projectOptions.find((project) => getProjectSourceKey(project) === defaultProjectKey);
+      if (match) return defaultProjectKey;
+    }
     if (activeProject) {
       const match = projectOptions.find((project) => getProjectSourceKey(project) === getProjectSourceKey(activeProject));
       if (match) return getProjectSourceKey(match);
     }
     return projectOptions[0] ? getProjectSourceKey(projectOptions[0]) : '';
-  }, [activeProject, projectOptions]);
+  }, [defaultProjectKey, activeProject, projectOptions]);
 
   const [agentId, setAgentId] = useState(selectedAgentId);
   const [model, setModel] = useState(selectedModel);
