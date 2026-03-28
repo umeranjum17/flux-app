@@ -130,11 +130,13 @@ function ActivityMessage({ message }: { message: AgentMessage }) {
   }
 
   if (message.type === 'lifecycle') {
+    const label = message.content?.trim() || message.lifecycleLabel;
+    if (!label) return null;
     return (
       <div className="mx-4 my-2">
         <div className="flex items-center gap-2 rounded-lg border border-accent/15 bg-accent/5 px-3 py-2">
           <ArrowRight size={12} className="shrink-0 text-accent" />
-          <span className="flex-1 text-[11px] font-medium text-accent">{message.content}</span>
+          <span className="flex-1 text-[11px] font-medium text-accent">{label}</span>
           <span className="shrink-0 text-[10px] text-text-tertiary/40">{formatTime(message.timestamp)}</span>
         </div>
       </div>
