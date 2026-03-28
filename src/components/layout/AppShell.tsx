@@ -28,6 +28,7 @@ import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
 import { ChangesPanel } from '../review/ChangesPanel';
 import { WorkspaceSidePanel } from '../workspace/WorkspaceSidePanel';
 import { WorkspaceDashboard } from '../workspace/WorkspaceDashboard';
+import { KanbanUsagePanel } from './KanbanUsagePanel';
 import { MergeDialog } from '../review/MergeDialog';
 import { CommitDialog } from '../review/CommitDialog';
 import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
@@ -1067,6 +1068,7 @@ export function AppShell() {
       <div className="premium-shell flex h-screen min-w-[400px] bg-bg-primary text-text-primary">
         <div className="chrome-window flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <TopBar />
+          <KanbanUsagePanel />
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <ErrorBoundary>
               <WorkspaceDashboard />

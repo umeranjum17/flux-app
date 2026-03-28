@@ -87,6 +87,9 @@ interface UiState {
   // Workspace detail panel (ticket view)
   detailPanelWorkspaceId: string | null;
 
+  // Kanban usage panel (inline rate-limit view for kanban mode)
+  kanbanUsagePanelOpen: boolean;
+
   setLiveOverview(overview: LiveUsageOverview | null): void;
   toggleSidebar(): void;
   setSidebarOpen(open: boolean): void;
@@ -139,6 +142,8 @@ interface UiState {
   toggleWorkspaceViewMode(): void;
   openDetailPanel(workspaceId: string): void;
   closeDetailPanel(): void;
+  setKanbanUsagePanelOpen(open: boolean): void;
+  toggleKanbanUsagePanel(): void;
 
   // Bottom panel
   toggleBottomPanel(): void;
@@ -290,6 +295,7 @@ export const useUiStore = create<UiState>()(
     completionModel: 'haiku',
     workspaceViewMode: 'list',
     detailPanelWorkspaceId: null,
+    kanbanUsagePanelOpen: false,
 
     setLiveOverview(overview) {
       set((state) => {
@@ -710,6 +716,18 @@ export const useUiStore = create<UiState>()(
     closeDetailPanel() {
       set((state) => {
         state.detailPanelWorkspaceId = null;
+      });
+    },
+
+    setKanbanUsagePanelOpen(open) {
+      set((state) => {
+        state.kanbanUsagePanelOpen = open;
+      });
+    },
+
+    toggleKanbanUsagePanel() {
+      set((state) => {
+        state.kanbanUsagePanelOpen = !state.kanbanUsagePanelOpen;
       });
     },
 

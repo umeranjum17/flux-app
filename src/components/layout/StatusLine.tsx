@@ -354,8 +354,13 @@ export function StatusLine() {
               <button
                 type="button"
                 onClick={() => {
-                  useUiStore.getState().setSidebarOpen(true);
-                  useUiStore.getState().setSidebarTab('usage');
+                  const store = useUiStore.getState();
+                  if (store.workspaceViewMode === 'kanban') {
+                    store.setKanbanUsagePanelOpen(true);
+                  } else {
+                    store.setSidebarOpen(true);
+                    store.setSidebarTab('usage');
+                  }
                   setShowRateLimits(false);
                 }}
                 className="rounded-md px-2 py-1 text-[10px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
