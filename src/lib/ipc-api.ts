@@ -102,6 +102,7 @@ export interface IpcChannels {
   'ssh:test': { args: [{ host: string }]; result: { success: boolean; error: string | null } };
   'ssh:listdirs': { args: [{ host: string; dirPath: string }]; result: { path: string; entries: Array<{ name: string; isDirectory: boolean }>; error: string | null } };
   'ssh:connect': { args: [{ host: string; remoteCwd?: string }]; result: { connected: boolean; host?: string; cwd?: string } };
+  'ssh:init-project': { args: [{ host: string; dirPath: string }]; result: { path: string; error: string | null } };
   'ssh:disconnect': { args: []; result: { connected: boolean; cwd: string } };
   'workspace:list': { args: [{ parentRepo: string }]; result: Workspace[] };
   'workspace:create': {

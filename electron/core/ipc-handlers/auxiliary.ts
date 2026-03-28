@@ -718,6 +718,22 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     getWorkspaceSshHost: (workspaceId: string) => workspaceStore.get(workspaceId)?.sshHost,
   });
 
+  ipcMain.handle('ssh:init-project', async (_event, { host, dirPath }: { host: string; dirPath: string }) => {
+    requireFields({ host, dirPath }, 'host', 'dirPath');
+    try {
+      const cmd = `mkdir -p ${toRemoteShellPath(dirPath)} && cd ${toRemoteShellPath(dirPath)} && git init && pwd`;
+      const { stdout } = await execFileAsync(resolveSshCommand(), [host, cmd], {
+        timeout: 15000,
+        env: extendedEnv(),
+      });
+      const lines = stdout.trim().split('\n');
+      const resolvedPath = lines[lines.length - 1] || dirPath;
+      return { path: resolvedPath, error: null };
+    } catch (err: any) {
+      return { path: dirPath, error: err.message };
+    }
+  });
+
   ipcMain.handle('ssh:test', async (_event, { host }: { host: string }) => {
     return remoteConnection.test(host);
   });

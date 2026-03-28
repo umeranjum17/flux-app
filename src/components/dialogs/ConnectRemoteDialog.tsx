@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wifi, Loader2, Clock, X, FolderOpen, ChevronRight, ArrowUp, Home } from 'lucide-react';
+import { Wifi, Loader2, Clock, X, FolderOpen, ChevronRight, ArrowUp, Home, FolderPlus } from 'lucide-react';
 import { useUiStore } from '../../stores/ui';
 import { createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
 import type { FluxConfig } from '../../lib/ipc-api';
@@ -40,6 +40,8 @@ export function ConnectRemoteDialog() {
   const [browseLoading, setBrowseLoading] = useState(false);
   const [browseResolvedPath, setBrowseResolvedPath] = useState('');
   const [browseError, setBrowseError] = useState<string | null>(null);
+  const [pathNotFound, setPathNotFound] = useState(false);
+  const [initializing, setInitializing] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -54,6 +56,8 @@ export function ConnectRemoteDialog() {
       setBrowseEntries([]);
       setBrowseResolvedPath('');
       setBrowseError(null);
+      setPathNotFound(false);
+      setInitializing(false);
       window.api.invoke('config:get').then((raw) => {
         const config = raw as FluxConfig;
         setRecentHosts(config?.recentSshHosts ?? []);
@@ -95,6 +99,7 @@ export function ConnectRemoteDialog() {
     if (!host.trim()) return;
     setConnecting(true);
     setError(null);
+    setPathNotFound(false);
     try {
       const remoteDir = remotePath.trim() || '~';
       const dirResult = await window.api.invoke('ssh:listdirs', {
@@ -102,6 +107,7 @@ export function ConnectRemoteDialog() {
         dirPath: remoteDir,
       }) as DirectoryListingResult;
       if (dirResult.error) {
+        setPathNotFound(true);
         throw new Error(dirResult.error);
       }
       const resolvedPath = dirResult.path || remoteDir;
@@ -191,6 +197,43 @@ export function ConnectRemoteDialog() {
   const handleBrowseHome = useCallback(() => {
     loadBrowseDir('~');
   }, [loadBrowseDir]);
+
+  const handleInitProject = useCallback(async () => {
+    if (!host.trim() || !remotePath.trim()) return;
+    setInitializing(true);
+    setError(null);
+    try {
+      const result = await window.api.invoke('ssh:init-project', {
+        host: host.trim(),
+        dirPath: remotePath.trim(),
+      }) as { path: string; error: string | null };
+      if (result.error) {
+        setError(result.error);
+        setInitializing(false);
+        return;
+      }
+      setPathNotFound(false);
+      setRemotePath(result.path);
+      setInitializing(false);
+      // Now connect with the newly created path
+      setConnecting(true);
+      const connectResult = await window.api.invoke('ssh:connect', {
+        host: host.trim(),
+        remoteCwd: result.path,
+      }) as { host?: string; cwd?: string };
+      const resolvedHost = connectResult.host ?? host.trim();
+      const finalPath = connectResult.cwd ?? result.path;
+      await saveRecentHost(resolvedHost, finalPath);
+      useUiStore.getState().connectSsh(resolvedHost, finalPath);
+      const project = createRecentProject(finalPath, { source: 'ssh', sshHost: resolvedHost });
+      await rememberRecentProject(project);
+      setOverlay(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to initialize project');
+    }
+    setInitializing(false);
+    setConnecting(false);
+  }, [host, remotePath, setOverlay, saveRecentHost]);
 
   useEffect(() => {
     if (!open) return;
@@ -317,7 +360,7 @@ export function ConnectRemoteDialog() {
                       <input
                         type="text"
                         value={remotePath}
-                        onChange={(e) => { setRemotePath(e.target.value); setError(null); }}
+                        onChange={(e) => { setRemotePath(e.target.value); setError(null); setPathNotFound(false); }}
                         onKeyDown={(e) => { if (e.key === 'Enter' && host.trim()) handleConnect(); }}
                         placeholder="~/projects/my-app"
                         className="flex-1 px-2.5 py-1.5 rounded-md bg-bg-primary border border-border text-xs text-text-primary font-mono placeholder:text-text-tertiary outline-none focus:border-border-focus transition-colors"
@@ -369,7 +412,19 @@ export function ConnectRemoteDialog() {
 
                   {/* Error */}
                   {error && (
-                    <p className="text-xs text-error bg-error/10 rounded-lg px-3 py-2">{error}</p>
+                    <div className="rounded-lg bg-error/10 px-3 py-2 space-y-2">
+                      <p className="text-xs text-error">{error}</p>
+                      {pathNotFound && (
+                        <button
+                          onClick={handleInitProject}
+                          disabled={initializing}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-bg-elevated border border-border text-xs text-text-primary hover:bg-bg-hover transition-colors disabled:opacity-50"
+                        >
+                          {initializing ? <Loader2 size={12} className="animate-spin" /> : <FolderPlus size={12} />}
+                          Create Folder & Initialize Git Repo
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
