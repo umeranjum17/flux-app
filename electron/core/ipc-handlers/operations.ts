@@ -192,6 +192,12 @@ export async function steerTask(
     }
   }
 
+  // When the user steers a workspace, move it back to "in_progress" so the
+  // kanban board reflects that the agent is actively building again.
+  if (workspaceId && workspace && workspace.outcome !== 'in_progress') {
+    ctx.lifecycleManager.setOutcome(workspaceId, 'in_progress', { force: true });
+  }
+
   handle.steer(effectivePrompt, images);
   ctx.taskStallMonitors.get(taskId)?.resume();
 
