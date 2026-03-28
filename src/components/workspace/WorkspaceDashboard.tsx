@@ -209,7 +209,7 @@ export function WorkspaceDashboard() {
           <button
             onClick={() => useUiStore.getState().setOverlay('connect-remote')}
             className="premium-toolbar-button inline-flex items-center justify-center rounded-full border border-border/60 bg-bg-elevated/50 p-2 text-text-tertiary hover:text-text-primary"
-            title="Connect an SSH project"
+            title="Connect SSH project"
           >
             <Wifi size={14} />
           </button>

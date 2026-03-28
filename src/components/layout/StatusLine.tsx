@@ -160,7 +160,7 @@ export function StatusLine() {
             }`}
             title={sshConnected && sshHost
               ? `SSH: ${sshHost} — click for options`
-              : 'Connect an SSH project source'}
+              : 'Connect SSH project'}
           >
             {sshConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
             {sshConnected && sshHost ? `SSH: ${sshHost}` : 'SSH'}
@@ -181,7 +181,7 @@ export function StatusLine() {
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
               >
                 <Wifi size={11} />
-                Add another SSH project
+                Connect another SSH project
               </button>
               <button
                 onClick={handleSshDisconnect}

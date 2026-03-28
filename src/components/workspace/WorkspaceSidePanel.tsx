@@ -167,7 +167,7 @@ function PanelFilesTab() {
         <SourceActionButton
           icon={Wifi}
           label="Connect SSH"
-          title="Add or switch an SSH project source"
+          title="Connect SSH project"
           onClick={handleConnectSshProject}
         />
       </div>
@@ -186,7 +186,7 @@ function PanelFilesTab() {
               <SourceActionButton
                 icon={Wifi}
                 label="Connect SSH"
-                title="Connect an SSH project source"
+                title="Connect SSH project"
                 onClick={handleConnectSshProject}
               />
             </div>

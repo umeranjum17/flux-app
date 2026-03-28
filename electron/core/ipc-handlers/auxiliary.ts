@@ -717,6 +717,7 @@ export function registerAuxiliaryIpcHandlers(deps: AuxiliaryIpcDeps): void {
     toRemoteShellPath,
     requireFields,
     getWorkspacePath: (workspaceId: string) => workspaceStore.get(workspaceId)?.worktreePath,
+    getWorkspaceSshHost: (workspaceId: string) => workspaceStore.get(workspaceId)?.sshHost,
   });
 
   ipcMain.handle('ssh:test', async (_event, { host }: { host: string }) => {

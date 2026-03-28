@@ -338,8 +338,8 @@ export function WorkspaceTab() {
             onClick={handleConnectSshProject}
             className="premium-toolbar-button rounded-md p-1.5 text-text-tertiary hover:bg-bg-hover hover:text-text-primary"
             title={sshConnected && sshHost
-              ? `Add SSH project (connected: ${sshHost})`
-              : 'Connect an SSH project'}
+              ? `Connect another SSH project (connected: ${sshHost})`
+              : 'Connect SSH project'}
           >
             <Wifi size={13} />
           </button>

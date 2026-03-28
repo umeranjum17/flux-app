@@ -109,11 +109,18 @@ export const useTerminalStore = create<TerminalState>()(
       useUiStore.getState().setActiveTerminalId(id);
 
       try {
-        const cwd = opts?.workspaceId ? undefined : (opts?.cwd ?? useUiStore.getState().cwd);
+        const uiState = useUiStore.getState();
+        const cwd = opts?.workspaceId ? undefined : (opts?.cwd ?? uiState.cwd);
+        // For non-workspace terminals, pass the active project's sshHost so the
+        // main process knows whether to route through SSH.  Workspace terminals
+        // resolve sshHost from their workspace record on the main-process side.
+        const activeProject = uiState.openProjects.find((p) => p.path === uiState.cwd);
+        const sshHost = opts?.workspaceId ? undefined : (activeProject?.source === 'ssh' ? activeProject.sshHost : undefined);
         const result = await window.api.invoke('terminal:create', {
           id,
           cwd,
           workspaceId: opts?.workspaceId,
+          sshHost,
           shell: opts?.shell,
           command: opts?.command,
         }) as { id: string; shellName: string };
@@ -221,11 +228,15 @@ export const useTerminalStore = create<TerminalState>()(
       set((s) => { s.counter = counter; });
 
       try {
-        const cwd = tab.workspaceId ? undefined : useUiStore.getState().cwd;
+        const uiState = useUiStore.getState();
+        const cwd = tab.workspaceId ? undefined : uiState.cwd;
+        const activeProject = uiState.openProjects.find((p) => p.path === uiState.cwd);
+        const sshHost = tab.workspaceId ? undefined : (activeProject?.source === 'ssh' ? activeProject.sshHost : undefined);
         const result = await window.api.invoke('terminal:create', {
           id: splitId,
           cwd,
           workspaceId: tab.workspaceId,
+          sshHost,
         }) as { id: string; shellName: string };
 
         const theme = useUiStore.getState().theme;
