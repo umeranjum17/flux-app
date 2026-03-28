@@ -155,10 +155,10 @@ export async function steerTask(
     ? extractLatestSessionAttachmentContext(ctx.sessionStore, sessionId)
     : null;
 
-  // Derive sshHost from the workspace when possible, fall back to global
+  // Derive sshHost from the workspace record only — no global fallback
   const workspaceId = ctx.lifecycleManager.getWorkspaceForTask(taskId);
   const workspace = workspaceId ? ctx.workspaceStore.get(workspaceId) : null;
-  const effectiveSshHost = workspace?.sshHost ?? ctx.remoteConnection.host ?? undefined;
+  const effectiveSshHost = workspace?.sshHost ?? undefined;
 
   const attachmentContext = await writeAttachmentContextFile(
     activeSession?.cwd ?? ctx.getCurrentCwd(),

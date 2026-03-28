@@ -328,8 +328,9 @@ export function registerTaskHandlers(ctx: BaseIpcContext): {
   ): Promise<{ taskId: string; session: any }> => {
     requireFields(options as unknown as Record<string, unknown>, 'taskId', 'prompt', 'cwd');
     const agentId = (options.agentId ?? 'claude-code') as AgentId;
-    // Per-workspace sshHost takes priority over the global SSH connection
-    const sshHost = options.sshHost ?? remoteConnection.host ?? undefined;
+    // Use only the explicit sshHost from the workspace record — do not fall back
+    // to the global SSH connection or local workspaces break when SSH is active.
+    const sshHost = options.sshHost ?? undefined;
     const localCwd = remoteConnection.localCwd;
     const workspace = options.workspaceId
       ? workspaceStore.get(options.workspaceId)

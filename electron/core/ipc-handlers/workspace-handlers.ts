@@ -141,8 +141,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       },
     ) => {
       requireFields({ parentRepo, branch, agentId, model }, 'parentRepo', 'branch', 'agentId', 'model');
-      const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
-      const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, branch);
+      // sshHost is already resolved by the renderer — do not fall back to the global
+      // SSH connection or local workspaces get routed through SSH.
+      const { worktree, baseBranch } = await createWorktreeAny(sshHost, parentRepo, branch, branch);
 
       const ws = workspaceStore.create({
         id: worktree.id,
@@ -155,7 +156,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking: thinking as any,
-        sshHost: effectiveSshHost,
+        sshHost,
         status: 'idle',
         outcome,
       });
@@ -189,8 +190,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
-      const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
-      const wfs = createWorkspaceFs(effectiveSshHost);
+      const wfs = createWorkspaceFs(sshHost);
 
       if (!(await wfs.exists(parentRepo))) {
         throw new Error(`Directory "${parentRepo}" does not exist.`);
@@ -226,7 +226,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode,
         thinking: thinking as any,
         direct: true,
-        sshHost: effectiveSshHost,
+        sshHost,
         status: 'idle',
         outcome,
       });
@@ -242,11 +242,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       { parentRepo, agentId, model, mode, thinking, sshHost }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string; sshHost?: string },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
-      const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
 
       const workspaceName = generateWorkspaceName();
       const branch = `flux/${workspaceName}`;
-      const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, workspaceName);
+      const { worktree, baseBranch } = await createWorktreeAny(sshHost, parentRepo, branch, workspaceName);
 
       const ws = workspaceStore.create({
         id: worktree.id,
@@ -259,7 +258,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking: thinking as any,
-        sshHost: effectiveSshHost,
+        sshHost,
         status: 'idle',
       });
       sendToRenderer('workspace:created', { workspace: ws });

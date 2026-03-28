@@ -158,8 +158,7 @@ export class RemoteControlService {
     sshHost?: string;
   }) {
     const { name, parentRepo, branch, agentId, model, mode, thinking } = input;
-    const effectiveSshHost = input.sshHost ?? this.ctx.remoteConnection.host ?? undefined;
-    const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, branch);
+    const { worktree, baseBranch } = await createWorktreeAny(input.sshHost, parentRepo, branch, branch);
 
     const ws = this.ctx.workspaceStore.create({
       id: worktree.id,
@@ -172,7 +171,7 @@ export class RemoteControlService {
       model,
       mode,
       thinking: thinking as any,
-      sshHost: effectiveSshHost,
+      sshHost: input.sshHost,
       status: 'idle',
     });
     this.ctx.sendToRenderer('workspace:created', { workspace: ws });
@@ -188,11 +187,9 @@ export class RemoteControlService {
     sshHost?: string;
   }) {
     const { parentRepo, agentId, model, mode, thinking } = input;
-    const effectiveSshHost = input.sshHost ?? this.ctx.remoteConnection.host ?? undefined;
-
     const workspaceName = generateWorkspaceName();
     const branch = `flux/${workspaceName}`;
-    const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, workspaceName);
+    const { worktree, baseBranch } = await createWorktreeAny(input.sshHost, parentRepo, branch, workspaceName);
 
     const ws = this.ctx.workspaceStore.create({
       id: worktree.id,
@@ -205,7 +202,7 @@ export class RemoteControlService {
       model,
       mode,
       thinking: thinking as any,
-      sshHost: effectiveSshHost,
+      sshHost: input.sshHost,
       status: 'idle',
     });
     this.ctx.sendToRenderer('workspace:created', { workspace: ws });
