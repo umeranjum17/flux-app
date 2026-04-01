@@ -110,8 +110,8 @@ function formatAgentLabel(agentId: string): string {
       return 'Gemini';
     case 'copilot':
       return 'GitHub Copilot';
-    case 'ollama':
-      return 'Ollama';
+    case 'llamaserver':
+      return 'LlamaServer';
     default:
       return agentId;
   }

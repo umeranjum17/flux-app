@@ -13,7 +13,7 @@ const AGENT_LABELS: Record<string, string> = {
   copilot: 'GitHub Copilot',
   gemini: 'Gemini',
   openai: 'OpenAI',
-  ollama: 'Ollama',
+  llamaserver: 'LlamaServer',
 };
 import { MessageBubble } from './MessageBubble';
 import { ToolCallBlock } from './ToolCallBlock';

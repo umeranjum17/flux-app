@@ -60,8 +60,8 @@ export function getAgentLabel(agentId: AgentId): string {
       return 'Gemini';
     case 'openai':
       return 'OpenAI';
-    case 'ollama':
-      return 'Ollama';
+    case 'llamaserver':
+      return 'LlamaServer';
     default:
       return agentId;
   }

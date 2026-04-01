@@ -32,7 +32,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   codex: 'Codex',
   gemini: 'Gemini',
   openai: 'OpenAI',
-  ollama: 'Ollama',
+  llamaserver: 'LlamaServer',
 };
 
 export class UsageTracker {

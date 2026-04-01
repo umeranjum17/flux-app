@@ -73,7 +73,7 @@ export interface CliAgentConfig {
      */
     onBeforeFinish?(code: number | null, ctx: CliAgentContext): boolean;
 
-    /** Send initial prompt to stdin after spawn (e.g. Ollama reads from stdin). */
+    /** Send initial prompt to stdin after spawn (e.g. for agents that read from stdin). */
     sendInitialPrompt?(proc: ChildProcess, options: SpawnOptions): void;
 
     /** Additional cleanup on finish (e.g. temp dir removal). */

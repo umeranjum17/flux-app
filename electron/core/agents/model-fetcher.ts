@@ -196,14 +196,14 @@ async function fetchOpenAIModels(): Promise<ModelInfo[]> {
   }
 }
 
-async function fetchOllamaModels(): Promise<ModelInfo[]> {
-  // Try REST API first
+async function fetchLlamaServerModels(): Promise<ModelInfo[]> {
+  // Query the llama-server OpenAI-compatible /v1/models endpoint
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
     let res: Response;
     try {
-      res = await fetch('http://localhost:11434/api/tags', {
+      res = await fetch('http://localhost:8080/v1/models', {
         signal: controller.signal,
       });
     } finally {
@@ -211,33 +211,17 @@ async function fetchOllamaModels(): Promise<ModelInfo[]> {
     }
 
     if (res.ok) {
-      const data = (await res.json()) as { models: { name: string }[] };
-      return data.models.map((m) => ({
-        id: m.name,
-        name: m.name,
+      const data = (await res.json()) as { data: { id: string }[] };
+      return data.data.map((m) => ({
+        id: m.id,
+        name: m.id,
       }));
     }
   } catch {
-    // fall through to CLI
+    // server not reachable
   }
 
-  // Try CLI fallback
-  try {
-    const { stdout } = await execFileAsync('ollama', ['list'], {
-      timeout: 3000,
-      encoding: 'utf-8',
-      env: extendedEnv(),
-    });
-    const lines = stdout.trim().split('\n').slice(1); // skip header
-    const models: ModelInfo[] = [];
-    for (const line of lines) {
-      const name = line.trim().split(/\s+/)[0];
-      if (name) models.push({ id: name, name });
-    }
-    return models;
-  } catch {
-    return []; // Ollama models are local — no misleading defaults
-  }
+  return []; // LlamaServer models are local — no misleading defaults
 }
 
 // --- Dispatcher ---
@@ -248,7 +232,7 @@ const fetcherMap: Record<AgentId, () => Promise<ModelInfo[]>> = {
   copilot: fetchCopilotModels,
   gemini: fetchGeminiModels,
   openai: fetchOpenAIModels,
-  ollama: fetchOllamaModels,
+  llamaserver: fetchLlamaServerModels,
 };
 
 export async function fetchModelsForAgent(id: AgentId): Promise<ModelInfo[]> {

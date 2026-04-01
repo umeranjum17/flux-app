@@ -740,7 +740,7 @@ function applyRateLimitMessage(task: Task, message: AgentMessage): void {
   task.rateLimitInfo = message.rateLimitInfo;
   const info = message.rateLimitInfo as Record<string, any> | undefined;
   if (info?.status === 'rejected') {
-    const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
+    const allAgents: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'llamaserver'];
     task.rateLimitSuggestion = {
       agents: allAgents.filter((a) => a !== task.agentId),
     };

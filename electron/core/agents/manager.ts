@@ -18,7 +18,7 @@ import { spawnCodex } from './codex';
 import { spawnCopilot } from './copilot';
 import { spawnGemini } from './gemini';
 import { spawnOpenAI } from './openai';
-import { spawnOllama } from './ollama';
+import { spawnLlamaServer } from './llamaserver';
 import { fetchModelsForAgent, clearModelCache } from './model-fetcher';
 import type { ModelInfo } from './types';
 
@@ -61,11 +61,11 @@ const AGENT_DEFS: Record<
     defaultModels: ['gpt-5.1', 'gpt-5', 'gpt-5-mini', 'gpt-4.1', 'o4-mini'],
     supportsThinking: true,
   },
-  ollama: {
-    name: 'Ollama',
-    cmd: 'ollama',
+  llamaserver: {
+    name: 'LlamaServer',
+    cmd: 'llama-server',
     envKeys: [],
-    defaultModels: ['llama3', 'codellama', 'mistral'],
+    defaultModels: ['default'],
     supportsThinking: false,
   },
 };
@@ -76,7 +76,7 @@ const spawners: Record<AgentId, (opts: SpawnOptions) => AgentHandle | Promise<Ag
   copilot: spawnCopilot,
   gemini: spawnGemini,
   openai: spawnOpenAI,
-  ollama: spawnOllama,
+  llamaserver: spawnLlamaServer,
 };
 
 async function versionAsync(command: string): Promise<string> {
@@ -168,12 +168,12 @@ class AgentManager {
       return { authenticated: true, message: `${def.name} API key(s) found` };
     }
 
-    // ollama — local, no auth needed
-    if (id === 'ollama') {
-      const path = resolveExecutable('ollama');
+    // llamaserver — local or remote, no auth needed; check binary or reachability
+    if (id === 'llamaserver') {
+      const path = resolveExecutable('llama-server');
       return path
-        ? { authenticated: true, message: 'Ollama running locally' }
-        : { authenticated: false, message: 'Ollama not found' };
+        ? { authenticated: true, message: 'LlamaServer binary found' }
+        : { authenticated: false, message: 'llama-server not found' };
     }
 
     return { authenticated: false, message: 'Unable to determine auth status' };
@@ -305,7 +305,7 @@ class AgentManager {
     if (!available) {
       authStatus = 'unauthenticated';
     } else if (def.envKeys.length === 0) {
-      // subscription / local auth (claude-code, codex, ollama)
+      // subscription / local auth (claude-code, codex, llamaserver)
       authStatus = 'authenticated';
     } else {
       const missing = def.envKeys.filter((k) => !process.env[k]);

@@ -32,7 +32,7 @@ const thinkingOptions: { value: ThinkingLevel; label: string }[] = [
   { value: 'xhigh', label: 'Extra High' },
 ];
 
-const AGENT_IDS: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'ollama'];
+const AGENT_IDS: AgentId[] = ['claude-code', 'codex', 'gemini', 'openai', 'llamaserver'];
 const IDE_OPTIONS = [
   { value: 'code' as const, label: 'VS Code' },
   { value: 'cursor' as const, label: 'Cursor' },

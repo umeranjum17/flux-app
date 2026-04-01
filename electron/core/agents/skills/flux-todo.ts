@@ -2,7 +2,7 @@ import type { FluxSkill, SkillContext } from './types';
 
 /**
  * Flux Todo skill — loaded for agents that lack a native todo/task tracking
- * tool (Codex, Copilot, Gemini, OpenAI, Ollama).
+ * tool (Codex, Copilot, Gemini, OpenAI, LlamaServer).
  *
  * Instructs the agent to write progress to `.context/state.json` using its
  * native file-writing tool. Flux polls this file and updates the UI.
