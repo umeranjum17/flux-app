@@ -176,6 +176,11 @@ export async function remotePathExists(
   remotePath: string,
 ): Promise<boolean> {
   const result = await sshExec(host, `test -e '${escapeShell(remotePath)}' && echo 1 || echo 0`);
+  // If SSH itself failed (exitCode non-zero and no valid stdout), surface the error
+  // instead of silently returning false — callers would misinterpret as "path missing".
+  if (result.exitCode !== 0 && result.stdout.trim() !== '0') {
+    throw new Error(`SSH connection to ${host} failed: ${result.stderr || 'connection error'}`);
+  }
   return result.stdout.trim() === '1';
 }
 

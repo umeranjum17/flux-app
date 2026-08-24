@@ -69,14 +69,26 @@ export async function resolveGitState(workspace: Workspace): Promise<WorkspaceGi
   const warnings: string[] = [];
 
   // Pre-check: verify worktree directory exists
-  if (!(await wfs.exists(workspace.worktreePath))) {
+  try {
+    if (!(await wfs.exists(workspace.worktreePath))) {
+      return {
+        hasCommits: false,
+        hasUncommittedChanges: false,
+        hasPendingChanges: false,
+        isMerged: false,
+        warnings: [`Worktree directory does not exist: ${workspace.worktreePath}`],
+        worktreeDeleted: true,
+      };
+    }
+  } catch (err) {
+    // SSH connectivity failure — don't confuse with deleted worktree
+    const message = err instanceof Error ? err.message : String(err);
     return {
       hasCommits: false,
       hasUncommittedChanges: false,
       hasPendingChanges: false,
       isMerged: false,
-      warnings: [`Worktree directory does not exist: ${workspace.worktreePath}`],
-      worktreeDeleted: true,
+      warnings: [workspace.host ? `SSH unreachable (${workspace.host}): ${message}` : message],
     };
   }
 

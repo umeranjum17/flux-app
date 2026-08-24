@@ -440,6 +440,13 @@ export function AppShell() {
       useWorkspaceGroupStore.getState().removeWorkspace(workspaceId);
       applyWorkspaceDeleted(workspaceId);
     });
+    const unsubNotification = window.api.on('notification:toast', (data: unknown) => {
+      const { type, title, message } = data as { type?: string; title?: string; message?: string };
+      const text = title ? `${title}${message ? ` — ${message}` : ''}` : message ?? 'Unknown error';
+      if (type === 'error') toast.error(text);
+      else if (type === 'warning') toast.warning(text);
+      else toast.info(text);
+    });
     const lastOperationState = new Map<string, string>();
     const unsubOperation = window.api.on('workspace:operation', (data: unknown) => {
       const operation = data as WorkspaceOperation;
@@ -470,6 +477,7 @@ export function AppShell() {
       unsubUpdated();
       unsubCreated();
       unsubDeleted();
+      unsubNotification();
       unsubOperation();
     };
   }, []);

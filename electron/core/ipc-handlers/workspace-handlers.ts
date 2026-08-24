@@ -478,9 +478,30 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     async (_event, { parentRepo }: { parentRepo: string }) => {
       const workspaces = workspaceStore.list(parentRepo);
 
+      // Collect SSH hosts that need connectivity for this batch
+      const sshHosts = new Set(workspaces.filter((ws) => ws.host).map((ws) => ws.host!));
+      const unreachableHosts = new Set<string>();
+      for (const host of sshHosts) {
+        if (!remoteConnection.isHostConnected(host)) {
+          unreachableHosts.add(host);
+        }
+      }
+      if (unreachableHosts.size > 0) {
+        const sshWorkspaceCount = workspaces.filter((ws) => ws.host && unreachableHosts.has(ws.host)).length;
+        const hostList = Array.from(unreachableHosts).join(', ');
+        sendToRenderer('notification:toast', {
+          type: 'warning',
+          title: `SSH host${unreachableHosts.size > 1 ? 's' : ''} not connected`,
+          message: `${sshWorkspaceCount} workspace${sshWorkspaceCount > 1 ? 's' : ''} on ${hostList} — reconnect to sync status`,
+        });
+      }
+
       // Serialize per workspace to prevent races with stop/archive/other syncs
       await Promise.all(
         workspaces.map(async (ws) => {
+          // Skip SSH workspaces on unreachable hosts entirely
+          if (ws.host && unreachableHosts.has(ws.host)) return;
+
           await lifecycleManager.serialized(ws.id, async () => {
             // Skip workspaces with active tasks — their outcome will be set on completion
             const hasActiveTask = lifecycleManager.hasActiveTasks(ws.id);
@@ -497,7 +518,15 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
             try {
               await lifecycleManager.transitionOutcome(ws, 'sync');
             } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
               log.error('sync-outcomes', `Failed for workspace ${ws.id}:`, err);
+              if (ws.host) {
+                sendToRenderer('notification:toast', {
+                  type: 'error',
+                  title: `SSH workspace "${ws.name}" sync failed`,
+                  message: `Could not reach ${ws.host}: ${message}`,
+                });
+              }
             }
           });
         }),

@@ -271,7 +271,12 @@ export async function createWorktreeAny(
 
   if (host) {
     const { createRemoteWorktree } = await import('./remote-manager');
-    worktree = await createRemoteWorktree(host, parentRepo, branch, name);
+    try {
+      worktree = await createRemoteWorktree(host, parentRepo, branch, name);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`SSH workspace creation failed on ${host}: ${message}`);
+    }
   } else {
     // Auto-initialize git if needed
     try {
