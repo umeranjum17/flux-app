@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Clock3, Loader2, Square } from 'lucide-react';
 import { useChatStore } from '../../stores/chat';
 import { AgentIcon, AGENT_COLORS } from '../icons/AgentIcons';
@@ -19,7 +19,7 @@ const phaseLabels = {
   responding: 'Responding',
 } as const;
 
-export function LiveRunHeader() {
+export const LiveRunHeader = React.memo(function LiveRunHeader() {
   const task = useChatStore((state) => state.getActiveTask());
   const [now, setNow] = useState(() => Date.now());
 
@@ -89,7 +89,7 @@ export function LiveRunHeader() {
       )}
     </div>
   );
-}
+});
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));

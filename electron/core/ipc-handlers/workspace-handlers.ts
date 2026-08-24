@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { execFile, spawn, type ChildProcess } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -7,10 +7,11 @@ import path from 'path';
 
 import type { AgentId, FileAttachment, SpawnOptions } from '../agents/types';
 import type { DiffScope, WorkspaceOutcome, WorkspaceStatus } from '../worktree/types';
-import { createWorktree, removeWorktree, listWorktrees } from '../worktree/manager';
+import { listWorktrees } from '../worktree/manager';
 import { generateWorkspaceName } from '../worktree/names';
-import { getChangedFiles, getChangedFilesSeparated, getFileDiff, discardFile, discardAll, getFullDiff } from '../worktree/diff';
 import { resolveGitState } from '../worktree/outcome';
+import { createWorkspaceFs, createWorktreeAny, removeWorktreeAny } from '../worktree/workspace-fs';
+import { getChangedFilesSeparated, getFullDiff, discardFile, discardAll } from '../worktree/diff';
 import { logDiagnostic } from '../diagnostics/logger';
 import { extendedEnv } from '../process-utils';
 import type { IpcContext } from './types';
@@ -26,13 +27,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     sendToRenderer,
     lifecycleManager,
     operationManager,
-    getSshHost,
+    remoteConnection,
     spawnTaskRun,
     releaseTask,
   } = ctx;
 
   const startArchive = (workspaceId: string) => {
-    const workspace = workspaceStore.get(workspaceId);
+    const workspace = workspaceStore.get(workspaceId) ?? workspaceStore.getIncludingMissing(workspaceId);
     if (!workspace) {
       // Workspace already removed (e.g. DB edited externally) — clean up and notify
       workspaceStore.delete(workspaceId);
@@ -58,19 +59,19 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
             lifecycleManager.clearTask(taskId);
           }
 
-          update({
-            stage: 'checking_repo',
-            progress: 0.22,
-            message: 'Checking worktree state',
-          });
+          if (!workspace.direct) {
+            update({
+              stage: 'checking_repo',
+              progress: 0.22,
+              message: 'Checking worktree state',
+            });
 
-          await removeWorktree(workspace.parentRepo, workspace.worktreePath, {
-            signal,
-            onStage: (stage) => {
-              const details = archiveStageDetails[stage];
-              update(details);
-            },
-          });
+          if (!workspace.direct) {
+            await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath, {
+              signal,
+              onStage: (stage) => update(archiveStageDetails[stage]),
+            });
+          }
 
           update({
             stage: 'cleaning_db',
@@ -91,7 +92,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   };
 
   ipcMain.handle('workspace:list', async (_event, { parentRepo }: { parentRepo: string }) => {
-    if (getSshHost()) return [];
+    // Always return all workspaces — remote ones are stored locally with sshHost set
     return workspaceStore.list(parentRepo);
   });
 
@@ -111,6 +112,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking,
+        sshHost,
       }: {
         name: string;
         parentRepo: string;
@@ -119,35 +121,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model: string;
         mode?: SpawnOptions['mode'];
         thinking?: string;
+        sshHost?: string;
       },
     ) => {
       requireFields({ name, parentRepo, branch, agentId, model }, 'name', 'parentRepo', 'branch', 'agentId', 'model');
-      if (getSshHost()) {
-        throw new Error('Workspaces are only supported for local repositories right now');
-      }
+      const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
+      const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, branch);
 
-      // Auto-initialize git if needed
-      try {
-        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
-      } catch {
-        if (!fs.existsSync(parentRepo)) {
-          throw new Error(`Directory "${parentRepo}" does not exist.`);
-        }
-        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
-        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
-          cwd: parentRepo,
-          timeout: 10000,
-        });
-      }
-
-      // Capture the currently checked-out branch so merges default back to it
-      let baseBranch: string | undefined;
-      try {
-        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
-        baseBranch = stdout.trim() || undefined;
-      } catch { /* best-effort */ }
-
-      const worktree = await createWorktree(parentRepo, branch, branch);
       const ws = workspaceStore.create({
         id: worktree.id,
         name,
@@ -159,6 +139,78 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking: thinking as any,
+        sshHost: effectiveSshHost,
+        status: 'idle',
+      });
+      sendToRenderer('workspace:created', { workspace: ws });
+      return ws;
+    },
+  );
+
+  ipcMain.handle(
+    'workspace:create-direct',
+    async (
+      _event,
+      {
+        name,
+        parentRepo,
+        agentId,
+        model,
+        mode,
+        thinking,
+      }: {
+        name: string;
+        parentRepo: string;
+        agentId: string;
+        model: string;
+        mode?: SpawnOptions['mode'];
+        thinking?: string;
+      },
+    ) => {
+      requireFields({ name, parentRepo, agentId, model }, 'name', 'parentRepo', 'agentId', 'model');
+      if (getSshHost()) {
+        throw new Error('Workspaces are only supported for local repositories right now');
+      }
+
+      if (!fs.existsSync(parentRepo)) {
+        throw new Error(`Directory "${parentRepo}" does not exist.`);
+      }
+
+      // Ensure git is initialized
+      try {
+        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
+      } catch {
+        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
+        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
+          cwd: parentRepo,
+          timeout: 10000,
+        });
+      }
+
+      // Guard: only one direct workspace per repo at a time
+      const existing = workspaceStore.list(parentRepo).find((ws) => ws.direct);
+      if (existing) {
+        throw new Error(`A direct workspace already exists for this project: "${existing.name}"`);
+      }
+
+      // Get current branch
+      let currentBranch = 'main';
+      try {
+        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
+        currentBranch = stdout.trim() || 'main';
+      } catch { /* best-effort */ }
+
+      const ws = workspaceStore.create({
+        id: crypto.randomUUID(),
+        name,
+        parentRepo,
+        worktreePath: parentRepo,
+        branch: currentBranch,
+        agentId,
+        model,
+        mode,
+        thinking: thinking as any,
+        direct: true,
         status: 'idle',
       });
       sendToRenderer('workspace:created', { workspace: ws });
@@ -170,39 +222,15 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
     'workspace:create-quick',
     async (
       _event,
-      { parentRepo, agentId, model, mode, thinking }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string },
+      { parentRepo, agentId, model, mode, thinking, sshHost }: { parentRepo: string; agentId: string; model: string; mode?: SpawnOptions['mode']; thinking?: string; sshHost?: string },
     ) => {
       requireFields({ parentRepo, agentId, model }, 'parentRepo', 'agentId', 'model');
-      if (getSshHost()) {
-        throw new Error('Workspaces are only supported for local repositories right now');
-      }
-
-      // Ensure parentRepo exists
-      if (!fs.existsSync(parentRepo)) {
-        throw new Error(`Directory "${parentRepo}" does not exist.`);
-      }
-
-      // Auto-initialize git if needed
-      try {
-        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: parentRepo, timeout: 5000 });
-      } catch {
-        await execFileAsync('git', ['init'], { cwd: parentRepo, timeout: 10000 });
-        await execFileAsync('git', ['commit', '--allow-empty', '-m', 'Initial commit'], {
-          cwd: parentRepo,
-          timeout: 10000,
-        });
-      }
-
-      // Capture the currently checked-out branch so merges default back to it
-      let baseBranch: string | undefined;
-      try {
-        const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: parentRepo, timeout: 5000 });
-        baseBranch = stdout.trim() || undefined;
-      } catch { /* best-effort */ }
+      const effectiveSshHost = sshHost ?? remoteConnection.host ?? undefined;
 
       const workspaceName = generateWorkspaceName();
       const branch = `flux/${workspaceName}`;
-      const worktree = await createWorktree(parentRepo, branch, workspaceName);
+      const { worktree, baseBranch } = await createWorktreeAny(effectiveSshHost, parentRepo, branch, workspaceName);
+
       const ws = workspaceStore.create({
         id: worktree.id,
         name: workspaceName,
@@ -214,6 +242,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         model,
         mode,
         thinking: thinking as any,
+        sshHost: effectiveSshHost,
         status: 'idle',
       });
       sendToRenderer('workspace:created', { workspace: ws });
@@ -228,10 +257,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspace = workspaceStore.get(workspaceId);
       if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
       try {
-        const { stdout } = await execFileAsync(
-          'git', ['log', '-1', '--format=%s'],
-          { cwd: workspace.worktreePath, timeout: 5000 },
-        );
+        const wfs = createWorkspaceFs(workspace.sshHost);
+        const { stdout } = await wfs.git(workspace.worktreePath, ['log', '-1', '--format=%s'], { timeout: 5000 });
         const subject = stdout.trim();
         return subject && !subject.startsWith('[flux]') ? subject : null;
       } catch {
@@ -248,34 +275,10 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         workspaceId,
         newBranch,
         newName,
-        newWorktreeName,
-      }: { workspaceId: string; newBranch: string; newName?: string; newWorktreeName?: string },
+      }: { workspaceId: string; newBranch: string; newName?: string },
     ) => {
       requireFields({ workspaceId, newBranch }, 'workspaceId', 'newBranch');
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-      const trimmedName = newName?.trim();
-
-      let nextBranch = workspace.branch;
-      if (newBranch.trim() && newBranch !== workspace.branch) {
-        try {
-          await execFileAsync('git', ['branch', '-m', workspace.branch, newBranch], {
-            cwd: workspace.worktreePath,
-            timeout: 10000,
-          });
-          nextBranch = newBranch;
-        } catch (error) {
-          console.warn('[workspace:rename-branch] failed to rename branch', error);
-        }
-      }
-
-      const updated = workspaceStore.update(workspaceId, {
-        branch: nextBranch,
-        ...(trimmedName ? { name: trimmedName } : {}),
-      });
-      if (!updated) throw new Error(`Workspace ${workspaceId} not found`);
-      return updated;
+      return ops.renameBranch(ctx, workspaceId, newBranch, newName);
     },
   );
 
@@ -292,7 +295,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      if (!fs.existsSync(workspace.worktreePath)) {
+      const wfs = createWorkspaceFs(workspace.sshHost);
+      if (!(await wfs.exists(workspace.worktreePath))) {
         throw new Error(`Worktree directory does not exist: ${workspace.worktreePath}. The workspace may need to be recreated.`);
       }
 
@@ -306,6 +310,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         mode: mode ?? workspace.mode,
         cwd: workspace.worktreePath,
         sessionId: workspace.sessionId,
+        sshHost: workspace.sshHost,
       });
       return { taskId, session: result.session };
     },
@@ -349,7 +354,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         lifecycleManager.clearTask(taskId);
       }
 
-      await removeWorktree(workspace.parentRepo, workspace.worktreePath);
+      if (!workspace.direct) {
+        await removeWorktreeAny(workspace.sshHost, workspace.parentRepo, workspace.worktreePath);
+      }
       workspaceStore.delete(workspaceId);
       sendToRenderer('workspace:deleted', { workspaceId });
     });
@@ -472,6 +479,9 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
+      if (workspace.sshHost) {
+        throw new Error(`Cannot open IDE for remote workspace. Use VS Code Remote-SSH to connect to ${workspace.sshHost} and open ${workspace.worktreePath}`);
+      }
 
       const configured = configManager.get().preferredIde;
       const preferred = ide ?? configured ?? 'code';
@@ -507,8 +517,15 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
   ipcMain.handle('workspace:diff-files-separated', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
+<<<<<<< HEAD
     if (!workspace) return { committed: [], uncommitted: [] };
     return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo);
+=======
+    if (!workspace) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
+    return getChangedFilesSeparated(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
+>>>>>>> bbdc4082eadb98cf5d7f3c6f342a844e0ab0b7ea
   });
 
   ipcMain.handle(
@@ -528,7 +545,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       if (!workspace) {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
-      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all');
+      await discardFile(workspace.worktreePath, filePath, workspace.parentRepo, scope ?? 'all', workspace.sshHost);
     },
   );
 
@@ -544,20 +561,19 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
 
       const scripts: Array<{ name: string; command: string; source: 'package.json' | 'detected' }> = [];
 
-      // Check package.json
-      const pkgPath = path.join(workspace.worktreePath, 'package.json');
-      if (fs.existsSync(pkgPath)) {
+      const wfs = createWorkspaceFs(workspace.sshHost);
+      const pkgContent = await wfs.readFile(`${workspace.worktreePath}/package.json`);
+      if (pkgContent) {
         try {
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+          const pkg = JSON.parse(pkgContent);
           if (pkg.scripts) {
-            for (const [name, cmd] of Object.entries(pkg.scripts)) {
+            for (const [name] of Object.entries(pkg.scripts)) {
               scripts.push({ name, command: `npm run ${name}`, source: 'package.json' });
             }
           }
         } catch { /* invalid package.json */ }
       }
 
-      // Check for common dev server patterns
       const devIndicators = [
         { file: 'vite.config.ts', name: 'Vite Dev', command: 'npx vite' },
         { file: 'vite.config.js', name: 'Vite Dev', command: 'npx vite' },
@@ -568,7 +584,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
         { file: 'nuxt.config.ts', name: 'Nuxt Dev', command: 'npx nuxi dev' },
       ];
       for (const indicator of devIndicators) {
-        if (fs.existsSync(path.join(workspace.worktreePath, indicator.file))) {
+        if (await wfs.exists(`${workspace.worktreePath}/${indicator.file}`)) {
           const alreadyHas = scripts.some((s) => s.command === indicator.command);
           if (!alreadyHas) {
             scripts.push({ name: indicator.name, command: indicator.command, source: 'detected' });
@@ -587,93 +603,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle(
     'workspace:merge-preview',
     async (_event, { workspaceId, targetBranch }: { workspaceId: string; targetBranch: string }) => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-      const worktreePath = workspace.worktreePath;
-      const parentRepo = workspace.parentRepo;
-
-      // Get merge base
-      let mergeBase: string;
-      try {
-        const { stdout } = await execFileAsync('git', ['merge-base', 'HEAD', targetBranch], {
-          cwd: worktreePath,
-          timeout: 10000,
-        });
-        mergeBase = stdout.trim();
-      } catch {
-        // No common ancestor — full diff
-        mergeBase = '';
-      }
-
-      // Commits ahead
-      let commitsAhead = 0;
-      if (mergeBase) {
-        try {
-          const { stdout } = await execFileAsync('git', ['rev-list', '--count', `${mergeBase}..HEAD`], {
-            cwd: worktreePath,
-            timeout: 10000,
-          });
-          commitsAhead = parseInt(stdout.trim(), 10) || 0;
-        } catch { /* fallback */ }
-      }
-
-      // Files changed + additions/deletions
-      let filesChanged = 0;
-      let additions = 0;
-      let deletions = 0;
-      try {
-        const diffRef = mergeBase || targetBranch;
-        const { stdout } = await execFileAsync(
-          'git', ['diff', '--stat', '--numstat', diffRef],
-          { cwd: worktreePath, timeout: 30000 },
-        );
-        for (const line of stdout.trim().split('\n')) {
-          const parts = line.split('\t');
-          if (parts.length >= 3) {
-            filesChanged++;
-            const a = parseInt(parts[0], 10);
-            const d = parseInt(parts[1], 10);
-            if (!isNaN(a)) additions += a;
-            if (!isNaN(d)) deletions += d;
-          }
-        }
-      } catch { /* fallback */ }
-
-      // Check for conflicts (dry-run merge)
-      const conflicts: string[] = [];
-      let canFastForward = false;
-      try {
-        // Check if fast-forward is possible
-        const { stdout: ffCheck } = await execFileAsync(
-          'git', ['merge-base', '--is-ancestor', targetBranch, 'HEAD'],
-          { cwd: worktreePath, timeout: 10000 },
-        );
-        canFastForward = true;
-      } catch {
-        // Not a fast-forward, check for conflicts via merge-tree
-        try {
-          const branch = workspace.branch;
-          const { stdout: mergeTree } = await execFileAsync(
-            'git', ['merge-tree', '--write-tree', '--no-messages', targetBranch, branch],
-            { cwd: parentRepo, timeout: 30000 },
-          );
-          // If merge-tree succeeds, no conflicts
-        } catch (err: any) {
-          // merge-tree exits non-zero on conflicts, parse stderr
-          if (err.stderr) {
-            const lines = (err.stderr as string).split('\n');
-            for (const line of lines) {
-              if (line.includes('CONFLICT')) {
-                const match = line.match(/CONFLICT.*?: (.+)/);
-                if (match) conflicts.push(match[1]);
-              }
-            }
-          }
-        }
-      }
-
-      return { commitsAhead, filesChanged, additions, deletions, conflicts, canFastForward };
+      return ops.mergePreview(ctx, workspaceId, targetBranch);
     },
   );
 
@@ -695,47 +625,7 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       targetBranch: string;
       draft?: boolean;
     }) => {
-      const workspace = workspaceStore.get(workspaceId);
-      if (!workspace) throw new Error(`Workspace ${workspaceId} not found`);
-
-      // Push branch to remote first
-      try {
-        await execFileAsync('git', ['push', '-u', 'origin', workspace.branch], {
-          cwd: workspace.worktreePath,
-          timeout: 60000,
-          env: extendedEnv(),
-        });
-      } catch (err: any) {
-        throw new Error(`Failed to push branch: ${err.message}`);
-      }
-
-      // Create PR via gh CLI
-      const ghArgs = ['pr', 'create',
-        '--title', title,
-        '--body', body,
-        '--base', targetBranch,
-        '--head', workspace.branch,
-      ];
-      if (draft) ghArgs.push('--draft');
-
-      try {
-        const { stdout } = await execFileAsync('gh', ghArgs, {
-          cwd: workspace.parentRepo,
-          timeout: 30000,
-          env: extendedEnv(),
-        });
-
-        // Parse PR URL from gh output
-        const url = stdout.trim();
-        const prNumberMatch = url.match(/\/pull\/(\d+)/);
-        const number = prNumberMatch ? parseInt(prNumberMatch[1], 10) : 0;
-
-        lifecycleManager.setOutcome(workspaceId, 'ready_to_merge', { force: true });
-
-        return { url, number };
-      } catch (err: any) {
-        throw new Error(`Failed to create PR: ${err.message}`);
-      }
+      return ops.createPr(ctx, workspaceId, title, body, targetBranch, draft);
     },
   );
 
@@ -760,13 +650,8 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       }> = [];
 
       for (const ws of workspaces) {
-        let sizeBytes = 0;
-        if (fs.existsSync(ws.worktreePath)) {
-          try {
-            const { stdout } = await execFileAsync('du', ['-sk', ws.worktreePath], { timeout: 10000 });
-            sizeBytes = (parseInt(stdout.split('\t')[0], 10) || 0) * 1024;
-          } catch { /* fallback: unknown size */ }
-        }
+        const wfs = createWorkspaceFs(ws.sshHost);
+        const sizeBytes = await wfs.diskUsage(ws.worktreePath);
 
         const lastActivity = ws.updatedAt || ws.createdAt;
         const isStale = (now - lastActivity) > STALE_THRESHOLD_MS;
@@ -793,25 +678,25 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
       const workspaces = workspaceStore.list(parentRepo);
       const pruned: string[] = [];
 
-      // Also prune orphaned git worktrees that aren't tracked in our DB
-      try {
-        const gitWorktrees = await listWorktrees(parentRepo);
-        const knownPaths = new Set(workspaceStore.list(parentRepo).map((w) => w.worktreePath));
-        for (const wt of gitWorktrees) {
-          if (!knownPaths.has(wt.path)) {
-            // Orphaned worktree — not in DB
-            try {
-              await removeWorktree(parentRepo, wt.path);
-              pruned.push(`orphan:${wt.branch}`);
-            } catch { /* best-effort */ }
+      // Only prune orphaned git worktrees for local repos (parentRepo exists on disk)
+      if (fs.existsSync(parentRepo)) {
+        try {
+          const gitWorktrees = await listWorktrees(parentRepo);
+          const knownPaths = new Set(workspaceStore.list(parentRepo).map((w) => w.worktreePath));
+          for (const wt of gitWorktrees) {
+            if (!knownPaths.has(wt.path)) {
+              try {
+                await removeWorktreeAny(undefined, parentRepo, wt.path);
+                pruned.push(`orphan:${wt.branch}`);
+              } catch { /* best-effort */ }
+            }
           }
-        }
-      } catch { /* git worktree list failed */ }
+        } catch { /* git worktree list failed */ }
 
-      // Git worktree prune to clean up dead references
-      try {
-        await execFileAsync('git', ['worktree', 'prune'], { cwd: parentRepo, timeout: 10000 });
-      } catch { /* best-effort */ }
+        try {
+          await execFileAsync('git', ['worktree', 'prune'], { cwd: parentRepo, timeout: 10000 });
+        } catch { /* best-effort */ }
+      }
 
       return { pruned };
     },
@@ -822,13 +707,13 @@ export function registerWorkspaceHandlers(ctx: IpcContext): void {
   ipcMain.handle('workspace:discard-all', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-    await discardAll(workspace.worktreePath);
+    await discardAll(workspace.worktreePath, workspace.sshHost);
   });
 
   ipcMain.handle('workspace:full-diff', async (_event, { workspaceId }: { workspaceId: string }) => {
     const workspace = workspaceStore.get(workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-    return getFullDiff(workspace.worktreePath, workspace.parentRepo);
+    return getFullDiff(workspace.worktreePath, workspace.parentRepo, workspace.sshHost);
   });
 
   ipcMain.handle('workspace:git-state', async (_event, { workspaceId }: { workspaceId: string }) => {

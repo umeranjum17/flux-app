@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Zap, GitBranch } from 'lucide-react';
 import { useAgentStore } from '../../stores/agent';
 import { useUiStore } from '../../stores/ui';
 import { useWorkspaceStore } from '../../stores/workspace';
 import type { Workspace } from '../../lib/ipc-api';
 import { createFluxBranchName, startWorkspaceChat } from '../../lib/workspace-state';
+
+type WorkspaceMode = 'isolated' | 'direct';
 
 interface CreateWorkspaceDialogProps {
   onClose: () => void;
@@ -24,6 +26,7 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   const cwd = useUiStore((s) => s.cwd);
   const openProjects = useUiStore((s) => s.openProjects);
 
+  const [mode, setMode] = useState<WorkspaceMode>('isolated');
   const [name, setName] = useState('');
   const [branch, setBranch] = useState(() => createDefaultBranchName());
   const [agentId, setAgentId] = useState(selectedAgentId);
@@ -40,20 +43,31 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
   const models = dynamicModels.length > 0 ? dynamicModels : (selectedAgent?.models ?? []).map((m) => ({ id: m, name: m }));
 
   const handleCreate = async () => {
-    if (!name.trim() || !branch.trim() || !prompt.trim()) return;
+    if (!name.trim() || !prompt.trim()) return;
+    if (mode === 'isolated' && !branch.trim()) return;
     setCreating(true);
     setError(null);
     let workspace: Workspace | null = null;
 
     try {
-      workspace = await window.api.invoke('workspace:create', {
-        name: name.trim(),
-        parentRepo: parentRepo,
-        branch: branch.trim(),
-        agentId,
-        model,
-        thinking: selectedThinking,
-      }) as Workspace;
+      if (mode === 'direct') {
+        workspace = await window.api.invoke('workspace:create-direct', {
+          name: name.trim(),
+          parentRepo: parentRepo,
+          agentId,
+          model,
+          thinking: selectedThinking,
+        }) as Workspace;
+      } else {
+        workspace = await window.api.invoke('workspace:create', {
+          name: name.trim(),
+          parentRepo: parentRepo,
+          branch: branch.trim(),
+          agentId,
+          model,
+          thinking: selectedThinking,
+        }) as Workspace;
+      }
 
       useWorkspaceStore.getState().addWorkspace(workspace);
       useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
@@ -102,6 +116,34 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
 
         {/* Form */}
         <div className="px-5 py-4 space-y-4">
+          {/* Mode selector */}
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMode('isolated')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                mode === 'isolated'
+                  ? 'bg-bg-hover text-text-primary'
+                  : 'bg-bg-secondary text-text-tertiary hover:text-text-secondary'
+              }`}
+            >
+              <GitBranch size={12} />
+              Isolated
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('direct')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                mode === 'direct'
+                  ? 'bg-bg-hover text-text-primary'
+                  : 'bg-bg-secondary text-text-tertiary hover:text-text-secondary'
+              }`}
+            >
+              <Zap size={12} />
+              Direct
+            </button>
+          </div>
+
           <Field label="Name">
             <input
               value={name}
@@ -112,13 +154,15 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
             />
           </Field>
 
-          <Field label="Branch">
-            <input
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              className="input-field font-mono text-xs"
-            />
-          </Field>
+          {mode === 'isolated' && (
+            <Field label="Branch">
+              <input
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                className="input-field font-mono text-xs"
+              />
+            </Field>
+          )}
 
           {projectOptions.length > 1 && (
             <Field label="Project">
@@ -169,6 +213,12 @@ export function CreateWorkspaceDialog({ onClose }: CreateWorkspaceDialogProps) {
               className="input-field resize-none"
             />
           </Field>
+
+          {mode === 'direct' && (
+            <div className="text-xs text-text-tertiary bg-bg-secondary border border-border/50 rounded-lg px-3 py-2">
+              Works on the current branch. No worktree or merge needed.
+            </div>
+          )}
 
           {error && (
             <div className="text-xs text-error bg-error/10 border border-error/30 rounded-lg px-3 py-2">

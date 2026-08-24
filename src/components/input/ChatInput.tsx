@@ -14,7 +14,7 @@ import { FileMention } from './FileMention';
 import { ModelSelectorDropdown } from './ModelSelectorDropdown';
 import type { FluxConfig, Session } from '../../lib/ipc-api';
 import type { FileAttachment, TaskMode, ThinkingLevel } from '../../lib/types';
-import { createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
+import { createDirectWorkspaceAndChat, createWorkspaceAndChat, startWorkspaceChat } from '../../lib/workspace-state';
 import { isTerminalOutcome } from '../../lib/workspace-status';
 import { getLatestPlanText, startPlanImplementation, syncSelectionToTask } from '../../lib/plan';
 import { ModeDropdown, nextTaskMode } from './ModeDropdown';
@@ -325,7 +325,11 @@ export function ChatInput({ focused }: ChatInputProps) {
               attachments,
             });
           } else {
-            await createWorkspaceAndChat(text, {
+            const config = await window.api.invoke('config:get') as FluxConfig;
+            const createWorkspace = config.quickCreateDirect
+              ? createDirectWorkspaceAndChat
+              : createWorkspaceAndChat;
+            await createWorkspace(text, {
               agentId: currentSelectedAgentId,
               model: currentSelectedModel,
               mode: effectiveMode,

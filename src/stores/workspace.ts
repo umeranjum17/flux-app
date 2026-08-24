@@ -10,9 +10,12 @@ import type {
   WorkspaceOperation,
   WorkspaceDiffScope,
   WorkspaceDiffSections,
+  Session,
+  SessionMessage,
 } from '../lib/ipc-api';
 import type { SystemActivity } from '../lib/types';
 import { appendSystemActivity } from '../lib/system-activities';
+import { restoreSessionMessage } from '../lib/session-messages';
 
 interface WorkspaceState {
   workspaces: Map<string, Workspace>;
@@ -69,6 +72,11 @@ interface WorkspaceState {
   setWorkspaceSessions(workspaceId: string, sessions: WorkspaceSession[]): void;
   addWorkspaceSession(workspaceId: string, session: WorkspaceSession): void;
   loadWorkspaceSessions(workspaceId: string): Promise<void>;
+
+  // Lazy session loading
+  sessionsLoadedFor: Set<string>;
+  sessionsLoadingFor: Set<string>;
+  ensureSessionsLoaded(workspaceId: string): Promise<void>;
 }
 
 let changesPanelRequestVersion = 0;
@@ -113,6 +121,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     workspaceActivities: new Map(),
     workspaceOperations: new Map(),
     workspaceSessions: new Map(),
+    sessionsLoadedFor: new Set(),
+    sessionsLoadingFor: new Set(),
     changesPanelOpen: false,
     changesPanelWorkspaceId: null,
     changesPanelFiles: [],
@@ -163,6 +173,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         state.workspaceActivities.delete(id);
         state.workspaceOperations.delete(id);
         state.workspaceSessions.delete(id);
+        state.sessionsLoadedFor.delete(id);
+        state.sessionsLoadingFor.delete(id);
         clearWorkspaceUiState(state, id);
       });
     },
@@ -408,6 +420,65 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         });
       } catch {
         // Failed to load workspace sessions
+      }
+    },
+
+    async ensureSessionsLoaded(workspaceId) {
+      const { sessionsLoadedFor, sessionsLoadingFor } = get();
+      if (sessionsLoadedFor.has(workspaceId) || sessionsLoadingFor.has(workspaceId)) return;
+
+      set((state) => { state.sessionsLoadingFor.add(workspaceId); });
+
+      try {
+        const workspace = get().workspaces.get(workspaceId);
+        if (!workspace) return;
+
+        const sessions = await window.api.invoke('workspace:list-chats', { workspaceId }) as WorkspaceSession[];
+        set((state) => { state.workspaceSessions.set(workspaceId, sessions); });
+
+        // Lazily import chat/agent stores to avoid circular deps at module level
+        const { useChatStore } = await import('./chat');
+        const { useAgentStore, normalizeClaudeCodeModel } = await import('./agent');
+        const chatStore = useChatStore.getState();
+        const thinking = workspace.thinking ?? useAgentStore.getState().selectedThinking;
+
+        for (const workspaceSession of sessions) {
+          const existingTask = Array.from(chatStore.tasks.values()).find(
+            (task) => task.workspaceId === workspace.id && task.sessionId === workspaceSession.sessionId,
+          );
+          if (existingTask) continue;
+
+          const session = await window.api.invoke('sessions:get', { id: workspaceSession.sessionId }) as Session | null;
+          if (!session) continue;
+
+          const messages = await window.api.invoke('sessions:messages', { id: workspaceSession.sessionId }) as SessionMessage[];
+          const taskId = workspaceSession.taskId ?? crypto.randomUUID();
+          const restoredMessages = messages
+            .map((message) => restoreSessionMessage(message))
+            .filter((message): message is NonNullable<typeof message> => !!message);
+
+          chatStore.createTask({
+            id: taskId,
+            title: workspaceSession.label || session.title || workspace.name,
+            agentId: (session.agentId || workspace.agentId) as any,
+            model: normalizeClaudeCodeModel(session.model || workspace.model, session.agentId || workspace.agentId),
+            mode: session.mode,
+            thinking,
+            cwd: workspace.worktreePath,
+            sessionId: session.id,
+            workspaceId: workspace.id,
+          });
+
+          chatStore.restoreMessages(taskId, restoredMessages);
+          chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
+        }
+
+        set((state) => {
+          state.sessionsLoadedFor.add(workspaceId);
+          state.sessionsLoadingFor.delete(workspaceId);
+        });
+      } catch {
+        set((state) => { state.sessionsLoadingFor.delete(workspaceId); });
       }
     },
   })),

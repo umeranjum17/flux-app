@@ -14,14 +14,14 @@ import { TabBar } from './TabBar';
 import { BottomPanel } from './BottomPanel';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { useUiStore } from '../../stores/ui';
-import { useAgentStore, normalizeClaudeCodeModel } from '../../stores/agent';
+import { useAgentStore } from '../../stores/agent';
 import { useChatStore } from '../../stores/chat';
 import { useSessionStore } from '../../stores/session';
 import { toast } from 'sonner';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { applyTheme } from '../../lib/theme';
 import type { AgentId, DetectedAgent, TaskMode, ThinkingLevel } from '../../lib/types';
-import type { FluxConfig, Session, EnvironmentInfo, Workspace, SessionMessage, WorkspaceSession, WorkspaceOperation } from '../../lib/ipc-api';
+import type { FluxConfig, Session, EnvironmentInfo, Workspace, WorkspaceOperation } from '../../lib/ipc-api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { WorkspaceActionBar } from '../workspace/WorkspaceActionBar';
@@ -32,7 +32,7 @@ import { LinkWorkspaceDialog } from '../workspace/LinkWorkspaceDialog';
 import { QuickOpen } from '../dialogs/QuickOpen';
 import { SearchFiles } from '../dialogs/SearchFiles';
 import { applyWorkspaceDeleted, connectToSshWorkspace, createRecentProject, rememberRecentProject } from '../../lib/workspace-state';
-import { restoreSessionMessage } from '../../lib/session-messages';
+
 import { useWorkspaceGroupStore } from '../../stores/workspace-group';
 
 
@@ -89,6 +89,9 @@ export function AppShell() {
   // Terminal actions are now exposed via useTerminalStore (no ref needed)
 
   const hasTasks = tasks.size > 0;
+  const sessionsLoading = useWorkspaceStore((s) =>
+    s.activeWorkspaceId ? s.sessionsLoadingFor.has(s.activeWorkspaceId) : false,
+  );
   // Only subscribe to the specific workspace being merged — avoids re-rendering
   // AppShell on every workspace update.
   const mergingWorkspace = useWorkspaceStore((s) => {
@@ -179,7 +182,7 @@ export function AppShell() {
         try {
           const envInfo = await window.api.invoke('env:detect') as EnvironmentInfo;
           if (envInfo.runtime !== 'local') {
-            useUiStore.getState().setEnvironment(envInfo.runtime);
+            useUiStore.setState({ environment: envInfo.runtime });
           }
         } catch (err) {
           console.error('Environment detection failed:', err);
@@ -206,47 +209,9 @@ export function AppShell() {
     if (projects.length === 0) return;
     let cancelled = false;
 
-    const restoreWorkspaceChats = async (workspace: Workspace, sessions: WorkspaceSession[]) => {
-      const chatStore = useChatStore.getState();
-      const thinking = workspace.thinking ?? useAgentStore.getState().selectedThinking;
-
-      for (const workspaceSession of sessions) {
-        const existingTask = Array.from(chatStore.tasks.values()).find(
-          (task) => task.workspaceId === workspace.id && task.sessionId === workspaceSession.sessionId,
-        );
-        if (existingTask) continue;
-
-        const session = await window.api.invoke('sessions:get', { id: workspaceSession.sessionId }) as Session | null;
-        if (!session || cancelled) continue;
-
-        const messages = await window.api.invoke('sessions:messages', { id: workspaceSession.sessionId }) as SessionMessage[];
-        if (cancelled) return;
-
-        const taskId = workspaceSession.taskId ?? crypto.randomUUID();
-        const restoredMessages = messages
-          .map((message) => restoreSessionMessage(message))
-          .filter((message): message is NonNullable<typeof message> => !!message);
-
-        chatStore.createTask({
-          id: taskId,
-          title: workspaceSession.label || session.title || workspace.name,
-          agentId: (session.agentId || workspace.agentId) as any,
-          model: normalizeClaudeCodeModel(session.model || workspace.model, session.agentId || workspace.agentId),
-          mode: session.mode,
-          thinking,
-          cwd: workspace.worktreePath,
-          sessionId: session.id,
-          workspaceId: workspace.id,
-        });
-
-        chatStore.restoreMessages(taskId, restoredMessages);
-
-        chatStore.setTaskStatus(taskId, workspace.status === 'error' ? 'error' : 'done');
-      }
-    };
-
     (async () => {
       try {
+        // Phase 1: Load workspace metadata from DB and render immediately.
         const allWorkspaces: Workspace[] = [];
         for (const repo of projects) {
           const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
@@ -256,39 +221,44 @@ export function AppShell() {
 
         useWorkspaceStore.getState().setWorkspaces(allWorkspaces);
 
-        // Sync outcomes and reset stale statuses before restoring sessions.
-        // This updates the backend DB and emits workspace:status/outcome events.
-        for (const repo of projects) {
+        // Eagerly restore sessions for the active workspace so the user sees
+        // their chat history right away.
+        const activeId = useWorkspaceStore.getState().activeWorkspaceId;
+        if (activeId) {
+          await useWorkspaceStore.getState().ensureSessionsLoaded(activeId);
+        }
+
+        // Phase 2: Background — sync git outcomes, refresh data, load groups.
+        // The existing workspace:status/outcome event listeners will
+        // progressively update the UI as the backend processes each workspace.
+        if (cancelled) return;
+        void (async () => {
           try {
-            await window.api.invoke('workspace:sync-outcomes', { parentRepo: repo });
-          } catch (err) {
-            console.warn('[AppShell] Failed to sync workspace outcomes:', err);
+            for (const repo of projects) {
+              try {
+                await window.api.invoke('workspace:sync-outcomes', { parentRepo: repo });
+              } catch (err) {
+                console.warn('[AppShell] Failed to sync workspace outcomes:', err);
+              }
+            }
+            if (cancelled) return;
+
+            // Re-fetch workspaces after sync for fresh status/outcome data.
+            const freshWorkspaces: Workspace[] = [];
+            for (const repo of projects) {
+              const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
+              if (cancelled) return;
+              freshWorkspaces.push(...result);
+            }
+            useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
+            await useWorkspaceStore.getState().loadWorkspaceOperations();
+            await Promise.all(
+              freshWorkspaces.map((workspace) => useWorkspaceGroupStore.getState().loadGroupForWorkspace(workspace.id)),
+            );
+          } catch {
+            // Background sync is best-effort.
           }
-        }
-
-        // Re-fetch workspaces after sync so we have fresh status/outcome data.
-        // Without this, restoreWorkspaceChats uses stale pre-sync data which can
-        // cause tasks to be created with incorrect status (e.g. 'running' instead
-        // of 'idle') after an app crash.
-        const freshWorkspaces: Workspace[] = [];
-        for (const repo of projects) {
-          const result = await window.api.invoke('workspace:list', { parentRepo: repo }) as Workspace[];
-          if (cancelled) return;
-          freshWorkspaces.push(...result);
-        }
-        useWorkspaceStore.getState().setWorkspaces(freshWorkspaces);
-        await useWorkspaceStore.getState().loadWorkspaceOperations();
-        await Promise.all(
-          freshWorkspaces.map((workspace) => useWorkspaceGroupStore.getState().loadGroupForWorkspace(workspace.id)),
-        );
-
-        for (const workspace of freshWorkspaces) {
-          const sessions = await window.api.invoke('workspace:list-chats', { workspaceId: workspace.id }) as WorkspaceSession[];
-          if (cancelled) return;
-
-          useWorkspaceStore.getState().setWorkspaceSessions(workspace.id, sessions);
-          await restoreWorkspaceChats(workspace, sessions);
-        }
+        })();
       } catch {
         // Workspace restore is best-effort.
       }
@@ -298,6 +268,13 @@ export function AppShell() {
       cancelled = true;
     };
   }, [cwd, openProjects]);
+
+  // Lazily load chat sessions when the active workspace changes
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      void useWorkspaceStore.getState().ensureSessionsLoaded(activeWorkspaceId);
+    }
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     const unsub = window.api.on('workspace:status', (data: unknown) => {
@@ -792,7 +769,7 @@ export function AppShell() {
         await rememberRecentProject(project);
         return;
       } catch {
-        useUiStore.getState().setOverlay('ssh-connect');
+        useUiStore.getState().setOverlay('connect-remote');
         return;
       }
     }
@@ -1017,7 +994,15 @@ export function AppShell() {
                         {explorerOpen && <FileExplorer />}
                         {changesPanelOpen && <ChangesPanel />}
                         <ErrorBoundary>
-                          {hasTasks ? <MessageList /> : <WelcomeScreen onOpenProject={openProject} />}
+                          {hasTasks ? (
+                            <MessageList />
+                          ) : sessionsLoading ? (
+                            <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
+                              Restoring sessions…
+                            </div>
+                          ) : (
+                            <WelcomeScreen onOpenProject={openProject} />
+                          )}
                         </ErrorBoundary>
                         <div className="shrink-0">
                           <div className="mx-auto w-full max-w-[1024px] px-5 pb-2 pt-2">

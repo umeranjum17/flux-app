@@ -11,6 +11,12 @@ function basename(value: string): string {
   return value.split('/').pop() || value.split('\\').pop() || value;
 }
 
+/** Returns true if a workspace's SSH host is connected (or it's a local workspace). */
+export function isWorkspaceSshAvailable(ws: Workspace): boolean {
+  if (!ws.sshHost) return true;
+  return useUiStore.getState().connectedSshHosts.has(ws.sshHost);
+}
+
 export function createRecentProject(
   path: string,
   options?: { isSSH?: boolean; sshHost?: string | null; lastOpened?: number },
@@ -39,21 +45,13 @@ export async function connectToSshWorkspace(
 
   const resolvedHost = result.host ?? host;
   const resolvedCwd = result.cwd ?? remoteCwd ?? '';
-  const ui = useUiStore.getState();
-  ui.setSshHost(resolvedHost);
-  ui.setSshConnected(true);
-  ui.setCwd(resolvedCwd);
+  useUiStore.getState().connectSsh(resolvedHost, resolvedCwd);
   return { host: resolvedHost, cwd: resolvedCwd };
 }
 
 export async function disconnectFromSshWorkspace(): Promise<{ cwd?: string }> {
   const result = await window.api.invoke('ssh:disconnect') as { cwd?: string };
-  const ui = useUiStore.getState();
-  ui.setSshHost(null);
-  ui.setSshConnected(false);
-  if (result?.cwd) {
-    ui.setCwd(result.cwd);
-  }
+  useUiStore.getState().disconnectSsh(result?.cwd || useUiStore.getState().cwd);
   return result;
 }
 
@@ -189,13 +187,16 @@ export async function createEmptyWorkspace(opts: {
   mode?: TaskMode;
   thinking?: ThinkingLevel;
   cwd: string;
+  sshHost?: string;
 }): Promise<Workspace> {
+  const effectiveSshHost = opts.sshHost ?? useUiStore.getState().sshHost ?? undefined;
   const workspace = await window.api.invoke('workspace:create-quick', {
     parentRepo: opts.cwd,
     agentId: opts.agentId,
     model: opts.model,
     mode: opts.mode,
     thinking: opts.thinking,
+    sshHost: effectiveSshHost,
   }) as Workspace;
 
   useWorkspaceStore.getState().addWorkspace(workspace);
@@ -344,6 +345,10 @@ export async function startWorkspaceChat(
 export async function startWorkspaceMerge(
   opts: StartWorkspaceMergeOptions,
 ): Promise<{ taskId: string; session: Session }> {
+  if (opts.workspace.direct) {
+    throw new Error('Direct workspaces cannot be merged — changes are already on the current branch.');
+  }
+
   // If the workspace still has an auto-generated branch, try to rename it
   // from its commit history so the merge commit message is human-friendly.
   let workspace = opts.workspace;
@@ -359,7 +364,6 @@ export async function startWorkspaceMerge(
           workspaceId: workspace.id,
           newBranch,
           newName: name,
-          newWorktreeName: newBranch.replace(/^flux\//, ''),
         }) as Workspace | undefined;
         if (renamed) {
           useWorkspaceStore.getState().updateWorkspace(workspace.id, {
@@ -376,7 +380,7 @@ export async function startWorkspaceMerge(
   }
 
   const taskId = crypto.randomUUID();
-  const agentId = opts.agentId ?? workspace.actAgentId ?? workspace.agentId as AgentId;
+  const agentId = (opts.agentId ?? workspace.actAgentId ?? workspace.agentId) as AgentId;
   const model = opts.model ?? workspace.actModel ?? workspace.model;
   const thinking = opts.thinking ?? workspace.actThinking ?? workspace.thinking ?? 'medium';
   const prompt = buildWorkspaceMergeTaskPrompt(workspace, opts.targetBranch, opts.squash);
@@ -436,11 +440,45 @@ export async function createWorkspaceAndChat(
   // The agent can still refine via `.context/state.json` workspace_name at completion.
   const branch = createFluxBranchName(prompt);
   const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
+  const effectiveSshHost = useUiStore.getState().sshHost ?? undefined;
 
   const workspace = await window.api.invoke('workspace:create', {
     name: deriveWorkspaceNameFromPrompt(prompt),
     parentRepo: effectiveParentRepo,
     branch,
+    agentId: opts.agentId,
+    model: opts.model,
+    mode: opts.mode,
+    thinking: opts.thinking,
+    sshHost: effectiveSshHost,
+  }) as Workspace;
+
+  useWorkspaceStore.getState().addWorkspace(workspace);
+  useWorkspaceStore.getState().setActiveWorkspace(workspace.id);
+
+  const { taskId, session } = await startWorkspaceChat({
+    workspace,
+    prompt,
+    agentId: opts.agentId,
+    model: opts.model,
+    mode: opts.mode,
+    thinking: opts.thinking,
+    images: opts.images,
+    attachments: opts.attachments,
+  });
+
+  return { workspace, taskId, session };
+}
+
+export async function createDirectWorkspaceAndChat(
+  prompt: string,
+  opts: Omit<CreateWorkspaceAndChatOptions, 'parentRepo'> & { parentRepo?: string },
+): Promise<{ workspace: Workspace; taskId: string; session: Session }> {
+  const effectiveParentRepo = opts.parentRepo ?? opts.cwd;
+
+  const workspace = await window.api.invoke('workspace:create-direct', {
+    name: deriveWorkspaceNameFromPrompt(prompt),
+    parentRepo: effectiveParentRepo,
     agentId: opts.agentId,
     model: opts.model,
     mode: opts.mode,

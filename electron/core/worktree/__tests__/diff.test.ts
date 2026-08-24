@@ -216,4 +216,19 @@ describe('worktree diff helpers', () => {
 
     expect(promiseCalls).toContain(`${worktreePath}::checkout HEAD -- tracked.ts`);
   });
+
+  it('rejects discard paths that escape the worktree', async () => {
+    const parentRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-parent-'));
+    const worktreePath = fs.mkdtempSync(path.join(os.tmpdir(), 'flux-worktree-'));
+
+    mockGitCalls(new Map<string, string | Error>([
+      [`${parentRepo}::rev-parse HEAD`, 'parent-sha\n'],
+      [`${parentRepo}::rev-parse --abbrev-ref HEAD`, 'master\n'],
+      [`${worktreePath}::symbolic-ref --quiet --short refs/remotes/origin/HEAD`, new Error('missing remote HEAD')],
+      [`${worktreePath}::merge-base parent-sha HEAD`, 'base-sha\n'],
+    ]));
+
+    const { discardFile } = await import('../diff');
+    await expect(discardFile(worktreePath, '../outside.txt', parentRepo)).rejects.toThrow('escapes worktree');
+  });
 });

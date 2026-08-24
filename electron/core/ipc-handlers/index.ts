@@ -40,6 +40,7 @@ import { RemoteAuthService } from '../remote/auth-service';
 import { RemoteControlService } from '../remote/control-service';
 import { MdnsAdvertiser } from '../remote/mdns';
 import { PROTOCOL_VERSION, REMOTE_SERVER_PORT, RemoteControlServer } from '../remote/server';
+import { RemoteConnectionManager } from '../remote/connection-manager';
 
 console.log('[ipc-handlers] module loaded');
 
@@ -143,8 +144,6 @@ function buildRendererActivity(channel: string, payload: unknown) {
 }
 
 let currentCwd = app?.getPath('home') ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
-let localCwd = currentCwd;
-let sshHost: string | null = null;
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const sessionStore = new SessionStore();
@@ -154,6 +153,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   const workspaceStore = new WorkspaceStore();
   const workspaceGroupStore = new WorkspaceGroupStore();
   const remoteEventBus = new RemoteEventBus();
+  const remoteConnection = new RemoteConnectionManager(currentCwd);
 
   const sendToRenderer = (channel: string, payload: unknown): boolean => {
     remoteEventBus.publish(channel, payload);
@@ -241,6 +241,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'terminal:get-profiles',
     'terminal:list',
     'ssh:test',
+    'ssh:listdirs',
     'ssh:connect',
     'ssh:disconnect',
     'workspace:list',
@@ -346,10 +347,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     cachedRateLimits,
     getCurrentCwd: () => currentCwd,
     setCurrentCwd: (cwd) => { currentCwd = cwd; },
-    getLocalCwd: () => localCwd,
-    setLocalCwd: (cwd) => { localCwd = cwd; },
-    getSshHost: () => sshHost,
-    setSshHost: (host) => { sshHost = host; },
+    remoteConnection,
     sendToRenderer,
   };
 
@@ -394,10 +392,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     cachedRateLimits,
     getCurrentCwd: () => currentCwd,
     setCurrentCwd: (cwd) => { currentCwd = cwd; },
-    getLocalCwd: () => localCwd,
-    setLocalCwd: (cwd) => { localCwd = cwd; },
-    getSshHost: () => sshHost,
-    setSshHost: (host) => { sshHost = host; },
+    remoteConnection,
     requireFields,
     toRemoteShellPath,
     expandLocalHomePath,

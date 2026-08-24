@@ -154,8 +154,16 @@ export class WorkspaceLifecycleManager {
             const fresh = this.workspaceStore.get(ws.id);
             if (!fresh) return;
 
-            // Validate worktree directory exists on disk
-            if (!fs.existsSync(fresh.worktreePath)) {
+            // Validate worktree directory exists on disk (skip for direct workspaces)
+            // Remote worktree paths don't exist locally — skip fs check for SSH workspaces
+            if (fresh.sshHost) {
+              // Cannot validate remote worktree on startup (host may be offline).
+              // Skip sync — outcome will be validated when the host is reconnected.
+              return;
+            }
+
+            // Validate worktree directory exists on disk (skip for direct workspaces)
+            if (!fresh.direct && !fs.existsSync(fresh.worktreePath)) {
               console.warn(`[lifecycle:reconcile] Worktree missing for ${ws.id}: ${fresh.worktreePath}`);
               if (fresh.outcome === 'in_progress') {
                 // No commits and worktree gone — auto-archive
@@ -188,8 +196,9 @@ export class WorkspaceLifecycleManager {
       );
     }
 
-    // Phase 4: Git worktree prune to clean up dead references
-    const parentRepos = new Set(allWorkspaces.map(ws => ws.parentRepo));
+    // Phase 4: Git worktree prune to clean up dead references (local repos only)
+    const localWorkspaces = allWorkspaces.filter(ws => !ws.sshHost);
+    const parentRepos = new Set(localWorkspaces.map(ws => ws.parentRepo));
     for (const repo of parentRepos) {
       try {
         const { execFile: execFileCb } = await import('child_process');

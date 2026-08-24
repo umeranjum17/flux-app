@@ -96,7 +96,7 @@ function PanelFilesTab() {
   const handleOpenFolder = async () => {
     const sshConnected = useUiStore.getState().sshConnected;
     if (sshConnected) {
-      useUiStore.getState().setOverlay('remote-folder-picker');
+      useUiStore.getState().setOverlay('connect-remote');
       return;
     }
     const picked = await window.api.invoke('cwd:pick') as string | null;

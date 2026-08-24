@@ -33,11 +33,18 @@ export interface FluxConfig {
   subagentModel?: string;
   defaultThinking: ThinkingLevel;
   defaultMode: 'plan' | 'act';
+  quickCreateDirect?: boolean;
   qualityGateCommands: string[];
   qualityGateMaxRetries: number;
   customAgentPaths: Record<string, string>;
   recentProjects: RecentProject[];
   recentSshHosts: RecentSshHost[];
   zoomLevel?: number;
+  defaultMergeAgent?: string;
+  defaultMergeModel?: string;
+  defaultMergeThinking?: ThinkingLevel;
   repoMap: RepoMapConfig;
+  defaultMergeAgent?: string;
+  defaultMergeModel?: string;
+  defaultMergeThinking?: ThinkingLevel;
 }

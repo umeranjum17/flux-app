@@ -58,7 +58,7 @@ describe('addRecentProject', () => {
     expect(useUiStore.getState().recentProjects).toEqual([project]);
   });
 
-  it('deduplicates by path, keeping the newer entry at front', () => {
+  it('deduplicates by project identity, keeping the newer entry at front', () => {
     const old = { path: '/a', name: 'a', lastOpened: 1 };
     const updated = { path: '/a', name: 'a', lastOpened: 2 };
     useUiStore.getState().addRecentProject(old);
@@ -66,6 +66,22 @@ describe('addRecentProject', () => {
     const list = useUiStore.getState().recentProjects;
     expect(list).toHaveLength(1);
     expect(list[0].lastOpened).toBe(2);
+  });
+
+  it('keeps local and SSH entries when they share the same path', () => {
+    useUiStore.getState().addRecentProject({ path: '/repo', name: 'repo', lastOpened: 1 });
+    useUiStore.getState().addRecentProject({
+      path: '/repo',
+      name: 'repo',
+      lastOpened: 2,
+      isSSH: true,
+      sshHost: 'user@host',
+    });
+
+    const list = useUiStore.getState().recentProjects;
+    expect(list).toHaveLength(2);
+    expect(list[0]).toMatchObject({ path: '/repo', isSSH: true, sshHost: 'user@host' });
+    expect(list[1]).toMatchObject({ path: '/repo', isSSH: undefined });
   });
 
   it('caps the list at 10 entries', () => {
@@ -78,20 +94,24 @@ describe('addRecentProject', () => {
   });
 });
 
-describe('setSshConnected', () => {
-  it('sets sshConnected true and environment to ssh', () => {
-    useUiStore.getState().setSshConnected(true);
-    const { sshConnected, environment } = useUiStore.getState();
+describe('connectSsh / disconnectSsh', () => {
+  it('connectSsh sets host, connected, environment, and cwd', () => {
+    useUiStore.getState().connectSsh('user@host', '/remote/path');
+    const { sshHost, sshConnected, environment, cwd } = useUiStore.getState();
+    expect(sshHost).toBe('user@host');
     expect(sshConnected).toBe(true);
     expect(environment).toBe('ssh');
+    expect(cwd).toBe('/remote/path');
   });
 
-  it('sets sshConnected false and environment to local', () => {
-    useUiStore.setState({ sshConnected: true, environment: 'ssh' });
-    useUiStore.getState().setSshConnected(false);
-    const { sshConnected, environment } = useUiStore.getState();
+  it('disconnectSsh resets ssh state and restores local cwd', () => {
+    useUiStore.getState().connectSsh('user@host', '/remote/path');
+    useUiStore.getState().disconnectSsh('/local/path');
+    const { sshHost, sshConnected, environment, cwd } = useUiStore.getState();
+    expect(sshHost).toBeNull();
     expect(sshConnected).toBe(false);
     expect(environment).toBe('local');
+    expect(cwd).toBe('/local/path');
   });
 });
 

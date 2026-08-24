@@ -97,6 +97,10 @@ export interface Workspace {
   actAgentId?: AgentId;
   actModel?: string;
   actThinking?: ThinkingLevel;
+  /** When true, the workspace operates directly on the parent repo (no worktree/branch). */
+  direct?: boolean;
+  /** SSH host for remote workspaces. Undefined = local workspace. */
+  sshHost?: string;
   status: WorkspaceStatus;
   outcome: WorkspaceOutcome;
   createdAt: number;

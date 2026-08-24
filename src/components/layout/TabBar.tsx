@@ -33,8 +33,10 @@ export function TabBar() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
 
-  const { selectedAgentId, selectedModel, selectedThinking } = useAgentStore();
-  const { mode } = useUiStore();
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectedModel = useAgentStore((s) => s.selectedModel);
+  const selectedThinking = useAgentStore((s) => s.selectedThinking);
+  const mode = useUiStore((s) => s.mode);
 
   // Filter tabs: show only chats belonging to the active workspace,
   // or standalone chats when no workspace is selected
